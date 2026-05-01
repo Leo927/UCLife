@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
+          path: lpc
+          fetch-depth: 1
+          sparse-checkout: spritesheets
+
+      # Vite dev plugin resolves LPC sprites from this exact sibling path
+      - name: Symlink LPC to expected sibling path
+        run: ln -s "$GITHUB_WORKSPACE/lpc" "$GITHUB_WORKSPACE/../Universal-LPC-Spritesheet-Character-Generator"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Start dev server
+        run: npm run dev &
+
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:5173 --timeout 60000
+
+      - run: node scripts/check.mjs
+      - run: node scripts/check-saveload.mjs
+      - run: node scripts/check-scene-swap.mjs
+      - run: node scripts/check-flights.mjs
+      - run: node scripts/check-map.mjs
+      - run: node scripts/check-chatbubble.mjs
+      - run: node scripts/check-systemmenu.mjs
+      - run: node scripts/check-sprite-ingame.mjs
+      - run: node scripts/check-portrait.mjs
+      - run: node scripts/check-portrait-modals.mjs
+      - run: node scripts/check-portrait-enlarge.mjs
+      - run: node scripts/check-sprite.mjs
+      - run: npx tsx scripts/survive.ts
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-screenshots
+          path: scripts/out/
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
+          path: lpc
+          fetch-depth: 1
+          sparse-checkout: spritesheets
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # GitHub Pages serves the site under /<repo-name>/
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_LPC_BASE_URL: /${{ github.event.repository.name }}/lpc
+
+      - name: Copy LPC sprites into dist
+        run: mkdir -p dist/lpc && cp -r lpc/spritesheets/. dist/lpc/
+
+      - uses: actions/configure-pages@v4
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
