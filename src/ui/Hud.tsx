@@ -51,7 +51,7 @@ export function Hud() {
           </button>
         )}
         <button
-          className="hud-system"
+          className="hud-map"
           onClick={toggleMap}
           title="地图"
           aria-label="地图"
