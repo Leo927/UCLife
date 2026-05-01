@@ -73,8 +73,8 @@ const afterFly1 = await page.evaluate(async () => {
 })
 console.log('After leg 1 (startTown → zumCity):', afterFly1)
 const TILE = 32
-const expectedX = 720 * TILE
-const expectedY = 444 * TILE
+const expectedX = 150 * TILE
+const expectedY = 142 * TILE
 const leg1Ok =
   afterFly1.activeId === 'zumCity' &&
   afterFly1.playerPos?.x === expectedX &&

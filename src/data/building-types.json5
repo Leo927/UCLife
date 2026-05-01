@@ -1,0 +1,216 @@
+{
+  // ── OPEN FLOOR: commercial ──────────────────────────────────────────────
+
+  bar: {
+    labelZh: '酒吧',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'bartender', role: 'supervisor', labelZh: '吧台' },
+        { type: 'bar_seat', role: 'customer_row', count: 5 },
+        { type: 'queue_point', role: 'queue' },
+      ],
+    },
+  },
+
+  hrOffice: {
+    labelZh: '市民人事局',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'city_hr_clerk', role: 'supervisor', kind: 'hr', labelZh: '招聘窗口' },
+      ],
+    },
+  },
+
+  realtor: {
+    labelZh: '房产中介',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'realtor', role: 'supervisor', kind: 'manager', labelZh: '中介台' },
+      ],
+    },
+  },
+
+  // South exit (primary), north entry (extra) for one-way patron traffic.
+  shop: {
+    labelZh: '便利店',
+    size: { minW: 6, maxW: 9, minH: 4, maxH: 6 },
+    layout: {
+      algorithm: 'open_floor',
+      extraDoors: [{ side: 'n', tiedToPrimary: false }],
+      items: [
+        { type: 'workstation', specId: 'shop_morning_clerk',   role: 'counter', kind: 'shop', labelZh: '柜台' },
+        { type: 'workstation', specId: 'shop_afternoon_clerk', role: 'counter', noInteractable: true },
+        { type: 'landmark', role: 'shop_counter'  },
+        { type: 'landmark', role: 'shop_approach' },
+        { type: 'landmark', role: 'shop_entry'    },
+        { type: 'landmark', role: 'shop_exit'     },
+      ],
+    },
+  },
+
+  // ── OPEN FLOOR: industrial ──────────────────────────────────────────────
+
+  // North primary + south extra tied for straight-through traffic.
+  // Partition at row 3 divides manager office (above) from floor (below).
+  factory: {
+    labelZh: '工厂',
+    size: { minW: 8, maxW: 12, minH: 8, maxH: 12 },
+    layout: {
+      algorithm: 'open_floor',
+      primaryDoor: 'n',
+      extraDoors: [{ side: 's', tiedToPrimary: true }],
+      items: [
+        { type: 'partition', orientation: 'h', rowFromTop: 3, doorTiedToPrimary: true },
+        { type: 'workstation', specId: 'factory_manager',        role: 'supervisor', kind: 'manager', labelZh: '经理办公桌' },
+        { type: 'workstation', specId: 'factory_engineer',        role: 'worker' },
+        { type: 'workstation', specId: 'factory_worker_morning',  role: 'worker' },
+        { type: 'workstation', specId: 'factory_worker_early',    role: 'worker' },
+        { type: 'workstation', specId: 'factory_worker_day',      role: 'worker' },
+      ],
+    },
+  },
+
+  // ── CELL ALGORITHMS: residential ───────────────────────────────────────
+
+  apartment: {
+    labelZh: '公寓',
+    size: { minW: 8, maxW: 12, minH: 5, maxH: 9 },
+    layout: {
+      algorithm: 'horizontal_cells',
+      minCells: 3,
+      maxCells: 6,
+      cellItems: [{ type: 'bed', tier: 'apartment', role: 'bed_row' }],
+    },
+  },
+
+  luxury: {
+    labelZh: '高级公寓',
+    size: { minW: 8, maxW: 12, minH: 8, maxH: 14 },
+    layout: {
+      algorithm: 'vertical_cells',
+      minCells: 2,
+      maxCells: 4,
+      cellItems: [{ type: 'bed', tier: 'luxury', role: 'bed_row' }],
+    },
+  },
+
+  flop: {
+    labelZh: '廉价旅馆',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      primaryDoor: 'n',
+      items: [{ type: 'bed', tier: 'flop', role: 'bed_row', count: 4 }],
+    },
+  },
+
+  dorm: {
+    labelZh: '工人宿舍',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      primaryDoor: 'e',
+      items: [{ type: 'bed', tier: 'dorm', role: 'bed_row', count: 2 }],
+    },
+  },
+
+  // ── CRAFTED: fixed buildings ────────────────────────────────────────────
+
+  // relTile uses the convention: pixel = rect.x + relTile.x * TILE.
+  // Half-integer values (e.g. 8.5) produce half-tile-center positions.
+  aeComplex: {
+    labelZh: '亚纳海姆电子',
+    size: { w: 28, h: 26 },
+    layout: {
+      algorithm: 'crafted',
+      // Door constrained to reception strip (rows 14-22) on west wall.
+      doors: [{ side: 'w', offsetMinTiles: 14, offsetMaxTiles: 22 }],
+
+      // Interior walls — positions/sizes in pixels relative to building origin.
+      internalWalls: [
+        // Vertical partition separating lobby (cols 0-6) from interior.
+        { relPixel: { x: 192, y: 0   }, sizePx: { w: 6, h: 416 } },  // col 6, rows 0-13
+        { relPixel: { x: 192, y: 448 }, sizePx: { w: 6, h: 384 } },  // col 6, rows 14-26
+
+        // Horizontal partitions at rows 8, 13, 17 (interior only, gap at col 13).
+        { relPixel: { x: 192, y: 256 }, sizePx: { w: 224, h: 6 } },  // row 8, left of gap
+        { relPixel: { x: 448, y: 256 }, sizePx: { w: 416, h: 6 } },  // row 8, right of gap
+        { relPixel: { x: 192, y: 416 }, sizePx: { w: 224, h: 6 } },  // row 13, left
+        { relPixel: { x: 448, y: 416 }, sizePx: { w: 416, h: 6 } },  // row 13, right
+        { relPixel: { x: 192, y: 544 }, sizePx: { w: 224, h: 6 } },  // row 17, left
+        { relPixel: { x: 448, y: 544 }, sizePx: { w: 416, h: 6 } },  // row 17, right
+
+        // Office column walls at cols 11, 15, 19, 23 (rows 1-8 and 8-13).
+        { relPixel: { x: 352, y: 32  }, sizePx: { w: 6, h: 224 } },
+        { relPixel: { x: 352, y: 256 }, sizePx: { w: 6, h: 160 } },
+        { relPixel: { x: 480, y: 32  }, sizePx: { w: 6, h: 224 } },
+        { relPixel: { x: 480, y: 256 }, sizePx: { w: 6, h: 160 } },
+        { relPixel: { x: 608, y: 32  }, sizePx: { w: 6, h: 224 } },
+        { relPixel: { x: 608, y: 256 }, sizePx: { w: 6, h: 160 } },
+        { relPixel: { x: 736, y: 32  }, sizePx: { w: 6, h: 224 } },
+        { relPixel: { x: 736, y: 256 }, sizePx: { w: 6, h: 160 } },
+
+        // Lobby divider at col 13, rows 13-17.
+        { relPixel: { x: 416, y: 416 }, sizePx: { w: 6, h: 128 } },
+      ],
+
+      factionGates: [
+        // Faction-gated door on the vertical partition at row 13.
+        { relPixel: { x: 192, y: 416 }, sizePx: { w: 6, h: 32 }, orient: 'v', faction: 'anaheim' },
+      ],
+
+      items: [
+        // Reception
+        { type: 'workstation', specId: 'ae_director', relTile: { x: 3.5, y: 13.5 }, kind: 'aeReception', labelZh: '前台' },
+
+        // Board row (y = 4.5)
+        { type: 'workstation', specId: 'ae_board_chair',     relTile: { x: 8.5,  y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
+        { type: 'workstation', specId: 'ae_board_cfo',       relTile: { x: 12.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
+        { type: 'workstation', specId: 'ae_board_cto',       relTile: { x: 16.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
+        { type: 'workstation', specId: 'ae_board_coo',       relTile: { x: 20.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
+        { type: 'workstation', specId: 'ae_board_cmo',       relTile: { x: 24.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
+
+        // Manager row (y = 10.5)
+        { type: 'workstation', specId: 'ae_floor_manager',   relTile: { x: 8.5,  y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
+        { type: 'workstation', specId: 'ae_design_lead',     relTile: { x: 12.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
+        { type: 'workstation', specId: 'ae_ops_manager',     relTile: { x: 16.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
+        { type: 'workstation', specId: 'ae_hr_manager',      relTile: { x: 20.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
+        { type: 'workstation', specId: 'ae_quality_manager', relTile: { x: 24.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
+
+        // Factory floor — 5×4 grid starting at (8.5, 18.5), colStride=4, rowStride=2.
+        {
+          type: 'workstation_grid',
+          relTile: { x: 8.5, y: 18.5 },
+          cols: 5, rows: 4,
+          colStride: 4, rowStride: 2,
+          specIds: [
+            'ae_senior_engineer', 'ae_engineer',   'ae_engineer',   'ae_engineer',   'ae_senior_engineer',
+            'ae_engineer',        'ae_technician', 'ae_technician', 'ae_technician', 'ae_technician',
+            'ae_technician',      'ae_assembler',  'ae_assembler',  'ae_assembler',  'ae_assembler',
+            'ae_assembler',       'ae_assembler',  'ae_assembler',  'ae_assembler',  'ae_technician',
+          ],
+        },
+
+        // Lounge beds (y = 15.5)
+        { type: 'bed', tier: 'lounge', relTile: { x: 16, y: 15.5 } },
+        { type: 'bed', tier: 'lounge', relTile: { x: 19, y: 15.5 } },
+        { type: 'bed', tier: 'lounge', relTile: { x: 22, y: 15.5 } },
+        { type: 'bed', tier: 'lounge', relTile: { x: 25, y: 15.5 } },
+
+        // Amenity row (y = 14.5 for gym; y = 14 for tap/snack — tile-aligned)
+        { type: 'gym_equipment', labelZh: '跑步机', relTile: { x: 8.5,  y: 14.5 } },
+        { type: 'gym_equipment', labelZh: '杠铃',   relTile: { x: 10.5, y: 14.5 } },
+        { type: 'gym_equipment', labelZh: '哑铃台', relTile: { x: 12.5, y: 14.5 } },
+        { type: 'snack_cabinet',                    relTile: { x: 15,   y: 14   } },
+        { type: 'snack_cabinet',                    relTile: { x: 22,   y: 14   } },
+        { type: 'water_dispenser',                  relTile: { x: 26,   y: 14   } },
+      ],
+    },
+  },
+}

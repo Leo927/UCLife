@@ -26,9 +26,9 @@ const mapNames = await page.evaluate(() =>
 )
 console.log('Map place names:', mapNames)
 
-const expectedPlaces = ['冯·布劳恩航天港', '祖姆市 · Side 3 共和国首府', '祖姆市航天港']
+const expectedPlaces = ['冯·布劳恩中心区', '安那海姆电子总部', '冯·布劳恩航天港']
 const allPresent = expectedPlaces.every((p) => mapNames.includes(p))
-console.log(allPresent ? 'PASS · all 3 new places on map' : 'FAIL · missing place(s)')
+console.log(allPresent ? 'PASS · startTown places on map' : 'FAIL · missing place(s)')
 
 await page.screenshot({ path: 'scripts/out/flight-map.png', fullPage: false })
 await page.evaluate(() => window.uclifeUI.getState().setMap(false))

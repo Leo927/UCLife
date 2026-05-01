@@ -1,50 +1,92 @@
 // Scene registry — every separate world (city, colony, ship interior, …) is
 // a row here. Each entry is a self-contained coordinate space: tile origin
 // (0,0) up to (tilesX, tilesY), its own koota World, its own pathfinding
-// graph, its own NPC roster. Adding a new scene = appending a row; the type
-// system, koota worlds, render pipeline, and map UI all key off this file.
+// graph, its own NPC roster.
 //
-// Fields:
+// Fields (all scenes):
 //   id          — unique scene id. Referenced by data/flights.json5 (sceneId
 //                 on each hub) and data/world-map.json5 (sceneId on each
 //                 place). Cross-data references are validated at load time.
-//   titleZh     — player-facing colony/city name shown in the HUD title.
-//                 Scope is the containing colony, not the in-scene district.
+//   titleZh     — player-facing name shown in the HUD title.
+//   sceneType   — 'micro': top-down human-scale (current). 'macro': MS/
+//                 warship/fighter scale (future).
 //   tilesX/Y    — logical envelope in tiles. Camera bounds, grid lines,
-//                 click clamping, pathfinding bounds, and the map panel's
-//                 viewBox all read this. Sub-grid is tilesX*2 × tilesY*2 at
-//                 16px resolution (see systems/pathfinding.ts SUB).
-//   bootstrap   — content spawner key. Selects which function in
-//                 ecs/spawn.ts populates this scene's koota World at world-
-//                 init. Current keys:
-//                   'cityProcgen' — full city: procgen sectors, AE complex,
-//                                   civilian NPCs, transit, airports.
-//                   'stub'        — minimal: only the airports declared in
-//                                   data/flights.json5 with sceneId=this.
-//                 Adding a new bootstrap key requires a matching handler in
-//                 ecs/spawn.ts. Adding a new 'stub' scene is data-only.
-//   playerSpawnTile — only meaningful for the *initial* scene at world-init
-//                     (the first scene in this file's order, currently
-//                     startTown). Other scenes are reached via flight; the
-//                     flight's arrivalTile (data/flights.json5) is the
-//                     entry point.
+//                 click clamping, pathfinding, and the map panel viewBox.
+//   playerSpawnTile — initial player position (tile coords). Only meaningful
+//                 for the first scene in declaration order.
+//
+// Fields (micro scenes):
+//   procgen     — data-driven building slot grid.
+//     seed        — deterministic RNG seed string. Same seed → same layout.
+//     slotGrid    — N-slot grid config:
+//       rect        — tile-space area for procgen buildings { x, y, w, h }.
+//       cols        — number of slot columns.
+//       gapTiles    — empty tiles between columns and between row bands.
+//       rowBands    — array of horizontal zones, top to bottom:
+//         heightTiles — tile height of every slot in this band.
+//         types       — building type pool (IDs from building-types.json5).
+//                       Unique draw: pool is shuffled, one type per slot,
+//                       no duplicates within the band.
+//         doorSide    — default door side for buildings in this band
+//                       ('n'/'s'/'e'/'w'). Building types may override via
+//                       their layout.primaryDoor field.
+//   fixedBuildings — hand-placed buildings not subject to procgen.
+//     type        — building type id from building-types.json5.
+//     tile        — anchor tile { x, y } (building top-left in tile coords).
+//   survivalSources — free-use world objects (taps, scavenge, benches).
+//     type        — 'tap' | 'scavenge' | 'bench'.
+//     tile        — world tile position.
 
 {
   scenes: [
     {
       id: 'startTown',
       titleZh: '冯·布劳恩月面市',
+      sceneType: 'micro',
       tilesX: 800,
       tilesY: 520,
-      bootstrap: 'cityProcgen',
       playerSpawnTile: { x: 20, y: 16 },
+
+      procgen: {
+        seed: 'von-braun-001',
+        slotGrid: {
+          rect: { x: 3, y: 1, w: 36, h: 26 },
+          cols: 3,
+          gapTiles: 2,
+          rowBands: [
+            // Commercial strip — 3 of 4 types placed per seed.
+            { heightTiles: 5,  types: ['bar', 'hrOffice', 'realtor', 'shop'], doorSide: 's' },
+            // Industrial/residential — 3 of 3 types, heights vary.
+            { heightTiles: 11, types: ['factory', 'apartment', 'luxury'],     doorSide: 's' },
+            // Small residential — 2 of 2 types (fills 2 of 3 slots).
+            { heightTiles: 6,  types: ['dorm', 'flop'],                       doorSide: 's' },
+          ],
+        },
+      },
+
+      fixedBuildings: [
+        { type: 'aeComplex', tile: { x: 400, y: 200 } },
+      ],
+
+      survivalSources: [
+        { type: 'tap',      tile: { x: 13, y: 16 } },
+        { type: 'tap',      tile: { x: 25, y: 16 } },
+        { type: 'scavenge', tile: { x: 11, y: 17 } },
+        { type: 'scavenge', tile: { x: 27, y: 17 } },
+        { type: 'scavenge', tile: { x: 19, y: 24 } },
+        { type: 'bench',    tile: { x: 14, y: 24 } },
+        { type: 'bench',    tile: { x: 24, y: 24 } },
+      ],
     },
+
     {
       id: 'zumCity',
       titleZh: '祖姆市 · Side 3',
+      sceneType: 'micro',
       tilesX: 300,
       tilesY: 300,
-      bootstrap: 'stub',
+      // No procgen, fixedBuildings, or survivalSources — airports only
+      // (from flights.json5).
     },
   ],
 }
