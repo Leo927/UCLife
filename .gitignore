@@ -8,3 +8,4 @@ dist-types-node
 scripts/out
 checkout.txt
 tscout.txt
+.claude/settings.local.json
