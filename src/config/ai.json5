@@ -1,0 +1,91 @@
+// NPC behavior tuning — drive thresholds, distance checks, inventory targets.
+// Player AI is debug-only (the alwaysHyperspeed switch); these values only
+// govern autonomous NPCs.
+{
+  // Drive thresholds. Vital crosses GoTo → NPC tries to fix it; vital drops
+  // to Resolved → NPC moves on. Tightening "GoTo" makes NPCs more reactive
+  // (fewer near-deaths) but more frantic.
+  drives: {
+    fatigueGoHome:    80,
+    fatigueRested:    5,
+    hungerGoHome:     75,
+    hungerFed:        5,
+    thirstGoHome:     70,
+    thirstQuenched:   5,
+    hygieneGoHome:    85,
+    hygieneClean:     5,
+    boredomGoToBar:   60,
+    boredomFulfilled: 5,
+  },
+
+  // When an NPC is off-shift and walks past the shop, they top up to these
+  // counts of meals/waters in inventory. Higher = less frequent shop trips
+  // but more cash held in stock per NPC.
+  stockTarget: {
+    meal:         3,
+    premiumMeal:  2,    // wealthy NPCs only — see livingStandards.wealthyCash
+    water:        3,
+  },
+
+  // Spending tier — purely a function of current cash. Wealthy NPCs prefer
+  // premium meals at the shop; the destitute fall back to free survival
+  // sources (taps, dumpsters, rough sleep). Threshold values are in ¥.
+  livingStandards: {
+    wealthyCash:  600,   // ≥ this → buys premium meals when stocking up
+    destituteCash: 20,   // ≤ this → won't even attempt to buy meal/water at shop
+  },
+
+  // Social relation tuning (DESIGN §7.1, §6.3). Controls the rate at which
+  // NPC↔NPC acquaintance edges (Knows relation) accrue from co-location and
+  // greets, and how fast they decay between meetings.
+  //
+  // Phase 1 is observation-only — these values affect what shows up in the
+  // dialog readout and the verbose log, but not yet drive selection.
+  relations: {
+    // Pixels. Two living characters within this distance count as "near
+    // each other" for the per-tick co-location accrual. Roughly 2.5 tiles —
+    // close enough to be standing in the same room, but not so close that
+    // any path-cross fires it.
+    proximityRadiusPx: 80,
+
+    // Per game-minute drift while two characters remain within proximity.
+    // Tiny values; these accumulate over a workday, not over seconds.
+    colocationOpinionPerMin:    0.02,
+    colocationFamiliarityPerMin: 0.05,
+
+    // One-shot bumps on a greet event. A greet fires when a pair is within
+    // proximity AND either it's their first encounter ever (meetCount==0)
+    // OR they haven't been seen together for at least greetCooldownMin
+    // game-minutes (a fresh meeting after time apart).
+    greetCooldownMin:     360,    // 6 game-hours
+    firstGreetOpinion:    3,      // bigger bump on the very first hello
+    firstGreetFamiliarity: 6,
+    greetOpinion:         1,
+    greetFamiliarity:     2,
+
+    // Daily decay applied at the day-rollover boundary. Values multiply
+    // (so 0.99 = -1%/day). Familiarity decays slower than opinion so a
+    // long-quiet relationship still reads as "someone you used to know"
+    // rather than instantly resetting to stranger.
+    dailyOpinionDecay:    0.99,
+    dailyFamiliarityDecay: 0.995,
+
+    // Saturation caps on signed opinion / unsigned familiarity. The
+    // accrual rules clamp into these bounds.
+    opinionMin:    -100,
+    opinionMax:     100,
+    familiarityMax: 100,
+
+    // Verbose-log throttle: a greet log line is suppressed if the same
+    // pair has already logged within this many game-minutes. Keeps the
+    // log readable when two NPCs share a workplace all day.
+    logCooldownMin: 720,  // 12 game-hours
+
+    // Loneliness drive: boredom drains faster for characters with no
+    // friend-tier+ relation seen recently. lonelyWindowMin is the
+    // recency window (default 24 game-hours); lonelyBoredomMult is the
+    // multiplier on positive boredom drift when isolated.
+    lonelyWindowMin: 1440,
+    lonelyBoredomMult: 1.4,
+  },
+}

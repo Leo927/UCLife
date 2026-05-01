@@ -1,0 +1,51 @@
+// Faction catalog. Phase 1 only ships 'anaheim' (the iconic Anaheim Electronics
+// arms manufacturer in Universal Century lore) plus the 'civilian' default
+// every non-affiliated entity carries. Future phases will add 'federation'
+// and 'zeon' — they slot into this same shape, no schema change needed.
+//
+// Rep accrual & gating knobs live here so designers can re-balance the
+// climb without touching code. The career ladder ranks themselves
+// (skill/rep/relation requirements per rank) live in jobs.json5 alongside
+// the rest of the per-rank data.
+{
+  catalog: {
+    anaheim: {
+      // Player-facing zh-CN name — the iconic 亚纳海姆电子.
+      nameZh: '亚纳海姆电子',
+      // Short tag for tight UI surfaces (StatusPanel chip, log lines).
+      shortZh: 'AE',
+      // Accent color for building label, faction chip, log highlights.
+      accentColor: '#c9a047',
+      // Reputation gained per shift completed at any AE workstation. Tuned
+      // so a stable 5-day-a-week worker climbs from 0 → 60 over ~3 months
+      // — slow enough that mid-rank promotion feels earned, fast enough
+      // that high-rank is reachable in a sim run.
+      repPerShift: 1.5,
+      // Senior-rank gate: minimum opinion any AE board member must hold
+      // toward the player before the rank-4 promotion will unlock.
+      // Maps to friend-tier in src/systems/relations.ts (tierOf >= 'friend').
+      seniorPromotionMinOpinion: 50,
+    },
+
+    civilian: {
+      nameZh: '平民',
+      shortZh: '平民',
+      accentColor: '#888888',
+      repPerShift: 0,
+      seniorPromotionMinOpinion: 0,
+    },
+  },
+
+  // Reputation -> letter-grade thresholds for StatusPanel display. The grade
+  // letter convention (S/A/B/C/D/E with no numeric readout) matches what the
+  // attribute panel uses so the player has a single mental model. Values are
+  // the *minimum* rep required to land in that grade.
+  tierThresholds: {
+    S: 80,   // 信任 — trusted insider
+    A: 40,   // 友好 — warm
+    B: 10,   // 中立偏好 — neutral-positive (default starting band)
+    C: -10,  // 中立 — neutral
+    D: -40,  // 冷淡 — cold
+    E: -100, // 敌对 — enemy
+  },
+}

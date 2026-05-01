@@ -1,0 +1,429 @@
+// Job catalog. Each Workstation entity in the world references one of these
+// specs by ID (Workstation.specId). Tweaking values here is the primary lever
+// for gameplay-economy balance — wages, skill XP rates, shift hours, and
+// hiring requirements all live in this file.
+//
+// Field guide:
+//   jobTitle:       short display title shown in NPC labels and the StatusPanel
+//   wage:           money awarded per shift completed at 100% perf (scales by
+//                   wageMultiplier(perf) and the worker's job-relevant attribute)
+//   skillXp:        skill XP awarded per perfect shift (0 = no skill XP at all)
+//   skill:          which skill receives the XP, or null when skillXp is 0
+//   shiftStart:     hour-of-day the shift opens (0–23, or 24 to mean "midnight")
+//   shiftEnd:       hour-of-day the shift closes; values up to 24 cover the
+//                   wraparound (e.g., 18..24 = evening; 0..12 = morning)
+//   workDays:       day-of-week numbers the shift runs on; 0=Sun, 6=Sat
+//   requirements:   minimum skill levels needed to be hired (entries omitted
+//                   when there are no requirements)
+//   description:    HR-listing blurb shown to the player
+//   playerHireable: false marks an NPC-only role; HRConversation hides these from
+//                   the player's listing while NPCs can still claim them
+{
+  catalog: {
+    factory_engineer: {
+      jobTitle: '工程师',
+      wage: 190,
+      skillXp: 100,
+      skill: 'mechanics',
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [1, 2, 3, 4, 5],     // Mon–Fri
+      requirements: { mechanics: 30, computers: 5 },
+      description: '设计与开发任务。',
+      playerHireable: true,
+    },
+
+    factory_worker_morning: {
+      jobTitle: '工人',
+      wage: 100,
+      skillXp: 30,
+      skill: 'mechanics',
+      shiftStart: 7,
+      shiftEnd: 16,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '基础体力劳动 · 无需经验。',
+      playerHireable: true,
+    },
+
+    factory_worker_early: {
+      jobTitle: '工人',
+      wage: 100,
+      skillXp: 30,
+      skill: 'mechanics',
+      shiftStart: 7,
+      shiftEnd: 15,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '基础体力劳动 · 无需经验。',
+      playerHireable: true,
+    },
+
+    factory_worker_day: {
+      jobTitle: '工人',
+      wage: 100,
+      skillXp: 30,
+      skill: 'mechanics',
+      shiftStart: 8,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: '基础体力劳动 · 无需经验。',
+      playerHireable: true,
+    },
+
+    // NPC-only role. Sits at the factory's manager-office desk.
+    factory_manager: {
+      jobTitle: '工厂经理',
+      wage: 150,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '统筹工厂日常运营。',
+      playerHireable: false,
+    },
+
+    shop_morning_clerk: {
+      jobTitle: '店员',
+      wage: 100,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 0,
+      shiftEnd: 12,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '便利店上半日 (0–12)。',
+      playerHireable: true,
+    },
+
+    shop_afternoon_clerk: {
+      jobTitle: '店员',
+      wage: 100,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 12,
+      shiftEnd: 24,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '便利店下半日 (12–24)。',
+      playerHireable: true,
+    },
+
+    bartender: {
+      jobTitle: '调酒师',
+      wage: 100,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 18,
+      shiftEnd: 24,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '夜班调酒。',
+      playerHireable: true,
+    },
+
+    // NPC-only role. The desk in the city HR office; the player walks here
+    // to apply for OTHER jobs through the HR modal.
+    city_hr_clerk: {
+      jobTitle: '人事',
+      wage: 130,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '本市统一招聘窗口。',
+      playerHireable: false,
+    },
+
+    // NPC-only role. The realtor at the agency desk; the player walks up
+    // and uses the realtor menu (rent + buy across all building tiers).
+    realtor: {
+      jobTitle: '房产中介',
+      wage: 100,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 18,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '为客户提供租房与购房服务。',
+      playerHireable: false,
+    },
+
+    // ─── 亚纳海姆电子 (Anaheim Electronics) career ladder ─────────────────────
+    //
+    // Four player-hireable ranks share family='anaheim_engineering' and
+    // employer='anaheim'. Promotions go through the in-building AE reception
+    // desk (NPC-only ae_director spec); the city HR window filters these out
+    // so AE feels like a faction with its own gate from day one.
+    //
+    // Gate ramp:
+    //   rank 1 (装配工)         : skill-only — open to everyone, easy onramp
+    //   rank 2 (技术员)         : skill-only — first proof-of-competence step
+    //   rank 3 (工程师)         : skill + AE rep gate — faction loyalty matters
+    //   rank 4 (高级工程师)     : skill + rep + befriend an AE board member
+    //                              (forces engagement with the relations system)
+    //
+    // Wage scaling deliberately steeper than factory's 100→190 jump so the
+    // climb feels worthwhile.
+
+    ae_assembler: {
+      jobTitle: '装配工',
+      wage: 80,
+      skillXp: 40,
+      skill: 'mechanics',
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 工坊基础装配 · 入门岗位。',
+      playerHireable: true,
+      family: 'anaheim_engineering',
+      rank: 1,
+      employer: 'anaheim',
+    },
+
+    ae_technician: {
+      jobTitle: '技术员',
+      wage: 130,
+      skillXp: 60,
+      skill: 'mechanics',
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: { mechanics: 15 },
+      description: '维护与调试 · 装配工的下一步。',
+      playerHireable: true,
+      family: 'anaheim_engineering',
+      rank: 2,
+      employer: 'anaheim',
+    },
+
+    ae_engineer: {
+      jobTitle: '工程师',
+      wage: 220,
+      skillXp: 90,
+      skill: 'mechanics',
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: { mechanics: 35, computers: 10 },
+      description: '设计与原型开发 · 需要 AE 内部资历。',
+      playerHireable: true,
+      family: 'anaheim_engineering',
+      rank: 3,
+      employer: 'anaheim',
+      repReq: { faction: 'anaheim', min: 30 },
+    },
+
+    ae_senior_engineer: {
+      jobTitle: '高级工程师',
+      wage: 340,
+      skillXp: 120,
+      skill: 'computers',
+      shiftStart: 10,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: { mechanics: 60, computers: 30 },
+      description: '主导关键项目 · 需董事会成员推荐。',
+      playerHireable: true,
+      family: 'anaheim_engineering',
+      rank: 4,
+      employer: 'anaheim',
+      repReq: { faction: 'anaheim', min: 60 },
+      relationReq: { faction: 'anaheim', role: 'board', minOpinion: 50 },
+    },
+
+    // NPC-only role. Sits at the AE workshop reception desk; the player walks
+    // up and uses the AE promotion menu through the 'aeReception' Interactable
+    // hung on this workstation. The receptionist is mid-tier management — not
+    // a board member, just the front-of-house. AEConversation gates on this
+    // specId (NPCDialog.tsx); the trigger is the desk, not the chair.
+    ae_director: {
+      jobTitle: '前台主管',
+      wage: 200,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 18,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '亚纳海姆电子前台 · 接待与晋升申请。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
+    // ─── AE 中层管理 (anaheim_management) ────────────────────────────────────
+    //
+    // Five manager roles, one per office in the AE complex. NPC-only; the
+    // player tops out at senior_engineer in the engineering ladder.
+    // Wages ~3-4× a senior engineer's so the corporate hierarchy reads from
+    // outside the building (visible NPCs, money flow). All anaheim_management
+    // family — isAffiliated() in systems/factionAccess.ts grants AE building
+    // passage based on this prefix.
+
+    ae_floor_manager: {
+      jobTitle: '车间主任',
+      wage: 700,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: '统筹生产车间日常运营。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
+    ae_design_lead: {
+      jobTitle: '设计主管',
+      wage: 800,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: '把控研发与原型设计方向。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
+    ae_ops_manager: {
+      jobTitle: '运营经理',
+      wage: 700,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: '后勤、设施与对外协调。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
+    ae_hr_manager: {
+      jobTitle: '人力资源经理',
+      wage: 650,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 内部招聘与员工管理。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
+    ae_quality_manager: {
+      jobTitle: '质量管理',
+      wage: 650,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: '把控产品出厂质量与流程合规。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
+    // ─── AE 董事会 (anaheim_board) ──────────────────────────────────────────
+    //
+    // Five board seats with massive paychecks — the player can never join
+    // through normal play (NPC-only, no promotion path), but befriending one
+    // is the gate for ae_senior_engineer (relationReq board, minOpinion 50).
+    // Each board NPC takes one of these specs at world-init via spawn-time
+    // linkage (data/special-npcs.json5 + ecs/spawn.ts).
+
+    ae_board_chair: {
+      jobTitle: '董事长',
+      wage: 5000,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 10,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 董事会主席。',
+      playerHireable: false,
+      family: 'anaheim_board',
+      employer: 'anaheim',
+    },
+
+    ae_board_cfo: {
+      jobTitle: '首席财务官',
+      wage: 4000,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 10,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 财务总舵。',
+      playerHireable: false,
+      family: 'anaheim_board',
+      employer: 'anaheim',
+    },
+
+    ae_board_cto: {
+      jobTitle: '首席技术官',
+      wage: 4000,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 10,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 技术总舵。',
+      playerHireable: false,
+      family: 'anaheim_board',
+      employer: 'anaheim',
+    },
+
+    ae_board_coo: {
+      jobTitle: '首席运营官',
+      wage: 3500,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 10,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 运营总舵。',
+      playerHireable: false,
+      family: 'anaheim_board',
+      employer: 'anaheim',
+    },
+
+    ae_board_cmo: {
+      jobTitle: '首席市场官',
+      wage: 3000,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 10,
+      shiftEnd: 18,
+      workDays: [1, 2, 3, 4, 5],
+      requirements: {},
+      description: 'AE 市场与对外形象。',
+      playerHireable: false,
+      family: 'anaheim_board',
+      employer: 'anaheim',
+    },
+  },
+}

@@ -1,0 +1,66 @@
+// Inter-city flight routes — drives the airport ticket office's destination
+// list. Each `hub` is one airport with its building rect (sourced from the
+// matching world-map place), the in-world ticket counter the player walks up
+// to, and the arrival tile fly-ins land on.
+//
+// `placeId` references data/world-map.json5; ecs/spawn.ts spawnAirports reads
+// the place rect for the building footprint, so moving the airport on the
+// world map (its world-map entry) automatically moves the spawned building.
+//
+// `sceneId` says which scene this airport lives in (see src/ecs/world.ts
+// SceneId). Each scene is its own koota world; flying from one hub to
+// another always crosses between two scenes — the flight midpoint swaps
+// the active scene to the destination's `sceneId` and respawns the player
+// at `arrivalTile`. Even hypothetical same-scene routes go through the
+// scene-swap codepath (it's a no-op when from.sceneId === to.sceneId).
+//
+// `counterTile` is the tile-space position of the ticket counter Interactable
+// — clicking it opens the FlightModal listing routes whose `from` matches
+// this hub. `arrivalTile` is where the player teleports after fading out at
+// the previous airport (one tile outside the door, on the street, so they
+// don't immediately re-trigger the click).
+//
+// `routes` are directed edges: `{ from, to, durationMin, fare }`. Adding a
+// new destination = add a hub here and add routes from/to it. The UI is
+// fully data-driven — no other plumbing required.
+
+{
+  hubs: [
+    {
+      id: 'startTownAirport',
+      nameZh: '冯·布劳恩航天港',
+      placeId: 'startTownAirport',
+      sceneId: 'startTown',
+      counterTile: { x: 20, y: 38 },
+      arrivalTile: { x: 20, y: 31 },
+      description: '冯·布劳恩中心区南郊的航天港售票处。',
+    },
+    {
+      id: 'zumCityAirport',
+      nameZh: '祖姆市航天港',
+      placeId: 'zumCityAirport',
+      sceneId: 'zumCity',
+      counterTile: { x: 150, y: 149 },
+      arrivalTile: { x: 150, y: 142 },
+      description: 'Side 3 共和国首府的中央航天港售票处。',
+    },
+  ],
+
+  // Round-trip pair: 6 game-hours (360 min) each way, ¥800 fare. Symmetrical
+  // for now — pricing/duration can diverge later (premium one-way, faster
+  // courier flights, etc.).
+  routes: [
+    {
+      from: 'startTownAirport',
+      to: 'zumCityAirport',
+      durationMin: 360,
+      fare: 800,
+    },
+    {
+      from: 'zumCityAirport',
+      to: 'startTownAirport',
+      durationMin: 360,
+      fare: 800,
+    },
+  ],
+}

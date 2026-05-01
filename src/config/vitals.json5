@@ -1,0 +1,60 @@
+// Vitals drains, recoveries, action-modifier multipliers, and HP damage rates.
+// Per-game-minute units throughout (the sim ticks once per game-minute).
+{
+  // Idle drain rates per game-minute. These describe a character standing
+  // around doing nothing — actions below scale or replace these.
+  // 0.2778 = 100/360 → hunger maxes in ~6 awake hours; thirst in 8h; fatigue
+  // in ~48h; hygiene/boredom in ~24h. Tune to make survival harsher or gentler.
+  drain: {
+    hunger:  0.2778,
+    thirst:  0.2083,
+    fatigue: 0.0347,
+    hygiene: 0.0694,
+    boredom: 0.0694,
+  },
+
+  // Action overrides. Numeric values replace the base drain entirely (e.g.,
+  // eating sets dHunger = -10/min); *Mult scales the base drain.
+  actions: {
+    eating:   { hunger: -10 },        // 100 hunger cleared in 10 min
+    drinking: { thirst: -100 },       // 100 thirst cleared in 1 min (a single sip)
+    washing:  { hygiene: -10 },
+    reveling: { boredom: -3.3333 },   // -100/30 → bar clears 100 boredom in 30 min
+    sleeping: {
+      hungerMult: 0.15,               // 15% of base — small but non-zero
+      thirstMult: 0.15,
+      // Recovery rate at base-mult bed (1.0). Multiplied by bed-tier
+      // multiplier (see config/actions.json5 → bedMultipliers).
+      fatigue: -0.2083,
+      boredom: 0,                     // boredom doesn't tick while asleep
+    },
+    working: {
+      hungerMult:  1.2,
+      thirstMult:  1.2,
+      fatigueMult: 1.2,
+      hygieneMult: 1.2,
+      // Working accumulates boredom faster — the daily grind.
+      boredomMult: 1.4,
+    },
+    reading: {
+      fatigueMult: 1.2,
+    },
+  },
+
+  // NPCs accumulate fatigue at this fraction of player-rate so an
+  // unsupervised colony doesn't burn itself out.
+  npcFatigueMult: 0.5,
+
+  // Passive HP regeneration per game-minute when no needs are critical.
+  // ~55h to fully heal from 0 at this rate.
+  hpRegenPerMin: 0.03,
+
+  // HP loss per game-minute when each vital is saturated (=100). Stacking is
+  // additive. Dehydration is the deadliest by design — these calibrate the
+  // "death from neglect" timeline.
+  hpDamagePerMin: {
+    thirst:  0.025,
+    hunger:  0.02,
+    fatigue: 0.005,
+  },
+}

@@ -1,0 +1,42 @@
+// Game-time scaling, render speeds, and commitment-skip behavior.
+{
+  // Real minutes the sim takes to play out one in-game day (24 game-hours).
+  // Default 25 → ~1 game-minute per real-second at 1× speed (DESIGN §5).
+  realMinPerGameDay: 25,
+
+  // Speed multipliers offered in the HUD. The order is the display order.
+  // 0 = pause; the rest scale wall-clock minutes consumed per real-second.
+  speeds: [0, 1, 2, 4],
+
+  // Speed used while a "long action" (sleep, work shift, reading, bar trip)
+  // is committed. The sim fast-forwards until the action ends or a danger
+  // threshold breaks the skip.
+  committedSpeed: 100,
+
+  // Don't engage hyperspeed for very short actions. If the remaining duration
+  // would finish in fewer than this many real-seconds at committedSpeed, the
+  // sim stays at the player's normal speed instead — no UI flicker, no mode
+  // toggle, just plays out at 1×/2×/4×. Computed as
+  // (action.remaining game-min) / committedSpeed (game-min per real-sec).
+  // Set to 0 to always engage hyperspeed (legacy behavior).
+  // 'working' is open-ended (runs until end-of-shift) and bypasses this gate.
+  minHyperspeedRealSec: 10,
+
+  // Hard ceiling on simulation ticks evaluated per render frame, so a long
+  // tab + high speed can't lock the main thread. Each tick = 1 game-minute.
+  maxTicksPerFrame: 200,
+
+  // Vitals/HP levels at which commitment-skip mode breaks back to normal
+  // speed mid-skip and surfaces a "force skip" toast. Lower thresholds make
+  // the player tolerate more suffering before the auto-pause kicks in.
+  dangerThresholds: {
+    vital: 80,  // any of hunger/thirst/fatigue at or above this is "danger"
+    hp: 30,     // HP at or below this is "danger"
+  },
+
+  // Minimum real-time gap between successive autosaves. Day-rollover and
+  // commitment-skip-start both fire autosaves; under hyperspeed those events
+  // can land within seconds of each other, so we throttle. Manual saves
+  // bypass this. Set to 0 to autosave on every trigger.
+  autosaveCooldownRealSec: 10,
+}

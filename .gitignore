@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-types-node
+.vite
+*.local
+.DS_Store
+*.tsbuildinfo
+scripts/out
+checkout.txt
+tscout.txt

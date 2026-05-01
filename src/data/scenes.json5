@@ -1,0 +1,50 @@
+// Scene registry — every separate world (city, colony, ship interior, …) is
+// a row here. Each entry is a self-contained coordinate space: tile origin
+// (0,0) up to (tilesX, tilesY), its own koota World, its own pathfinding
+// graph, its own NPC roster. Adding a new scene = appending a row; the type
+// system, koota worlds, render pipeline, and map UI all key off this file.
+//
+// Fields:
+//   id          — unique scene id. Referenced by data/flights.json5 (sceneId
+//                 on each hub) and data/world-map.json5 (sceneId on each
+//                 place). Cross-data references are validated at load time.
+//   titleZh     — player-facing colony/city name shown in the HUD title.
+//                 Scope is the containing colony, not the in-scene district.
+//   tilesX/Y    — logical envelope in tiles. Camera bounds, grid lines,
+//                 click clamping, pathfinding bounds, and the map panel's
+//                 viewBox all read this. Sub-grid is tilesX*2 × tilesY*2 at
+//                 16px resolution (see systems/pathfinding.ts SUB).
+//   bootstrap   — content spawner key. Selects which function in
+//                 ecs/spawn.ts populates this scene's koota World at world-
+//                 init. Current keys:
+//                   'cityProcgen' — full city: procgen sectors, AE complex,
+//                                   civilian NPCs, transit, airports.
+//                   'stub'        — minimal: only the airports declared in
+//                                   data/flights.json5 with sceneId=this.
+//                 Adding a new bootstrap key requires a matching handler in
+//                 ecs/spawn.ts. Adding a new 'stub' scene is data-only.
+//   playerSpawnTile — only meaningful for the *initial* scene at world-init
+//                     (the first scene in this file's order, currently
+//                     startTown). Other scenes are reached via flight; the
+//                     flight's arrivalTile (data/flights.json5) is the
+//                     entry point.
+
+{
+  scenes: [
+    {
+      id: 'startTown',
+      titleZh: '冯·布劳恩月面市',
+      tilesX: 800,
+      tilesY: 520,
+      bootstrap: 'cityProcgen',
+      playerSpawnTile: { x: 20, y: 16 },
+    },
+    {
+      id: 'zumCity',
+      titleZh: '祖姆市 · Side 3',
+      tilesX: 300,
+      tilesY: 300,
+      bootstrap: 'stub',
+    },
+  ],
+}

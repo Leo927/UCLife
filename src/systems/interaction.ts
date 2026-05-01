@@ -1,0 +1,262 @@
+import type { World } from 'koota'
+import type { Entity } from 'koota'
+import {
+  Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
+  Money, Character, Bed, BarSeat, Health, Workstation, RoughUse, RoughSpot, Transit,
+  FlightHub,
+  type InteractableKind,
+} from '../ecs/traits'
+import type { BedTier } from '../ecs/traits'
+import { ACTIONS } from '../data/actions'
+import { isInWorkWindowWS, isWorkDayWS, getJobSpec } from '../data/jobs'
+import { BED_MULTIPLIERS, bedActiveOccupant } from './bed'
+import { isBarOpen } from './shop'
+import { useClock } from '../sim/clock'
+import { useUI } from '../ui/uiStore'
+import { worldConfig, actionsConfig } from '../config'
+
+const ARRIVE_DIST = worldConfig.ranges.playerInteract
+const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
+
+const STATION_RANGE = worldConfig.ranges.workstationOccupied
+
+function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): boolean {
+  for (const bedEnt of world.query(Bed)) {
+    const b = bedEnt.get(Bed)!
+    if (b.tier !== 'apartment') continue
+    if (bedActiveOccupant(b, nowMs) === player) return true
+  }
+  return false
+}
+
+function findNPCAtStation(world: World, station: { x: number; y: number }): Entity | null {
+  for (const npc of world.query(Character, Position)) {
+    const h = npc.get(Health)
+    if (h?.dead) continue
+    const np = npc.get(Position)!
+    if (Math.hypot(np.x - station.x, np.y - station.y) < STATION_RANGE) {
+      return npc
+    }
+  }
+  return null
+}
+
+export function interactionSystem(world: World) {
+  const players = world.query(IsPlayer, Position, MoveTarget, Action, QueuedInteract)
+  for (const player of players) {
+    const pos = player.get(Position)!
+    const target = player.get(MoveTarget)!
+    const action = player.get(Action)!
+
+    if (Math.hypot(pos.x - target.x, pos.y - target.y) > 1) continue
+    if (action.kind !== 'idle') continue
+
+    let nearestKind: InteractableKind | null = null
+    let nearestEnt: Entity | null = null
+    let nearestDist = Infinity
+    let nearestFee = 0
+    let nearestPos = { x: 0, y: 0 }
+    const interactables = world.query(Interactable, Position)
+    for (const ent of interactables) {
+      const it = ent.get(Interactable)!
+      const ip = ent.get(Position)!
+      const d = Math.hypot(pos.x - ip.x, pos.y - ip.y)
+      if (d >= ARRIVE_DIST || d >= nearestDist) continue
+      // Skip beds rented by someone else so the next-nearest free bed wins.
+      if (it.kind === 'sleep') {
+        const bed = ent.get(Bed)
+        if (bed) {
+          const active = bedActiveOccupant(bed, useClock.getState().gameDate.getTime())
+          if (active !== null && active !== player) continue
+        }
+      }
+      if (it.kind === 'bar') {
+        const seat = ent.get(BarSeat)
+        if (seat && seat.occupant !== null && seat.occupant !== player) continue
+      }
+      if (it.kind === 'rough') {
+        const spot = ent.get(RoughSpot)
+        if (spot && spot.occupant !== null && spot.occupant !== player) continue
+      }
+      nearestKind = it.kind
+      nearestEnt = ent
+      nearestDist = d
+      nearestFee = it.fee
+      nearestPos = { x: ip.x, y: ip.y }
+    }
+
+    player.remove(QueuedInteract)
+    if (!nearestKind) continue
+
+    const occupant = nearestEnt ? findNPCAtStation(world, nearestPos) : null
+
+    if (nearestKind === 'manager') {
+      // NPC-only role; the desk is render-only.
+      continue
+    }
+    if (nearestKind === 'shop') {
+      if (!occupant) {
+        useUI.getState().showToast('店员不在 · 商店已关门')
+        continue
+      }
+      useUI.getState().setShop(true)
+      continue
+    }
+    if (nearestKind === 'hr') {
+      if (!occupant) {
+        useUI.getState().showToast('人事不在 · 招聘窗口暂停办公')
+        continue
+      }
+      useUI.getState().setDialogNPC(occupant)
+      continue
+    }
+    if (nearestKind === 'transit') {
+      if (nearestEnt) {
+        const t = nearestEnt.get(Transit)
+        if (t) useUI.getState().openTransit(t.terminalId)
+      }
+      continue
+    }
+    if (nearestKind === 'ticketCounter') {
+      if (nearestEnt) {
+        const fh = nearestEnt.get(FlightHub)
+        if (fh) useUI.getState().openFlight(fh.hubId)
+      }
+      continue
+    }
+    if (nearestKind === 'aeReception') {
+      if (!occupant) {
+        useUI.getState().showToast('AE 主管不在 · 工坊暂停办公')
+        continue
+      }
+      useUI.getState().setDialogNPC(occupant)
+      continue
+    }
+    if (nearestKind === 'work') {
+      const j = player.get(Job)
+      const ws = j?.workstation ?? null
+      if (!ws) {
+        useUI.getState().showToast('你尚未受雇 · 请先到人事处签订工作')
+        continue
+      }
+      const wsTrait = ws.get(Workstation)
+      const spec = wsTrait ? getJobSpec(wsTrait.specId) : null
+      const now = useClock.getState().gameDate
+      if (spec) {
+        if (!isWorkDayWS(now, spec)) {
+          useUI.getState().showToast('今天是休息日 · 无需上班')
+          continue
+        }
+        if (!isInWorkWindowWS(now, spec)) {
+          useUI.getState().showToast(`不在上班时间 · ${spec.shiftStart}:00 – ${spec.shiftEnd}:00`)
+          continue
+        }
+      }
+      if (occupant && occupant !== player) {
+        const occName = occupant.get(Character)?.name ?? '别人'
+        useUI.getState().showToast(`${occName} 正在使用此工位`)
+        continue
+      }
+    }
+    if (nearestKind === 'wash') {
+      const now = useClock.getState().gameDate.getTime()
+      if (!playerHasApartmentClaim(world, player, now)) {
+        useUI.getState().showToast('这是公寓住户的洗手台 · 请先租下一张公寓床')
+        continue
+      }
+    }
+    // Renting/buying a bed happens through the realtor only. Lounge couches
+    // are the exception: claim on click; rentSystem GCs after the nap window.
+    if (nearestEnt && nearestKind === 'sleep') {
+      const bed = nearestEnt.get(Bed)
+      if (bed) {
+        const now = useClock.getState().gameDate.getTime()
+        if (bed.tier === 'lounge') {
+          if (bed.occupant !== null && bed.occupant !== player) {
+            useUI.getState().showToast('这张沙发已被人占用')
+            continue
+          }
+          nearestEnt.set(Bed, {
+            ...bed,
+            occupant: player,
+            rentPaidUntilMs: now + 90 * 60 * 1000,
+          })
+        } else {
+          const active = bedActiveOccupant(bed, now)
+          if (active === null) {
+            useUI.getState().showToast('请前往房产中介签订租约')
+            continue
+          }
+          if (active !== player) {
+            useUI.getState().showToast('这张床已被人租下')
+            continue
+          }
+        }
+      }
+      nearestFee = 0
+    }
+    if (nearestEnt && nearestKind === 'rough') {
+      const spot = nearestEnt.get(RoughSpot)
+      if (spot) {
+        if (spot.occupant !== null && spot.occupant !== player) {
+          useUI.getState().showToast('长椅已被占用')
+          continue
+        }
+        nearestEnt.set(RoughSpot, { occupant: player })
+      }
+    }
+    if (nearestEnt && nearestKind === 'bar') {
+      if (!isBarOpen(world)) {
+        useUI.getState().showToast('调酒师不在 · 酒吧未开门')
+        continue
+      }
+      const seat = nearestEnt.get(BarSeat)
+      if (seat) {
+        if (seat.occupant !== null && seat.occupant !== player) {
+          useUI.getState().showToast('座位已被占用')
+          continue
+        }
+        nearestEnt.set(BarSeat, { occupant: player })
+      }
+    }
+    if (nearestFee > 0) {
+      const m = player.get(Money)
+      if (!m || m.amount < nearestFee) {
+        useUI.getState().showToast(`金钱不足 · 需 ¥${nearestFee}`)
+        continue
+      }
+      player.set(Money, { amount: m.amount - nearestFee })
+    }
+
+    if (nearestKind === 'tap' || nearestKind === 'scavenge' || nearestKind === 'rough') {
+      const kind = nearestKind
+      if (player.has(RoughUse)) player.set(RoughUse, { kind })
+      else player.add(RoughUse({ kind }))
+    } else if (player.has(RoughUse)) {
+      player.remove(RoughUse)
+    }
+
+    const def = ACTIONS[nearestKind]
+    let durationMin = def.durationMin
+    if (def.kind === 'sleeping') {
+      const v = player.get(Vitals)
+      const fatigue = v?.fatigue ?? 100
+      let mult = BED_MULTIPLIERS.flop
+      if (nearestEnt) {
+        const bed = nearestEnt.get(Bed)
+        if (bed) mult = BED_MULTIPLIERS[bed.tier as BedTier] ?? 1.0
+      }
+      if (nearestKind === 'rough') mult = BED_MULTIPLIERS.none
+      durationMin = Math.max(1, Math.round((fatigue * SLEEP_MIN_PER_FATIGUE) / mult))
+    }
+    if (def.kind === 'working') {
+      durationMin = 0
+    }
+    if (def.kind === 'reveling') {
+      const v = player.get(Vitals)
+      const boredom = v?.boredom ?? 100
+      durationMin = Math.max(1, Math.round((boredom * actionsConfig.barMinutesForFullFun) / 100))
+    }
+    player.set(Action, { kind: def.kind, remaining: durationMin, total: durationMin })
+  }
+}

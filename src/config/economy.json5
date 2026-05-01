@@ -1,0 +1,76 @@
+// Money: prices, rent, deposit, and the wage-vs-performance curve.
+{
+  // Player-facing prices, in ¥. NPC purchases use the same numbers.
+  prices: {
+    meal:        15,  // one basic meal at the shop
+    premiumMeal: 40,  // upmarket meal — same hunger drop, small charisma feed
+    water:       5,   // one bottle of water at the shop
+    barDrink:    10,  // one bar visit
+
+    // Per-bed rent costs by tier. Flop is short-cycle (12h); the others
+    // are per `bedRentDurationDays` (one game-month by default). Tune the
+    // gap between tiers to control how aggressively NPCs upgrade housing.
+    flopBed:      5,
+    dormBed:      50,
+    apartmentBed: 150,
+    luxuryBed:    300,
+  },
+
+  rent: {
+    // Length of the rent window for non-flop beds (apartment / dorm /
+    // luxury). Flop has its own (much shorter) window below.
+    bedRentDurationDays: 30,
+
+    // Flophouse bed rental: paying flopBed (see prices) grants exclusive
+    // access to one specific flop bed for this many *game-hours*. After
+    // expiry the rent system evicts the tenant and the bed reopens. While
+    // the rent is active the renter may sleep, leave, and come back without
+    // re-paying.
+    flopBedHours: 12,
+
+    // Deposit charged when renting an apartment through the realtor menu.
+    // Expressed as a multiplier of the apartment's monthly rent — 1.0
+    // means "one extra month upfront". Charged on every claim through
+    // the realtor (squatter-style claim via the bed itself stays
+    // deposit-free).
+    apartmentDepositMult: 1.0,
+  },
+
+  // One-time purchase prices via the realtor — expressed as months of
+  // monthly rent so they stay proportional when rent prices change.
+  // Buying makes the bed permanently the player's: the rent system never
+  // evicts them and no further rent is charged. Only apartments and
+  // luxury units are buyable; flop and dorm beds are rent-only (short-
+  // cycle / institutional housing).
+  purchase: {
+    apartmentMonthsRent: 60,  // ~5 years of rent up front
+    luxuryMonthsRent: 84,     // ~7 years of rent up front
+  },
+
+  wage: {
+    // NPCs earn this multiplier on top of the base wage so a colony
+    // doesn't bleed money to inflation while the player is figuring out
+    // how to make money. 1.0 = same as player.
+    npcBonus: 1.6,
+
+    // Performance-tier piecewise curve used by wageMultiplier(perf).
+    // perf is 0..100 (% of shift completed correctly). The curve is:
+    //   perf >= fullPay         → 1.0
+    //   nearFull <= perf < 100  → 1.0 - (100 - perf) * nearFullSlope
+    //   midRange <= perf < 90   → 0.95 - (90 - perf) * midRangeSlope
+    //   perf < 50               → max(0, perf * lowSlope)
+    // Defaults: 100% pay at perfect; tiny dip in the 90s; steep ramp in the
+    // 50–90 band; near-zero pay below 50.
+    perfBreakpoints: {
+      fullPay:  100,
+      nearFull: 90,
+      midRange: 50,
+    },
+    perfSlopes: {
+      nearFull: 0.005,
+      midRange: 0.01,
+      low:      0.0055,
+    },
+    midRangeBaseMult: 0.95,
+  },
+}

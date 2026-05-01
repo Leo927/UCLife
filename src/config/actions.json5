@@ -1,0 +1,103 @@
+// Action durations, reading rewards, and bed-tier sleep efficiency.
+//
+// Some "default duration" entries are overridden at runtime (sleep scales
+// with fatigue + bed tier; bar scales with current boredom; work runs until
+// the shift ends). Those are kept here for completeness and to mark the
+// fallback the interaction system uses.
+{
+  // Defaults on Interactable kinds. Times are in game-minutes.
+  defaults: {
+    eat:      15,    // eating at a food counter (no such interactable today; reserved)
+    sleep:    480,   // overridden by formula — see sleepMinutesForFullRest
+    flop:     480,   // overridden — same formula as sleep
+    wash:     10,
+    work:     480,   // overridden — work runs until end of shift
+    bar:      30,    // overridden — see barMinutesForFullFun
+    tap:      5,     // sipping from a public tap; long enough that hygiene + HP penalty bites
+    scavenge: 20,    // chewing through trash-grade calories — overridden by formula at runtime
+    rough:    480,   // sleeping rough — overridden by formula (same as sleep)
+    gym:      45,    // one workout session — feeds Strength.recentUse
+  },
+
+  // Player-driven inventory consumes. These are not overridden at runtime.
+  inventory: {
+    eat:  10,    // eating one meal item (StatusPanel "食用")
+    drink: 1,    // drinking one water item
+    read: 120,   // reading one book item (2 hours)
+  },
+
+  // Reading reward. Multiplied by Intelligence (statMult) at consume time.
+  reading: {
+    xpPerBook:    50,
+    targetSkill:  'mechanics',  // which skill the books grant XP toward
+    bookCapXp:    3000,         // skill XP cap from books only (= 30 levels)
+  },
+
+  // Sleep formula: minutes of sleep needed to fully clear 100 fatigue at a
+  // base bed (multiplier 1.0). At runtime: durationMin = (fatigue/100) *
+  // sleepMinutesForFullRest / bedMultiplier; recovery = -100/this * bedMult.
+  sleepMinutesForFullRest: 480,
+
+  // Bar formula: minutes spent reveling at the bar to clear 100 boredom.
+  // Bar duration scales linearly with the patron's current boredom value.
+  barMinutesForFullFun: 30,
+
+  // Sleep efficiency multipliers per bed tier. Higher = faster recovery and
+  // shorter required sleep duration. 'none' is sleeping rough (no bed at
+  // all) — a steep penalty. 'lounge' is the AE employee couch — better than
+  // a dorm bed but not as good as a real apartment.
+  bedMultipliers: {
+    luxury:    1.5,
+    apartment: 1.25,
+    dorm:      1.0,
+    lounge:    0.9,
+    flop:      0.85,
+    none:      0.5,
+  },
+
+  // Per-game-minute side-effects when an actor is using a rough/free survival
+  // source (street tap / dumpster / sleeping rough). Applied additively on top
+  // of the base action — see systems/vitals.ts. Hygiene rises (gets dirty),
+  // HP ticks down, and (for scavenge) hunger reduction is dampened so trash
+  // is meaningfully worse than a meal but still keeps you alive.
+  rough: {
+    tap: {
+      hygienePerMin: 0.4,    // 4× normal hygiene drain
+      hpPerMin:      0.01,   // mild — drinking street water rarely kills
+    },
+    scavenge: {
+      // Eating action sets dHunger = act.eating.hunger (-10/min). Scavenged
+      // food cuts that effectiveness by half, so trash takes 20 game-min to
+      // clear 100 hunger.
+      hungerMult:   0.5,
+      hygienePerMin: 0.5,
+      hpPerMin:     0.05,    // food poisoning risk modeled as steady drain
+    },
+    rough: {
+      hygienePerMin: 0.6,    // rougher than street water
+      hpPerMin:      0.03,   // exposure
+    },
+  },
+
+  // Charisma feed on premium-meal consumption. The eat() success branch
+  // checks if a premium meal is present and feeds this if so. See data/stats
+  // for the FEED scale; tiny by design — a few weeks of luxury living shifts
+  // the stat one band.
+  premiumMealCharismaFeed: 4,
+
+  // Chat (NPC↔NPC social). Two friends meet, talk for `durationMin`, and
+  // both gain accelerated boredom recovery + a per-minute opinion bump.
+  // Hygiene drains slightly faster (people sweating in close conversation)
+  // but no HP penalty. Tunable separately from the bar so chat is a
+  // cheaper-but-slower social outlet — bar drains money, chat doesn't.
+  chatting: {
+    durationMin:        10,    // total conversation length
+    boredomPerMin:      -8,    // boredom recovery rate (negative = drains down)
+    hygienePerMin:      0.1,   // small extra hygiene drift on top of base
+    opinionPerMin:      0.5,   // per-game-minute opinion bump on top of co-location drift
+    inviteRangePx:      120,   // initiator searches for friends within this
+    boredomMin:         5,     // any non-trivial boredom is enough — friends should
+                               // socialize whenever they're idle, not only when bored
+    arriveDistPx:       28,    // chat begins when distance to partner ≤ this
+  },
+}

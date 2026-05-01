@@ -1,0 +1,166 @@
+// Hand-authored "special" NPCs — narratively significant characters whose
+// identity, faction role, position, and starting state are pinned by content.
+// Background civilians do NOT live here; they're generated procedurally at
+// world-init via the name pool in `data/nameGen.ts` and the appearance
+// generator in `data/appearanceGen.ts`.
+//
+// Per-character appearance overrides live next door in `npc-appearance.json5`
+// (keyed by `name`) — `setupAppearance` looks them up automatically when the
+// NPC spawns.
+//
+// World coordinates are in pixels (TILE = worldConfig.tilePx; multiply tile
+// indices by TILE in code, not here, for clarity in the spec).
+//
+// Adding a new special NPC: append a new entry. If they should hold a
+// faction relationship, set `factionRole`. If they should look distinctive,
+// add a matching entry in npc-appearance.json5. If they should occupy a
+// specific workstation at world-init, set `workstation` to its specId — the
+// spawn loop in ecs/spawn.ts links Workstation.occupant ↔ Job.workstation.
+//
+// AE complex coordinates: building origin at tile (400, 200), 28×26.
+//   Board offices  — row 4, cols 9 / 13 / 17 / 21 / 25
+//   Manager offices — row 10, same cols
+//   Reception desk — col 3, row 13
+
+{
+  npcs: [
+    // === Anaheim Electronics 董事会 (Board) ===
+    // Five board members the player must befriend (per ae_senior_engineer's
+    // relationReq) to reach AE rank 4. Each occupies one of the 5 board
+    // offices and holds a board-tier workstation with massive paychecks.
+
+    {
+      name: '米利亚·卡里',
+      color: '#f59e0b',
+      title: 'AE 董事长',
+      tileX: 409, tileY: 204,
+      fatigue: 10,
+      money: 80000,
+      skills: { mechanics: 5500, computers: 4000 },
+      factionRole: { faction: 'anaheim', role: 'board' },
+      workstation: 'ae_board_chair',
+    },
+    {
+      name: '乔治·米格尔',
+      color: '#fbbf24',
+      title: 'AE 首席财务官',
+      tileX: 413, tileY: 204,
+      fatigue: 15,
+      money: 65000,
+      skills: { mechanics: 4500, computers: 3200 },
+      factionRole: { faction: 'anaheim', role: 'board' },
+      workstation: 'ae_board_cfo',
+    },
+    {
+      name: '安娜海姆·世津',
+      color: '#fcd34d',
+      title: 'AE 首席技术官',
+      tileX: 417, tileY: 204,
+      fatigue: 12,
+      money: 60000,
+      skills: { mechanics: 3200, computers: 5500 },
+      factionRole: { faction: 'anaheim', role: 'board' },
+      workstation: 'ae_board_cto',
+    },
+    {
+      name: '凯瑟琳·卡里',
+      color: '#fde68a',
+      title: 'AE 首席运营官',
+      tileX: 421, tileY: 204,
+      fatigue: 12,
+      money: 55000,
+      skills: { mechanics: 3000, computers: 3500 },
+      factionRole: { faction: 'anaheim', role: 'board' },
+      workstation: 'ae_board_coo',
+    },
+    {
+      name: '林·特拉维斯',
+      color: '#fcd34d',
+      title: 'AE 首席市场官',
+      tileX: 425, tileY: 204,
+      fatigue: 10,
+      money: 50000,
+      skills: { mechanics: 1500, computers: 2500 },
+      factionRole: { faction: 'anaheim', role: 'board' },
+      workstation: 'ae_board_cmo',
+    },
+
+    // === Anaheim Electronics 中层管理 (Managers) ===
+    // Five mid-level managers, one per office in the manager wing. They run
+    // the day-to-day; the player can chat them up but can't take their job
+    // (managers are NPC-only roles).
+
+    {
+      name: '田中·健',
+      color: '#a3e635',
+      title: 'AE 车间主任',
+      tileX: 409, tileY: 210,
+      fatigue: 18,
+      money: 12000,
+      skills: { mechanics: 3500, computers: 1500 },
+      factionRole: { faction: 'anaheim', role: 'manager' },
+      workstation: 'ae_floor_manager',
+    },
+    {
+      name: '雪莉·吴',
+      color: '#86efac',
+      title: 'AE 设计主管',
+      tileX: 413, tileY: 210,
+      fatigue: 16,
+      money: 12000,
+      skills: { mechanics: 3000, computers: 4000 },
+      factionRole: { faction: 'anaheim', role: 'manager' },
+      workstation: 'ae_design_lead',
+    },
+    {
+      name: '罗伯特·克莱因',
+      color: '#bef264',
+      title: 'AE 运营经理',
+      tileX: 417, tileY: 210,
+      fatigue: 20,
+      money: 11000,
+      skills: { mechanics: 2500, computers: 2500 },
+      factionRole: { faction: 'anaheim', role: 'manager' },
+      workstation: 'ae_ops_manager',
+    },
+    {
+      name: '安妮·张',
+      color: '#d9f99d',
+      title: 'AE 人力资源经理',
+      tileX: 421, tileY: 210,
+      fatigue: 15,
+      money: 11000,
+      skills: { mechanics: 1200, computers: 2000 },
+      factionRole: { faction: 'anaheim', role: 'manager' },
+      workstation: 'ae_hr_manager',
+    },
+    {
+      name: '卡尔·穆勒',
+      color: '#a3e635',
+      title: 'AE 质量管理',
+      tileX: 425, tileY: 210,
+      fatigue: 17,
+      money: 11000,
+      skills: { mechanics: 3800, computers: 1800 },
+      factionRole: { faction: 'anaheim', role: 'manager' },
+      workstation: 'ae_quality_manager',
+    },
+
+    // === Anaheim Electronics 前台 (Reception) ===
+    // Mans the reception desk — the only role the player walks up to for
+    // hiring (the 'aeReception' Interactable opens AEConversation when this
+    // NPC is on shift, gated by ae_director shift hours in NPCDialog).
+
+    {
+      name: '艾米·林',
+      color: '#22d3ee',
+      title: 'AE 前台主管',
+      tileX: 403, tileY: 213,
+      fatigue: 12,
+      money: 5000,
+      skills: { mechanics: 1000, computers: 2000 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_director',
+    },
+  ],
+}

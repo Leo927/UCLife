@@ -1,0 +1,107 @@
+// Character attributes: drift mechanics, decay, feed rates, downstream
+// multiplier shape, grade thresholds. See DESIGN §4.5 for the model.
+{
+  // Lowest a stat can drift to under sustained neglect. "Catatonic-but-alive
+  // baseline" — keeps downstream multipliers from collapsing to 0×.
+  floor: 5,
+
+  // Daily drift coefficient. value += (target - value) * drift, applied once
+  // per game-day. 0.10 → a fully-grinding week settles on the new target in
+  // roughly 3 game-weeks.
+  drift: 0.10,
+
+  // Per-game-day exponential decay applied to the rolling buffers when no
+  // activity feeds them. Half-life ≈ 5 days for use, ≈ 7 days for stress —
+  // a hard week lingers slightly longer than a slack week.
+  recentUseDecayPerDay: 0.87,
+  recentStressDecayPerDay: 0.91,
+
+  // Per-game-minute rates pushed into recentUse by the activity systems.
+  // Buffers are clamped 0..100 so anything sustained saturates; relative
+  // size only matters for ramp-up speed across activities.
+  feed: {
+    work:     0.5,    // dominant feed for the job-relevant attribute
+    reading:  0.4,    // Intelligence (player-only — NPCs don't read)
+    sleep:    0.3,    // Endurance
+    walk:     0.05,   // Reflex (every walking minute)
+    reveling: 0.5,    // Charisma (bar trips)
+    gym:      0.8,    // Strength (gym session) — aggressive: 45-min session ≈ +36
+  },
+
+  // Downstream multiplier mapping shape. statMult(value) = min + (max-min) *
+  // value/100. Default 0.5×–1.5× — high stat = 1.5×, low stat = 0.5×.
+  // Inverse helpers (fatigue drain, reading time) flip the mapping.
+  multiplierRange: {
+    min: 0.5,
+    max: 1.5,
+  },
+
+  // Initial stat state for any character that spawns without an explicit
+  // override. The player and NPCs share this baseline until the character
+  // creator and NPC procgen land (DESIGN §4.5.6).
+  spawnDefaults: {
+    value: 50,
+    talent: 1.0,
+    recentUse: 50,
+    recentStress: 0,
+  },
+
+  // Grade thresholds shown in the StatusPanel. Each is the *minimum* value
+  // for that grade; anything lower falls to the next band. Bands are wide
+  // on purpose — players see rough trend, not min-max fodder.
+  gradeThresholds: {
+    S: 90,
+    A: 75,
+    B: 60,
+    C: 45,
+    D: 25,
+    // E is the implicit floor band (value < 25).
+  },
+
+  // Color tints for each grade letter in the UI. Hex strings.
+  gradeColors: {
+    S: '#22d3ee',
+    A: '#4ade80',
+    B: '#a3e635',
+    C: '#facc15',
+    D: '#f97316',
+    E: '#ef4444',
+  },
+
+  // Stress sources (DESIGN §4.5.4). Each trigger feeds recentStress per
+  // game-minute while the trigger is active. Stress decays via
+  // recentStressDecayPerDay above. Which stats each trigger affects is
+  // hard-coded in systems/stress.ts following the design table.
+  stress: {
+    // Vital threshold for "saturated" — sustained-vital triggers fire when
+    // hunger / thirst / fatigue / hygiene meet or exceed this.
+    vitalSaturationThreshold: 70,
+
+    // Game-days an entity must have been unemployed before unemployment
+    // stress kicks in. Fresh spawns get this grace before atrophy starts.
+    unemploymentGraceDays: 7,
+
+    // Per-game-minute stress feed rates. Calibration target:
+    //   ~0.1   → noticeable after ~10 game-hours sustained
+    //   ~0.2   → noticeable after ~6 game-hours
+    //   ~0.5   → saturates buffer in ~4 game-hours
+    feeds: {
+      // Saturated vital → these stats. See DESIGN §4.5.4.
+      hygieneSaturated: 0.20,   // → Charisma
+      hungerSaturated:  0.20,   // → Strength, Endurance
+      thirstSaturated:  0.25,   // → Endurance, Intelligence  (dehydration is harshest)
+      fatigueSaturated: 0.15,   // → Reflex, Intelligence
+
+      // Lifestyle.
+      homeless:       0.10,     // → Charisma (Resolve too per design, no-op until Phase 7)
+      unemployedLong: 0.05,     // → all stats (mild)
+
+      // Per-action.
+      reveling:       0.40,     // → Strength while at the bar (alcohol cost)
+
+      // HP bands. Severe replaces hurt — they don't stack.
+      hpHurt:    0.20,          // HP < 50 → all stats
+      hpSevere:  0.50,          // HP < 25 → all stats (strong)
+    },
+  },
+}

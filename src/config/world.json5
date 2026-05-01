@@ -1,0 +1,78 @@
+// Spatial constants — tile size, wall thickness, base movement speed, and
+// the various "close enough" distances used by movement, pathfinding, and
+// player/NPC interaction range checks.
+{
+  // Grid size in pixels. The map, all building rects, bed/desk positions,
+  // and the pathfinder's underlying grid all key off this. Halving it
+  // doubles map detail at the cost of CPU.
+  tilePx: 32,
+
+  // Per-scene map size in tiles lives in src/data/scenes.json5 (each scene
+  // declares its own tilesX/tilesY). Camera, grid, pathfinder, and map UI
+  // all read the active scene's dims — see src/ecs/world.ts.
+
+  // Wall thickness in pixels. Walls always sit *fully inside* the building
+  // footprint so their 6px band stays within a single 16-px pathfinding
+  // cell row/column — see comment in ecs/spawn.ts.
+  wallThicknessPx: 6,
+
+  // Base movement speed: how many pixels an entity covers per game-minute
+  // at "1× character speed". Modified per-entity by Reflex (statMult).
+  movePxPerGameMin: 64,
+
+  // Numerical guards used by the movement system. arriveEps = "treat as
+  // arrived"; waypointEps = "advance to next waypoint" tolerance. Tweaking
+  // these affects pathfinding stability, not gameplay feel.
+  arriveEpsPx: 0.5,
+  waypointEpsPx: 2,
+
+  // Range checks (in pixels). Each describes a different relationship —
+  // edit independently if you want, e.g., to make the player able to use
+  // distant interactables without making NPCs count as "at" their station.
+  ranges: {
+    // How close the player must walk to an Interactable to fire it.
+    playerInteract: 28,
+    // How close an NPC's position must be to a service counter for the
+    // counter to count as "staffed" (shop / bar open).
+    counterStaffed: 6,
+    // How close an NPC's position must be to a workstation for the
+    // station to count as "occupied" (interaction.ts player checks).
+    workstationOccupied: 6,
+    // Distance at which an NPC counts as "at" a target (BT goTo* steps).
+    npcArrive: 4,
+    // Distance at which an NPC counts as "at" a service counter (BT
+    // shop/bar visits).
+    npcCounter: 6,
+  },
+
+  // Active-zone optimization. NPCs whose Position lies inside the player's
+  // active zone (camera viewport + activePadTiles of buffer) are "Active":
+  // rendered, BT at full cadence, vitals at full per-tick rate. Outside,
+  // they're "Inactive": no graphics, BT at coarse cadence, vitals scaled by
+  // inactiveSlowFactor. Only matters at scale — on a small map every NPC is
+  // always Active. Tune when enlarging the map.
+  activeZone: {
+    // Tiles of buffer around the camera viewport that still count as
+    // Active. Bigger = smoother visual transitions when the camera pans
+    // toward an inactive NPC, at the cost of more NPCs to fully simulate.
+    activePadTiles: 8,
+    // Extra tiles past activePadTiles that an Active NPC must exit before
+    // being demoted to Inactive. Hysteresis — prevents render/cadence flap
+    // for NPCs walking the boundary.
+    hysteresisTiles: 2,
+    // Game-minutes between active/inactive recomputations. The player's
+    // camera can't move enough in one game-minute to matter; checking
+    // every frame would be wasted work, especially at hyperspeed.
+    membershipTickMin: 1,
+    // Inactive simulation slowdown. Per-tick drives (vitals drain, etc.)
+    // multiply by this. 0.0 = frozen, 1.0 = full sim. Default 0.25 keeps
+    // background NPCs honest (still get hungry off-camera) without making
+    // them dominate CPU.
+    inactiveSlowFactor: 0.25,
+    // Game-minutes between coarse-tick passes for Inactive NPCs. BT,
+    // vitals, and relations only run for Inactive NPCs on these
+    // boundaries. 5-min cadence × 0.25 slow factor ≈ 1.25× drift per
+    // pass, ~4× CPU savings vs per-tick.
+    inactiveCoarseTickMin: 5,
+  },
+}

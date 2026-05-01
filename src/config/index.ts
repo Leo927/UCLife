@@ -1,0 +1,32 @@
+export { timeConfig } from './time'
+export type { TimeConfig } from './time'
+
+export { worldConfig } from './world'
+export type { WorldConfig } from './world'
+
+export { vitalsConfig } from './vitals'
+export type { VitalsConfig } from './vitals'
+
+export { attributesConfig } from './attributes'
+export type { AttributesConfig } from './attributes'
+
+export { economyConfig } from './economy'
+export type { EconomyConfig } from './economy'
+
+export { actionsConfig } from './actions'
+export type { ActionsConfig } from './actions'
+
+export { aiConfig } from './ai'
+export type { AIConfig } from './ai'
+
+export { skillsConfig } from './skills'
+export type { SkillsConfig } from './skills'
+
+export { jobsConfig } from './jobs'
+export type { JobsConfig, JobSpec } from './jobs'
+
+export { populationConfig } from './population'
+export type { PopulationConfig } from './population'
+
+export { factionsConfig } from './factions'
+export type { FactionsConfig, FactionSpec } from './factions'
