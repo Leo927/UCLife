@@ -124,3 +124,4 @@ In dev, `globalThis.__uclife__ = { world, useClock, useScene }` is exposed (and 
 - Prefer delegate to subagents to maintain context integrity.
 - Strong emphasis on automated testing harness. Maintain a single suite of regression test. 
 - Don't rush to implementation. Always refine the design with the user first. 
+- Always prefer MCP server over raw API call
