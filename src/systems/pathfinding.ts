@@ -386,7 +386,15 @@ export function findPath(
   const smoothed = smooth(grid)
   const tCellX = Math.floor(to.x / CELL)
   const tCellY = Math.floor(to.y / CELL)
-  if (!isBlocked(tCellX, tCellY)) {
+  // Snap the last waypoint to the actual target pixel only when the path
+  // actually reached the target cell. hpaFind can return a partial path
+  // (e.g. when a locked door blocks the only route) — in that case the
+  // last cell is the cluster-boundary stop point, not the target, and
+  // snapping it to `to` would draw a straight line through the wall.
+  const lastIdx = idxPath[idxPath.length - 1]
+  const lastCellX = lastIdx % COLS
+  const lastCellY = Math.floor(lastIdx / COLS)
+  if (lastCellX === tCellX && lastCellY === tCellY && !isBlocked(tCellX, tCellY)) {
     smoothed[smoothed.length - 1] = { x: to.x, y: to.y }
   }
   // Drop first cell (≈ current position).

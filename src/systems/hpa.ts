@@ -355,17 +355,6 @@ export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | nu
     return null
   }
 
-  if (octileEstimate(sIdx, tIdx) < HPA_MIN_COST) {
-    if (PROF) {
-      hpaStats.thresholdHits++
-      const t0 = performance.now()
-      const r = aStarOnIdx(blocked, sIdx, tIdx, 0, 0, COLS - 1, ROWS - 1)
-      hpaStats.flatMs += performance.now() - t0
-      return r
-    }
-    return aStarOnIdx(blocked, sIdx, tIdx, 0, 0, COLS - 1, ROWS - 1)
-  }
-
   let h: SceneHpa
   if (PROF) {
     const t0 = performance.now()
@@ -377,20 +366,12 @@ export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | nu
   const sCluster = h.clusters[clusterIdOfCell(sIdx)]
   const tCluster = h.clusters[clusterIdOfCell(tIdx)]
 
-  // Same cluster: bounded flat A* on door-aware grid. Falls through to the
-  // abstract path if the cluster is split by a wall.
-  if (sCluster === tCluster) {
-    if (PROF) hpaStats.sameCluster++
-    const direct = aStarOnIdx(blocked, sIdx, tIdx, sCluster.minX, sCluster.minY, sCluster.maxX, sCluster.maxY)
-    if (direct && direct.length > 0) return direct
-  }
-
-  if (PROF && sCluster !== tCluster) hpaStats.crossCluster++
-
-  // Don't pre-build permanent intra for sCluster/tCluster — temp INTRA
-  // from insertTempNode already gives abstract search direct access. Intra
-  // for intermediate clusters builds lazily inside abstractAStar.
-
+  // Insert temp nodes up-front. This has two purposes: (1) lets abstract A*
+  // run later without re-inserting, (2) gives us a per-requester reachability
+  // signal — a fresh temp with zero edges means the endpoint is isolated
+  // within its cluster under the current door overlay (locked-room case).
+  // Without that fast-fail, flat or abstract A* would exhaust the entire
+  // reachable region looking for an unreachable endpoint, freezing for ~1s.
   let sNode: AbstractNode, tNode: AbstractNode
   if (PROF) {
     const t0 = performance.now()
@@ -402,14 +383,56 @@ export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | nu
     tNode = insertTempNode(tCluster, tIdx, blocked, false)
   }
 
-  let path: number[] | null = null
   try {
-    path = abstractAStar(sNode, tNode, blocked, world)
+    // Fresh temp with zero edges = endpoint isolated in its cluster under
+    // the door overlay. (Reused entrance nodes always have ≥1 edge from
+    // pairEntrance, so .temp distinguishes the fresh case cleanly.)
+    if ((sNode.temp && sNode.edges.length === 0) || (tNode.temp && tNode.edges.length === 0)) {
+      if (PROF) hpaStats.componentFastFail++
+      return null
+    }
+
+    // Same cluster: bounded flat A* on door-aware grid. Falls through to the
+    // abstract path if the cluster is split by a wall.
+    if (sCluster === tCluster) {
+      if (PROF) hpaStats.sameCluster++
+      const direct = aStarOnIdx(blocked, sIdx, tIdx, sCluster.minX, sCluster.minY, sCluster.maxX, sCluster.maxY)
+      if (direct && direct.length > 0) return direct
+    }
+
+    // Short cross-cluster paths: bounded flat A* over the cluster bbox
+    // expanded by one cluster on each side. Replaces the previous full-map
+    // flat A* — that would exhaust the whole reachable region on dead-end
+    // targets that slipped past the isolation check (e.g. clusters that span
+    // a door but the door blocks the only useful direction). If the bounded
+    // attempt fails, falls through to abstract A*.
+    if (octileEstimate(sIdx, tIdx) < HPA_MIN_COST) {
+      if (PROF) hpaStats.thresholdHits++
+      const minCx = Math.max(0, Math.min(sCluster.cx, tCluster.cx) - 1)
+      const maxCx = Math.min(CW - 1, Math.max(sCluster.cx, tCluster.cx) + 1)
+      const minCy = Math.max(0, Math.min(sCluster.cy, tCluster.cy) - 1)
+      const maxCy = Math.min(CH - 1, Math.max(sCluster.cy, tCluster.cy) + 1)
+      const bMinX = minCx * CLUSTER_SUB
+      const bMaxX = Math.min(COLS - 1, (maxCx + 1) * CLUSTER_SUB - 1)
+      const bMinY = minCy * CLUSTER_SUB
+      const bMaxY = Math.min(ROWS - 1, (maxCy + 1) * CLUSTER_SUB - 1)
+      let r: number[] | null
+      if (PROF) {
+        const t0 = performance.now()
+        r = aStarOnIdx(blocked, sIdx, tIdx, bMinX, bMinY, bMaxX, bMaxY)
+        hpaStats.flatMs += performance.now() - t0
+      } else {
+        r = aStarOnIdx(blocked, sIdx, tIdx, bMinX, bMinY, bMaxX, bMaxY)
+      }
+      if (r && r.length > 0) return r
+    }
+
+    if (PROF && sCluster !== tCluster) hpaStats.crossCluster++
+    return abstractAStar(sNode, tNode, blocked, world)
   } finally {
     teardownTempNodes(sCluster)
     if (tCluster !== sCluster) teardownTempNodes(tCluster)
   }
-  return path
 }
 
 function insertTempNode(c: Cluster, cellIdx: number, blocked: Uint8Array, _isStart: boolean): AbstractNode {
@@ -542,6 +565,12 @@ function abstractAStar(sNode: AbstractNode, tNode: AbstractNode, blocked: Uint8A
     }
     for (let i = 0; i < cur.edges.length; i++) {
       const e = cur.edges[i]
+      // INTER edges aren't refined by refineAbstractPath — both border cells
+      // are emitted verbatim. Filter per-requester here so abstract A* can't
+      // route through a locked door tile that happens to sit on a cluster
+      // boundary (entrance detection runs against the wall-only grid, so door
+      // tiles are valid entrances even when the door is locked for us).
+      if (e.isInter && (blocked[e.from.cellIdx] === 1 || blocked[e.to.cellIdx] === 1)) continue
       const nb = e.to
       if (nb.gen !== queryGen) {
         nb.gen = queryGen
