@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'Design/**'
+      - '.claude/**'
+      - '**/*.md'
+      - 'LICENSE'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'Design/**'
+      - '.claude/**'
+      - '**/*.md'
+      - 'LICENSE'
 
 permissions:
   contents: read
