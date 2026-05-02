@@ -12,7 +12,8 @@
     "check:portrait": "node scripts/check-portrait.mjs",
     "check:portrait-modals": "node scripts/check-portrait-modals.mjs",
     "check:portrait-enlarge": "node scripts/check-portrait-enlarge.mjs",
-    "check:sprite": "node scripts/check-sprite.mjs"
+    "check:sprite": "node scripts/check-sprite.mjs",
+    "ci:local": "node scripts/ci-local.mjs"
   },
   "dependencies": {
     "idb-keyval": "^6.2.2",

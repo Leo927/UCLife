@@ -34,6 +34,22 @@ const initial = await page.evaluate(() => {
 })
 console.log('Initial active scene:', initial.activeId)
 
+// Airport arrival tiles are procgen-randomized, so ask the running app
+// where each hub actually placed its arrival pixel rather than hardcoding.
+const airports = await page.evaluate(() => window.__uclife__.listAirports())
+const expectedArrival = Object.fromEntries(
+  airports
+    .filter((a) => a.placement)
+    .map((a) => [a.hubId, a.placement.arrivalPx]),
+)
+const zumArrival = expectedArrival.zumCityAirport
+const startArrival = expectedArrival.startTownAirport
+if (!zumArrival || !startArrival) {
+  console.log('FAIL · missing airport placement(s):', expectedArrival)
+  await browser.close()
+  process.exit(1)
+}
+
 await page.evaluate(async () => {
   const traitsMod = await import('/src/ecs/traits.ts')
   // eslint-disable-next-line no-undef
@@ -71,14 +87,11 @@ const afterFly1 = await page.evaluate(async () => {
     playerPos: pos ? { x: pos.x, y: pos.y } : null,
   }
 })
-console.log('After leg 1 (startTown → zumCity):', afterFly1)
-const TILE = 32
-const expectedX = 150 * TILE
-const expectedY = 142 * TILE
+console.log('After leg 1 (startTown → zumCity):', afterFly1, 'expected arrival:', zumArrival)
 const leg1Ok =
   afterFly1.activeId === 'zumCity' &&
-  afterFly1.playerPos?.x === expectedX &&
-  afterFly1.playerPos?.y === expectedY
+  afterFly1.playerPos?.x === zumArrival.x &&
+  afterFly1.playerPos?.y === zumArrival.y
 console.log(leg1Ok ? 'PASS · scene swapped to zumCity at zumCityAirport arrival tile' : 'FAIL · leg 1 mismatch')
 
 await page.screenshot({ path: 'scripts/out/scene-swap-zumcity.png', fullPage: false })
@@ -132,13 +145,11 @@ const afterFly2 = await page.evaluate(async () => {
     playerPos: pos ? { x: pos.x, y: pos.y } : null,
   }
 })
-console.log('After leg 2 (zumCity → startTown):', afterFly2)
-const expectedRetX = 20 * TILE
-const expectedRetY = 31 * TILE
+console.log('After leg 2 (zumCity → startTown):', afterFly2, 'expected arrival:', startArrival)
 const leg2Ok =
   afterFly2.activeId === 'startTown' &&
-  afterFly2.playerPos?.x === expectedRetX &&
-  afterFly2.playerPos?.y === expectedRetY
+  afterFly2.playerPos?.x === startArrival.x &&
+  afterFly2.playerPos?.y === startArrival.y
 console.log(leg2Ok ? 'PASS · scene swapped back to startTown at startTownAirport arrival tile' : 'FAIL · leg 2 mismatch')
 
 await page.screenshot({ path: 'scripts/out/scene-swap-starttown.png', fullPage: false })

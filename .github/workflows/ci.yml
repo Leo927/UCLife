@@ -74,7 +74,7 @@ jobs:
       - if: always()
         run: node scripts/check-sprite.mjs
       - if: always()
-        run: npx tsx scripts/survive.ts
+        run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
 
       - name: Upload screenshots on failure
         if: failure()
