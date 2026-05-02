@@ -16,10 +16,12 @@ import {
   Position, MoveTarget, Vitals, Health, Action, Money, Skills, Inventory,
   Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
-  Reputation, JobTenure, FactionRole,
+  Reputation, JobTenure, FactionRole, Active,
 } from '../ecs/traits'
 import type { TraitInstance } from 'koota'
-import { world } from '../ecs/world'
+import { world, getActiveSceneId, type SceneId } from '../ecs/world'
+import { initialSceneId, sceneIds } from '../data/scenes'
+import { useScene, migratePlayerToScene } from '../sim/scene'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { stopLoop, startLoop } from '../sim/loop'
 import { resetWorld, spawnNPC } from '../ecs/spawn'
@@ -92,6 +94,9 @@ export interface SaveMeta {
 interface SaveBundle {
   version: number
   seed: string
+  // Optional for back-compat with bundles written before the active-scene
+  // fix. Older bundles loaded by migrating to initialSceneId.
+  activeSceneId?: SceneId
   gameDate: Date
   meta: SaveMeta
   population: ReturnType<typeof getPopulationState>
@@ -233,6 +238,7 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
   const bundle: SaveBundle = {
     version: SAVE_VERSION,
     seed: WORLD_SEED,
+    activeSceneId: getActiveSceneId(),
     gameDate,
     meta,
     population: getPopulationState(),
@@ -317,6 +323,33 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   stopLoop()
 
   resetWorld()
+
+  // Restore active scene + bump the React-tree remount key BEFORE the byKey
+  // lookup. Three reasons:
+  // (a) world proxy resolves to `getActiveSceneId()`; resetWorld left it at
+  //     initialSceneId, so a save taken in any other scene would overlay onto
+  //     the wrong world without this.
+  // (b) world.reset() clears koota's queriesHashMap. The existing useQuery
+  //     instances become orphaned: the new entities spawned by setupWorld
+  //     don't appear in their state, leaving the rendered scene empty (only
+  //     the player rendered). Bumping swapNonce forces App to remount via
+  //     the keyed ScopedRoot, giving fresh useQuery instances that re-scan
+  //     entityIndex via cacheQuery.
+  // (c) setupWorld only spawns the player in initialSceneId. A save taken in
+  //     any other scene snapshots the player there, so we have to migrate the
+  //     fresh player into the target scene before byKey lookup — otherwise the
+  //     overlay drops the 'player' snap and the user lands in an empty scene
+  //     (no player → can't move → looks like "pathfinding broken").
+  const targetSceneId: SceneId = (bundle.activeSceneId && sceneIds.includes(bundle.activeSceneId))
+    ? bundle.activeSceneId
+    : initialSceneId
+  if (targetSceneId !== initialSceneId) {
+    // Position is overlaid from the snapshot below; the arrival arg is just
+    // a placeholder. migratePlayerToScene calls useScene.setActive internally.
+    migratePlayerToScene(targetSceneId, { x: 0, y: 0 })
+  } else {
+    useScene.getState().setActive(targetSceneId)
+  }
 
   const byKey = new Map<string, Entity>()
   for (const e of world.query(EntityKey)) {
@@ -468,6 +501,15 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   // After entity overlay so newly-spawned immigrants are already in byKey.
   // Edges to unkeyed or destroyed characters are silently dropped.
   if (bundle.relations) restoreRelations(world, byKey, bundle.relations)
+
+  // setupWorld spawns NPCs without Active — that's normally added on the
+  // first activeZoneSystem tick. But loadGame auto-pauses, so no tick fires
+  // and useQuery(Active, ...) in Game.tsx finds nothing → NPCs invisible
+  // until the player unpauses. Mark every character Active here; the next
+  // tick will demote any that are out of view.
+  for (const entity of world.query(Character)) {
+    if (!entity.has(Active)) entity.add(Active)
+  }
 
   // Auto-pause on load so the player can survey the restored state.
   useClock.setState({ gameDate: bundle.gameDate, speed: 0, mode: 'normal', forceHyperspeed: false })
