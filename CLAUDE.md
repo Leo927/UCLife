@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-UC Life Sim — a browser RPG life simulator set in Gundam UC 0077 lunar city Von Braun. Player-facing language is **zh-CN**; this file, code, comments, commit messages, and inspector UI are in English. See `DESIGN.md` for the full design doc.
+UC Life Sim — a browser RPG life simulator set in Gundam UC 0077 lunar city Von Braun. Player-facing language is **zh-CN**; this file, code, comments, commit messages, and inspector UI are in English. See `Design` for the full design doc.
 
 License: **GPL-3.0-or-later** (transitively, via the verbatim FC pregmod portrait code in `src/render/portrait/`). Do not strip the content guardrail in `src/render/portrait/adapter/characterToSlave.ts`.
 
@@ -53,7 +53,7 @@ Cross-scene player movement is **destroy-and-respawn**, not entity-transfer (ent
 
 The React side has a subtle pitfall: koota's `useQuery` seeds entity arrays via `useState` *once*, so swapping `WorldProvider`'s `world` prop alone leaves stale entity references. `src/main.tsx` keys `<App key={activeId}>` to force a full unmount on scene swap.
 
-Adding a scene = a JSON5 row in `scenes.json5` + a bootstrap branch in `src/ecs/spawn.ts` (`'cityProcgen'` | `'stub'`). Dispatch on `SceneConfig.bootstrap`; do not edit world.ts.
+Adding a scene = a JSON5 row in `scenes.json5`. `bootstrapMicroScene` in `src/ecs/spawn.ts` reads `scene.procgen?.enabled` to gate the road+building generator; scenes without procgen (or with `enabled: false`) load empty except for whatever the scene declares via `fixedBuildings`, `survivalSources`, transit terminals, and flight hubs. No bootstrap-dispatch code lives in `world.ts`.
 
 ### Game loop and tick pipeline
 
@@ -84,11 +84,23 @@ Do **not** throttle `tree.step()` in `npcSystem` — skipping BT frames breaks d
 
 ### Procgen + save/load
 
-`src/procgen/index.ts` exports `WORLD_SEED` and pure generators (`generateApartmentCells`, `generateLuxuryCells`, `generateSectors`). **Same seed → same world.**
+`src/procgen/index.ts` exports `WORLD_SEED`, `SeededRng`, and the pure city-generation pipeline. **Same seed → same world.**
 
-`src/save/index.ts` exploits this: saves persist only *dynamic* state (vitals/money/action/etc., the clock, population counters). Reload = `resetWorld()` + patch dynamic traits onto entities matched by stable `EntityKey`. Entity references survive the round-trip via key indirection. 4 slots: `'auto'` + 1..3 (manual). Autosaves fire on day rollover and on hyperspeed start, throttled by `timeConfig.autosaveCooldownRealSec`.
+The city generator runs in three stages, gated on `scene.procgen.enabled`:
 
-Never spawn NPCs inside luxury/apartment cells — locked cell doors will trap them.
+1. `generateRoadGrid(rect, roadsCfg, rng)` (`roads.ts`) — places vertical avenues + horizontal streets at randomized gaps, recursively splits qualifying super-blocks with one alley each. Returns `{ segments, subBlocks }`. Each sub-block carries which sides touch which road kind.
+2. `assignBuildings(rect, subBlocks, districts, rng)` (`blocks.ts`) — buckets sub-blocks per district (by center-containment), sorts each bucket largest-first, then for each block picks a fitting building type. Per-district pool is `types: [{ id, min?, max? }]`; types with unmet `min` are placed first (largest-min-footprint ties broken randomly), then types with `placed < max` fill the rest. This is how airports (`min: 1, max: 1` in commercial) reliably claim a big enough block before shop/bar/etc. consume them.
+3. `generateCells(building, cellCount, corridorSide, rng)` (`cells.ts`) — single orientation-aware cell-layout generator. The two original "horizontal_cells"/"vertical_cells" algorithms collapsed into one `cells` algorithm; corridor side is decided per-slot by the road-facing wall, not baked into the building type.
+
+Roads are drawn as `Road({ x, y, w, h, kind })` entities under buildings (`src/render/Game.tsx`'s ground sub-layer). The pathfinder treats them as plain non-wall walkable space — no special-case logic.
+
+**Special building algorithms** (`buildingTypes.ts`):
+- `airport` — open interior, single ticket counter spawned 1.5 tiles inside the wall opposite the primary door. Binds to the matching `flights.json5` hub by `sceneId` (1:1 per scene). Counter + arrival pixel coords land in `src/sim/airportPlacements.ts`'s runtime registry; FlightModal/scene migration read from there. To support flights, the host scene's commercial district pool **must** include `{ id: 'airport', min: 1, max: 1 }`.
+- `park` — no exterior walls and no doors. Random taps/scavenge/benches scatter inside the rect (counts drawn uniformly from `taps`/`scavenge`/`benches` ranges in the type spec). Replaces the old `survivalSources` field on scenes — fixtures now live inside parks instead of being hand-placed.
+
+`src/save/index.ts` exploits the seeded determinism: saves persist only *dynamic* state (vitals/money/action/etc., the clock, population counters). Reload = `resetWorld()` + patch dynamic traits onto entities matched by stable `EntityKey`. Entity references survive the round-trip via key indirection. 4 slots: `'auto'` + 1..3 (manual). Autosaves fire on day rollover and on hyperspeed start, throttled by `timeConfig.autosaveCooldownRealSec`.
+
+Never spawn NPCs inside luxury/apartment cells — locked cell doors will trap them. Place hand-picked tiles (player spawn, fixed buildings, survival sources) **outside** `procgen.rect` — the road carver doesn't currently know about holes, so anything inside the rect risks colliding with a generated road or building.
 
 ### Config
 
@@ -108,7 +120,7 @@ Never spawn NPCs inside luxury/apartment cells — locked cell doors will trap t
 
 ### Smoke-test debug handle
 
-In dev, `globalThis.__uclife__ = { world, useClock, useScene }` is exposed (and `globalThis.uclifeWorld` for backward compat). Playwright smoke tests should drive scenarios through this handle. **Do not** dynamically `await import('/src/ecs/traits.ts')` from a test — it returns a different module instance and the imported traits won't match what the running app uses. Expose helper functions on `__uclife__` instead.
+In dev, `globalThis.__uclife__` is exposed with `{ world, useClock, useScene, movePlayerTo(tx, ty), countByKind() }`. Playwright smoke tests should drive scenarios through this handle. **Do not** dynamically `await import('/src/ecs/traits.ts')` from a test — it returns a different module instance and the imported traits won't match what the running app uses. Expose helper functions on `__uclife__` instead (see `src/main.tsx`).
 
 ## Conventions
 
