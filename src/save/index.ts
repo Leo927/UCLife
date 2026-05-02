@@ -16,7 +16,8 @@ import {
   Position, MoveTarget, Vitals, Health, Action, Money, Skills, Inventory,
   Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
-  Reputation, JobTenure, FactionRole, Active,
+  Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
+  type AmbitionSlot, type AmbitionHistoryEntry,
 } from '../ecs/traits'
 import type { TraitInstance } from 'koota'
 import { world, getActiveSceneId, type SceneId } from '../ecs/world'
@@ -75,6 +76,8 @@ interface EntitySnap {
   reputation?: TraitInstance<typeof Reputation>
   jobTenure?: TraitInstance<typeof JobTenure>
   factionRole?: TraitInstance<typeof FactionRole>
+  ambitions?: { active: AmbitionSlot[]; history: AmbitionHistoryEntry[]; lastSwapMs: number }
+  flags?: { flags: Record<string, boolean> }
 }
 
 // Stored in its own idb-keyval key per slot so the SystemMenu can render
@@ -196,6 +199,17 @@ function snapshotEntity(entity: Entity): EntitySnap {
   }
   if (entity.has(FactionRole)) {
     snap.factionRole = { ...entity.get(FactionRole)! }
+  }
+  if (entity.has(Ambitions)) {
+    const a = entity.get(Ambitions)!
+    snap.ambitions = {
+      active: a.active.map((s) => ({ ...s })),
+      history: a.history.map((h) => ({ ...h })),
+      lastSwapMs: a.lastSwapMs,
+    }
+  }
+  if (entity.has(Flags)) {
+    snap.flags = { flags: { ...entity.get(Flags)!.flags } }
   }
 
   return snap
@@ -495,6 +509,24 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
       else entity.add(FactionRole(snap.factionRole))
     } else if (entity.has(FactionRole)) {
       entity.remove(FactionRole)
+    }
+    if (snap.ambitions) {
+      const payload = {
+        active: snap.ambitions.active.map((s) => ({ ...s })),
+        history: snap.ambitions.history.map((h) => ({ ...h })),
+        lastSwapMs: snap.ambitions.lastSwapMs,
+      }
+      if (entity.has(Ambitions)) entity.set(Ambitions, payload)
+      else entity.add(Ambitions(payload))
+    } else if (entity.has(Ambitions)) {
+      entity.remove(Ambitions)
+    }
+    if (snap.flags) {
+      const payload = { flags: { ...snap.flags.flags } }
+      if (entity.has(Flags)) entity.set(Flags, payload)
+      else entity.add(Flags(payload))
+    } else if (entity.has(Flags)) {
+      entity.remove(Flags)
     }
   }
 

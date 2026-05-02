@@ -80,6 +80,9 @@ export const Skills = trait({
   cooking: 0,
   medicine: 0,
   computers: 0,
+  mwPiloting: 0,
+  bartending: 0,
+  engineering: 0,
 })
 
 export const Inventory = trait({
@@ -274,3 +277,33 @@ export const Bed = trait({
   rentPaidUntilMs: 0,
   owned: false,
 })
+
+// Phase 5.0 — long-arc player goals. Player-only trait.
+//
+// `active` holds the two ambition slots the player is currently aimed at.
+// Length 0 means "not yet picked" — the AmbitionPanel forces open in picker
+// mode until the player selects exactly two.
+//
+// `lastSwapMs` is gameDate.getTime() at the last successful swap; the design
+// doc calls this "tick" but the codebase convention for time-anchored values
+// is game-time milliseconds (see Bed.rentPaidUntilMs, PendingEviction.expireMs).
+// 0 = never swapped → first swap is unconditionally allowed.
+// `streakAnchorMs` supports stages whose conditions must hold continuously
+// over time (e.g., dropout's "365 days at flop with no Job"). System sets it
+// when conditions hold and resets to null when they break; `daysAtFlopWithNoJob`
+// is read as `(currentMs - streakAnchorMs) / day_ms` only while the anchor is
+// live. Stages without time-streak requirements ignore the field.
+export interface AmbitionSlot { id: string; currentStage: number; streakAnchorMs: number | null }
+export interface AmbitionHistoryEntry { id: string; completedStages: number; droppedAtMs: number | null }
+
+export const Ambitions = trait(() => ({
+  active: [] as AmbitionSlot[],
+  history: [] as AmbitionHistoryEntry[],
+  lastSwapMs: 0,
+}))
+
+// String-keyed boolean flags set by ambition stage payoffs (and, later,
+// other story beats). Phase 5.0 only writes — no consumers wired yet.
+export const Flags = trait(() => ({
+  flags: {} as Record<string, boolean>,
+}))

@@ -8,6 +8,7 @@ import { ShopModal } from './ui/ShopModal'
 import { Toasts } from './ui/Toasts'
 import { DebugPanel } from './ui/DebugPanel'
 import { SystemMenu } from './ui/SystemMenu'
+import { AmbitionPanel } from './ui/AmbitionPanel'
 import { MapPanel } from './ui/MapPanel'
 import { TransitMap } from './ui/TransitMap'
 import { FlightModal } from './ui/FlightModal'
@@ -28,6 +29,7 @@ export function App() {
       <ShopModal />
       <DebugPanel />
       <SystemMenu />
+      <AmbitionPanel />
       <MapPanel />
       <TransitMap />
       <FlightModal />

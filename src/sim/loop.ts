@@ -16,9 +16,10 @@ import { releaseStaleRoughSpots } from '../systems/roughSpots'
 import { populationSystem } from '../systems/population'
 import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
+import { ambitionsSystem } from '../systems/ambitions'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
-import { IsPlayer, Action, Vitals, Health, type ActionKind } from '../ecs/traits'
+import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -119,7 +120,21 @@ function frame(now: number) {
       attributesSystem(world, useClock.getState().gameDate)
       populationSystem(world, useClock.getState().gameDate)
       relationsSystem(world, useClock.getState().gameDate, ticks)
+      ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
+    }
+
+    // First-run forced picker: open the panel if the player has no active
+    // ambitions. Cheap single-entity probe that re-fires only until the
+    // picker is dismissed by selecting two ambitions.
+    {
+      const p = world.queryFirst(IsPlayer, Ambitions)
+      if (p) {
+        const a = p.get(Ambitions)!
+        if (a.active.length === 0 && !useUI.getState().ambitionsOpen) {
+          useUI.getState().setAmbitions(true)
+        }
+      }
     }
 
     const player = world.queryFirst(IsPlayer, Action)

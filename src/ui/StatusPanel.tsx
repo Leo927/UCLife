@@ -1,5 +1,5 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Skills, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Skills, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character } from '../ecs/traits'
 import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
@@ -39,6 +39,7 @@ export function StatusPanel() {
   const perfTrait = useTrait(player, JobPerformance)
   const attrs = useTrait(player, Attributes)
   const reputation = useTrait(player, Reputation)
+  const character = useTrait(player, Character)
   // Subscribe to gameDate so the rent countdown ticks live.
   const gameMs = useClock((s) => s.gameDate.getTime())
 
@@ -102,7 +103,10 @@ export function StatusPanel() {
             </div>
           )}
           <div className="status-identity-text">
-            <div className="status-name">新人</div>
+            <div className="status-name">{character?.name || '新人'}</div>
+            {character?.title && (
+              <div className="status-meta status-title" data-player-title>{character.title}</div>
+            )}
             <div className="status-meta">月面市民 · 冯·布劳恩 · UC 0077</div>
           </div>
         </section>

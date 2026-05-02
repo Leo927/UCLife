@@ -6,7 +6,15 @@ import { App } from './App'
 import { world, getWorld } from './ecs/world'
 import { useScene } from './sim/scene'
 import { useClock } from './sim/clock'
-import { IsPlayer, Position, MoveTarget, Road, Building, Wall, FlightHub, Door, Bed, Path } from './ecs/traits'
+import {
+  IsPlayer, Position, MoveTarget, Road, Building, Wall, FlightHub, Door, Bed, Path,
+  Ambitions, Flags, Character, Attributes, Skills, Money, Reputation,
+  type AmbitionSlot,
+} from './ecs/traits'
+import type { FactionId } from './data/factions'
+import type { SkillId } from './data/skills'
+import { useEventLog } from './ui/EventLog'
+import { ambitionsSystem } from './systems/ambitions'
 import { getAirportPlacement } from './sim/airportPlacements'
 import { flightHubs } from './data/flights'
 import { findPath } from './systems/pathfinding'
@@ -120,6 +128,90 @@ if (import.meta.env.DEV) {
         pathLen: path?.waypoints.length ?? 0,
         pathIdx: path?.index ?? null,
       }
+    },
+    // ── Ambition test surface (Phase 5.0) ─────────────────────────────
+    getAmbitions() {
+      const player = world.queryFirst(IsPlayer, Ambitions)
+      if (!player) return null
+      const a = player.get(Ambitions)!
+      const ch = player.get(Character)
+      return {
+        active: a.active.map((s) => ({ ...s })),
+        history: a.history.map((h) => ({ ...h })),
+        lastSwapMs: a.lastSwapMs,
+        title: ch?.title ?? '',
+      }
+    },
+    getEventLog() {
+      return useEventLog.getState().entries.map((e) => ({ ...e }))
+    },
+    getFlags() {
+      const player = world.queryFirst(IsPlayer, Flags)
+      if (!player) return {}
+      return { ...player.get(Flags)!.flags }
+    },
+    pickAmbitions(ids: [string, string]) {
+      const player = world.queryFirst(IsPlayer, Ambitions)
+      if (!player) return false
+      const next: AmbitionSlot[] = ids.map((id) => ({ id, currentStage: 0, streakAnchorMs: null }))
+      player.set(Ambitions, { active: next, history: [], lastSwapMs: 0 })
+      return true
+    },
+    setPlayerStat(path: string, value: number) {
+      const player = world.queryFirst(IsPlayer)
+      if (!player) return false
+      // Path forms:
+      //   'attributes.<key>'        — sets Attributes[key].value
+      //   'attributes.<key>.value'  — same as above (explicit)
+      //   'skills.<key>'            — sets Skills[key]
+      //   'money'                   — sets Money.amount
+      //   'reputation.<faction>'    — sets Reputation.rep[faction]
+      const segs = path.split('.')
+      if (segs[0] === 'attributes' && segs.length >= 2) {
+        const key = segs[1]
+        const a = player.get(Attributes)
+        if (!a) return false
+        const stat = a[key as 'strength']
+        if (!stat) return false
+        stat.value = value
+        player.set(Attributes, a)
+        return true
+      }
+      if (segs[0] === 'skills' && segs.length === 2) {
+        const s = player.get(Skills)
+        if (!s) return false
+        ;(s as unknown as Record<SkillId, number>)[segs[1] as SkillId] = value
+        player.set(Skills, s)
+        return true
+      }
+      if (segs[0] === 'money' && segs.length === 1) {
+        player.set(Money, { amount: value })
+        return true
+      }
+      if (segs[0] === 'reputation' && segs.length === 2) {
+        const r = player.get(Reputation)
+        const next = r ? { ...r.rep } : {}
+        next[segs[1] as FactionId] = value
+        if (r) player.set(Reputation, { rep: next })
+        else player.add(Reputation({ rep: next }))
+        return true
+      }
+      return false
+    },
+    advanceGameMinutes(minutes: number) {
+      useClock.getState().advance(minutes)
+      return true
+    },
+    advanceGameDays(days: number) {
+      useClock.getState().advance(days * 24 * 60)
+      return true
+    },
+    // Forces a single ambitionsSystem evaluation immediately. Tests call this
+    // after mutating player traits + clock so they don't have to wait for the
+    // RAF loop to consume tickAccum.
+    runAmbitionsTick() {
+      ambitionsSystem(world, useClock.getState().gameDate)
+      return true
     },
   }
 }

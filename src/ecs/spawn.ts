@@ -5,7 +5,7 @@ import {
   Money, Skills, Inventory, Building, Job, Character, Workstation,
   JobPerformance, Bed, Wall, Door, Attributes, BarSeat, RoughSpot,
   EntityKey, Reputation, JobTenure, FactionRole, Appearance, Transit,
-  FlightHub, Road,
+  FlightHub, Road, Ambitions, Flags,
   type Gender, type InteractableKind,
 } from './traits'
 import { transitTerminals } from '../data/transit'
@@ -466,6 +466,12 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   setAirportPlacement(hub.id, {
     counterPx: { x: counterX, y: counterY },
     arrivalPx: { x: arrivalX, y: arrivalY },
+    rectTile: {
+      x: rect.x / TILE,
+      y: rect.y / TILE,
+      w: rect.w / TILE,
+      h: rect.h / TILE,
+    },
   })
 }
 
@@ -672,6 +678,8 @@ function bootstrapMicroScene(scene: SceneConfig): void {
       Attributes,
       Reputation,
       JobTenure,
+      Ambitions,
+      Flags,
       EntityKey({ key: 'player' }),
     )
     setupAppearance(playerEnt, '新人')
@@ -770,14 +778,14 @@ export type NPCSpec = {
   hunger?: number
   thirst?: number
   money?: number
-  skills?: Partial<Record<'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers', number>>
+  skills?: Partial<Record<'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers' | 'mwPiloting' | 'bartending' | 'engineering', number>>
   key?: string
   factionRole?: { faction: FactionId; role: 'staff' | 'manager' | 'board' }
   gender?: Gender
 }
 
 export function spawnNPC(spec: NPCSpec) {
-  const baseSkills = { mechanics: 0, marksmanship: 0, athletics: 0, cooking: 0, medicine: 0, computers: 0 }
+  const baseSkills = { mechanics: 0, marksmanship: 0, athletics: 0, cooking: 0, medicine: 0, computers: 0, mwPiloting: 0, bartending: 0, engineering: 0 }
   const fr = spec.factionRole ?? { faction: 'civilian' as FactionId, role: 'staff' as const }
   const ent = world.spawn(
     Character({ name: spec.name, color: spec.color, title: spec.title ?? '市民' }),

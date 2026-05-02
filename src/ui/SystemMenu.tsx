@@ -157,6 +157,21 @@ export function SystemMenu() {
               onChange={(e) => setPlayerAutoAI(e.target.checked)}
             />
           </label>
+          <div className="debug-row">
+            <span className="debug-row-label">志向</span>
+            <span className="debug-row-desc">查看与切换长远目标</span>
+            <span style={{ display: 'flex', gap: 6, gridColumn: 2, gridRow: '1 / span 2' }}>
+              <button
+                className="debug-action"
+                onClick={() => {
+                  useUI.getState().setAmbitions(true)
+                  setOpen(false)
+                }}
+              >
+                打开
+              </button>
+            </span>
+          </div>
         </section>
       </div>
     </div>

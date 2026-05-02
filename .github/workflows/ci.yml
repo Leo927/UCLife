@@ -54,6 +54,8 @@ jobs:
       - if: always()
         run: node scripts/check-saveload.mjs
       - if: always()
+        run: node scripts/check-ambitions.mjs
+      - if: always()
         run: node scripts/check-scene-swap.mjs
       - if: always()
         run: node scripts/check-flights.mjs

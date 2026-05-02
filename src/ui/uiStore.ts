@@ -12,6 +12,7 @@ interface UIState {
   shopOpen: boolean
   systemOpen: boolean
   mapOpen: boolean
+  ambitionsOpen: boolean
   transitSourceId: string | null
   flightHubId: string | null
   // HR/Realtor/AE conversations share dialogNPC rather than carrying their
@@ -26,6 +27,8 @@ interface UIState {
   toggleSystem: () => void
   setMap: (open: boolean) => void
   toggleMap: () => void
+  setAmbitions: (open: boolean) => void
+  toggleAmbitions: () => void
   openTransit: (sourceId: string) => void
   closeTransit: () => void
   openFlight: (hubId: string) => void
@@ -51,6 +54,7 @@ export const useUI = create<UIState>((set) => ({
   shopOpen: false,
   systemOpen: false,
   mapOpen: false,
+  ambitionsOpen: false,
   transitSourceId: null,
   flightHubId: null,
   dialogNPC: null,
@@ -63,6 +67,8 @@ export const useUI = create<UIState>((set) => ({
   toggleSystem: () => set((s) => ({ systemOpen: !s.systemOpen })),
   setMap: (open) => set({ mapOpen: open }),
   toggleMap: () => set((s) => ({ mapOpen: !s.mapOpen })),
+  setAmbitions: (open) => set({ ambitionsOpen: open }),
+  toggleAmbitions: () => set((s) => ({ ambitionsOpen: !s.ambitionsOpen })),
   openTransit: (sourceId) => set({ transitSourceId: sourceId }),
   closeTransit: () => set({ transitSourceId: null }),
   openFlight: (hubId) => set({ flightHubId: hubId }),

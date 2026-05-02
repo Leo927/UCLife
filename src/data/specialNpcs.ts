@@ -1,6 +1,7 @@
 import json5 from 'json5'
 import raw from './special-npcs.json5?raw'
 import type { FactionId } from './factions'
+import type { SkillId } from './skills'
 
 export interface SpecialNpc {
   name: string
@@ -12,7 +13,7 @@ export interface SpecialNpc {
   hunger?: number
   thirst?: number
   money?: number
-  skills?: Partial<Record<'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers', number>>
+  skills?: Partial<Record<SkillId, number>>
   factionRole?: { faction: FactionId; role: 'staff' | 'manager' | 'board' }
   // Pre-assign at world-init (specId match) so AE board / manager NPCs
   // populate immediately rather than waiting on natural job-seeking.

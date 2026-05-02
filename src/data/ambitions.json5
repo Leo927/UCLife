@@ -1,0 +1,317 @@
+// Phase 5.0 starter ambitions. Six hand-authored long-arcs that give the
+// player something to want. Requirements draw only from existing sim state
+// (attributes, skills, money, faction rep) plus a small set of named
+// derived accessors (aeRank, residenceTier, hasNoJob, hasNoHome,
+// daysAtFlopWithNoJob). New ambitions don't introduce new sim state — they
+// read from sim state.
+//
+// Schema:
+//   id           : stable string id
+//   nameZh       : zh-CN ambition name
+//   blurbZh      : zh-CN one-paragraph hook used in the picker
+//   conflicts    : array of ambition ids that cannot be picked alongside
+//   stages[]     : ordered list of stages
+//     stageNameZh   : zh-CN stage label
+//     requirements  : map of key → threshold. Shorthand `key: number` means
+//                     "value >= number". Object form `{ gte?, lte? }` allows
+//                     both directions for the same key.
+//     payoff
+//       titleZh     : zh-CN HUD/StatusPanel title that overrides Character.title
+//       logZh       : zh-CN one-line entry pushed to the in-game event log
+//       unlocks?    : array of string flags written to the player's Flags
+//                     trait (no consumers wired in 5.0; phase 5.2 reads them)
+//   warPayoff    : free-form string that phase 7's UC 0079.01.03 trigger reads
+//
+// Requirement-key allow-list (validator throws on anything else):
+//   attributes : strength endurance charisma intelligence reflex resolve
+//   skills     : mechanics marksmanship athletics cooking medicine computers
+//                mwPiloting bartending engineering
+//   currency   : money
+//   factions   : anaheim civilian federation zeon
+//   derived    : aeRank residenceTier hasNoJob hasNoHome daysAtFlopWithNoJob
+{
+  ambitions: [
+    {
+      id: 'mw_pilot',
+      nameZh: '机动工兵驾驶员',
+      blurbZh: '工业用机动工兵的发展正赶上小行星基地与殖民卫星建设的浪潮。会驾驶它的人不多，能驾驶它进入战场的更少。从体能开始，一步步走到驾驶舱里。',
+      conflicts: ['earth_migration', 'zeon_volunteer'],
+      stages: [
+        {
+          stageNameZh: '基础体能',
+          requirements: { reflex: 30, athletics: 500 },
+          payoff: {
+            titleZh: '机工预备生',
+            logZh: '体检合格。教官说你的反应速度勉强够上预备生的门槛。',
+          },
+        },
+        {
+          stageNameZh: '通过资格考试',
+          requirements: { mwPiloting: 2000, money: 40000, federation: 10 },
+          payoff: {
+            titleZh: '驾驶员候补',
+            logZh: '资格证下来了。教官签字时手抖了一下，墨迹歪在了角上。',
+            unlocks: ['mw_school_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '模拟舱训练',
+          requirements: { mwPiloting: 5000, reflex: 60, federation: 30 },
+          payoff: {
+            titleZh: '准驾驶员',
+            logZh: '模拟舱里你做完了第一套规避动作。手心出汗，但没有报警。',
+          },
+        },
+        {
+          stageNameZh: '实机考核',
+          requirements: { mwPiloting: 8000, federation: 60 },
+          payoff: {
+            titleZh: '机动工兵驾驶员',
+            logZh: '从舱里下来时风很大。地勤朝你点了点头，没说话。',
+            unlocks: ['mw_cockpit_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '王牌',
+          requirements: { mwPiloting: 10000, reflex: 80, federation: 80 },
+          payoff: {
+            titleZh: '王牌驾驶员',
+            logZh: '基地里的人开始记住你的呼号。这不一定是好事。',
+          },
+        },
+      ],
+      warPayoff: 'drafted_as_mw_operator',
+    },
+
+    {
+      id: 'ae_chief_engineer',
+      nameZh: 'AE 总工程师',
+      blurbZh: '亚纳海姆电子的工程部里有十几个像你一样的人。但能走到顶楼那间会议室的，每十年只有一两个。从车间开始爬。',
+      conflicts: [],
+      stages: [
+        {
+          stageNameZh: '入门技工',
+          requirements: { engineering: 500, mechanics: 500 },
+          payoff: {
+            titleZh: 'AE 入门技工',
+            logZh: '你的工卡换了颜色。同事说这种小事谁都不会注意。',
+          },
+        },
+        {
+          stageNameZh: '中层管理',
+          requirements: { aeRank: 1, anaheim: 30 },
+          payoff: {
+            titleZh: 'AE 中层管理',
+            logZh: '你第一次签下别人的考勤表。手指停了两秒。',
+            unlocks: ['ae_manager_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '资深工程师',
+          requirements: { engineering: 3000, mechanics: 3000, anaheim: 50 },
+          payoff: {
+            titleZh: 'AE 资深工程师',
+            logZh: '走廊里的灯被你换了一盏，没人发现。',
+          },
+        },
+        {
+          stageNameZh: '董事',
+          requirements: { aeRank: 2, anaheim: 70 },
+          payoff: {
+            titleZh: 'AE 董事',
+            logZh: '会议室的椅子比你想象的要硬。',
+            unlocks: ['ae_board_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '总工程师',
+          requirements: { engineering: 8000, mechanics: 5000, anaheim: 85 },
+          payoff: {
+            titleZh: 'AE 总工程师',
+            logZh: '一份代号为 RX 的图纸放在了你桌上。封面是手写的。',
+            unlocks: ['ae_chief_dialogue'],
+          },
+        },
+      ],
+      warPayoff: 'ae_chief_drafted',
+    },
+
+    {
+      id: 'lazlos_owner',
+      nameZh: '酒馆老板',
+      blurbZh: '拉兹罗的吧台后面已经站了三十年。他没有儿子，也没有徒弟。如果他要把酒馆交给一个外人，那个人得先证明自己懂酒、懂人、懂这行。',
+      conflicts: [],
+      stages: [
+        {
+          stageNameZh: '常客',
+          requirements: { bartending: 500, charisma: 30 },
+          payoff: {
+            titleZh: '吧台常客',
+            logZh: '拉兹罗记住了你点的酒。这不算什么，但也不是什么都不算。',
+          },
+        },
+        {
+          stageNameZh: '帮工',
+          requirements: { bartending: 2000, charisma: 50, money: 5000 },
+          payoff: {
+            titleZh: '酒馆帮工',
+            logZh: '你周三晚上替拉兹罗看了一会儿吧台。回来时他什么都没问。',
+            unlocks: ['lazlo_helper_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '合伙人',
+          requirements: { bartending: 5000, charisma: 70, money: 50000 },
+          payoff: {
+            titleZh: '酒馆合伙人',
+            logZh: '账本上多了一栏写你名字。墨水还没干。',
+            unlocks: ['lazlo_partner_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '继承',
+          requirements: { money: 200000, charisma: 80 },
+          payoff: {
+            titleZh: '酒馆老板',
+            logZh: '拉兹罗把钥匙放在吧台上推过来。他说他要去散步。',
+            unlocks: ['lazlo_owner_dialogue'],
+          },
+        },
+      ],
+      warPayoff: 'civilian_bar_owner',
+    },
+
+    {
+      id: 'zeon_volunteer',
+      nameZh: '吉翁义勇兵',
+      blurbZh: '冯·布劳恩离地球远，离 Side 3 也远。但有些人还是觉得自己该穿那身制服。报名处不在地图上。',
+      conflicts: ['earth_migration', 'mw_pilot'],
+      stages: [
+        {
+          stageNameZh: '同情者',
+          requirements: { zeon: 10, athletics: 500 },
+          payoff: {
+            titleZh: '吉翁同情者',
+            logZh: '你在码头边的小酒馆里听了一晚的话。回来时口袋里多了一张折好的纸。',
+            unlocks: ['zeon_sympathizer_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '联络员',
+          requirements: { zeon: 30, marksmanship: 2000, reflex: 40 },
+          payoff: {
+            titleZh: '吉翁联络员',
+            logZh: '一个陌生人在巷子里把通讯频率塞进了你手心。',
+            unlocks: ['zeon_contact_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '准义勇兵',
+          requirements: { zeon: 60, marksmanship: 5000, mwPiloting: 3000 },
+          payoff: {
+            titleZh: '吉翁准义勇兵',
+            logZh: '一份名单上多了你的名字。你没看见，但你能感觉到。',
+            unlocks: ['zeon_recruit_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '正式入伍',
+          requirements: { zeon: 80, mwPiloting: 6000 },
+          payoff: {
+            titleZh: '吉翁义勇兵',
+            logZh: '行李很轻。你把钥匙留给了门房。',
+            unlocks: ['zeon_volunteer_dialogue'],
+          },
+        },
+      ],
+      warPayoff: 'zeon_volunteer_active',
+    },
+
+    {
+      id: 'earth_migration',
+      nameZh: '回归地球',
+      blurbZh: '攒够钱，办下许可，搭一班通往里斯本的渡船。月面是临时的——这话你已经听了二十年。这次你打算自己证明它。',
+      conflicts: ['mw_pilot', 'zeon_volunteer'],
+      stages: [
+        {
+          stageNameZh: '存第一笔旅费',
+          requirements: { money: 50000 },
+          payoff: {
+            titleZh: '存款人',
+            logZh: '银行回执上的数字第一次跨了五位。',
+          },
+        },
+        {
+          stageNameZh: '联邦背景调查',
+          requirements: { money: 500000, federation: 20 },
+          payoff: {
+            titleZh: '调查通过',
+            logZh: '一封盖着联邦邮戳的信送到门口。门房说不像广告。',
+            unlocks: ['fed_clearance_dialogue'],
+          },
+        },
+        {
+          stageNameZh: '订船票',
+          requirements: { money: 2000000, federation: 50 },
+          payoff: {
+            titleZh: '回乡者',
+            logZh: '票根上写着里斯本。日期还有两个月。',
+            unlocks: ['earth_ticket_dialogue'],
+          },
+        },
+      ],
+      warPayoff: 'earth_migrant_offworld',
+    },
+
+    {
+      id: 'dropout',
+      nameZh: '赤贫流浪者',
+      blurbZh: '不是每个人都想往上爬。有些人来到这里就只是为了消失。一年。如果你能活下来，你会变成另一种人。',
+      conflicts: [],
+      stages: [
+        {
+          stageNameZh: '失业',
+          requirements: { hasNoJob: 1 },
+          payoff: {
+            titleZh: '失业者',
+            logZh: '工卡作废通知贴在门上。墨迹很淡。',
+          },
+        },
+        {
+          stageNameZh: '退住投币床',
+          requirements: { hasNoJob: 1, residenceTier: { lte: 1 } },
+          payoff: {
+            titleZh: '漂泊者',
+            logZh: '你交回了门禁卡。前台没抬头。',
+          },
+        },
+        {
+          stageNameZh: '露宿',
+          requirements: { hasNoJob: 1, hasNoHome: 1 },
+          payoff: {
+            titleZh: '街边人',
+            logZh: '冯·布劳恩晚上的人造光不算冷，但也算不上暖。',
+          },
+        },
+        {
+          stageNameZh: '一无所有',
+          requirements: { hasNoJob: 1, hasNoHome: 1, money: { lte: 10 } },
+          payoff: {
+            titleZh: '赤贫',
+            logZh: '钱包里只剩一张过期的车票。你没有扔。',
+          },
+        },
+        {
+          stageNameZh: '熬过一年',
+          requirements: { daysAtFlopWithNoJob: 365 },
+          payoff: {
+            titleZh: '城市的影子',
+            logZh: '没有人知道你的名字了。包括你自己。',
+            unlocks: ['dropout_endured_dialogue'],
+          },
+        },
+      ],
+      warPayoff: 'dropout_invisible',
+    },
+  ],
+}

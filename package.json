@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "build:portrait-cache": "tsx scripts/buildPortraitCache.ts",
     "prebuild": "npm run build:portrait-cache",
+    "check:ambitions": "node scripts/check-ambitions.mjs",
     "check:portrait": "node scripts/check-portrait.mjs",
     "check:portrait-modals": "node scripts/check-portrait-modals.mjs",
     "check:portrait-enlarge": "node scripts/check-portrait-enlarge.mjs",

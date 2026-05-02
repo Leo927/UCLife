@@ -1,8 +1,10 @@
 import { factionsConfig } from '../config'
 
 // 'civilian' is the default for unaffiliated NPCs so FactionRole always has
-// a concrete value and faction queries return a meaningful set.
-export type FactionId = 'anaheim' | 'civilian'
+// a concrete value and faction queries return a meaningful set. 'federation'
+// and 'zeon' currently exist only as reputation buckets — no jobs or NPC
+// affiliation in 5.0; ambition stages reference them.
+export type FactionId = 'anaheim' | 'civilian' | 'federation' | 'zeon'
 
 export type FactionTier = 'S' | 'A' | 'B' | 'C' | 'D' | 'E'
 

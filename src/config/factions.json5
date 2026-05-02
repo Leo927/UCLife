@@ -34,6 +34,27 @@
       repPerShift: 0,
       seniorPromotionMinOpinion: 0,
     },
+
+    // Earth Federation. No FederationRole jobs in 5.0 — rep accrues only
+    // through ambition-driven story beats and (later phases) news-feed
+    // alignment. seniorPromotionMinOpinion is moot until then.
+    federation: {
+      nameZh: '地球联邦',
+      shortZh: '联邦',
+      accentColor: '#60a5fa',
+      repPerShift: 0,
+      seniorPromotionMinOpinion: 0,
+    },
+
+    // Principality of Zeon. Same shape as federation — placeholder slot for
+    // ambition requirements; no jobs or NPC affiliation in 5.0.
+    zeon: {
+      nameZh: '吉翁公国',
+      shortZh: '吉翁',
+      accentColor: '#84cc16',
+      repPerShift: 0,
+      seniorPromotionMinOpinion: 0,
+    },
   },
 
   // Reputation -> letter-grade thresholds for StatusPanel display. The grade
