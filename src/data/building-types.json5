@@ -76,13 +76,38 @@
     },
   },
 
+  // ── AIRPORT ─────────────────────────────────────────────────────────────
+
+  // Open interior, single ticket counter; FlightHub binding done at spawn
+  // (scene.id → flights.json5 hub.sceneId).
+  airport: {
+    labelZh: '航天港',
+    size: { minW: 12, maxW: 20, minH: 8, maxH: 14 },
+    layout: { algorithm: 'airport' },
+  },
+
+  // ── PARK ────────────────────────────────────────────────────────────────
+
+  // No walls, no doors — just an open rect with scattered survival
+  // fixtures. Counts are uniform-random within the declared ranges.
+  park: {
+    labelZh: '公园',
+    size: { minW: 6, maxW: 14, minH: 5, maxH: 10 },
+    layout: {
+      algorithm: 'park',
+      taps:     { min: 1, max: 2 },
+      scavenge: { min: 1, max: 2 },
+      benches:  { min: 1, max: 3 },
+    },
+  },
+
   // ── CELL ALGORITHMS: residential ───────────────────────────────────────
 
   apartment: {
     labelZh: '公寓',
     size: { minW: 8, maxW: 12, minH: 5, maxH: 9 },
     layout: {
-      algorithm: 'horizontal_cells',
+      algorithm: 'cells',
       minCells: 3,
       maxCells: 6,
       cellItems: [{ type: 'bed', tier: 'apartment', role: 'bed_row' }],
@@ -93,7 +118,7 @@
     labelZh: '高级公寓',
     size: { minW: 8, maxW: 12, minH: 8, maxH: 14 },
     layout: {
-      algorithm: 'vertical_cells',
+      algorithm: 'cells',
       minCells: 2,
       maxCells: 4,
       cellItems: [{ type: 'bed', tier: 'luxury', role: 'bed_row' }],

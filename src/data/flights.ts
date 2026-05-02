@@ -3,13 +3,14 @@ import raw from './flights.json5?raw'
 import { isSceneId } from './scenes'
 import type { SceneId } from '../ecs/world'
 
+// Static metadata about a flight hub. The hub's runtime location (ticket
+// counter + arrival point) is procgen-determined per airport spawn — see
+// sim/airportPlacements.ts. `id` is referenced by routes; `sceneId` binds
+// the hub 1:1 to the airport spawned in that scene's procgen.
 export interface FlightHub {
   id: string
   nameZh: string
-  placeId: string
   sceneId: SceneId
-  counterTile: { x: number; y: number }
-  arrivalTile: { x: number; y: number }
   description?: string
 }
 

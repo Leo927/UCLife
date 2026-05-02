@@ -16,26 +16,22 @@
 //                 for the first scene in declaration order.
 //
 // Fields (micro scenes):
-//   procgen     — data-driven building slot grid.
+//   procgen     — road-based city generator. Disable with enabled:false.
+//     enabled     — explicit on/off flag.
 //     seed        — deterministic RNG seed string. Same seed → same layout.
-//     slotGrid    — N-slot grid config:
-//       rect        — tile-space area for procgen buildings { x, y, w, h }.
-//       cols        — number of slot columns.
-//       gapTiles    — empty tiles between columns and between row bands.
-//       rowBands    — array of horizontal zones, top to bottom:
-//         heightTiles — tile height of every slot in this band.
-//         types       — building type pool (IDs from building-types.json5).
-//                       Unique draw: pool is shuffled, one type per slot,
-//                       no duplicates within the band.
-//         doorSide    — default door side for buildings in this band
-//                       ('n'/'s'/'e'/'w'). Building types may override via
-//                       their layout.primaryDoor field.
+//     rect        — tile-space area for the road network + buildings
+//                   { x, y, w, h }. Avoid placing fixedBuildings inside.
+//     roads       — Manhattan grid params (avenueSpacingTiles, etc.).
+//     districts   — zoning rectangles in tile-space *relative to the
+//                   procgen rect origin*. Each sub-block picks the district
+//                   whose rect contains the sub-block center.
+//       id, rect{x,y,w,h}, types[], buildingsPerBlockMax (default 1)
+//       types[]   — array of `{ id, min?, max? }`. min defaults to 0
+//                   (place opportunistically), max defaults to unbounded
+//                   (place freely). Use min ≥ 1 to mandate placement
+//                   (e.g. exactly 1 airport per central district).
 //   fixedBuildings — hand-placed buildings not subject to procgen.
-//     type        — building type id from building-types.json5.
-//     tile        — anchor tile { x, y } (building top-left in tile coords).
-//   survivalSources — free-use world objects (taps, scavenge, benches).
-//     type        — 'tap' | 'scavenge' | 'bench'.
-//     tile        — world tile position.
+//     type, tile{x,y}.
 
 {
   scenes: [
@@ -45,37 +41,90 @@
       sceneType: 'micro',
       tilesX: 800,
       tilesY: 520,
-      playerSpawnTile: { x: 20, y: 16 },
+      // West of the procgen rect, on open ground. Player walks east into
+      // the city's road network.
+      playerSpawnTile: { x: 20, y: 50 },
 
       procgen: {
+        enabled: true,
+        // 100 × 80 procgen area; aeComplex sits far outside (tile 400,200).
         seed: 'von-braun-001',
-        slotGrid: {
-          rect: { x: 3, y: 1, w: 36, h: 26 },
-          cols: 3,
-          gapTiles: 2,
-          rowBands: [
-            // Commercial strip — 3 of 4 types placed per seed.
-            { heightTiles: 5,  types: ['bar', 'hrOffice', 'realtor', 'shop'], doorSide: 's' },
-            // Industrial/residential — 3 of 3 types, heights vary.
-            { heightTiles: 11, types: ['factory', 'apartment', 'luxury'],     doorSide: 's' },
-            // Small residential — 2 of 2 types (fills 2 of 3 slots).
-            { heightTiles: 6,  types: ['dorm', 'flop'],                       doorSide: 's' },
-          ],
+        rect: { x: 40, y: 4, w: 100, h: 80 },
+        roads: {
+          avenueSpacingTiles: { min: 14, max: 22 },
+          streetSpacingTiles: { min: 12, max: 18 },
+          avenueWidthTiles: 3,
+          streetWidthTiles: 2,
+          alleyChance: 0.55,
+          alleyWidthTiles: 1,
+          alleyMinBlockTiles: 10,
         },
+        // Districts (rects relative to procgen.rect origin).
+        // Layout: commercial core near spawn (top-center), residential ring
+        // around it, industrial along the south band.
+        districts: [
+          {
+            id: 'commercial',
+            rect: { x: 30, y: 0, w: 40, h: 24 },
+            // Mandatory placements: shop and bar drive NPC behavior trees
+            // (shopCounter / barCounter landmarks); airport drives flights;
+            // hrOffice + realtor are gameplay anchors. Park is opportunistic.
+            types: [
+              { id: 'airport',  min: 1, max: 1 },
+              { id: 'shop',     min: 1, max: 1 },
+              { id: 'bar',      min: 1, max: 1 },
+              { id: 'hrOffice', min: 1, max: 1 },
+              { id: 'realtor',  min: 1, max: 1 },
+              { id: 'park',     min: 0, max: 1 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+          {
+            id: 'residential_north',
+            rect: { x: 0, y: 0, w: 30, h: 40 },
+            types: [
+              { id: 'park',      min: 0, max: 1 },
+              { id: 'apartment', min: 0, max: 4 },
+              { id: 'luxury',    min: 0, max: 2 },
+              { id: 'dorm',      min: 0, max: 3 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+          {
+            id: 'residential_east',
+            rect: { x: 70, y: 0, w: 30, h: 40 },
+            types: [
+              { id: 'park',      min: 0, max: 1 },
+              { id: 'apartment', min: 0, max: 4 },
+              { id: 'luxury',    min: 0, max: 2 },
+              { id: 'dorm',      min: 0, max: 3 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+          {
+            id: 'residential_south',
+            rect: { x: 20, y: 40, w: 60, h: 25 },
+            types: [
+              { id: 'park',      min: 0, max: 1 },
+              { id: 'apartment', min: 0, max: 4 },
+              { id: 'dorm',      min: 0, max: 3 },
+              { id: 'flop',      min: 0, max: 3 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+          {
+            id: 'industrial',
+            rect: { x: 0, y: 65, w: 100, h: 15 },
+            types: [
+              { id: 'factory', min: 0, max: 6 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+        ],
       },
 
       fixedBuildings: [
         { type: 'aeComplex', tile: { x: 400, y: 200 } },
-      ],
-
-      survivalSources: [
-        { type: 'tap',      tile: { x: 13, y: 16 } },
-        { type: 'tap',      tile: { x: 25, y: 16 } },
-        { type: 'scavenge', tile: { x: 11, y: 17 } },
-        { type: 'scavenge', tile: { x: 27, y: 17 } },
-        { type: 'scavenge', tile: { x: 19, y: 24 } },
-        { type: 'bench',    tile: { x: 14, y: 24 } },
-        { type: 'bench',    tile: { x: 24, y: 24 } },
       ],
     },
 
@@ -85,8 +134,55 @@
       sceneType: 'micro',
       tilesX: 300,
       tilesY: 300,
-      // No procgen, fixedBuildings, or survivalSources — airports only
-      // (from flights.json5).
+
+      procgen: {
+        enabled: true,
+        seed: 'zum-city-001',
+        // Smaller, denser colony interior — Side 3 is industrial Zeon.
+        rect: { x: 4, y: 4, w: 70, h: 60 },
+        roads: {
+          avenueSpacingTiles: { min: 12, max: 18 },
+          streetSpacingTiles: { min: 10, max: 14 },
+          avenueWidthTiles: 2,
+          streetWidthTiles: 2,
+          alleyChance: 0.7,
+          alleyWidthTiles: 1,
+          alleyMinBlockTiles: 9,
+        },
+        districts: [
+          {
+            id: 'commercial',
+            rect: { x: 20, y: 0, w: 30, h: 18 },
+            types: [
+              { id: 'airport',  min: 1, max: 1 },
+              { id: 'shop',     min: 1, max: 1 },
+              { id: 'bar',      min: 0, max: 1 },
+              { id: 'hrOffice', min: 0, max: 1 },
+              { id: 'park',     min: 0, max: 1 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+          {
+            id: 'residential',
+            rect: { x: 0, y: 0, w: 70, h: 40 },
+            types: [
+              { id: 'park',      min: 0, max: 2 },
+              { id: 'apartment', min: 0, max: 6 },
+              { id: 'dorm',      min: 0, max: 4 },
+              { id: 'flop',      min: 0, max: 3 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+          {
+            id: 'industrial',
+            rect: { x: 0, y: 40, w: 70, h: 20 },
+            types: [
+              { id: 'factory', min: 0, max: 6 },
+            ],
+            buildingsPerBlockMax: 1,
+          },
+        ],
+      },
     },
   ],
 }

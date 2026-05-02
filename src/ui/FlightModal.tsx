@@ -1,13 +1,11 @@
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Money } from '../ecs/traits'
-import { worldConfig } from '../config'
 import { getFlightHub, getRoutesFrom, type FlightRoute } from '../data/flights'
+import { getAirportPlacement } from '../sim/airportPlacements'
 import { useUI } from './uiStore'
 import { runTransition, useTransition } from '../sim/transition'
 import { useClock } from '../sim/clock'
 import { migratePlayerToScene } from '../sim/scene'
-
-const TILE = worldConfig.tilePx
 
 function formatDuration(min: number): string {
   if (min < 60) return `${min} 分钟`
@@ -37,6 +35,11 @@ export function FlightModal() {
     if (inTransition) return
     const dest = getFlightHub(route.to)
     if (!dest) return
+    const placement = getAirportPlacement(dest.id)
+    if (!placement) {
+      showToast(`目的地航天港尚未建成`)
+      return
+    }
     const m = player.get(Money)
     if (!m || m.amount < route.fare) {
       showToast(`金钱不足 · 需 ¥${route.fare}`)
@@ -49,11 +52,7 @@ export function FlightModal() {
     runTransition({
       midpoint: () => {
         useClock.getState().advance(route.durationMin)
-        const arrivalPx = {
-          x: dest.arrivalTile.x * TILE,
-          y: dest.arrivalTile.y * TILE,
-        }
-        migratePlayerToScene(dest.sceneId, arrivalPx)
+        migratePlayerToScene(dest.sceneId, placement.arrivalPx)
       },
     })
   }

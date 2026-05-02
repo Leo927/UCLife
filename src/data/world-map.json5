@@ -20,8 +20,10 @@
       nameZh: '冯·布劳恩中心区',
       shortZh: '中心区',
       kind: 'district',
-      tileX: 2, tileY: 0,
-      tileW: 36, tileH: 25,
+      // Matches scenes.json5 startTown.procgen.rect. Procgen produces the
+      // road network and buildings inside this rect.
+      tileX: 40, tileY: 4,
+      tileW: 100, tileH: 80,
       description: '商业、居住和工厂集中的城市中心。新人在公寓与廉价旅馆之间的街道上初次降生于此。',
     },
     {
@@ -35,16 +37,6 @@
       description: '安那海姆电子的庞大企业园区，位于城东数百格之外。前台面向城市方向，董事会、车间、健身房、休息室都在这一栋楼里。',
     },
     {
-      id: 'startTownAirport',
-      sceneId: 'startTown',
-      nameZh: '冯·布劳恩航天港',
-      shortZh: '中心区航天港',
-      kind: 'complex',
-      tileX: 5, tileY: 32,
-      tileW: 30, tileH: 14,
-      description: '冯·布劳恩中心区南郊的航天港。售票处可购买往返其他都市的班次。',
-    },
-    {
       id: 'zumCity',
       sceneId: 'zumCity',
       nameZh: '祖姆市 · Side 3 共和国首府',
@@ -56,20 +48,6 @@
       tileX: 0, tileY: 0,
       tileW: 300, tileH: 300,
       description: 'Side 3 殖民卫星群中代表性最强的一座 — 吉翁共和国首府祖姆市。城市中央设有同等规模的航天港。',
-    },
-    {
-      id: 'zumCityAirport',
-      sceneId: 'zumCity',
-      nameZh: '祖姆市航天港',
-      shortZh: '祖姆航天港',
-      kind: 'complex',
-      // Centered in the 300×300 envelope: 30 wide × 14 tall, origin at
-      // ((300-30)/2, (300-14)/2) = (135, 143). Same internal layout as
-      // startTownAirport — counter offset (15, 6), north-door arrival tile
-      // one row north of the building.
-      tileX: 135, tileY: 143,
-      tileW: 30, tileH: 14,
-      description: '祖姆市中央的国际航天港。从这里也可以买票回中心区。',
     },
   ],
 }

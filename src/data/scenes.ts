@@ -4,31 +4,43 @@ import type { DoorSide } from './buildingTypes'
 
 export type SceneType = 'micro' | 'macro'
 
-export type RowBand = {
-  heightTiles: number
-  types: string[]
-  doorSide?: DoorSide
+export type RoadGridConfig = {
+  avenueSpacingTiles: { min: number; max: number }
+  streetSpacingTiles: { min: number; max: number }
+  avenueWidthTiles: number
+  streetWidthTiles: number
+  alleyChance: number
+  alleyWidthTiles: number
+  alleyMinBlockTiles: number
 }
 
-export type SlotGrid = {
+// One building-type entry inside a district pool. `min`/`max` cap how
+// many of this type are placed in the district. Defaults: min 0, max
+// unbounded (so omitting both means "place freely as space allows").
+export type DistrictTypeEntry = {
+  id: string
+  min?: number
+  max?: number
+}
+
+// Rect in tile-space, relative to the procgen rect's origin.
+export type DistrictConfig = {
+  id: string
   rect: { x: number; y: number; w: number; h: number }
-  cols: number
-  gapTiles: number
-  rowBands: RowBand[]
+  types: DistrictTypeEntry[]
+  buildingsPerBlockMax?: number
 }
 
 export type ProcgenConfig = {
+  enabled: boolean
   seed: string
-  slotGrid: SlotGrid
+  rect: { x: number; y: number; w: number; h: number }
+  roads: RoadGridConfig
+  districts: DistrictConfig[]
 }
 
 export type FixedBuildingRef = {
   type: string
-  tile: { x: number; y: number }
-}
-
-export type SurvivalSourceRef = {
-  type: 'tap' | 'scavenge' | 'bench'
   tile: { x: number; y: number }
 }
 
@@ -41,7 +53,6 @@ export interface SceneConfig {
   playerSpawnTile?: { x: number; y: number }
   procgen?: ProcgenConfig
   fixedBuildings?: FixedBuildingRef[]
-  survivalSources?: SurvivalSourceRef[]
 }
 
 interface SceneFile {
@@ -62,6 +73,9 @@ for (const s of parsed.scenes) {
     throw new Error(`scenes.json5: scene "${s.id}" has non-positive dimensions`)
   }
 }
+
+// Suppress "unused" for DoorSide; it's re-exported for downstream consumers.
+export type { DoorSide }
 
 export const scenes: readonly SceneConfig[] = parsed.scenes
 export const sceneIds: readonly string[] = parsed.scenes.map((s) => s.id)

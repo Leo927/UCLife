@@ -16,6 +16,15 @@ export const Path = trait(() => ({
 
 export const Wall = trait({ x: 0, y: 0, w: 0, h: 0 })
 
+// Procgen road surface — purely visual + semantic; the pathfinder treats
+// it the same as any non-wall space. Drawn in the ground layer below
+// buildings so a building's wall reads as flush against the road.
+export type RoadKind = 'avenue' | 'street' | 'alley'
+export const Road = trait({
+  x: 0, y: 0, w: 0, h: 0,
+  kind: 'avenue' as RoadKind,
+})
+
 // Two independent lock predicates: `bedEntity` keys cell doors to a specific
 // bed's active renter; `factionGate` keys faction-internal doors. Both null
 // = always open. Both set = locked unless the requester satisfies *either*.

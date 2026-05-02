@@ -5,8 +5,8 @@ import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import {
   Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, Action,
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
-  Active,
-  type InteractableKind,
+  Active, Road,
+  type InteractableKind, type RoadKind,
 } from '../ecs/traits'
 import { useCamera } from './cameraStore'
 import type { BedTier } from '../ecs/traits'
@@ -68,6 +68,7 @@ export function Game() {
   const allBarSeats = useQuery(BarSeat, Position)
   const allWalls = useQuery(Wall)
   const allDoors = useQuery(Door)
+  const allRoads = useQuery(Road)
   const npcs = useQuery(Active, Character, Position)
   const player = useQueryFirst(IsPlayer, Position)
   const playerPos = useTrait(player, Position)
@@ -99,6 +100,10 @@ export function Game() {
 
   const walls = allWalls.filter((e) => {
     const t = e.get(Wall)
+    return t ? rectInView(t.x, t.y, t.w, t.h) : false
+  })
+  const roads = allRoads.filter((e) => {
+    const t = e.get(Road)
     return t ? rectInView(t.x, t.y, t.w, t.h) : false
   })
   const doors = allDoors.filter((e) => {
@@ -245,6 +250,7 @@ export function Game() {
               />
             )
           })}
+          {roads.map((r) => <RoadMark key={r} entity={r} />)}
           {buildings.map((b) => <BuildingMark key={b} entity={b} />)}
           {walls.map((w) => <WallMark key={w} entity={w} />)}
           {doors.map((d) => <DoorMark key={d} entity={d} />)}
@@ -666,6 +672,26 @@ function BarSeatMark({ entity }: { entity: Entity }) {
         </Group>
       )}
     </Group>
+  )
+}
+
+const ROAD_FILL: Record<RoadKind, string> = {
+  avenue: '#2a2a32',
+  street: '#33333d',
+  alley:  '#3d3d47',
+}
+
+function RoadMark({ entity }: { entity: Entity }) {
+  const r = useTrait(entity, Road)
+  if (!r) return null
+  return (
+    <Rect
+      x={r.x}
+      y={r.y}
+      width={r.w}
+      height={r.h}
+      fill={ROAD_FILL[r.kind as RoadKind]}
+    />
   )
 }
 

@@ -119,18 +119,30 @@ export type OpenFloorLayout = {
   items: ProcgenItem[]
 }
 
-export type HorizontalCellsLayout = {
-  algorithm: 'horizontal_cells'
+// Cell-based interior. Corridor side is decided per-slot by the road
+// procgen (it's whichever wall faces the chosen road), not baked here.
+export type CellsLayout = {
+  algorithm: 'cells'
   minCells: number
   maxCells: number
   cellItems: ProcgenItem[]
 }
 
-export type VerticalCellsLayout = {
-  algorithm: 'vertical_cells'
-  minCells: number
-  maxCells: number
-  cellItems: ProcgenItem[]
+// Procgen airport: open interior with a single ticket counter centered
+// against the wall opposite the primary door. Also registers the building
+// with the FlightHub matched to the host scene's id (1:1 per scene).
+export type AirportLayout = {
+  algorithm: 'airport'
+}
+
+// Park: an outdoor area with no exterior walls and no door. Random
+// fixtures (taps, scavenge points, benches) scatter inside the rect.
+// Spawn-time fixture counts are drawn uniformly from the per-kind ranges.
+export type ParkLayout = {
+  algorithm: 'park'
+  taps:    { min: number; max: number }
+  scavenge:{ min: number; max: number }
+  benches: { min: number; max: number }
 }
 
 export type InternalWall = {
@@ -162,8 +174,9 @@ export type CraftedLayout = {
 
 export type BuildingLayout =
   | OpenFloorLayout
-  | HorizontalCellsLayout
-  | VerticalCellsLayout
+  | CellsLayout
+  | AirportLayout
+  | ParkLayout
   | CraftedLayout
 
 type ProcgenSize = { minW: number; maxW: number; minH: number; maxH: number }

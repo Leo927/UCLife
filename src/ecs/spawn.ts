@@ -5,12 +5,12 @@ import {
   Money, Skills, Inventory, Building, Job, Character, Workstation,
   JobPerformance, Bed, Wall, Door, Attributes, BarSeat, RoughSpot,
   EntityKey, Reputation, JobTenure, FactionRole, Appearance, Transit,
-  FlightHub,
+  FlightHub, Road,
   type Gender, type InteractableKind,
 } from './traits'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
-import { getWorldPlace } from '../data/worldMap'
+import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
 import { getAppearanceOverride } from '../data/appearance'
 import { generateAppearanceForName } from '../data/appearanceGen'
 import { specialNpcs } from '../data/specialNpcs'
@@ -18,14 +18,17 @@ import { pickFreshName, pickRandomColor } from '../data/nameGen'
 import type { FactionId } from '../data/factions'
 import { markPathfindingDirty } from '../systems/pathfinding'
 import { worldConfig, economyConfig } from '../config'
-import { SeededRng, generateApartmentCells, generateLuxuryCells } from '../procgen'
-import { generateSlots, placeFixedBuilding } from '../procgen/slots'
-import type { DoorPlacement, PlacedSlot } from '../procgen/slots'
+import {
+  SeededRng, generateCells, maxHorizontalCells, maxVerticalCells,
+  generateRoadGrid, assignBuildings,
+} from '../procgen'
+import { placeFixedBuilding } from '../procgen/slots'
+import type { DoorPlacement, DoorSide, PlacedSlot } from '../procgen/slots'
 import { layoutOpenFloorItems } from '../procgen/itemLayout'
 import {
   getBuildingType,
   type CraftedItem, type ProcgenItem, type OpenFloorLayout,
-  type HorizontalCellsLayout, type VerticalCellsLayout, type CraftedLayout,
+  type CellsLayout, type CraftedLayout, type ParkLayout,
   type ProcgenWorkstationItem,
 } from '../data/buildingTypes'
 import { setLandmark, clearLandmarks, addRoughSource, setShopRect } from '../data/landmarks'
@@ -89,18 +92,35 @@ function enclose(b: { x: number; y: number; w: number; h: number }, doors: DoorP
 
 // ── GENERIC BUILDING SPAWNER ─────────────────────────────────────────────────
 
-function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng): void {
+function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId: SceneId): void {
   const btype = getBuildingType(typeId)
   world.spawn(Building({ ...slot.rect, label: btype.labelZh }))
-  enclose(slot.rect, [slot.primaryDoor, ...slot.extraDoors])
 
   const layout = btype.layout
-  switch (layout.algorithm) {
-    case 'open_floor':         spawnOpenFloor(layout, slot); break
-    case 'horizontal_cells':   spawnHorizontalCells(typeId, layout, slot, rng); break
-    case 'vertical_cells':     spawnVerticalCells(typeId, layout, slot, rng); break
-    case 'crafted':            spawnCrafted(layout, slot, rng); break
+  // Park has no exterior walls and no doors — skip enclose entirely.
+  if (layout.algorithm !== 'park') {
+    enclose(slot.rect, [slot.primaryDoor, ...slot.extraDoors])
   }
+
+  switch (layout.algorithm) {
+    case 'open_floor':  spawnOpenFloor(layout, slot); break
+    case 'cells':       spawnCells(typeId, layout, slot, rng); break
+    case 'airport':     spawnAirport(slot, sceneId); break
+    case 'park':        spawnPark(layout, slot, rng); break
+    case 'crafted':     spawnCrafted(layout, slot, rng); break
+  }
+}
+
+// Point one tile outside `door`, in the direction perpendicular to its wall.
+// Used for shop entry/exit landmarks regardless of the rotated door side.
+function outsideDoorPoint(
+  rect: { x: number; y: number; w: number; h: number },
+  door: DoorPlacement,
+): { x: number; y: number } {
+  if (door.side === 'n') return { x: rect.x + door.offsetPx + door.widthPx / 2, y: rect.y - TILE }
+  if (door.side === 's') return { x: rect.x + door.offsetPx + door.widthPx / 2, y: rect.y + rect.h + TILE }
+  if (door.side === 'w') return { x: rect.x - TILE, y: rect.y + door.offsetPx + door.widthPx / 2 }
+  return { x: rect.x + rect.w + TILE, y: rect.y + door.offsetPx + door.widthPx / 2 }
 }
 
 // ── OPEN FLOOR ───────────────────────────────────────────────────────────────
@@ -144,6 +164,9 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
   }
 
   // Shop setup: shop_rect + 4 landmarks derived from door/counter positions.
+  // After road procgen, the shop's primary door faces the road and its
+  // extra door sits on the opposite parallel wall. Customer entry uses the
+  // extra door, exit uses the primary.
   const hasShopLandmarks = layout.items.some((i) => i.type === 'landmark')
   if (hasShopLandmarks) {
     setShopRect(rect)
@@ -151,17 +174,9 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
       setLandmark('shopCounter', counterPos)
       setLandmark('shopApproach', { x: counterPos.x, y: counterPos.y + TILE })
     }
-    const entryDoor = extraDoors.find((d) => d.side === 'n')
-    if (entryDoor) {
-      setLandmark('shopEntry', {
-        x: rect.x + entryDoor.offsetPx + entryDoor.widthPx / 2,
-        y: rect.y - TILE,
-      })
-    }
-    setLandmark('shopExit', {
-      x: rect.x + primaryDoor.offsetPx + primaryDoor.widthPx / 2,
-      y: rect.y + rect.h + TILE,
-    })
+    const entryDoor = extraDoors[0]
+    if (entryDoor) setLandmark('shopEntry', outsideDoorPoint(rect, entryDoor))
+    setLandmark('shopExit', outsideDoorPoint(rect, primaryDoor))
   }
 
   // Bar setup: barCounter landmark from the supervisor workstation position.
@@ -238,51 +253,23 @@ function spawnProcgenItem(
   }
 }
 
-// ── CELL ALGORITHMS ──────────────────────────────────────────────────────────
+// ── CELL ALGORITHM ───────────────────────────────────────────────────────────
 
-function spawnHorizontalCells(typeId: string, layout: HorizontalCellsLayout, slot: PlacedSlot, rng: SeededRng): void {
-  const { rect } = slot
-  const maxByWidth = Math.floor(rect.w / TILE / 2)
-  const cellCount = rng.intRange(layout.minCells, Math.min(layout.maxCells, maxByWidth))
-  const cellLayout = generateApartmentCells(rect, cellCount, rng)
-
-  const beds = cellLayout.cells.map((c, i) => {
-    const item = layout.cellItems[0]
-    if (!item || item.type !== 'bed') return null
-    const tier = item.tier
-    const rent = bedRent(tier)
-    return world.spawn(
-      Position({ x: c.bedPos.x, y: c.bedPos.y }),
-      Interactable({ kind: 'sleep', label: bedLabel(tier), fee: rent }),
-      Bed({ tier, nightlyRent: rent, occupant: null, rentPaidUntilMs: 0 }),
-      EntityKey({ key: `bed-${typeId}-${i}` }),
-    )
-  })
-
-  for (const w of cellLayout.walls) world.spawn(Wall({ ...w }))
-  cellLayout.cells.forEach((c, i) => {
-    const dr = c.doorRect
-    world.spawn(
-      Position({ x: dr.x + dr.w / 2, y: dr.y + dr.h / 2 }),
-      Door({ ...dr, orient: c.doorOrient, bedEntity: beds[i] ?? undefined }),
-    )
-  })
-
-  // Washstand at the east end of the corridor.
-  world.spawn(
-    Position({
-      x: cellLayout.corridor.x + cellLayout.corridor.w - TILE / 2,
-      y: cellLayout.corridor.y + cellLayout.corridor.h / 2,
-    }),
-    Interactable({ kind: 'wash', label: '洗手台' }),
-  )
-}
-
-function spawnVerticalCells(typeId: string, layout: VerticalCellsLayout, slot: PlacedSlot, rng: SeededRng): void {
-  const { rect } = slot
-  const maxByHeight = Math.floor(rect.h / TILE / 3)
-  const cellCount = rng.intRange(layout.minCells, Math.min(layout.maxCells, maxByHeight))
-  const cellLayout = generateLuxuryCells(rect, cellCount, rng)
+// One cell-based interior generator handles all four corridor orientations.
+// `corridorSide` is the building's primary door side — the corridor runs
+// along that wall, cells stack against the opposite wall, and each cell's
+// internal door opens onto the corridor.
+function spawnCells(typeId: string, layout: CellsLayout, slot: PlacedSlot, rng: SeededRng): void {
+  const { rect, primaryDoor } = slot
+  const corridorSide: DoorSide = primaryDoor.side
+  const horizontal = corridorSide === 'n' || corridorSide === 's'
+  const maxByDim = horizontal ? maxHorizontalCells(rect) : maxVerticalCells(rect)
+  // assignBuildings's fitBuilding guarantees minCells fits, but defend
+  // anyway: if upstream ever places a too-small cell building, fall back
+  // to as many cells as fit instead of crashing distribute().
+  if (maxByDim < layout.minCells) return
+  const cellCount = rng.intRange(layout.minCells, Math.min(layout.maxCells, maxByDim))
+  const cellLayout = generateCells(rect, cellCount, corridorSide, rng)
 
   const beds = cellLayout.cells.map((c, i) => {
     const item = layout.cellItems[0]
@@ -305,6 +292,19 @@ function spawnVerticalCells(typeId: string, layout: VerticalCellsLayout, slot: P
       Door({ ...dr, orient: c.doorOrient, bedEntity: beds[i] ?? undefined }),
     )
   })
+
+  // Apartment-style buildings (horizontal corridor, ≥3 cells) get a
+  // washstand at the far end of the corridor. Skip for luxury (vertical
+  // corridor — no good free spot).
+  if (horizontal) {
+    world.spawn(
+      Position({
+        x: cellLayout.corridor.x + cellLayout.corridor.w - TILE / 2,
+        y: cellLayout.corridor.y + cellLayout.corridor.h / 2,
+      }),
+      Interactable({ kind: 'wash', label: '洗手台' }),
+    )
+  }
 }
 
 // ── CRAFTED LAYOUT ───────────────────────────────────────────────────────────
@@ -422,69 +422,109 @@ function spawnCraftedItem(
   }
 }
 
-// ── SURVIVAL SOURCES ─────────────────────────────────────────────────────────
+// ── AIRPORT + PARK SPAWNERS ─────────────────────────────────────────────────
 
-function spawnSurvivalSource(src: { type: 'tap' | 'scavenge' | 'bench'; tile: { x: number; y: number } }): void {
-  const px = src.tile.x * TILE
-  const py = src.tile.y * TILE
-  const pos = { x: px, y: py }
+// Tracks which hubs have been bound this bootstrap pass, so a runaway
+// district config asking for two airports in one scene doesn't silently
+// claim both ends of an inter-city flight pair.
+const airportHubsBound = new Set<string>()
 
-  switch (src.type) {
-    case 'tap': {
-      world.spawn(
-        Position(pos),
-        Interactable({ kind: 'tap', label: '街边水龙头' }),
-      )
-      addRoughSource('tap', pos)
-      break
-    }
-    case 'scavenge': {
-      world.spawn(
-        Position(pos),
-        Interactable({ kind: 'scavenge', label: '垃圾桶' }),
-      )
-      addRoughSource('scavenge', pos)
-      break
-    }
-    case 'bench': {
-      const idx = roughSpotCounter++
-      world.spawn(
-        Position(pos),
-        Interactable({ kind: 'rough', label: '街边长椅' }),
-        RoughSpot({ occupant: null }),
-        EntityKey({ key: `roughspot-${idx}` }),
-      )
-      addRoughSource('rough', pos)
-      break
-    }
-  }
+function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
+  const { rect, primaryDoor } = slot
+  const hub = flightHubs.find((h) => h.sceneId === sceneId && !airportHubsBound.has(h.id))
+  if (!hub) return  // No matching/free hub for this scene; ticket counter would be unreachable.
+  airportHubsBound.add(hub.id)
+
+  // Counter sits 1.5 tiles in from the wall opposite the primary door,
+  // centered on the perpendicular axis. Player walks up to it from inside.
+  const cx = rect.x + rect.w / 2
+  const cy = rect.y + rect.h / 2
+  let counterX = cx, counterY = cy
+  const inset = TILE * 1.5
+  if (primaryDoor.side === 'n')      counterY = rect.y + rect.h - inset
+  else if (primaryDoor.side === 's') counterY = rect.y + inset
+  else if (primaryDoor.side === 'w') counterX = rect.x + rect.w - inset
+  else                               counterX = rect.x + inset
+
+  world.spawn(
+    Position({ x: counterX, y: counterY }),
+    Interactable({ kind: 'ticketCounter', label: '售票处' }),
+    FlightHub({ hubId: hub.id }),
+    EntityKey({ key: `flighthub-${hub.id}` }),
+  )
+
+  // Arrival point: 2 tiles outside the door, perpendicular to the wall.
+  // Far enough that the player doesn't immediately retrigger the door
+  // collision when they fade in.
+  const doorOutside = outsideDoorPoint(rect, primaryDoor)
+  let arrivalX = doorOutside.x, arrivalY = doorOutside.y
+  if (primaryDoor.side === 'n')      arrivalY -= TILE
+  else if (primaryDoor.side === 's') arrivalY += TILE
+  else if (primaryDoor.side === 'w') arrivalX -= TILE
+  else                               arrivalX += TILE
+
+  setAirportPlacement(hub.id, {
+    counterPx: { x: counterX, y: counterY },
+    arrivalPx: { x: arrivalX, y: arrivalY },
+  })
 }
 
-// ── AIRPORTS + TRANSIT ───────────────────────────────────────────────────────
+function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
+  const { rect } = slot
+  const tilesW = Math.max(1, Math.floor(rect.w / TILE) - 1)
+  const tilesH = Math.max(1, Math.floor(rect.h / TILE) - 1)
 
-function spawnAirportsForScene(sceneId: SceneId): void {
-  for (const hub of flightHubs) {
-    if (hub.sceneId !== sceneId) continue
-    const place = getWorldPlace(hub.placeId)
-    if (!place) {
-      throw new Error(`Flight hub ${hub.id} references unknown place ${hub.placeId}`)
+  // Reservation set so two fixtures don't land on the same tile.
+  const used = new Set<string>()
+  const pickFreeTile = (): { x: number; y: number } | null => {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const tx = rng.intRange(0, tilesW)
+      const ty = rng.intRange(0, tilesH)
+      const key = `${tx},${ty}`
+      if (used.has(key)) continue
+      used.add(key)
+      return { x: rect.x + tx * TILE + TILE / 2, y: rect.y + ty * TILE + TILE / 2 }
     }
-    const rect = {
-      x: place.tileX * TILE,
-      y: place.tileY * TILE,
-      w: place.tileW * TILE,
-      h: place.tileH * TILE,
-    }
-    world.spawn(Building({ ...rect, label: hub.nameZh }))
-    enclose(rect, [{ side: 'n', offsetPx: Math.floor(place.tileW / 2) * TILE, widthPx: TILE }])
+    return null
+  }
+
+  const tapCount      = rng.intRange(layout.taps.min,     layout.taps.max)
+  const scavengeCount = rng.intRange(layout.scavenge.min, layout.scavenge.max)
+  const benchCount    = rng.intRange(layout.benches.min,  layout.benches.max)
+
+  for (let i = 0; i < tapCount; i++) {
+    const p = pickFreeTile()
+    if (!p) break
     world.spawn(
-      Position({ x: hub.counterTile.x * TILE + TILE / 2, y: hub.counterTile.y * TILE + TILE / 2 }),
-      Interactable({ kind: 'ticketCounter', label: '售票处' }),
-      FlightHub({ hubId: hub.id }),
-      EntityKey({ key: `flighthub-${hub.id}` }),
+      Position(p),
+      Interactable({ kind: 'tap', label: '街边水龙头' }),
     )
+    addRoughSource('tap', p)
+  }
+  for (let i = 0; i < scavengeCount; i++) {
+    const p = pickFreeTile()
+    if (!p) break
+    world.spawn(
+      Position(p),
+      Interactable({ kind: 'scavenge', label: '垃圾桶' }),
+    )
+    addRoughSource('scavenge', p)
+  }
+  for (let i = 0; i < benchCount; i++) {
+    const p = pickFreeTile()
+    if (!p) break
+    const idx = roughSpotCounter++
+    world.spawn(
+      Position(p),
+      Interactable({ kind: 'rough', label: '街边长椅' }),
+      RoughSpot({ occupant: null }),
+      EntityKey({ key: `roughspot-${idx}` }),
+    )
+    addRoughSource('rough', p)
   }
 }
+
+// ── TRANSIT ──────────────────────────────────────────────────────────────────
 
 function spawnTransitForScene(sceneId: string): void {
   for (const t of transitTerminals) {
@@ -565,9 +605,12 @@ function spawnAeWorkforce(): void {
   }
 }
 
-function spawnFoundingCivilians(): void {
-  const ARRIVAL_X = TILE * 20
-  const ARRIVAL_Y = TILE * 16
+function spawnFoundingCivilians(scene: SceneConfig): void {
+  // Drop the founders at the player's spawn tile so the city's "first day"
+  // crowd reads as arriving together.
+  const spawn = scene.playerSpawnTile ?? { x: 0, y: 0 }
+  const ARRIVAL_X = TILE * spawn.x
+  const ARRIVAL_Y = TILE * spawn.y
   const tiers: Array<{
     count: number
     money: () => number
@@ -634,30 +677,31 @@ function bootstrapMicroScene(scene: SceneConfig): void {
     setupAppearance(playerEnt, '新人')
   }
 
-  if (scene.procgen) {
-    for (const pb of generateSlots(scene.procgen.slotGrid, rng)) {
-      spawnBuilding(pb.typeId, pb.slot, rng)
+  if (scene.procgen?.enabled) {
+    const cfg = scene.procgen
+    const grid = generateRoadGrid(cfg.rect, cfg.roads, rng)
+    for (const seg of grid.segments) {
+      world.spawn(Road({ x: seg.rect.x, y: seg.rect.y, w: seg.rect.w, h: seg.rect.h, kind: seg.kind }))
+    }
+    for (const pb of assignBuildings(cfg.rect, grid.subBlocks, cfg.districts, rng)) {
+      spawnBuilding(pb.typeId, pb.slot, rng, scene.id)
     }
   }
 
   for (const fb of scene.fixedBuildings ?? []) {
     const pb = placeFixedBuilding(fb.type, fb.tile, rng)
-    spawnBuilding(pb.typeId, pb.slot, rng)
-  }
-
-  for (const src of scene.survivalSources ?? []) {
-    spawnSurvivalSource(src)
+    spawnBuilding(pb.typeId, pb.slot, rng, scene.id)
   }
 
   spawnTransitForScene(scene.id)
-  spawnAirportsForScene(scene.id)
 
-  if (scene.procgen) {
+  // Special NPCs (AE board/managers/reception) and the AE workforce only
+  // make sense in the scene that hosts aeComplex. Founding civilians spawn
+  // wherever the player starts.
+  if (scene.id === initialSceneId) {
     spawnSpecialNpcs()
     spawnAeWorkforce()
-    if (scene.id === initialSceneId) {
-      spawnFoundingCivilians()
-    }
+    spawnFoundingCivilians(scene)
   }
 }
 
@@ -704,6 +748,8 @@ export function setupWorld() {
   initialized = true
 
   roughSpotCounter = 0
+  airportHubsBound.clear()
+  clearAirportPlacements()
 
   for (const scene of scenes) {
     setActiveSceneId(scene.id)
