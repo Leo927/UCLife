@@ -4,6 +4,8 @@ import { worldConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
+import { flightHubs } from '../data/flights'
+import { getAirportPlacement } from '../sim/airportPlacements'
 import { useUI } from './uiStore'
 
 const TILE = worldConfig.tilePx
@@ -66,7 +68,27 @@ export function MapPanel() {
 
   const { tilesX: MAP_TILES_X, tilesY: MAP_TILES_Y } = getActiveSceneDimensions()
   const VIEW_H = Math.round(VIEW_W * (MAP_TILES_Y / MAP_TILES_X))
-  const places = getPlacesInScene(activeSceneId)
+  // Airports are procgen-placed, so their markers come from the runtime
+  // placement registry rather than world-map.json5.
+  const airportPlaces: WorldPlace[] = []
+  for (const h of flightHubs) {
+    if (h.sceneId !== activeSceneId) continue
+    const p = getAirportPlacement(h.id)
+    if (!p) continue
+    airportPlaces.push({
+      id: h.id,
+      sceneId: h.sceneId,
+      nameZh: h.nameZh,
+      shortZh: h.shortZh,
+      kind: 'complex',
+      tileX: p.rectTile.x,
+      tileY: p.rectTile.y,
+      tileW: p.rectTile.w,
+      tileH: p.rectTile.h,
+      description: h.description,
+    })
+  }
+  const places = [...getPlacesInScene(activeSceneId), ...airportPlaces]
 
   const close = () => setOpen(false)
   const playerTileX = playerPos ? playerPos.x / TILE : null

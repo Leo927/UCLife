@@ -12,6 +12,9 @@
 export type AirportPlacement = {
   counterPx: { x: number; y: number }
   arrivalPx: { x: number; y: number }
+  // Building footprint in tile coords. Used by MapPanel to render the
+  // airport marker — the map needs a rect at procgen-determined position.
+  rectTile: { x: number; y: number; w: number; h: number }
 }
 
 const placements = new Map<string, AirportPlacement>()

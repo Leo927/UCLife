@@ -10,6 +10,7 @@ import type { SceneId } from '../ecs/world'
 export interface FlightHub {
   id: string
   nameZh: string
+  shortZh: string
   sceneId: SceneId
   description?: string
 }

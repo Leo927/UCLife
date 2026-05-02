@@ -17,12 +17,14 @@
     {
       id: 'startTownAirport',
       nameZh: '冯·布劳恩航天港',
+      shortZh: '航天港',
       sceneId: 'startTown',
       description: '冯·布劳恩中心区的航天港售票处。',
     },
     {
       id: 'zumCityAirport',
       nameZh: '祖姆市航天港',
+      shortZh: '祖姆航天港',
       sceneId: 'zumCity',
       description: 'Side 3 共和国首府的中央航天港售票处。',
     },
