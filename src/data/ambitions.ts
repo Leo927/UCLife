@@ -12,7 +12,7 @@ export type AttributeKey = typeof ATTRIBUTE_KEYS[number]
 
 const SKILL_KEYS: SkillId[] = [
   'mechanics', 'marksmanship', 'athletics', 'cooking', 'medicine', 'computers',
-  'mwPiloting', 'bartending', 'engineering',
+  'piloting', 'bartending', 'engineering',
 ]
 
 const FACTION_KEYS: FactionId[] = ['anaheim', 'civilian', 'federation', 'zeon']

@@ -2,7 +2,7 @@ import { skillsConfig } from '../config'
 
 export type SkillId =
   | 'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers'
-  | 'mwPiloting' | 'bartending' | 'engineering'
+  | 'piloting' | 'bartending' | 'engineering'
 
 export const SKILLS = skillsConfig.catalog
 export const SKILL_ORDER: SkillId[] = skillsConfig.order

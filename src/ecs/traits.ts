@@ -80,7 +80,7 @@ export const Skills = trait({
   cooking: 0,
   medicine: 0,
   computers: 0,
-  mwPiloting: 0,
+  piloting: 0,
   bartending: 0,
   engineering: 0,
 })

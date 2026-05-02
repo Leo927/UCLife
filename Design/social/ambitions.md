@@ -32,7 +32,7 @@ A player can swap ambitions at most once per in-game year (cost: lose progress o
     },
     {
       stageNameZh: '通过资格考试',
-      requirements: { mwPiloting: 40, money: 40000, federationRep: 10 },
+      requirements: { piloting: 40, money: 40000, federationRep: 10 },
       payoff: { titleZh: '驾驶员候补', logZh: '...', unlocks: ['mw_school_dialogue'] },
     },
     // up to ~5 stages
@@ -49,7 +49,7 @@ Six ambitions cover the major life-trajectory archetypes. Authoring more is chea
 
 | ID | Name | Spine |
 |---|---|---|
-| `mw_pilot` | 机动工兵驾驶员 | Reflex/Athletics → MW Piloting skill → Federation rep → cockpit |
+| `mw_pilot` | 机动工兵驾驶员 | Reflex/Athletics → Piloting skill → Federation rep → cockpit |
 | `ae_chief_engineer` | AE 总工程师 | Engineering/Mechanics → AE rank 4 → board friendships → MS project |
 | `lazlos_owner` | 酒馆老板 | Bartending → Charisma → savings → Lazlo friendship → ownership |
 | `zeon_volunteer` | 吉翁义勇兵 | Side 3 residency → Zeon rep → enlistment |

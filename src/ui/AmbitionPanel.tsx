@@ -22,7 +22,7 @@ const REQUIREMENT_LABELS: Record<string, string> = {
   cooking: '烹饪',
   medicine: '医学',
   computers: '计算机',
-  mwPiloting: '机工驾驶',
+  piloting: '驾驶',
   bartending: '调酒',
   engineering: '工程',
   money: '存款',

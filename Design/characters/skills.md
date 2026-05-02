@@ -2,7 +2,7 @@
 
 TRV-style: many narrow skills, XP from use, optional decay. Each skill has level (0–100) + per-character talent multiplier (0.7×–1.4×) → some characters are natural pilots.
 
-**Combat & Piloting**: Marksmanship, Melee, Tactics, Mobile Worker Piloting, Spacecraft Piloting, Mobile Suit Piloting (*locked until UC 0079+*), Ship Command
+**Combat & Piloting**: Marksmanship, Melee, Tactics, Piloting (covers mobile workers, spacecraft, and — once unlocked in UC 0079+ — mobile suits), Ship Command
 
 **Technical**: Mechanics, Electronics, Computers, Engineering, Minovsky Physics (*hidden start, requires teacher*), Fabrication
 

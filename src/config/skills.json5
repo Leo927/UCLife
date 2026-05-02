@@ -8,7 +8,7 @@
     engineering:  { label: '工程',     group: '技术' },
     computers:    { label: '计算机',   group: '技术' },
     marksmanship: { label: '枪法',     group: '战斗' },
-    mwPiloting:   { label: '机工驾驶', group: '战斗' },
+    piloting:     { label: '驾驶',     group: '战斗' },
     athletics:    { label: '体力',     group: '身体' },
     cooking:      { label: '烹饪',     group: '生活' },
     bartending:   { label: '调酒',     group: '生活' },
@@ -16,7 +16,7 @@
   },
 
   // Display order in the StatusPanel skill list.
-  order: ['mechanics', 'engineering', 'computers', 'marksmanship', 'mwPiloting', 'athletics', 'cooking', 'bartending', 'medicine'],
+  order: ['mechanics', 'engineering', 'computers', 'marksmanship', 'piloting', 'athletics', 'cooking', 'bartending', 'medicine'],
 
   // XP per level. levelOf(xp) = floor(xp / xpPerLevel), capped at 100.
   xpPerLevel: 100,

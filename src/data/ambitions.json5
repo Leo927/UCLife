@@ -25,7 +25,7 @@
 // Requirement-key allow-list (validator throws on anything else):
 //   attributes : strength endurance charisma intelligence reflex resolve
 //   skills     : mechanics marksmanship athletics cooking medicine computers
-//                mwPiloting bartending engineering
+//                piloting bartending engineering
 //   currency   : money
 //   factions   : anaheim civilian federation zeon
 //   derived    : aeRank residenceTier hasNoJob hasNoHome daysAtFlopWithNoJob
@@ -47,7 +47,7 @@
         },
         {
           stageNameZh: '通过资格考试',
-          requirements: { mwPiloting: 2000, money: 40000, federation: 10 },
+          requirements: { piloting: 2000, money: 40000, federation: 10 },
           payoff: {
             titleZh: '驾驶员候补',
             logZh: '资格证下来了。教官签字时手抖了一下，墨迹歪在了角上。',
@@ -56,7 +56,7 @@
         },
         {
           stageNameZh: '模拟舱训练',
-          requirements: { mwPiloting: 5000, reflex: 60, federation: 30 },
+          requirements: { piloting: 5000, reflex: 60, federation: 30 },
           payoff: {
             titleZh: '准驾驶员',
             logZh: '模拟舱里你做完了第一套规避动作。手心出汗，但没有报警。',
@@ -64,7 +64,7 @@
         },
         {
           stageNameZh: '实机考核',
-          requirements: { mwPiloting: 8000, federation: 60 },
+          requirements: { piloting: 8000, federation: 60 },
           payoff: {
             titleZh: '机动工兵驾驶员',
             logZh: '从舱里下来时风很大。地勤朝你点了点头，没说话。',
@@ -73,7 +73,7 @@
         },
         {
           stageNameZh: '王牌',
-          requirements: { mwPiloting: 10000, reflex: 80, federation: 80 },
+          requirements: { piloting: 10000, reflex: 80, federation: 80 },
           payoff: {
             titleZh: '王牌驾驶员',
             logZh: '基地里的人开始记住你的呼号。这不一定是好事。',
@@ -207,7 +207,7 @@
         },
         {
           stageNameZh: '准义勇兵',
-          requirements: { zeon: 60, marksmanship: 5000, mwPiloting: 3000 },
+          requirements: { zeon: 60, marksmanship: 5000, piloting: 3000 },
           payoff: {
             titleZh: '吉翁准义勇兵',
             logZh: '一份名单上多了你的名字。你没看见，但你能感觉到。',
@@ -216,7 +216,7 @@
         },
         {
           stageNameZh: '正式入伍',
-          requirements: { zeon: 80, mwPiloting: 6000 },
+          requirements: { zeon: 80, piloting: 6000 },
           payoff: {
             titleZh: '吉翁义勇兵',
             logZh: '行李很轻。你把钥匙留给了门房。',

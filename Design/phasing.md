@@ -21,7 +21,7 @@
 - Save migration policy when traits churn pre-1.0
 - LLM cost model and rate-limiting (Phase 8 design)
 - Sound design (deferred indefinitely; ambient tracks + UI clicks adequate)
-- Mobile suit subsystem when UC 0079+ unlocks Mobile Suit Piloting skill
+- Mobile suit subsystem when UC 0079+ unlocks mobile suit access (uses the unified Piloting skill)
 - Character creator UX (sets stat talents per [characters/attributes.md](characters/attributes.md)); NPC talent randomization via seeded RNG. Until both land, every character launches at talent = 1.0.
 - Stat balance pass after first playtests of attributes: tune `DRIFT`, the floor, and the use/stress feed weights once the harshness reads in actual play.
 

@@ -24,7 +24,7 @@ import { useEventLog } from '../ui/EventLog'
 const ATTRIBUTE_KEYS = new Set(['strength', 'endurance', 'charisma', 'intelligence', 'reflex', 'resolve'])
 const SKILL_KEYS = new Set<string>([
   'mechanics', 'marksmanship', 'athletics', 'cooking', 'medicine', 'computers',
-  'mwPiloting', 'bartending', 'engineering',
+  'piloting', 'bartending', 'engineering',
 ])
 const FACTION_KEYS = new Set<string>(['anaheim', 'civilian', 'federation', 'zeon'])
 

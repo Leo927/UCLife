@@ -778,14 +778,14 @@ export type NPCSpec = {
   hunger?: number
   thirst?: number
   money?: number
-  skills?: Partial<Record<'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers' | 'mwPiloting' | 'bartending' | 'engineering', number>>
+  skills?: Partial<Record<'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers' | 'piloting' | 'bartending' | 'engineering', number>>
   key?: string
   factionRole?: { faction: FactionId; role: 'staff' | 'manager' | 'board' }
   gender?: Gender
 }
 
 export function spawnNPC(spec: NPCSpec) {
-  const baseSkills = { mechanics: 0, marksmanship: 0, athletics: 0, cooking: 0, medicine: 0, computers: 0, mwPiloting: 0, bartending: 0, engineering: 0 }
+  const baseSkills = { mechanics: 0, marksmanship: 0, athletics: 0, cooking: 0, medicine: 0, computers: 0, piloting: 0, bartending: 0, engineering: 0 }
   const fr = spec.factionRole ?? { faction: 'civilian' as FactionId, role: 'staff' as const }
   const ent = world.spawn(
     Character({ name: spec.name, color: spec.color, title: spec.title ?? '市民' }),
