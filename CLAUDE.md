@@ -137,3 +137,4 @@ In dev, `globalThis.__uclife__` is exposed with `{ world, useClock, useScene, mo
 - Strong emphasis on automated testing harness. Maintain a single suite of regression test. 
 - Don't rush to implementation. Always refine the design with the user first. 
 - Always prefer MCP server over raw API call
+- Always commit on every iteration
