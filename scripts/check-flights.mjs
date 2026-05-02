@@ -13,6 +13,7 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } })
 const page = await ctx.newPage()
 
 const errors = []
+const failures = []
 page.on('pageerror', (err) => errors.push(`${err.name}: ${err.message}`))
 
 await page.goto(url, { waitUntil: 'networkidle' })
@@ -28,7 +29,12 @@ console.log('Map place names:', mapNames)
 
 const expectedPlaces = ['冯·布劳恩中心区', '安那海姆电子总部', '冯·布劳恩航天港']
 const allPresent = expectedPlaces.every((p) => mapNames.includes(p))
-console.log(allPresent ? 'PASS · startTown places on map' : 'FAIL · missing place(s)')
+if (allPresent) {
+  console.log('PASS · startTown places on map')
+} else {
+  failures.push('missing place(s) on map')
+  console.log('FAIL · missing place(s)')
+}
 
 await page.screenshot({ path: 'scripts/out/flight-map.png', fullPage: false })
 await page.evaluate(() => window.uclifeUI.getState().setMap(false))
@@ -57,7 +63,12 @@ const startOk =
   startModal.rows[0].desc.some((d) => d?.includes('航程 6 小时') && d.includes('¥800')) &&
   startModal.rows[0].disabled === true &&  // player starts with ¥30 < ¥800 fare
   startModal.rows[0].btn === '钱不够'
-console.log(startOk ? 'PASS · start town modal correct' : 'FAIL · start town modal mismatch')
+if (startOk) {
+  console.log('PASS · start town modal correct')
+} else {
+  failures.push('start town modal mismatch')
+  console.log('FAIL · start town modal mismatch')
+}
 
 await page.evaluate(() => window.uclifeUI.getState().closeFlight())
 await page.waitForTimeout(200)
@@ -80,7 +91,12 @@ const zumOk =
   zumModal.headerH2 === '售票处 · 祖姆市航天港' &&
   zumModal.rows.length === 1 &&
   zumModal.rows[0].name === '冯·布劳恩航天港'
-console.log(zumOk ? 'PASS · zum city modal correct' : 'FAIL · zum city modal mismatch')
+if (zumOk) {
+  console.log('PASS · zum city modal correct')
+} else {
+  failures.push('zum city modal mismatch')
+  console.log('FAIL · zum city modal mismatch')
+}
 
 await page.evaluate(() => window.uclifeUI.getState().closeFlight())
 
@@ -92,3 +108,8 @@ if (errors.length) {
 }
 
 await browser.close()
+
+if (failures.length || errors.length) {
+  console.log(`\nFAILED: ${failures.length} assertion(s), ${errors.length} page error(s).`)
+  process.exit(1)
+}
