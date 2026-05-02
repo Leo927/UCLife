@@ -82,4 +82,5 @@ Each ambition declares a `warPayoff` string. Phase 7's UC 0079.01.03 trigger rea
 - [relationships.md](relationships.md) — supplies "befriend X" verb
 - [../characters/attributes.md](../characters/attributes.md) — supplies stat thresholds
 - [../characters/skills.md](../characters/skills.md) — supplies skill thresholds
+- [../mobile-worker.md](../mobile-worker.md) — verb that fulfills the `mw_pilot` ambition
 - [../phasing.md](../phasing.md) — overall phase order

@@ -43,6 +43,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Newsfeed (Phase 5.1) | [social/newsfeed.md](social/newsfeed.md) |
 | ↳ Relationships & faction reputation | [social/relationships.md](social/relationships.md) |
 | ↳ Faction management (Phase 6) | [social/faction-management.md](social/faction-management.md) |
+| Mobile worker minigame (Phase 5.4) | [mobile-worker.md](mobile-worker.md) |
 | World generation | [worldgen.md](worldgen.md) |
 | Saves | [saves.md](saves.md) |
 | LLM integration (Phase 8) | [llm.md](llm.md) |
