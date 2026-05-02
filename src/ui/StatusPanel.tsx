@@ -1,5 +1,5 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Skills, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Skills, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions } from '../ecs/traits'
 import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
@@ -10,6 +10,7 @@ import { dowLabel, getJobSpec } from '../data/jobs'
 import { STAT_ORDER, STATS } from '../data/stats'
 import { attributesConfig, jobsConfig } from '../config'
 import { tierOf as factionTierOf, factionMeta, type FactionId } from '../data/factions'
+import { getAmbition } from '../data/ambitions'
 
 const TIER_LABEL: Record<BedTier, string> = {
   flop: '投币床',
@@ -40,6 +41,7 @@ export function StatusPanel() {
   const attrs = useTrait(player, Attributes)
   const reputation = useTrait(player, Reputation)
   const character = useTrait(player, Character)
+  const ambitions = useTrait(player, Ambitions)
   // Subscribe to gameDate so the rent countdown ticks live.
   const gameMs = useClock((s) => s.gameDate.getTime())
 
@@ -109,6 +111,57 @@ export function StatusPanel() {
             )}
             <div className="status-meta">月面市民 · 冯·布劳恩 · UC 0077</div>
           </div>
+        </section>
+
+        <section className="status-section">
+          <h3>志向</h3>
+          {ambitions && ambitions.active.length > 0 ? (
+            <>
+              {ambitions.active.map((slot) => {
+                const def = getAmbition(slot.id)
+                if (!def) return null
+                const stage = def.stages[slot.currentStage]
+                const total = def.stages.length
+                return (
+                  <div key={slot.id} className="status-job">
+                    <span className="status-job-name">{def.nameZh}</span>
+                    <span className="status-meta">
+                      {stage
+                        ? `第 ${slot.currentStage + 1} / ${total} · ${stage.stageNameZh}`
+                        : `已完成全部 ${total} 阶段`}
+                    </span>
+                  </div>
+                )
+              })}
+              <div className="status-job" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="status-link"
+                  onClick={() => {
+                    setOpen(false)
+                    useUI.getState().setAmbitions(true)
+                  }}
+                  data-open-ambitions
+                >
+                  查看与切换志向
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="status-job">
+              <button
+                type="button"
+                className="status-link"
+                onClick={() => {
+                  setOpen(false)
+                  useUI.getState().setAmbitions(true)
+                }}
+                data-open-ambitions
+              >
+                选择志向
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="status-section">
