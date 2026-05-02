@@ -41,18 +41,30 @@ jobs:
         run: npx wait-on http://localhost:5173 --timeout 60000
 
       - run: node scripts/check.mjs
-      - run: node scripts/check-saveload.mjs
-      - run: node scripts/check-scene-swap.mjs
-      - run: node scripts/check-flights.mjs
-      - run: node scripts/check-map.mjs
-      - run: node scripts/check-chatbubble.mjs
-      - run: node scripts/check-systemmenu.mjs
-      - run: node scripts/check-sprite-ingame.mjs
-      - run: node scripts/check-portrait.mjs
-      - run: node scripts/check-portrait-modals.mjs
-      - run: node scripts/check-portrait-enlarge.mjs
-      - run: node scripts/check-sprite.mjs
-      - run: npx tsx scripts/survive.ts
+      - if: always()
+        run: node scripts/check-saveload.mjs
+      - if: always()
+        run: node scripts/check-scene-swap.mjs
+      - if: always()
+        run: node scripts/check-flights.mjs
+      - if: always()
+        run: node scripts/check-map.mjs
+      - if: always()
+        run: node scripts/check-chatbubble.mjs
+      - if: always()
+        run: node scripts/check-systemmenu.mjs
+      - if: always()
+        run: node scripts/check-sprite-ingame.mjs
+      - if: always()
+        run: node scripts/check-portrait.mjs
+      - if: always()
+        run: node scripts/check-portrait-modals.mjs
+      - if: always()
+        run: node scripts/check-portrait-enlarge.mjs
+      - if: always()
+        run: node scripts/check-sprite.mjs
+      - if: always()
+        run: npx tsx scripts/survive.ts
 
       - name: Upload screenshots on failure
         if: failure()
