@@ -244,6 +244,7 @@ job listings, which is exactly the integration phase 5.0 designed for.
 
 ## Related
 
+- [combat.md](combat.md) — defines hostile primitive variants and where this minigame engine ends up under wartime stakes
 - [social/ambitions.md](social/ambitions.md) — `mw_pilot` ambition stages this verb fulfills
 - [characters/skills.md](characters/skills.md) — piloting skill XP pool
 - [characters/attributes.md](characters/attributes.md) — Reflex / Endurance / Intelligence inputs

@@ -13,7 +13,7 @@
 | **5.3 Factions deepen** | Federation + Zeon visible presence (consulates, uniformed NPCs); reputation deepens; faction-aligned ambitions earn real stakes | "My loyalty matters; war rumors land" |
 | **5.4 Mobile worker subsystem** | First concrete verb behind the piloting skill: Sim Pod + MW Operator job + AE/Federation gated trials. Inertia-cockpit minigame. See [mobile-worker.md](mobile-worker.md). | "I bring a load through the gates and the cockpit feels different than it did yesterday" |
 | **6. Faction management (FTL layer)** | Player establishes group; work priority matrix; contracts; assets | "I run a 4-person merc cell" |
-| **7. War event** | UC 0079.01.03 hits; world state shift; factions go hostile; Von Braun changes; `warPayoff` routes resolve every active ambition | The prologue payoff |
+| **7. War event** | UC 0079.01.03 hits; world state shift; factions go hostile; Von Braun changes; `warPayoff` routes resolve every active ambition. Civilian-war content (newsfeed wartime mode, conscription, refugees, departing friends), real cockpit combat for the pilot path, wartime faction management. See [combat.md](combat.md) for the full structural design. | The prologue payoff |
 | **8. LLM dialogue + intent** | Persona-cached Claude prompts for dialogue and proposed actions | "Talking to NPCs feels alive" |
 
 ## Open / deferred

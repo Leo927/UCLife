@@ -83,4 +83,5 @@ Each ambition declares a `warPayoff` string. Phase 7's UC 0079.01.03 trigger rea
 - [../characters/attributes.md](../characters/attributes.md) — supplies stat thresholds
 - [../characters/skills.md](../characters/skills.md) — supplies skill thresholds
 - [../mobile-worker.md](../mobile-worker.md) — verb that fulfills the `mw_pilot` ambition
+- [../combat.md](../combat.md) — what `warPayoff` resolves into; civilian-war is the default Phase 7 experience
 - [../phasing.md](../phasing.md) — overall phase order
