@@ -327,6 +327,10 @@ const COLORS: Record<InteractableKind, { fill: string; stroke: string }> = {
   rough: { fill: '#262626', stroke: '#737373' },
   transit: { fill: '#134e4a', stroke: '#2dd4bf' },
   ticketCounter: { fill: '#1e3a8a', stroke: '#60a5fa' },
+  buyShip: { fill: '#0f3a4a', stroke: '#22d3ee' },
+  boardShip: { fill: '#0c4a6e', stroke: '#38bdf8' },
+  disembarkShip: { fill: '#1e293b', stroke: '#94a3b8' },
+  openStarmap: { fill: '#312e81', stroke: '#818cf8' },
 }
 
 function NPCMark({ entity }: { entity: Entity }) {

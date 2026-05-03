@@ -11,7 +11,7 @@ import {
   IsPlayer, Position, MoveTarget, Action, Vitals, Health, Money, Skills,
   Inventory, Job, JobPerformance, Attributes, Reputation, JobTenure,
   Character, Appearance, Bed, Workstation, EntityKey, Home, PendingEviction,
-  FactionRole,
+  FactionRole, Flags, Ambitions,
 } from '../ecs/traits'
 import { markPathfindingDirty } from '../systems/pathfinding'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
@@ -70,6 +70,8 @@ export function migratePlayerToScene(
   const jobTenure = oldPlayer.get(JobTenure)
   const appearance = oldPlayer.get(Appearance)
   const factionRole = oldPlayer.get(FactionRole)
+  const flags = oldPlayer.get(Flags)
+  const ambitions = oldPlayer.get(Ambitions)
 
   // Free back-references the source scene held to this player entity —
   // without this, the bed/workstation would carry a dangling occupant ref
@@ -112,6 +114,14 @@ export function migratePlayerToScene(
   )
   if (appearance) newPlayer.add(Appearance(appearance))
   if (factionRole) newPlayer.add(FactionRole(factionRole))
+  if (flags) newPlayer.add(Flags({ flags: { ...flags.flags } }))
+  if (ambitions) {
+    newPlayer.add(Ambitions({
+      active: ambitions.active.map((s) => ({ ...s })),
+      history: ambitions.history.map((h) => ({ ...h })),
+      lastSwapMs: ambitions.lastSwapMs,
+    }))
+  }
   // Guard against accidentally carrying origin-scene refs across the
   // boundary if a respawn ever picks these up.
   if (newPlayer.has(Home)) newPlayer.remove(Home)

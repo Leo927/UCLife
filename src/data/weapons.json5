@@ -57,5 +57,22 @@
       cost: 0,
       tier: 1,
     },
+    // Enemy-only starter beam mounted on pirateLight frigates. Slow,
+    // light hit, no shield pierce — easy fight if you keep one shield
+    // layer up. Cost 0 because it is never sold to the player.
+    {
+      id: 'pirateBeamMk0',
+      nameZh: '海盗光束炮',
+      descZh: '老旧的海盗光束炮，慢但稳定。',
+      type: 'beam',
+      powerCost: 1,
+      chargeSec: 10,
+      damage: 1,
+      shotCount: 1,
+      targetable: 'room',
+      accuracy: 'medium',
+      cost: 0,
+      tier: 1,
+    },
   ],
 }

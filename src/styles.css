@@ -1377,6 +1377,20 @@ html, body, #root {
   font-size: 13px;
 }
 
+/* Ship dealer kiosk — Phase 6.0 single-ship buy. */
+.ship-dealer-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+.ship-dealer-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* Enlarged-portrait modal — stacks above NPCDialog / StatusPanel
    (z-index 950 vs their 900). Click outside, X, or Esc to dismiss. */
 .portrait-modal-overlay {
@@ -1570,5 +1584,374 @@ html, body, #root {
 @media (max-width: 640px) {
   .starmap-body {
     flex-direction: column;
+  }
+}
+
+/* Bridge-mode combat overlay (Phase 6.0 Slice G). FTL-shape active-pause UI:
+   schematic player ship + enemy ship side-by-side, reactor allocator on top,
+   weapon queue at bottom, pause indicator. Z-index above .status-overlay so
+   encounters that resolve into combat hand off cleanly without flicker. */
+.bridge-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 950;
+  padding: 16px;
+  font-size: 13px;
+}
+.bridge-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 920px;
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.bridge-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.bridge-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  flex: 1;
+}
+.bridge-pause-state {
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+.bridge-pause-state.is-paused {
+  color: var(--warn);
+}
+.bridge-pause-btn {
+  background: #1f1f27;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.bridge-pause-btn:hover {
+  border-color: var(--accent);
+}
+
+.bridge-reactor {
+  padding: 12px 16px;
+  border-bottom: 1px solid #1e1e26;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bridge-reactor-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bridge-reactor-label {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  min-width: 60px;
+}
+.bridge-reactor-bar {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+}
+.bridge-reactor-cell {
+  flex: 1;
+  height: 14px;
+  background: #0a0a0e;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.bridge-reactor-cell.is-used {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.bridge-reactor-count {
+  font-size: 12px;
+  color: var(--text);
+  min-width: 50px;
+  text-align: right;
+}
+.bridge-power-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bridge-power-cell {
+  flex: 1 1 110px;
+  background: #0a0a0e;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bridge-power-name {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+.bridge-power-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bridge-power-btn {
+  background: #1f1f27;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.bridge-power-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.bridge-power-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.bridge-power-value {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 18px;
+  text-align: center;
+}
+
+.bridge-ships {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid #1e1e26;
+  align-items: flex-start;
+}
+.bridge-ship {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.bridge-ship-title {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.bridge-room-grid {
+  background: #07070a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+}
+.bridge-room {
+  position: absolute;
+  background: #1a1a22;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 11px;
+  user-select: none;
+  transition: border-color 0.12s, background 0.12s;
+}
+.bridge-room.is-selected {
+  border-color: var(--accent);
+  background: #1d2a22;
+}
+.bridge-room.is-enemy {
+  position: relative;
+  cursor: crosshair;
+  min-height: 64px;
+}
+.bridge-room.is-enemy:hover {
+  border-color: var(--danger);
+  background: #2a1a1d;
+}
+.bridge-room-name {
+  font-weight: 500;
+  color: var(--text);
+}
+.bridge-room-stat {
+  font-size: 10px;
+  color: var(--muted);
+}
+.bridge-enemy-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #07070a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+}
+.bridge-vs {
+  align-self: center;
+  font-size: 14px;
+  color: var(--muted);
+  letter-spacing: 2px;
+  padding: 0 4px;
+}
+.bridge-hull {
+  font-size: 12px;
+  color: var(--text);
+}
+.bridge-shields {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bridge-shield-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #0a0a0e;
+}
+.bridge-shield-dot.is-on {
+  background: #38bdf8;
+  border-color: #7dd3fc;
+  box-shadow: 0 0 4px #38bdf8;
+}
+.bridge-integrity-bar {
+  height: 4px;
+  background: #0a0a0e;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bridge-integrity-fill {
+  height: 100%;
+  transition: width 0.15s;
+}
+
+.bridge-weapons {
+  padding: 12px 16px;
+  border-bottom: 1px solid #1e1e26;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bridge-section-title {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.bridge-weapon-row {
+  background: #0a0a0e;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+.bridge-weapon-row:hover {
+  border-color: var(--accent);
+}
+.bridge-weapon-row.is-selected {
+  border-color: var(--accent);
+  background: #11241a;
+}
+.bridge-weapon-row.is-empty {
+  cursor: default;
+  opacity: 0.5;
+}
+.bridge-weapon-row.is-empty:hover {
+  border-color: var(--border);
+}
+.bridge-weapon-name {
+  font-size: 12px;
+  color: var(--text);
+}
+.bridge-weapon-ready {
+  color: var(--accent);
+  font-weight: 500;
+}
+.bridge-weapon-target {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.bridge-charge-bar {
+  height: 8px;
+  background: #07070a;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bridge-charge-fill {
+  height: 100%;
+  background: var(--accent-dim);
+  transition: width 0.1s linear;
+}
+.bridge-charge-fill.is-ready {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.bridge-flash {
+  margin: 0 16px 8px;
+  padding: 8px 12px;
+  background: #1a2030;
+  border: 1px solid #38bdf8;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #bae6fd;
+  text-align: center;
+}
+.bridge-hint {
+  padding: 10px 16px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+.bridge-muted {
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .bridge-ships {
+    flex-direction: column;
+  }
+  .bridge-vs {
+    align-self: center;
   }
 }

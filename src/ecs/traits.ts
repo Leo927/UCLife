@@ -131,6 +131,10 @@ export type InteractableKind =
   | 'gym'
   | 'transit'
   | 'ticketCounter'
+  | 'buyShip'
+  | 'boardShip'
+  | 'disembarkShip'
+  | 'openStarmap'
 
 // Tags an actor while using a public/free survival source so vitals can
 // apply the per-action penalty (hygiene gain + small HP loss) without a

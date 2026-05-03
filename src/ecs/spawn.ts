@@ -115,6 +115,20 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
     case 'park':        spawnPark(layout, slot, rng); break
     case 'crafted':     spawnCrafted(layout, slot, rng); break
   }
+
+  // The ship dealer kiosk lives in the AE lobby, a few tiles south of the
+  // reception desk. Phase 6.0 spine — Phase 6.1 may move this onto a
+  // dedicated NPC dispatcher.
+  if (typeId === 'aeComplex') {
+    world.spawn(
+      Position({
+        x: slot.rect.x + 3.5 * TILE,
+        y: slot.rect.y + 16.5 * TILE,
+      }),
+      Interactable({ kind: 'buyShip', label: '购买飞船 · ¥80000', fee: 0 }),
+      EntityKey({ key: 'buyship-aeComplex' }),
+    )
+  }
 }
 
 // Point one tile outside `door`, in the direction perpendicular to its wall.
@@ -479,6 +493,20 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
       h: rect.h / TILE,
     },
   })
+
+  // Boarding kiosk one tile away from the counter, perpendicular to the
+  // door axis. Slice H gates the actual board on the player's shipOwned
+  // flag at click time.
+  if (hub.sceneId === 'startTown') {
+    let boardX = counterX, boardY = counterY
+    if (primaryDoor.side === 'n' || primaryDoor.side === 's') boardX = counterX + TILE
+    else                                                       boardY = counterY + TILE
+    world.spawn(
+      Position({ x: boardX, y: boardY }),
+      Interactable({ kind: 'boardShip', label: '登船', fee: 0 }),
+      EntityKey({ key: `boardship-${hub.id}` }),
+    )
+  }
 }
 
 function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
@@ -792,6 +820,27 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       }),
       EntityKey({ key: `ship-weapon-${i}` }),
     )
+  }
+
+  // Bridge gets the starmap kiosk; hangar gets the disembark kiosk. Slice
+  // 6.1 will replace these placeholders with a proper console + airlock.
+  for (const room of cls.rooms) {
+    if (room.id !== 'bridge' && room.id !== 'hangarBay') continue
+    const cx = (room.bounds.x + room.bounds.w / 2) * TILE
+    const cy = (room.bounds.y + room.bounds.h / 2) * TILE
+    if (room.id === 'bridge') {
+      world.spawn(
+        Position({ x: cx, y: cy - TILE * 0.5 }),
+        Interactable({ kind: 'openStarmap', label: '打开星图', fee: 0 }),
+        EntityKey({ key: 'ship-openStarmap' }),
+      )
+    } else {
+      world.spawn(
+        Position({ x: cx, y: cy - TILE * 0.5 }),
+        Interactable({ kind: 'disembarkShip', label: '下船', fee: 0 }),
+        EntityKey({ key: 'ship-disembark' }),
+      )
+    }
   }
 }
 

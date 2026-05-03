@@ -14,7 +14,9 @@ import { TransitMap } from './ui/TransitMap'
 import { FlightModal } from './ui/FlightModal'
 import { StarmapPanel } from './ui/StarmapPanel'
 import { EncounterModal } from './ui/EncounterModal'
+import { BridgeOverlay } from './ui/BridgeOverlay'
 import { TransitionOverlay } from './ui/TransitionOverlay'
+import { ShipDealer } from './ui/conversations/ShipDealer'
 import { NPCDialog } from './ui/NPCDialog'
 import { PortraitModal } from './ui/PortraitModal'
 import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
@@ -37,6 +39,8 @@ export function App() {
       <FlightModal />
       <StarmapPanel />
       <EncounterModal />
+      <BridgeOverlay />
+      <ShipDealer />
       <NPCDialog />
       <PortraitModal />
       <DeathModal />

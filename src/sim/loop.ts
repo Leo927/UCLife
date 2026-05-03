@@ -17,6 +17,7 @@ import { populationSystem } from '../systems/population'
 import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
+import { combatSystem } from '../systems/combat'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
@@ -95,6 +96,14 @@ function frame(now: number) {
     if (enc && useClock.getState().speed !== 0) {
       useClock.getState().setSpeed(0)
     }
+  }
+
+  // Combat tick runs at frame rate independent of game-speed scaling — the
+  // combatSystem reads its own dt and bails internally when paused. Drive it
+  // before the speed-gated city sim so a paused combat (speed=0) still gets
+  // its UI snapshot consistent. See Design/combat.md "Bridge mode".
+  if (useClock.getState().mode === 'combat') {
+    combatSystem(world, dt)
   }
 
   const sp = effectiveSpeed()

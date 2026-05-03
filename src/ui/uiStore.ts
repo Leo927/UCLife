@@ -14,6 +14,7 @@ interface UIState {
   mapOpen: boolean
   starmapOpen: boolean
   ambitionsOpen: boolean
+  shipDealerOpen: boolean
   transitSourceId: string | null
   flightHubId: string | null
   // HR/Realtor/AE conversations share dialogNPC rather than carrying their
@@ -32,6 +33,7 @@ interface UIState {
   toggleStarmap: () => void
   setAmbitions: (open: boolean) => void
   toggleAmbitions: () => void
+  setShipDealer: (open: boolean) => void
   openTransit: (sourceId: string) => void
   closeTransit: () => void
   openFlight: (hubId: string) => void
@@ -59,6 +61,7 @@ export const useUI = create<UIState>((set) => ({
   mapOpen: false,
   starmapOpen: false,
   ambitionsOpen: false,
+  shipDealerOpen: false,
   transitSourceId: null,
   flightHubId: null,
   dialogNPC: null,
@@ -75,6 +78,7 @@ export const useUI = create<UIState>((set) => ({
   toggleStarmap: () => set((s) => ({ starmapOpen: !s.starmapOpen })),
   setAmbitions: (open) => set({ ambitionsOpen: open }),
   toggleAmbitions: () => set((s) => ({ ambitionsOpen: !s.ambitionsOpen })),
+  setShipDealer: (open) => set({ shipDealerOpen: open }),
   openTransit: (sourceId) => set({ transitSourceId: sourceId }),
   closeTransit: () => set({ transitSourceId: null }),
   openFlight: (hubId) => set({ flightHubId: hubId }),

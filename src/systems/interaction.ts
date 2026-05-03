@@ -14,6 +14,13 @@ import { isBarOpen } from './shop'
 import { useClock } from '../sim/clock'
 import { useUI } from '../ui/uiStore'
 import { worldConfig, actionsConfig } from '../config'
+import { Flags, Ship } from '../ecs/traits'
+import { boardShip, disembarkShip } from '../sim/scene'
+import { runTransition } from '../sim/transition'
+import { getActiveSceneId } from '../ecs/world'
+import { getNode } from '../data/starmap'
+import { getAirportPlacement } from '../sim/airportPlacements'
+import { getSceneConfig, isSceneId } from '../data/scenes'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
@@ -130,6 +137,58 @@ export function interactionSystem(world: World) {
         continue
       }
       useUI.getState().setDialogNPC(occupant)
+      continue
+    }
+    if (nearestKind === 'buyShip') {
+      useUI.getState().setShipDealer(true)
+      continue
+    }
+    if (nearestKind === 'boardShip') {
+      const flags = player.get(Flags)
+      if (!flags?.flags.shipOwned) {
+        useUI.getState().showToast('你尚未拥有飞船 · 请先到 AE 大厅购买')
+        continue
+      }
+      if (getActiveSceneId() === 'playerShipInterior') continue
+      runTransition({ midpoint: () => boardShip() })
+      continue
+    }
+    if (nearestKind === 'disembarkShip') {
+      if (getActiveSceneId() !== 'playerShipInterior') continue
+      const ship = world.queryFirst(Ship)
+      const dockedAt = ship?.get(Ship)?.dockedAtNodeId ?? ''
+      const node = dockedAt ? getNode(dockedAt) : undefined
+      const targetSceneId = node?.sceneId
+      if (!targetSceneId || !isSceneId(targetSceneId)) {
+        useUI.getState().showToast('该节点不可登陆 (Phase 6.0)')
+        continue
+      }
+      const hubId = `${targetSceneId}Airport`
+      const placement = getAirportPlacement(hubId)
+      let arrivalPx: { x: number; y: number } | null = placement?.arrivalPx ?? null
+      if (!arrivalPx) {
+        const cfg = getSceneConfig(targetSceneId)
+        if (cfg.sceneType === 'micro' && cfg.playerSpawnTile) {
+          arrivalPx = {
+            x: cfg.playerSpawnTile.x * worldConfig.tilePx,
+            y: cfg.playerSpawnTile.y * worldConfig.tilePx,
+          }
+        }
+      }
+      if (!arrivalPx) {
+        useUI.getState().showToast('该节点不可登陆 (Phase 6.0)')
+        continue
+      }
+      const target = arrivalPx
+      runTransition({ midpoint: () => disembarkShip(targetSceneId, target) })
+      continue
+    }
+    if (nearestKind === 'openStarmap') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        useUI.getState().showToast('星图仅在飞船舰桥内可用')
+        continue
+      }
+      useUI.getState().setStarmap(true)
       continue
     }
     if (nearestKind === 'work') {

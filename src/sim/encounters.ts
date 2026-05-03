@@ -20,6 +20,7 @@ import { world } from '../ecs/world'
 import { IsPlayer, Money, Skills, Inventory, Reputation } from '../ecs/traits'
 import { spendFuel, damageHull, getShipState } from './ship'
 import { logEvent } from '../ui/EventLog'
+import { startCombat } from '../systems/combat'
 
 export interface EncounterContext {
   // Where the encounter is happening — useful for routing combat to the right
@@ -198,11 +199,7 @@ function applyOutcome(o: Outcome, _ctx: EncounterContext): void {
     case 'nothing':
       return
     case 'combat': {
-      // Slice G: replace this stub with bridge-overlay activation +
-      // EnemyShipState spawn keyed off `o.enemyShipId`. The `combat` mode
-      // flip is what the loop reads to switch to slow-real-time pacing.
-      logEvent('战斗触发 (Slice G 待接入)')
-      useClock.getState().setMode('combat')
+      startCombat(o.enemyShipId)
       return
     }
   }

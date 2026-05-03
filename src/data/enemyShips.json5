@@ -1,0 +1,46 @@
+// Enemy ship class library. Phase 6.0 spine ships exactly one class — the
+// pirate light frigate from `pirate_patrol` — to keep combat tuning narrow
+// while Slice G validates the bridge overlay loop. Phase 6.1+ extends this
+// catalog with merc gunboats, AE corvettes, Zeon Musais, etc. by appending
+// entries here.
+//
+// Schema (see enemyShips.ts for the typed shape):
+//   id              — stable string key, referenced by encounter combat outcomes
+//   nameZh          — player-facing zh-CN name
+//   hullMax         — total hull HP before destruction
+//   shieldsMax      — number of shield layers at full charge
+//   shieldsRechargeSec — real-seconds (at the in-combat clock ratio) to
+//                        regenerate one shield layer
+//   weapons         — list of weapon ids (must exist in weapons.json5)
+//   systems         — installed system levels and integrity, keyed by SystemId
+//   rooms           — list of rooms; each maps to a system (or null)
+//   ai              — aggression (0..1) and retreatThresholdPct (0..1) of
+//                     hull below which the AI considers retreat
+//
+// Reference (read but don't copy): FTL-Hyperspace AI / ShipManager — UC
+// keeps the AI dumb in 6.0; later slices layer in target priority and
+// retreat behaviour.
+
+{
+  ships: [
+    {
+      id: 'pirateLight',
+      nameZh: '海盗轻型护卫舰',
+      hullMax: 8,
+      shieldsMax: 1,
+      shieldsRechargeSec: 6,
+      weapons: ['pirateBeamMk0'],
+      systems: {
+        weapons: { level: 1, integrityPct: 1 },
+        shields: { level: 1, integrityPct: 1 },
+        engines: { level: 1, integrityPct: 1 },
+      },
+      rooms: [
+        { id: 'helm',        nameZh: '驾驶舱', system: 'pilot' },
+        { id: 'weaponsBay',  nameZh: '武器舱', system: 'weapons' },
+        { id: 'engineRoom',  nameZh: '引擎室', system: 'engines' },
+      ],
+      ai: { aggression: 0.5, retreatThresholdPct: 0.2 },
+    },
+  ],
+}

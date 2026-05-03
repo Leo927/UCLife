@@ -8,7 +8,7 @@ export type ActionDef = {
 
 // transit/ticketCounter open UI overlays rather than committing to an
 // action, so they're excluded alongside shop/HR/manager.
-type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'aeReception' | 'transit' | 'ticketCounter'>
+type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'aeReception' | 'transit' | 'ticketCounter' | 'buyShip' | 'boardShip' | 'disembarkShip' | 'openStarmap'>
 
 // Durations here are defaults — interaction.ts overrides at runtime for
 // sleep/bar/work.
