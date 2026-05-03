@@ -1,0 +1,151 @@
+// Phase 6 starmap graph — Earth Sphere FTL-style beacon network.
+//
+// `nodes` are FTL-style "beacons" the player jumps between. Each node
+// carries a type, a faction-control pair (pre-war / post-war flips at
+// Phase 7), services available when not in combat, an optional
+// encounter pool for nodes whose event is fixed by location (a hostile
+// patrol always rolls patrol events), and a `mapPos` in normalized
+// 0–100 space for the starmap UI to render against any viewBox size.
+// Dockable major nodes carry a `sceneId` binding them 1:1 to a walkable
+// scene declared in scenes.json5; the player physically walks the scene
+// instead of seeing an abstract event.
+//
+// `sectors` group nodes into thematic regions with shared encounter
+// pools and a difficulty band. The encounter pool is a weighted bag of
+// `templateId`s referencing entries in `data/encounters.json5` (which
+// does not yet exist — Phase 6.1 work — placeholder ids are fine and
+// will be resolved by the encounter engine when it lands).
+//
+// `edges` are jumps between two nodes with a fuel cost (1–3 in this
+// slice) and a duration in game-minutes. `inSectorOnly` flags short
+// in-sector hops vs. cross-sector jumps for UI styling.
+//
+// Phase 7 will toggle faction control on contested nodes; the
+// `factionControlPost` field is the post-Phase-7 value applied at that
+// trigger. Pre-Phase-7 reads from `factionControlPre`.
+
+{
+  sectors: [
+    {
+      id: 'lunarSphere',
+      nameZh: '月球圈',
+      difficultyBand: 'tutorial',
+      nodeIds: ['vonBraun', 'granada', 'lunaII'],
+      // Tutorial pool — routine commerce and patrol stops.
+      encounterPool: [
+        { templateId: 'routine_jump', weight: 5 },
+        { templateId: 'patrol_stop_civilian', weight: 2 },
+        { templateId: 'distress_signal_minor', weight: 1 },
+      ],
+    },
+    {
+      id: 'shoalZone',
+      nameZh: '浅滩区',
+      difficultyBand: 'mid',
+      nodeIds: ['shoalPatrol', 'derelictSig'],
+      // Pirate-heavy contested debris field. Event mix leans hostile;
+      // node-fixed pools (pirate_patrol_pool, derelict_pool) also fire
+      // at their respective nodes regardless of the sector roll.
+      encounterPool: [
+        { templateId: 'pirate_ambush', weight: 4 },
+        { templateId: 'debris_hazard', weight: 2 },
+        { templateId: 'distress_signal_trap', weight: 2 },
+        { templateId: 'salvage_field', weight: 1 },
+      ],
+    },
+    {
+      // Reserved sector for future expansion (Side 3 approach, Side 1/2
+      // cluster, Earth orbit, etc.). Empty until populated.
+      id: 'outerReserve',
+      nameZh: '外围保留区',
+      difficultyBand: 'high',
+      nodeIds: [],
+      encounterPool: [],
+    },
+  ],
+
+  nodes: [
+    {
+      id: 'vonBraun',
+      nameZh: '冯·布劳恩',
+      shortZh: '冯·布劳恩',
+      sectorId: 'lunarSphere',
+      type: 'colony',
+      factionControlPre: 'civilian',
+      factionControlPost: 'civilian',
+      services: ['refuel', 'repair', 'store'],
+      sceneId: 'startTown',
+      mapPos: { x: 30, y: 50 },
+      description: '月面最古老的民用穹顶都市；玩家的母港。',
+    },
+    {
+      id: 'granada',
+      nameZh: '格拉纳达',
+      shortZh: '格拉纳达',
+      sectorId: 'lunarSphere',
+      type: 'shipyard',
+      factionControlPre: 'ae',
+      factionControlPost: 'ae',
+      services: ['refuel', 'repair', 'refit', 'hire'],
+      mapPos: { x: 38, y: 42 },
+      description: 'AE 月面船坞群；军舰改装、雇佣与补给中心。',
+    },
+    {
+      id: 'lunaII',
+      nameZh: '月神二号',
+      shortZh: '月神二号',
+      sectorId: 'lunarSphere',
+      type: 'station',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel', 'store'],
+      mapPos: { x: 50, y: 55 },
+      description: '联邦军月球后勤站；战时升级为前线基地。',
+    },
+    {
+      id: 'shoalPatrol',
+      nameZh: '浅滩巡逻区',
+      shortZh: '浅滩巡逻',
+      sectorId: 'shoalZone',
+      type: 'patrol',
+      factionControlPre: 'pirate',
+      factionControlPost: 'pirate',
+      services: [],
+      // Always rolls from the pirate-patrol pool regardless of sector roll.
+      encounterPoolId: 'pirate_patrol_pool',
+      mapPos: { x: 70, y: 30 },
+      description: '海盗惯用的航路截击点；小心通过。',
+    },
+    {
+      id: 'derelictSig',
+      nameZh: '漂流信号源',
+      shortZh: '漂流信号',
+      sectorId: 'shoalZone',
+      type: 'derelict',
+      factionControlPre: 'none',
+      factionControlPost: 'none',
+      services: [],
+      encounterPoolId: 'derelict_pool',
+      mapPos: { x: 82, y: 38 },
+      description: '一艘漂流多年的废船仍在低功率广播应急信号。',
+    },
+  ],
+
+  // Connected graph: lunarSphere triangle (vonBraun ↔ granada ↔ lunaII),
+  // a long cross-sector jump (lunaII ↔ shoalPatrol), and a short
+  // in-sector hop (shoalPatrol ↔ derelictSig). Edges are undirected at
+  // the data level — the loader and graph helpers treat both endpoints
+  // symmetrically.
+  edges: [
+    // In-sector lunarSphere edges — short hops, low fuel cost.
+    { from: 'vonBraun',    to: 'granada',     fuelCost: 1, durationMin: 60,  inSectorOnly: true },
+    { from: 'vonBraun',    to: 'lunaII',      fuelCost: 2, durationMin: 120, inSectorOnly: true },
+    { from: 'granada',     to: 'lunaII',      fuelCost: 1, durationMin: 90,  inSectorOnly: true },
+
+    // Cross-sector jump — full FTL charge, longer duration.
+    { from: 'lunaII',      to: 'shoalPatrol', fuelCost: 3, durationMin: 360 },
+
+    // In-sector shoalZone edge.
+    { from: 'shoalPatrol', to: 'derelictSig', fuelCost: 1, durationMin: 45,  inSectorOnly: true },
+  ],
+}

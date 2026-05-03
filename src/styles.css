@@ -1508,3 +1508,67 @@ html, body, #root {
   color: var(--muted);
   cursor: default;
 }
+
+/* Starmap panel — overrides .status-panel max-width because the SVG +
+   info card needs more horizontal room than the default status modals. */
+.starmap-panel {
+  max-width: 760px;
+}
+.starmap-status {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.starmap-body {
+  display: flex;
+  gap: 16px;
+  padding: 16px 20px;
+  align-items: stretch;
+}
+.starmap-graph {
+  flex: 1 1 60%;
+  min-width: 0;
+  background: #0a0a0e;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+.starmap-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  display: block;
+}
+.starmap-info {
+  flex: 1 1 40%;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+}
+.starmap-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.starmap-info-name {
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.starmap-info-services {
+  font-size: 12px;
+  color: var(--text);
+}
+.starmap-jump-btn {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+@media (max-width: 640px) {
+  .starmap-body {
+    flex-direction: column;
+  }
+}

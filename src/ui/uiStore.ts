@@ -12,6 +12,7 @@ interface UIState {
   shopOpen: boolean
   systemOpen: boolean
   mapOpen: boolean
+  starmapOpen: boolean
   ambitionsOpen: boolean
   transitSourceId: string | null
   flightHubId: string | null
@@ -27,6 +28,8 @@ interface UIState {
   toggleSystem: () => void
   setMap: (open: boolean) => void
   toggleMap: () => void
+  setStarmap: (open: boolean) => void
+  toggleStarmap: () => void
   setAmbitions: (open: boolean) => void
   toggleAmbitions: () => void
   openTransit: (sourceId: string) => void
@@ -54,6 +57,7 @@ export const useUI = create<UIState>((set) => ({
   shopOpen: false,
   systemOpen: false,
   mapOpen: false,
+  starmapOpen: false,
   ambitionsOpen: false,
   transitSourceId: null,
   flightHubId: null,
@@ -67,6 +71,8 @@ export const useUI = create<UIState>((set) => ({
   toggleSystem: () => set((s) => ({ systemOpen: !s.systemOpen })),
   setMap: (open) => set({ mapOpen: open }),
   toggleMap: () => set((s) => ({ mapOpen: !s.mapOpen })),
+  setStarmap: (open) => set({ starmapOpen: open }),
+  toggleStarmap: () => set((s) => ({ starmapOpen: !s.starmapOpen })),
   setAmbitions: (open) => set({ ambitionsOpen: open }),
   toggleAmbitions: () => set((s) => ({ ambitionsOpen: !s.ambitionsOpen })),
   openTransit: (sourceId) => set({ transitSourceId: sourceId }),

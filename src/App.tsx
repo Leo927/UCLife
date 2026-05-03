@@ -12,6 +12,7 @@ import { AmbitionPanel } from './ui/AmbitionPanel'
 import { MapPanel } from './ui/MapPanel'
 import { TransitMap } from './ui/TransitMap'
 import { FlightModal } from './ui/FlightModal'
+import { StarmapPanel } from './ui/StarmapPanel'
 import { TransitionOverlay } from './ui/TransitionOverlay'
 import { NPCDialog } from './ui/NPCDialog'
 import { PortraitModal } from './ui/PortraitModal'
@@ -33,6 +34,7 @@ export function App() {
       <MapPanel />
       <TransitMap />
       <FlightModal />
+      <StarmapPanel />
       <NPCDialog />
       <PortraitModal />
       <DeathModal />
