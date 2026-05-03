@@ -294,47 +294,44 @@ Combat must work under both settings:
 
 Withdraw is always available pre-commit (matching the MW sim's design).
 
-## Open questions for explicit decision
+## Settled commitments
 
-These are the calls the FTL-shape commitment leaves unsettled. User
-should weigh in before Phase 6 implementation begins.
+The FTL-shape calls are now locked. Specifically:
 
-1. **Sectors and starmap structure.** FTL has 8 sectors of ~20 nodes,
-   escaping a fleet. UC's wartime equivalent: do we have a similar
-   sector progression (theater fronts the player is deployed across),
-   or open-deployment within a single front? **My recommendation:
-   sectored, but tied to strategic war state. Each sector is a campaign
-   chapter with thematic encounters.**
+1. **Macro-geography: two systems.** Earth Sphere (primary wartime
+   theater, canonical UC astrography — Sides 1–7, Luna, Luna II,
+   Earth orbit, asteroid belts) and a Jupiter expedition (linear
+   long-arc, no strategic-war content, "step out of the war" option).
+   Full graph and sectoring in [starmap.md](starmap.md).
+2. **Single ship per run.** One ship at a time. Lost ships replaced
+   via story event, not parallel fleets.
+3. **Deployment cadence.** A deployment is an FTL-shape run of ~1–3
+   in-game weeks; between deployments, the ship docks (Von Braun,
+   Granada, Side 3 etc.) and the player resumes city life. Multiple
+   deployments per career.
+4. **Damage persistence.** Within a deployment, damage and crew
+   injuries persist between encounters and are repaired at safe-node
+   stores (FTL-style). Between deployments, the ship docks and is
+   fully serviced.
+5. **Conscription refusal.** Stat-checked roll, with `mw_pilot` active
+   biasing the roll heavily toward acceptance. Federation rep, money
+   for bribes, Charisma, and a clinic medical letter all modify the
+   roll. Failure forces the perspective shift into Combatant mode
+   regardless of the player's wishes.
 
-2. **Single ship per run.** I assumed yes — one ship at a time. Lost
-   ships replaced via story event. **Confirm.**
+## Open questions remaining
 
-3. **Run length / persistence.** FTL is a 4-8 hour single run. UC
-   playthroughs span game-years. The FTL-shape layer is recurring, not
-   replacing the whole game. **My recommendation: a "deployment" is an
-   FTL-shape run of ~1-3 in-game weeks; between deployments, the ship
-   docks (Von Braun, Side 3, etc.) and the player resumes city life.
-   Multiple deployments per character career.**
+1. **Pre-war merc content density.** Phase 6 needs enough encounter
+   variety that a player who buys a small ship has meaningful pre-war
+   play before 0079.01.03. How many encounter types? How long can a
+   Phase 6 merc career last in real-time before exhausting authored
+   content? **Defer to Phase 6 design pass.**
 
-4. **Damage persistence.** Within a deployment, damage persists between
-   encounters and is repaired at safe nodes / docks (FTL-style stores).
-   Between deployments, the ship sits in dock and gets fully serviced.
-   **Confirm.**
-
-5. **Conscription refusal.** Stat-checked roll, with `mw_pilot` biasing
-   the roll heavily toward acceptance. **Confirm.**
-
-6. **Pre-war piracy / merc work content density.** Phase 6 needs enough
-   encounter variety that a pre-war player who buys a small ship has
-   meaningful play before 0079.01.03. How many encounter types? How
-   long can a Phase 6 merc career last in real-time? **Defer to Phase
-   6 design pass.**
-
-7. **Newtype as combat system.** Mind-control system reserved for
-   Phase 7+. Newtype-flagged characters get cockpit jitter reduction
-   and brief-window precognition (preview of next primitive's
-   parameters). **Defer; flagged here so it doesn't surprise the
-   character system later.**
+2. **Newtype as combat system.** Mind-control system reserved for
+   Phase 7+. Newtype-flagged characters likely get cockpit jitter
+   reduction and brief-window precognition (preview of upcoming
+   primitive parameters). **Defer; flagged here so it doesn't
+   surprise the character system later.**
 
 ## Phasing
 
@@ -371,6 +368,7 @@ should weigh in before Phase 6 implementation begins.
 
 ## Related
 
+- [starmap.md](starmap.md) — Earth Sphere graph + Jupiter expedition; the geography this FTL-shape combat is drawn against
 - [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun
 - [social/faction-management.md](social/faction-management.md) — Phase 6 merc cell on a ship; this is where the FTL shape ships

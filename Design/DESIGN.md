@@ -43,7 +43,8 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Newsfeed (Phase 5.1) | [social/newsfeed.md](social/newsfeed.md) |
 | ↳ Relationships & faction reputation | [social/relationships.md](social/relationships.md) |
 | ↳ Faction management (Phase 6) | [social/faction-management.md](social/faction-management.md) |
-| Combat (witness/combatant/commander, three resolutions) | [combat.md](combat.md) |
+| Combat (FTL-shape with MS-as-drone, Phase 6+) | [combat.md](combat.md) |
+| Macro-geography & starmap (Earth Sphere + Jupiter, Phase 6+) | [starmap.md](starmap.md) |
 | Mobile worker minigame (Phase 5.4) | [mobile-worker.md](mobile-worker.md) |
 | World generation | [worldgen.md](worldgen.md) |
 | Saves | [saves.md](saves.md) |
