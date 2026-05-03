@@ -135,6 +135,37 @@ Within a sector, jumps are short. Between sectors, jumps are long and
 require a fully-charged FTL drive. Ships that run out of fuel mid-jump
 fall short to a random nearby node — usually a hostile or hazardous one.
 
+### Passenger flights vs captain jumps: same data, different UI
+
+Civilian players in Phases 0–5 (and combat-mode players who don't
+currently have their ship at the departure port) book passenger flights
+between dockable cities. These traversals walk **the same starmap
+graph** as captain jumps — the route is one or more edges in the graph
+— but the **UI shell is different**:
+
+| Role | UI | Player agency during travel |
+|---|---|---|
+| **Passenger** | Existing thin booking modal: pick destination, hyperspeed through duration, arrive | None — the player chose to travel and trusts the route |
+| **Captain** | Full starmap interface: pick jump target node-by-node, allocate fuel, respond to intercepts | Per-jump decisions over routing, fuel, encounters |
+
+The default civilian playthrough must **never** be forced through the
+starmap UI for routine commuting. That layer's interest comes from the
+decisions a captain makes inside it; a passenger has no decisions, so
+the starmap collapses to ceremony. Forcing it on Witness-mode players
+would mis-signal that combat-mode is the "real" game.
+
+**Where the two views can converge:** a hostile-intercept event during
+a passenger flight is the one legitimate moment to drop the passenger
+into a starmap-encounter view. At that point the player's relationship
+to the journey has changed from "routine commute" to "event," and the
+UI shift carries that shift in narrative weight. This is a story-rare
+trigger, not a per-flight roll.
+
+**Engineering benefit:** one starmap graph + one travel cost model
+serves both layers. Phase 6 doesn't need to invent a parallel travel
+system; it inherits the data layer the passenger flights already
+populate.
+
 ## What this is NOT
 
 - **Not a 3D space simulation.** The starmap is a 2D graph at FTL fidelity.
