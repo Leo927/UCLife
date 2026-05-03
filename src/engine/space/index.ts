@@ -1,0 +1,7 @@
+export type { Vec2, OrbitalParams, ParentResolver } from './types'
+export { derivedPos, derivedPosById, hasParentCycle } from './orbits'
+export type { ShipKinematics, ThrustInput } from './integration'
+export { step, vecLen } from './integration'
+export type { AutopilotResult } from './autopilot'
+export { thrustToward } from './autopilot'
+export { contact, distSq, inAggroRadius } from './engagement'
