@@ -5,7 +5,7 @@
 import { getWorld } from '../ecs/world'
 import {
   Body, PoiTag, ShipBody, Velocity, Thrust, Course,
-  Position, IsPlayer, EntityKey, EnemyAI,
+  Position, IsPlayer, EntityKey, EnemyAI, MaintenanceLoad,
 } from '../ecs/traits'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS } from '../data/pois'
@@ -101,6 +101,9 @@ export function bootstrapSpaceCampaign(): void {
     Velocity({ vx: 0, vy: 0 }),
     Thrust({ ax: 0, ay: 0 }),
     Course({ tx: 0, ty: 0, destPoiId: null, active: false }),
+    // Slice 7 baseline: 0 carried-MS load. Future slices wire roster cargo
+    // here so larger fleets cost more supplies even at rest.
+    MaintenanceLoad({ loadUnits: 0 }),
     EntityKey({ key: 'spacePlayer' }),
   )
 

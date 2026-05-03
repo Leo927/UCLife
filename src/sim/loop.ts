@@ -19,6 +19,7 @@ import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
 import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
+import { supplyDrainSystem } from '../systems/supplyDrain'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, Ambitions, ShipBody, type ActionKind } from '../ecs/traits'
@@ -136,6 +137,9 @@ function frame(now: number) {
         prevDayInGame = newDay
         tryAutosave('日翻页')
       }
+      // Supply drain runs after clock.advance so it sees the post-tick game
+      // date. Reads its own elapsed-min delta internally.
+      supplyDrainSystem(useClock.getState().gameDate)
       vitalsSystem(world, ticks)
       actionSystem(world, ticks)
       rentSystem(world, useClock.getState().gameDate.getTime())

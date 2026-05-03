@@ -47,6 +47,8 @@ import { resetNpcBuckets } from '../systems/npc'
 import { resetActiveZone } from '../systems/activeZone'
 import { resetVitalsAccum } from '../systems/vitals'
 import { resetStressAccum } from '../systems/stress'
+import { resetSupplyDrain } from '../systems/supplyDrain'
+import { resetSpaceSimFlags } from '../systems/spaceSim'
 
 const TILE = worldConfig.tilePx
 const WALL_T = worldConfig.wallThicknessPx
@@ -949,6 +951,8 @@ export function resetWorld() {
   resetActiveZone()
   resetVitalsAccum()
   resetStressAccum()
+  resetSupplyDrain()
+  resetSpaceSimFlags()
   initialized = false
   setupWorld()
 }

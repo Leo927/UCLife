@@ -14,6 +14,8 @@ import { thrustToward } from '../engine/space/autopilot'
 import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
 import { useEngagement } from '../sim/engagement'
+import { spendFuel, getShipState } from '../sim/ship'
+import { logEvent } from '../ui/EventLog'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -39,6 +41,19 @@ const resolveBody: ParentResolver = (id: string): OrbitalParams | undefined => {
 const ENGAGEMENT_COOLDOWN_MS = 5000
 const engagementCooldownByKey = new Map<string, number>()
 const enemyOutOfAggro = new Set<string>()
+
+// Edge-triggered "燃料耗尽" log: flips true once when fuel runs out, back to
+// false when fuel is replenished above 0. Module-local so a single exhaustion
+// only logs once across many frames.
+let fuelOutLogged = false
+
+// Save/load and resetWorld() call this so the next exhaustion logs cleanly
+// after a fuel refill that happens off-frame.
+export function resetSpaceSimFlags(): void {
+  fuelOutLogged = false
+  engagementCooldownByKey.clear()
+  enemyOutOfAggro.clear()
+}
 
 // One frame of the spaceCampaign sim. Caller is loop.ts; frequency ~60Hz.
 // Slice 4 runs this only when the camera is on the spaceCampaign scene.
@@ -111,9 +126,33 @@ export function spaceSimSystem(world: World, dtSec: number): void {
     }
 
     const thrust = e.get(Thrust)!
+    // Fuel economy: debit proportional to thrust magnitude. When fuel is
+    // empty, computed thrust is dropped (player coasts) but Course stays
+    // active so a refuel mid-flight resumes the autopilot.
+    let appliedAx = thrust.ax
+    let appliedAy = thrust.ay
+    const thrustMag = Math.hypot(thrust.ax, thrust.ay)
+    if (thrustMag > 0) {
+      const fuelSpent = thrustMag * dtSec * spaceConfig.fuelPerThrustSec / spaceConfig.thrustAccel
+      const ok = spendFuel(fuelSpent)
+      const ship = getShipState()
+      if (!ok || (ship && ship.fuelCurrent <= 0)) {
+        appliedAx = 0
+        appliedAy = 0
+        if (!fuelOutLogged) {
+          fuelOutLogged = true
+          logEvent('燃料耗尽')
+        }
+      } else if (ship && ship.fuelCurrent > 0) {
+        fuelOutLogged = false
+      }
+    } else {
+      const ship = getShipState()
+      if (ship && ship.fuelCurrent > 0) fuelOutLogged = false
+    }
     const k = step(
       { pos, vel: { x: vel.vx, y: vel.vy } },
-      { ax: thrust.ax, ay: thrust.ay },
+      { ax: appliedAx, ay: appliedAy },
       maxSpeed,
       dtSec,
     )

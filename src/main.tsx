@@ -227,6 +227,11 @@ if (import.meta.env.DEV) {
     boardShip,
     disembarkShip,
     getShipState,
+    shipFuelSupply() {
+      const s = getShipState()
+      if (!s) return null
+      return { fuel: s.fuelCurrent, supplies: s.suppliesCurrent }
+    },
     useCombatStore,
     useTransition,
     enterSpace() { useScene.getState().setActive('spaceCampaign'); return true },
