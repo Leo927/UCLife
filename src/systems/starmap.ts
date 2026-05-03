@@ -4,6 +4,7 @@ import { useClock } from '../sim/clock'
 import { runTransition, useTransition } from '../sim/transition'
 import { useUI } from '../ui/uiStore'
 import { useEventLog } from '../ui/EventLog'
+import { triggerEncounterAtNode } from '../sim/encounters'
 
 // Slice E: starmap jump system. Validates reachability + fuel, runs the
 // shared fade transition, and at the midpoint mutates ship/clock state so
@@ -62,9 +63,7 @@ export async function jumpTo(nodeId: string): Promise<void> {
       setDockedNode(nodeId)
       const ms = useClock.getState().gameDate.getTime()
       useEventLog.getState().push(`跳跃到 ${dest.nameZh}`, ms)
-      // Phase 6.0 spine: encounter dispatch is the next slice's hook.
-      // Slice K replaces this stub with a real call into
-      // triggerEncounterAtNode(nodeId). For now the player just arrives.
+      triggerEncounterAtNode(nodeId)
     },
     outMs: 600,
     inMs: 600,

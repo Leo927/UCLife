@@ -17,10 +17,11 @@ import {
   Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
   Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
+  Ship, ShipRoom, ShipSystemState, WeaponMount,
   type AmbitionSlot, type AmbitionHistoryEntry,
 } from '../ecs/traits'
 import type { TraitInstance } from 'koota'
-import { world, getActiveSceneId, type SceneId } from '../ecs/world'
+import { world, getActiveSceneId, getWorld, type SceneId } from '../ecs/world'
 import { initialSceneId, sceneIds } from '../data/scenes'
 import { useScene, migratePlayerToScene } from '../sim/scene'
 import { useClock, gameDayNumber } from '../sim/clock'
@@ -28,7 +29,11 @@ import { stopLoop, startLoop } from '../sim/loop'
 import { resetWorld, spawnNPC } from '../ecs/spawn'
 import { getPopulationState, setPopulationState } from '../systems/population'
 import { snapshotRelations, restoreRelations, type RelationSnap } from '../systems/relations'
+import { useCombatStore } from '../systems/combat'
+import { logEvent } from '../ui/EventLog'
 import { WORLD_SEED } from '../procgen'
+
+const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
 export type SlotId = 'auto' | 1 | 2 | 3
 export const MANUAL_SLOTS: ReadonlyArray<1 | 2 | 3> = [1, 2, 3]
@@ -41,7 +46,10 @@ function metaKey(slot: SlotId): string { return `uclife:save:${slot}:meta` }
 // migration that rewrites this into the autosave slot.
 const LEGACY_KEY = 'uclife:autosave'
 
-const SAVE_VERSION = 1
+// v2 (Phase 6.0 Slice I): adds the optional `ship` block. v1 saves load with
+// ship state at deterministic defaults (player still owns the ship if their
+// Flags carries `shipOwned`); we accept v1 with a one-line event-log notice.
+const SAVE_VERSION = 2
 
 // Per-entity snapshot. `key` matches an EntityKey already in the world (or,
 // for immigrants, identifies the NPC to re-spawn). All trait fields are
@@ -94,6 +102,20 @@ export interface SaveMeta {
   alive: number
 }
 
+// Long-arc ship state. `chargeSec`/`ready`/`targetEnemyRoomId` on weapon
+// mounts are deliberately omitted — they only mean anything inside an active
+// engagement, and Slice G locks save-during-combat. EnemyShipState is never
+// snapshotted; resetWorld() destroys it on load.
+interface ShipSaveBlock {
+  hullCurrent: number
+  fuelCurrent: number
+  dockedAtNodeId: string
+  reactorAllocated: number
+  rooms: { roomId: string; oxygenPct: number; fireSec: number; breachSec: number }[]
+  systems: { systemId: string; level: number; installedLevel: number; powerAlloc: number; integrityPct: number }[]
+  weapons: { mountIdx: number; weaponId: string }[]
+}
+
 interface SaveBundle {
   version: number
   seed: string
@@ -105,6 +127,9 @@ interface SaveBundle {
   population: ReturnType<typeof getPopulationState>
   entities: EntitySnap[]
   relations: RelationSnap[]
+  // Optional so v1 bundles parse cleanly. Absence ⇒ leave the default ship
+  // state that bootstrapShipScene seeds.
+  ship?: ShipSaveBlock
 }
 
 // Returns null for entities without an EntityKey trait (walls, doors,
@@ -241,7 +266,138 @@ function buildMeta(slot: SlotId, gameDate: Date): SaveMeta {
   }
 }
 
+// Reads ship-scene world directly (not via the active-scene `world` proxy),
+// so the snapshot captures the ship even when the player is currently in a
+// city scene. Returns undefined when the bootstrap hasn't run yet (e.g.
+// initial load before resetWorld) or when no Ship singleton is present.
+function snapshotShip(): ShipSaveBlock | undefined {
+  const w = getWorld(SHIP_SCENE_ID)
+  const shipEnt = w.queryFirst(Ship)
+  if (!shipEnt) return undefined
+  const s = shipEnt.get(Ship)!
+
+  const rooms: ShipSaveBlock['rooms'] = []
+  for (const e of w.query(ShipRoom, EntityKey)) {
+    const key = e.get(EntityKey)!.key
+    if (!key.startsWith('ship-room-')) continue
+    const r = e.get(ShipRoom)!
+    rooms.push({
+      roomId: r.roomDefId,
+      oxygenPct: r.oxygenPct,
+      fireSec: r.fireSec,
+      breachSec: r.breachSec,
+    })
+  }
+
+  const systems: ShipSaveBlock['systems'] = []
+  for (const e of w.query(ShipSystemState, EntityKey)) {
+    const key = e.get(EntityKey)!.key
+    if (!key.startsWith('ship-sys-')) continue
+    const s2 = e.get(ShipSystemState)!
+    systems.push({
+      systemId: s2.systemId,
+      level: s2.level,
+      installedLevel: s2.installedLevel,
+      powerAlloc: s2.powerAlloc,
+      integrityPct: s2.integrityPct,
+    })
+  }
+
+  const weapons: ShipSaveBlock['weapons'] = []
+  for (const e of w.query(WeaponMount, EntityKey)) {
+    const key = e.get(EntityKey)!.key
+    if (!key.startsWith('ship-weapon-')) continue
+    const m = e.get(WeaponMount)!
+    weapons.push({ mountIdx: m.mountIdx, weaponId: m.weaponId })
+  }
+
+  return {
+    hullCurrent: s.hullCurrent,
+    fuelCurrent: s.fuelCurrent,
+    dockedAtNodeId: s.dockedAtNodeId,
+    reactorAllocated: s.reactorAllocated,
+    rooms,
+    systems,
+    weapons,
+  }
+}
+
+// Patches a ShipSaveBlock onto entities the freshly-bootstrapped ship scene
+// already spawned. Matches by EntityKey; missing entries leave defaults.
+function restoreShip(block: ShipSaveBlock): void {
+  const w = getWorld(SHIP_SCENE_ID)
+  const byKey = new Map<string, ReturnType<typeof w.queryFirst>>()
+  for (const e of w.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+  const shipEnt = byKey.get('ship')
+  if (shipEnt) {
+    const cur = shipEnt.get(Ship)!
+    shipEnt.set(Ship, {
+      ...cur,
+      hullCurrent: block.hullCurrent,
+      fuelCurrent: block.fuelCurrent,
+      dockedAtNodeId: block.dockedAtNodeId,
+      reactorAllocated: block.reactorAllocated,
+      // Combat is transient — saves never write inCombat:true (manual blocks,
+      // autosave skips), but force false here for defense.
+      inCombat: false,
+    })
+  }
+
+  for (const r of block.rooms) {
+    const e = byKey.get(`ship-room-${r.roomId}`)
+    if (!e) continue
+    const cur = e.get(ShipRoom)!
+    e.set(ShipRoom, {
+      ...cur,
+      oxygenPct: r.oxygenPct,
+      fireSec: r.fireSec,
+      breachSec: r.breachSec,
+    })
+  }
+
+  for (const s of block.systems) {
+    const e = byKey.get(`ship-sys-${s.systemId}`)
+    if (!e) continue
+    const cur = e.get(ShipSystemState)!
+    e.set(ShipSystemState, {
+      ...cur,
+      level: s.level,
+      installedLevel: s.installedLevel,
+      powerAlloc: s.powerAlloc,
+      integrityPct: s.integrityPct,
+      // Charge is transient.
+      chargeSec: 0,
+    })
+  }
+
+  for (const wpn of block.weapons) {
+    const e = byKey.get(`ship-weapon-${wpn.mountIdx}`)
+    if (!e) continue
+    const cur = e.get(WeaponMount)!
+    e.set(WeaponMount, {
+      ...cur,
+      weaponId: wpn.weaponId,
+      chargeSec: 0,
+      ready: false,
+      targetEnemyRoomId: null,
+    })
+  }
+}
+
 export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
+  // Combat state is transient by design (Slice G). Manual saves refuse with
+  // a toast-friendly error; autosave logs and skips so the throttle clock
+  // resets cleanly without spamming UI when combat happens to overlap a
+  // day-rollover or hyperspeed-start.
+  if (useClock.getState().mode === 'combat') {
+    if (slot === 'auto') {
+      logEvent('战斗中跳过自动存档')
+      return
+    }
+    throw new Error('战斗中无法存档')
+  }
+
   const entities: EntitySnap[] = []
   for (const e of world.query(EntityKey)) {
     entities.push(snapshotEntity(e))
@@ -258,6 +414,7 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
     population: getPopulationState(),
     entities,
     relations: snapshotRelations(world),
+    ship: snapshotShip(),
   }
   const payload = superjson.stringify(bundle)
   await set(bundleKey(slot), payload)
@@ -324,9 +481,14 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   } catch (e) {
     return { ok: false, reason: `parse: ${(e as Error).message}` }
   }
-  if (bundle.version !== SAVE_VERSION) {
+  // v1 saves predate Phase 6 ship-state. Load anyway — ship lands at
+  // bootstrap defaults (hull/fuel max, docked at vonBraun); the player keeps
+  // shipOwned via Flags so they can still board their vessel. Other version
+  // mismatches stay refusing.
+  if (bundle.version !== SAVE_VERSION && bundle.version !== 1) {
     return { ok: false, reason: `version mismatch: save=${bundle.version} app=${SAVE_VERSION}` }
   }
+  const isLegacyShipless = bundle.version === 1
   if (bundle.seed !== WORLD_SEED) {
     // Refuse rather than silently mis-overlay: different seeds generate
     // different sector slots, so EntityKeys won't line up.
@@ -533,6 +695,20 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   // After entity overlay so newly-spawned immigrants are already in byKey.
   // Edges to unkeyed or destroyed characters are silently dropped.
   if (bundle.relations) restoreRelations(world, byKey, bundle.relations)
+
+  // Ship state lives in a separate scene world; bootstrap already seeded
+  // deterministic defaults during resetWorld(). v2 saves overlay the
+  // long-arc deltas; v1 saves leave the defaults and notify the player.
+  if (bundle.ship) {
+    restoreShip(bundle.ship)
+  } else if (isLegacyShipless) {
+    logEvent('存档先于 Phase 6 — 飞船状态已重置为默认')
+  }
+
+  // Combat is transient. Reset the bridge-overlay store so no stale pause
+  // flag / open modal survives a load. The clock is forced to mode:'normal'
+  // by the auto-pause setState below.
+  useCombatStore.getState().reset()
 
   // setupWorld spawns NPCs without Active — that's normally added on the
   // first activeZoneSystem tick. But loadGame auto-pauses, so no tick fires

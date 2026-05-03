@@ -8,7 +8,7 @@ import { useScene } from './sim/scene'
 import { useClock } from './sim/clock'
 import {
   IsPlayer, Position, MoveTarget, Road, Building, Wall, FlightHub, Door, Bed, Path,
-  Ambitions, Flags, Character, Attributes, Skills, Money, Reputation,
+  Ambitions, Flags, Character, Attributes, Skills, Money, Reputation, EnemyShipState,
   type AmbitionSlot,
 } from './ecs/traits'
 import type { FactionId } from './data/factions'
@@ -18,6 +18,12 @@ import { ambitionsSystem } from './systems/ambitions'
 import { getAirportPlacement } from './sim/airportPlacements'
 import { flightHubs } from './data/flights'
 import { findPath } from './systems/pathfinding'
+import { jumpTo } from './systems/starmap'
+import { boardShip, disembarkShip } from './sim/scene'
+import { getShipState } from './sim/ship'
+import { useEncounter } from './sim/encounters'
+import { useCombatStore } from './systems/combat'
+import { useTransition } from './sim/transition'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'
@@ -211,6 +217,47 @@ if (import.meta.env.DEV) {
     // RAF loop to consume tickAccum.
     runAmbitionsTick() {
       ambitionsSystem(world, useClock.getState().gameDate)
+      return true
+    },
+    // ── Phase 6.0 Slice K (combat-spine smoke test) ──────────────────
+    jumpTo,
+    boardShip,
+    disembarkShip,
+    getShipState,
+    useEncounter,
+    useCombatStore,
+    useTransition,
+    setShipOwned() {
+      const p = world.queryFirst(IsPlayer)
+      if (!p) return false
+      const f = p.get(Flags) ?? { flags: {} }
+      p.set(Flags, { flags: { ...f.flags, shipOwned: true } })
+      return true
+    },
+    cheatMoney(n: number) {
+      const p = world.queryFirst(IsPlayer)
+      if (!p) return false
+      p.set(Money, { amount: n })
+      return true
+    },
+    cheatPiloting(n: number) {
+      const p = world.queryFirst(IsPlayer)
+      if (!p) return false
+      const s = p.get(Skills)
+      if (!s) return false
+      ;(s as unknown as Record<SkillId, number>).piloting = n
+      p.set(Skills, s)
+      return true
+    },
+    // Smoke-test shortcut: zero the enemy hull so combatSystem's resolution
+    // check ends combat with 'victory' on the next tick. Keeps the smoke
+    // test deterministic without driving the weapon-charge state machine.
+    fastWinCombat() {
+      const w = getWorld('playerShipInterior')
+      const enemy = w.queryFirst(EnemyShipState)
+      if (!enemy) return false
+      const cur = enemy.get(EnemyShipState)!
+      enemy.set(EnemyShipState, { ...cur, hullCurrent: 0 })
       return true
     },
   }

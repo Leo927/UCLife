@@ -9,12 +9,14 @@
 
 import { create } from 'zustand'
 import {
+  ENCOUNTERS,
   getTemplate,
   type EncounterTemplate,
   type Choice,
   type Outcome,
   type Qualifier,
 } from '../data/encounters'
+import { getNode, getSector } from '../data/starmap'
 import { useClock } from './clock'
 import { world } from '../ecs/world'
 import { IsPlayer, Money, Skills, Inventory, Reputation } from '../ecs/traits'
@@ -92,6 +94,60 @@ export const useEncounter = create<EncounterState>((set, get) => ({
 // Top-level helper for systems to dispatch from outside React.
 export function triggerEncounter(templateId: string, ctx: EncounterContext = {}): void {
   useEncounter.getState().trigger(templateId, ctx)
+}
+
+// Slice K spine integration. Resolves a node arrival into a concrete encounter
+// template and dispatches it. The fallback chain:
+//   1. Node has `encounterPoolId`: Phase 6.0 spine treats this as a *direct*
+//      templateId — pool authoring lands in 6.1 and rewrites this branch into
+//      a real weighted roll. As a spine convenience, an `_pool` suffix is
+//      stripped before resolution (`pirate_patrol_pool` → `pirate_patrol`)
+//      so Slice A's forward-looking data names map onto the 3 templates that
+//      actually exist. Ids that still don't resolve fall through to the
+//      sector pool.
+//   2. Sector encounter pool, weighted, filtered by warPhase ('pre' until
+//      Phase 7 ships). Entries whose templateId doesn't resolve are dropped
+//      from the roll — Slice A's sector pools reference forward-looking ids
+//      that haven't shipped yet.
+//   3. No-op — design supports nodes that just route without firing an event.
+export function triggerEncounterAtNode(nodeId: string): void {
+  const node = getNode(nodeId)
+  if (!node) return
+
+  if (node.encounterPoolId) {
+    const direct = resolvePoolToTemplate(node.encounterPoolId)
+    if (direct) {
+      triggerEncounter(direct, { nodeId })
+      return
+    }
+  }
+
+  const sector = getSector(node.sectorId)
+  if (!sector) return
+  const eligible = sector.encounterPool.filter((e) =>
+    (!e.conditions?.warPhase || e.conditions.warPhase === 'pre')
+    && ENCOUNTERS[e.templateId] != null,
+  )
+  if (eligible.length === 0) return
+  const totalWeight = eligible.reduce((s, e) => s + e.weight, 0)
+  if (totalWeight <= 0) return
+  let r = Math.random() * totalWeight
+  for (const e of eligible) {
+    r -= e.weight
+    if (r <= 0) {
+      triggerEncounter(e.templateId, { nodeId })
+      return
+    }
+  }
+}
+
+function resolvePoolToTemplate(poolId: string): string | null {
+  if (ENCOUNTERS[poolId]) return poolId
+  if (poolId.endsWith('_pool')) {
+    const stripped = poolId.slice(0, -'_pool'.length)
+    if (ENCOUNTERS[stripped]) return stripped
+  }
+  return null
 }
 
 function isChoiceVisible(c: Choice): boolean {
