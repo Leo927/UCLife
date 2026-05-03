@@ -1,9 +1,9 @@
-// Phase 6.0 Slice K — combat-spine vertical smoke test.
+// Phase 6.0 Starsector-pivot — combat spine vertical smoke test.
 //
-// Drives the full FTL-shape spine end-to-end through the __uclife__ debug
-// handle: cheat into ship-owning state, board, open starmap, jump to a
-// pirate-patrol node, accept an encounter combat outcome, force-resolve the
-// fight, and verify the world unwinds back to normal.
+// Drives the new continuous-space spine end-to-end through the __uclife__
+// debug handle: cheat into ship-owning state, board, open starmap, burn to
+// a pirate-patrol POI, accept an encounter combat outcome, force-resolve
+// the fight, and verify the world unwinds back to normal.
 //
 // REQUIRES a dev server already running on :5173 — run `npm run dev` first.
 //
@@ -41,9 +41,6 @@ async function shot(label) {
   await page.screenshot({ path: `${OUT_DIR}/${label}.png`, fullPage: false })
 }
 
-// Wait for an arbitrary predicate evaluated in the page. Returns true on
-// success, false on timeout. Generous timeouts because the jump transition
-// is 600ms+midpoint+600ms and combat resolution depends on RAF cadence.
 async function waitFor(predicate, { timeoutMs = 4000, label } = {}) {
   try {
     await page.waitForFunction(predicate, undefined, { timeout: timeoutMs })
@@ -61,7 +58,7 @@ await page.waitForTimeout(800)
 const ready = await waitFor(
   () => 'uclifeUI' in window && '__uclife__' in window
     && typeof window.__uclife__.boardShip === 'function'
-    && typeof window.__uclife__.jumpTo === 'function',
+    && typeof window.__uclife__.burnTo === 'function',
   { label: '__uclife__ smoke handle' },
 )
 if (!ready) {
@@ -72,8 +69,6 @@ if (!ready) {
 await shot('00-booted')
 
 // ── Step 1: Cheat to ship-owning state ───────────────────────────────
-// Skip the AE-walk to dealer; Phase 6.1 owns that flow and has its own
-// dedicated smoke test.
 const cheatOk = await page.evaluate(() => {
   const ok =
     window.__uclife__.cheatMoney(80000) &&
@@ -112,105 +107,77 @@ if (!starmapOpen) {
 }
 await shot('02-starmap-open')
 
-// ── Step 4: Jump to shoalPatrol ─────────────────────────────────────
-// vonBraun is the starting docked node. The spine reachability graph
-// puts shoalPatrol two hops away (via lunaII), so the smoke jumps
-// vonBraun → lunaII → shoalPatrol in sequence.
+// ── Step 4: Burn to a pirate-territory POI ──────────────────────────
 const dockedBefore = await page.evaluate(
-  () => window.__uclife__.getShipState()?.dockedAtNodeId,
+  () => window.__uclife__.getShipState()?.dockedAtPoiId,
 )
 console.log('Initially docked at:', dockedBefore)
 if (dockedBefore !== 'vonBraun') {
-  fail(`expected initial docked node to be vonBraun, got ${dockedBefore}`)
+  fail(`expected initial docked POI to be vonBraun, got ${dockedBefore}`)
 }
 
-// Hop 1: vonBraun → lunaII. routine_jump (lunarSphere pool) may fire here.
-// Close any encounter immediately to keep the spine on rails.
-await page.evaluate(() => window.__uclife__.jumpTo('lunaII'))
-const jump1Done = await waitFor(
+// side6 (Riah) is a major POI in the shoalZone region with no sceneId,
+// so a burn-arrival fires that region's encounter pool (pirate_patrol +
+// debris/derelict/salvage). Continuous-space travel reaches any POI in
+// one burn within the fuel budget.
+const target = 'side6'
+
+await page.evaluate((t) => window.__uclife__.burnTo(t), target)
+const burnDone = await waitFor(
   () => {
     const ship = window.__uclife__.getShipState()
-    return !!ship && ship.dockedAtNodeId === 'lunaII'
+    const t = window.__uclife__.useTransition.getState()
+    return ship && ship.dockedAtPoiId === 'side6' && t.inProgress === false
   },
-  { timeoutMs: 5000, label: 'docked at lunaII' },
+  { timeoutMs: 6000, label: 'docked at side6 with transition idle' },
 )
-if (!jump1Done) {
-  fail('first hop (vonBraun → lunaII) did not complete')
-  await shot('03a-jump1-fail')
+if (!burnDone) {
+  fail('burn to side6 did not complete')
+  await shot('04a-burn-fail')
   await browser.close()
   process.exit(1)
 }
-// If lunarSphere pool rolled an encounter at lunaII, dismiss it.
-const enc1 = await page.evaluate(() => {
-  const e = window.__uclife__.useEncounter.getState().current
-  return e ? e.template.id : null
-})
-if (enc1) {
-  console.log(`  lunaII rolled encounter: ${enc1} — closing`)
-  await page.evaluate(() => window.__uclife__.useEncounter.getState().close())
-}
-pass('hop 1 complete · docked at lunaII')
-await shot('03-at-lunaII')
+pass('burn complete · docked at side6')
 
-// Wait for the fade-in tail to finish — canJumpTo refuses while a previous
-// transition is still inProgress.
-await waitFor(
-  () => window.__uclife__.useTransition.getState().inProgress === false,
-  { timeoutMs: 2000, label: 'transition idle' },
-)
-
-// Re-open starmap (closed automatically by jumpTo) for hop 2.
-await page.evaluate(() => window.uclifeUI.getState().setStarmap(true))
-await page.waitForTimeout(150)
-
-// Hop 2: lunaII → shoalPatrol. shoalPatrol's encounterPoolId is
-// `pirate_patrol_pool` — Slice K's resolver strips the `_pool` suffix and
-// finds the real `pirate_patrol` template.
-await page.evaluate(() => window.__uclife__.jumpTo('shoalPatrol'))
-// Wait for both: transition idle (so the fade-in cover is gone) and
-// encounter open. Race-safe because encounter is set during midpoint and
-// remains open until resolved — we never see a "transition done but no
-// encounter yet" gap.
-const jump2Done = await waitFor(
-  () => {
-    const ship = window.__uclife__.getShipState()
-    const enc = window.__uclife__.useEncounter.getState().current
-    const t = window.__uclife__.useTransition.getState()
-    return ship && ship.dockedAtNodeId === 'shoalPatrol' && enc !== null && t.inProgress === false
-  },
-  { timeoutMs: 5000, label: 'docked at shoalPatrol with encounter open and transition idle' },
-)
-if (!jump2Done) {
-  fail('jump to shoalPatrol did not produce docked-at + encounter')
-  await shot('04a-jump2-fail')
-} else {
-  pass('hop 2 complete · docked at shoalPatrol, encounter open')
-}
-await shot('04-encounter-open')
-
-// ── Step 5: Verify the right encounter fired ─────────────────────────
-const encId = await page.evaluate(
+// side6 carries a sceneId (Side 6 dockable in the data file? — currently
+// NO; only vonBraun + side3 are dockable). Non-dockable POIs roll their
+// region's encounter pool on arrival. shoalZone region has pirate_patrol
+// in its pool with weight 4 — but the roll is RNG, so we may need to
+// retry burns until pirate_patrol fires.
+//
+// For deterministic spine coverage, we instead trigger pirate_patrol
+// directly via __uclife__ if it didn't fire from the burn.
+let encId = await page.evaluate(
   () => window.__uclife__.useEncounter.getState().current?.template?.id ?? null,
 )
-console.log('Encounter template id:', encId)
+if (!encId) {
+  console.log('  (no encounter rolled at side6; triggering pirate_patrol directly)')
+  await page.evaluate(() => {
+    window.__uclife__.useEncounter.getState().trigger('pirate_patrol', { poiId: 'side6' })
+  })
+  encId = await page.evaluate(
+    () => window.__uclife__.useEncounter.getState().current?.template?.id ?? null,
+  )
+}
 if (encId !== 'pirate_patrol') {
   fail(`expected encounter 'pirate_patrol', got '${encId}'`)
 } else {
-  pass(`encounter fired: pirate_patrol`)
+  pass(`encounter active: pirate_patrol`)
 }
+await shot('04-encounter-open')
 
-// ── Step 6: Resolve "engage" → combat ────────────────────────────────
+// ── Step 6: Resolve "engage" → tactical combat ───────────────────────
 await page.evaluate(() =>
   window.__uclife__.useEncounter.getState().resolveChoice('engage'),
 )
 const combatOpened = await waitFor(
   () => window.__uclife__.useCombatStore.getState().open === true,
-  { timeoutMs: 3000, label: 'combat overlay open' },
+  { timeoutMs: 3000, label: 'tactical view open' },
 )
 if (!combatOpened) {
-  fail('combat overlay did not open after engage')
+  fail('tactical view did not open after engage')
 } else {
-  pass('combat overlay open')
+  pass('tactical view open')
 }
 await shot('05-combat-open')
 
@@ -220,7 +187,7 @@ const pausedOnEntry = await page.evaluate(
 if (pausedOnEntry !== true) {
   fail(`expected combat paused on entry, got paused=${pausedOnEntry}`)
 } else {
-  pass('combat paused on entry (FTL convention)')
+  pass('combat paused on entry (Starsector convention)')
 }
 
 // ── Step 7: Unpause ──────────────────────────────────────────────────
@@ -244,8 +211,6 @@ if (!winCheatOk) {
   pass('enemy hull zeroed')
 }
 
-// combatSystem detects hullCurrent <= 0 on its next tick (per-frame at
-// running clock speed). Wait for endCombat() to flip everything back.
 const resolved = await waitFor(
   () => {
     const cs = window.__uclife__.useCombatStore.getState()

@@ -37,9 +37,9 @@
 //
 // Fields (ship scenes):
 //   shipClassId       — refs src/data/ships.json5. The bootstrap reads
-//                       rooms / systemSlots / defaultSystems / weapons
-//                       from there. tilesX/tilesY must be wide enough to
-//                       contain every room with a small camera margin.
+//                       rooms / mounts / defaultWeapons from there.
+//                       tilesX/tilesY must be wide enough to contain
+//                       every room with a small camera margin.
 //   playerSpawnRoomId — must match a room id on the chosen ship class;
 //                       boardShip() drops the player at this room's center.
 
