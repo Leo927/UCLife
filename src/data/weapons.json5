@@ -1,0 +1,61 @@
+// Ship-mounted weapon definitions. Phase 6.0 spine ships two starter
+// weapons (one beam, one missile) as the minimum-viable weapon-system
+// content. Phase 6.1+ extends this catalog with mega particle cannons,
+// flak, ion, etc. — add entries here, no other plumbing required.
+//
+// Schema (see weapons.ts for the typed shape):
+//   id            — stable string key, referenced by ShipClassDef.defaultWeapons
+//   nameZh        — player-facing zh-CN weapon name
+//   descZh        — player-facing zh-CN one-liner
+//   type          — 'beam' | 'missile' | 'mega' | 'flak'
+//   powerCost     — reactor power required to bring this weapon online
+//                   (charged from the weapons system's allocation)
+//   chargeSec     — real-seconds (at the in-combat clock ratio) for one
+//                   full charge after firing
+//   damage        — hull damage per shot
+//   systemDamage  — additional damage applied to a hit room's installed
+//                   system level (FTL-style); optional
+//   pierceShields — when true, ignores shield layers (FTL missile shape)
+//   shotCount     — shots fired per charge cycle
+//   targetable    — 'room' for now; future flak might use 'cluster'
+//   cost          — fiat market price (Phase 6.1 hooks economy)
+//   tier          — 1..3 progression tier; 1 is starter, 3 is endgame
+//
+// References (read but don't copy): FTL-Hyperspace Mod Files /
+// hyperspace.xml `<weaponBlueprint>`, libzhlgen WeaponBlueprint.zhl
+// and WeaponSystem.zhl.
+
+{
+  weapons: [
+    {
+      id: 'beamMk1',
+      nameZh: '标准光束炮',
+      descZh: '米诺夫斯基聚束式光束炮，命中率高，无法穿透护盾。',
+      type: 'beam',
+      powerCost: 1,
+      chargeSec: 12,
+      damage: 1,
+      shotCount: 1,
+      targetable: 'room',
+      accuracy: 'high',
+      cost: 0,
+      tier: 1,
+    },
+    {
+      id: 'missileMk1',
+      nameZh: '标准导弹',
+      descZh: '制导式实体弹头。穿透护盾，附带系统破坏。',
+      type: 'missile',
+      powerCost: 1,
+      chargeSec: 14,
+      damage: 2,
+      systemDamage: 1,
+      pierceShields: true,
+      shotCount: 1,
+      targetable: 'room',
+      accuracy: 'guided',
+      cost: 0,
+      tier: 1,
+    },
+  ],
+}

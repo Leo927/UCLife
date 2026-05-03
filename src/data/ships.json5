@@ -1,0 +1,77 @@
+// Ship class blueprints. Phase 6.0 ships exactly one class — the light
+// freighter that the player buys as a Phase 6 capstone — to keep the
+// data spine narrow while Slices D+J consume it. Phase 6.1+ adds merc
+// gunboats, AE corvettes, salvage tugs, etc. by appending entries here.
+//
+// Schema (see ships.ts for the typed shape):
+//   id              — stable string key
+//   nameZh / descZh — player-facing zh-CN strings
+//   shipClass       — coarse archetype: civilian | merc | military | capital
+//   hullMax         — total hull HP before destruction
+//   reactorMax      — total reactor power available at full charge
+//   fuelMax         — fuel capacity in jump-units (see Design/starmap.md)
+//   crewMax         — hard cap on crew aboard
+//   systemSlots     — which subsystems this hull can install (refs
+//                     shipSystems.json5 by SystemId)
+//   defaultSystems  — starting installed level per system; absence/0
+//                     means "slot present, not yet purchased". Levels
+//                     must respect each system's maxLevel.
+//   weaponMounts    — number of hardpoints
+//   defaultWeapons  — starting weapon ids (refs weapons.json5)
+//   priceFiat       — fiat market price for purchase
+//   rooms           — list of room rectangles in ship-local tile-space.
+//                     Each room maps to a single system (or null for
+//                     pure walking space). Bounds are tile-aligned.
+//   doors           — adjacencies between rooms; `side` is the side of
+//                     roomA the door sits on, so the engine can pick a
+//                     pixel position deterministically.
+//
+// Reference (read but don't copy): FTL-Hyperspace hyperspace.xml
+// `<shipBlueprint>`, libzhlgen ShipBlueprint.zhl + ShipManager.zhl.
+
+{
+  ships: [
+    {
+      id: 'lightFreighter',
+      nameZh: '轻型货船 · 改装型',
+      descZh: 'AE 二手货船底盘改装的轻型武装船。机库勉强能容下一台 MS。',
+      shipClass: 'civilian',
+      hullMax: 12,
+      reactorMax: 8,
+      fuelMax: 16,
+      crewMax: 4,
+      systemSlots: ['shields', 'engines', 'oxygen', 'weapons', 'hangar', 'pilot'],
+      defaultSystems: {
+        shields: 1,
+        engines: 1,
+        oxygen: 1,
+        weapons: 1,
+        hangar: 0,
+        pilot: 1,
+      },
+      weaponMounts: 2,
+      defaultWeapons: ['beamMk1'],
+      priceFiat: 80000,
+      rooms: [
+        { id: 'bridge',     nameZh: '舰桥',     bounds: { x: 0, y: 0, w: 2, h: 2 }, system: 'pilot' },
+        { id: 'shieldRoom', nameZh: '护盾室',   bounds: { x: 2, y: 0, w: 2, h: 2 }, system: 'shields' },
+        { id: 'weaponRoom', nameZh: '武器室',   bounds: { x: 4, y: 0, w: 2, h: 2 }, system: 'weapons' },
+        { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 2, w: 2, h: 2 }, system: 'engines' },
+        { id: 'oxygenRoom', nameZh: '生命维持', bounds: { x: 2, y: 2, w: 2, h: 2 }, system: 'oxygen' },
+        { id: 'hangarBay',  nameZh: '机库',     bounds: { x: 4, y: 2, w: 2, h: 2 }, system: 'hangar' },
+      ],
+      // Horizontal corridors along the top + bottom rows, plus three
+      // vertical doors connecting top-row rooms to their bottom-row
+      // counterparts. Every room is reachable from every other.
+      doors: [
+        { roomA: 'bridge',     roomB: 'shieldRoom', side: 'east' },
+        { roomA: 'shieldRoom', roomB: 'weaponRoom', side: 'east' },
+        { roomA: 'engineRoom', roomB: 'oxygenRoom', side: 'east' },
+        { roomA: 'oxygenRoom', roomB: 'hangarBay',  side: 'east' },
+        { roomA: 'bridge',     roomB: 'engineRoom', side: 'south' },
+        { roomA: 'shieldRoom', roomB: 'oxygenRoom', side: 'south' },
+        { roomA: 'weaponRoom', roomB: 'hangarBay',  side: 'south' },
+      ],
+    },
+  ],
+}

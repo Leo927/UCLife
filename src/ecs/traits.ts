@@ -1,6 +1,7 @@
 import { trait, relation } from 'koota'
 import type { Entity } from 'koota'
 import type { FactionId } from '../data/factions'
+import type { SystemId } from '../data/shipSystems'
 
 export const Position = trait({ x: 0, y: 0 })
 export const MoveTarget = trait({ x: 0, y: 0 })
@@ -306,4 +307,77 @@ export const Ambitions = trait(() => ({
 // other story beats). Phase 5.0 only writes — no consumers wired yet.
 export const Flags = trait(() => ({
   flags: {} as Record<string, boolean>,
+}))
+
+// Phase 6.0 — ship-as-scene. The ship interior is a normal koota world (its
+// own coordinate space, walls/doors, NPC roster). Ship-wide state is held on
+// a single Ship singleton spawned at scene-bootstrap time; per-room and
+// per-system state ride alongside on dedicated entities.
+
+// Whole-ship state. One per ship-scene world. `dockedAtNodeId` empty string
+// means "in flight" (used by the starmap once Slice E lands).
+export const Ship = trait({
+  classId: '',
+  hullCurrent: 0, hullMax: 0,
+  fuelCurrent: 0, fuelMax: 0,
+  reactorMax: 0,
+  reactorAllocated: 0,
+  dockedAtNodeId: '',
+  inCombat: false,
+})
+
+// One per room in the ship class's roomLayout. `oxygenPct` is ticked by the
+// oxygen system; <0.25 makes crew take damage. fireSec/breachSec are the
+// active hazard countdowns (game-min remaining); 0 means none.
+export const ShipRoom = trait({
+  roomDefId: '',
+  system: null as SystemId | null,
+  oxygenPct: 1,
+  fireSec: 0,
+  breachSec: 0,
+})
+
+// One per system slot the hull installs. Persists at level 0 when unmanned/
+// uninstalled — the slot is fitted but inert. `installedLevel` caps `level`;
+// the operating `level` further degrades via `integrityPct` damage stages.
+export const ShipSystemState = trait(() => ({
+  systemId: 'shields' as SystemId,
+  level: 0,
+  installedLevel: 0,
+  powerAlloc: 0,
+  integrityPct: 1,
+  chargeSec: 0,
+  manningEntity: null as Entity | null,
+}))
+
+// One per weapon hardpoint. Independent from ShipSystemState['weapons'] —
+// the weapons system gates them collectively, but each mount has its own
+// charge timer, target, and ready flag. Empty mount → weaponId === ''.
+export const WeaponMount = trait({
+  mountIdx: 0,
+  weaponId: '',
+  chargeSec: 0,
+  ready: false,
+  targetEnemyRoomId: null as string | null,
+})
+
+// Marks an actor (player or crew NPC) currently manning a station. Cleared
+// when they leave the room. `roomEntity` is the ShipRoom entity they're at.
+export const CrewStation = trait(() => ({
+  roomEntity: null as Entity | null,
+  systemId: null as SystemId | null,
+}))
+
+// Phase-6.0-spine enemy ship. Plain data, NOT walkable — held as a single
+// trait on a placeholder entity in the player ship's world during combat.
+// Slice G replaces this with a richer combat sim; for now the shape is
+// enough to let bridge UI render and damage tick.
+export const EnemyShipState = trait(() => ({
+  shipClassId: 'pirateLight' as string,
+  hullCurrent: 0, hullMax: 0,
+  shields: { layers: 0, layersMax: 0, rechargeSec: 0 },
+  systems: {} as Partial<Record<SystemId, { integrityPct: number; level: number }>>,
+  weapons: [] as { weaponId: string; chargeSec: number; ready: boolean }[],
+  rooms: [] as { roomId: string; nameZh: string; system: SystemId | null; integrityPct: number }[],
+  ai: { aggression: 0.5, retreatThreshold: 0.2 },
 }))

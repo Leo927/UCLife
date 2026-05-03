@@ -1,7 +1,10 @@
 import { create } from 'zustand'
 
 export type Speed = 0 | 1 | 2 | 4
-export type Mode = 'normal' | 'committed'
+// 'combat' is bridge-mode (Phase 6 FTL-shape combat); the loop scales per-
+// frame minutes down so 1 real-second is ~1 game-second under it. See
+// Design/combat.md "Bridge mode" and src/sim/loop.ts.
+export type Mode = 'normal' | 'committed' | 'combat'
 
 interface ClockState {
   gameDate: Date

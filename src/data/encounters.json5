@@ -1,0 +1,169 @@
+// Encounter template library. Each template is a text-event-first node
+// event: a setup paragraph plus 2-4 numbered choices. Templates are
+// referenced by sector encounter pools declared in `starmap.json5`
+// (Phase 6.1+) and rolled when the captain enters a node of a matching
+// `nodeTypes`. See Design/encounters.md for the form rationale.
+//
+// Blue options carry a `qualifier` and only render when the captain's
+// state satisfies it -- a skill threshold, a ship system level, a crew
+// member's specialization, faction rep, an inventory item, or an origin
+// trait. Outcomes mutate game state via the engine (Slice F). Combat
+// outcomes hand off to bridge mode (Slice G) and the encounter re-opens
+// for its post-combat beat after resolution.
+//
+// Phase 6.0 spine ships 3 templates as the foundation: a hostile patrol
+// stop, a derelict-signal investigation, and a "nothing happens" jump
+// for connective tissue. Phase 6.1 layers in ~20 more, with combat
+// instigation paths fully wired. Phase 6.2 adds Jupiter-pool templates
+// and faction-flavored reskins.
+//
+// Authoring rules (mirrors Design/encounters.md):
+//   - textZh: 1-3 zh-CN sentences, slightly literary, no mechanical
+//     translation feel. Read the illustrative event in encounters.md
+//     for tone.
+//   - Each choice has exactly one of `roll` or `outcomes`.
+//   - `unavailableInSpine: true` marks blue options whose qualifier
+//     references a system / mechanic not yet implemented in 6.0; the
+//     engine hides them until the relevant phase ships.
+//   - `branch` outcomes' `nextTemplateId` must resolve in this file.
+
+{
+  templates: [
+    // ---------------------------------------------------------------
+    // Routine pirate intercept. Two light frigates, transponder ping,
+    // demand for half cargo. The classic FTL "Federation patrol /
+    // pirate stop" shape -- pay, flee, fight, or talk your way out.
+    // ---------------------------------------------------------------
+    {
+      id: 'pirate_patrol',
+      nodeTypes: ['patrol', 'hostile'],
+      textZh: '两艘海盗轻型护卫舰在你的航道上点亮了识别灯,粗糙的合成嗓音穿过通讯频道:\n"船长,把舱里的一半货物交出来,我们今天就当没看见你。"\n他们的炮口已经悄悄转向你的船桥。',
+      choices: [
+        {
+          id: 'pay',
+          textZh: '付钱了事(¥1200)',
+          outcomes: [
+            { kind: 'fiat', delta: -1200 },
+            { kind: 'log', textZh: '你转账过去,海盗的炮口缓缓偏开。生意而已,他们说。' },
+          ],
+        },
+        {
+          id: 'flee',
+          textZh: '全速脱离',
+          roll: {
+            on: { kind: 'system', systemId: 'engines', minLevel: 2 },
+            successThreshold: 60,
+            successOutcomes: [
+              { kind: 'fuel', delta: -1 },
+              { kind: 'log', textZh: '引擎一阵闷响,你拉开了距离。海盗的雷达光点在屏幕上慢慢变淡。' },
+            ],
+            failureOutcomes: [
+              { kind: 'log', textZh: '引擎没能拉开距离。他们追了上来,炮口对准了你的腹甲。' },
+              { kind: 'combat', enemyShipId: 'pirateLight' },
+            ],
+          },
+        },
+        {
+          id: 'engage',
+          textZh: '迎战',
+          outcomes: [
+            { kind: 'log', textZh: '"那就这样吧。"你按下警报,船桥红光骤起。' },
+            { kind: 'combat', enemyShipId: 'pirateLight' },
+          ],
+        },
+        // Blue option: federation rep talks the patrol down without a
+        // shot fired. Available in spine (factionRep is already wired).
+        {
+          id: 'fed_creds',
+          textZh: '亮出地球联邦军认证',
+          qualifier: { kind: 'factionRep', faction: 'efsf', threshold: 50 },
+          outcomes: [
+            { kind: 'log', textZh: '你把联邦军的电子认证推过频道。沉默了几秒,对面切断通讯,转向消失。今天他们不想招惹联邦的麻烦。' },
+          ],
+        },
+      ],
+    },
+
+    // ---------------------------------------------------------------
+    // Drifting freighter, distress beacon, no movement outside. The
+    // classic risk-reward derelict. Spine offers approach (mechanics
+    // roll) and pass; the boarding-pod and long-range-scan blue options
+    // are authored now but gated by `unavailableInSpine` until Phase
+    // 6.2 ships the teleporter and sensors systems.
+    // ---------------------------------------------------------------
+    {
+      id: 'derelict_signal',
+      nodeTypes: ['derelict'],
+      textZh: '一艘货船在轨道上缓缓打转,应急信标按规整的间隔闪着红光。\n舱外没有任何动静,生命维持系统的余热还没散尽。\n通讯频道里只有信标的电子回响。',
+      choices: [
+        {
+          id: 'approach',
+          textZh: '靠近调查',
+          roll: {
+            on: { kind: 'skill', skillId: 'mechanics', threshold: 30 },
+            successThreshold: 65,
+            successOutcomes: [
+              { kind: 'fiat', delta: 1500 },
+              { kind: 'log', textZh: '你撬开舱门,在副驾驶位的保险柜里找到一笔没来得及转移的现金,以及几箱完好的备件。' },
+            ],
+            failureOutcomes: [
+              { kind: 'hull', delta: -8 },
+              { kind: 'log', textZh: '对接的瞬间,失稳的货舱撞上了你的腹甲。警报响起,你紧急脱离。' },
+            ],
+          },
+        },
+        // Blue: send a boarding pod. Requires the teleporter system,
+        // which doesn't exist in the spine -- gate hides this until
+        // Phase 6.2.
+        {
+          id: 'boarding_pod',
+          textZh: '派陆战队员搭乘舱过去',
+          qualifier: { kind: 'system', systemId: 'teleporter' },
+          unavailableInSpine: true,
+          outcomes: [
+            { kind: 'fiat', delta: 2200 },
+            { kind: 'log', textZh: '陆战队员搭乘舱穿过真空,几分钟后带回一份完整的货舱清单和一具已经凉透的船长。' },
+          ],
+        },
+        // Blue: long-range scan first. Requires sensors II+, which
+        // also doesn't exist in the spine.
+        {
+          id: 'long_range_scan',
+          textZh: '远程扫描后再决定',
+          qualifier: { kind: 'system', systemId: 'sensors', minLevel: 2 },
+          unavailableInSpine: true,
+          outcomes: [
+            { kind: 'log', textZh: '高分辨率扫描穿过货船的薄壳:没有热源,没有陷阱,只有静止的货物和漂浮的尸体。' },
+            { kind: 'branch', nextTemplateId: 'derelict_signal' },
+          ],
+        },
+        {
+          id: 'pass',
+          textZh: '绕开继续航行',
+          outcomes: [
+            { kind: 'nothing' },
+          ],
+        },
+      ],
+    },
+
+    // ---------------------------------------------------------------
+    // Connective tissue. Most jumps in FTL are uneventful; UC inherits
+    // that texture. Single choice, flavor-only outcome.
+    // ---------------------------------------------------------------
+    {
+      id: 'routine_jump',
+      nodeTypes: ['colony', 'safe', 'any'],
+      textZh: '跳跃完成。引擎的低鸣慢慢平复,舷窗外是安静的恒星背景。这一程没有什么值得记进航海日志。',
+      choices: [
+        {
+          id: 'continue',
+          textZh: '继续航行',
+          outcomes: [
+            { kind: 'log', textZh: '船员在岗位上各自舒了一口气。平静的航段,也是航段。' },
+          ],
+        },
+      ],
+    },
+  ],
+}

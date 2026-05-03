@@ -8,8 +8,10 @@
 //                 on each hub) and data/world-map.json5 (sceneId on each
 //                 place). Cross-data references are validated at load time.
 //   titleZh     — player-facing name shown in the HUD title.
-//   sceneType   — 'micro': top-down human-scale (current). 'macro': MS/
-//                 warship/fighter scale (future).
+//   sceneType   — 'micro': top-down human-scale city.
+//                 'macro': MS/warship/fighter scale (future).
+//                 'ship':  player-ship interior; bootstraps from
+//                          src/data/ships.json5 via shipClassId.
 //   tilesX/Y    — logical envelope in tiles. Camera bounds, grid lines,
 //                 click clamping, pathfinding, and the map panel viewBox.
 //   playerSpawnTile — initial player position (tile coords). Only meaningful
@@ -32,6 +34,14 @@
 //                   (e.g. exactly 1 airport per central district).
 //   fixedBuildings — hand-placed buildings not subject to procgen.
 //     type, tile{x,y}.
+//
+// Fields (ship scenes):
+//   shipClassId       — refs src/data/ships.json5. The bootstrap reads
+//                       rooms / systemSlots / defaultSystems / weapons
+//                       from there. tilesX/tilesY must be wide enough to
+//                       contain every room with a small camera margin.
+//   playerSpawnRoomId — must match a room id on the chosen ship class;
+//                       boardShip() drops the player at this room's center.
 
 {
   scenes: [
@@ -183,6 +193,18 @@
           },
         ],
       },
+    },
+
+    {
+      id: 'playerShipInterior',
+      titleZh: '玩家飞船 · 内部',
+      sceneType: 'ship',
+      shipClassId: 'lightFreighter',
+      // lightFreighter rooms span 6×4 tiles; envelope below leaves margin
+      // for camera bounds and Slice J's exterior walls/airlock.
+      tilesX: 24,
+      tilesY: 16,
+      playerSpawnRoomId: 'bridge',
     },
   ],
 }

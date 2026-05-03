@@ -1,13 +1,18 @@
 import { world, setActiveSceneId, getWorld, SCENE_IDS, type SceneId } from './world'
-import { scenes, initialSceneId, type SceneConfig } from '../data/scenes'
+import {
+  scenes, initialSceneId,
+  type SceneConfig, type MicroSceneConfig, type ShipSceneConfig,
+} from '../data/scenes'
 import {
   Position, MoveTarget, Vitals, Health, Action, Interactable, IsPlayer,
   Money, Skills, Inventory, Building, Job, Character, Workstation,
   JobPerformance, Bed, Wall, Door, Attributes, BarSeat, RoughSpot,
   EntityKey, Reputation, JobTenure, FactionRole, Appearance, Transit,
   FlightHub, Road, Ambitions, Flags,
+  Ship, ShipRoom, ShipSystemState, WeaponMount,
   type Gender, type InteractableKind,
 } from './traits'
+import { getShipClass } from '../data/ships'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
@@ -25,6 +30,7 @@ import {
 import { placeFixedBuilding } from '../procgen/slots'
 import type { DoorPlacement, DoorSide, PlacedSlot } from '../procgen/slots'
 import { layoutOpenFloorItems } from '../procgen/itemLayout'
+import { layoutShipInterior } from '../procgen/ship'
 import {
   getBuildingType,
   type CraftedItem, type ProcgenItem, type OpenFloorLayout,
@@ -611,7 +617,7 @@ function spawnAeWorkforce(): void {
   }
 }
 
-function spawnFoundingCivilians(scene: SceneConfig): void {
+function spawnFoundingCivilians(scene: MicroSceneConfig): void {
   // Drop the founders at the player's spawn tile so the city's "first day"
   // crowd reads as arriving together.
   const spawn = scene.playerSpawnTile ?? { x: 0, y: 0 }
@@ -656,7 +662,7 @@ function spawnFoundingCivilians(scene: SceneConfig): void {
 
 let roughSpotCounter = 0
 
-function bootstrapMicroScene(scene: SceneConfig): void {
+function bootstrapMicroScene(scene: MicroSceneConfig): void {
   const rng = SeededRng.fromString(scene.procgen?.seed ?? 'default')
 
   if (scene.id === initialSceneId && scene.playerSpawnTile) {
@@ -713,9 +719,86 @@ function bootstrapMicroScene(scene: SceneConfig): void {
   }
 }
 
+// Ship interior bootstrap. Spawns the Ship singleton + one ShipRoom per
+// blueprint room + one ShipSystemState per installed slot + one WeaponMount
+// per hardpoint. Walls, doors, and crew stations are Slice J's concern —
+// the room rectangles render via Building until then.
+function bootstrapShipScene(scene: ShipSceneConfig): void {
+  const cls = getShipClass(scene.shipClassId)
+
+  let allocSum = 0
+  for (const sysId of cls.systemSlots) {
+    allocSum += cls.defaultSystems[sysId] ?? 0
+  }
+
+  world.spawn(
+    Ship({
+      classId: cls.id,
+      hullCurrent: cls.hullMax, hullMax: cls.hullMax,
+      fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
+      reactorMax: cls.reactorMax,
+      reactorAllocated: allocSum,
+      dockedAtNodeId: 'vonBraun',
+      inCombat: false,
+    }),
+    EntityKey({ key: 'ship' }),
+  )
+
+  for (const room of cls.rooms) {
+    const px = room.bounds.x * TILE
+    const py = room.bounds.y * TILE
+    const pw = room.bounds.w * TILE
+    const ph = room.bounds.h * TILE
+    world.spawn(
+      Position({ x: px + pw / 2, y: py + ph / 2 }),
+      Building({ x: px, y: py, w: pw, h: ph, label: room.nameZh }),
+      ShipRoom({
+        roomDefId: room.id,
+        system: room.system,
+        oxygenPct: 1, fireSec: 0, breachSec: 0,
+      }),
+      EntityKey({ key: `ship-room-${room.id}` }),
+    )
+  }
+
+  layoutShipInterior(cls)
+  markPathfindingDirty()
+
+  for (const sysId of cls.systemSlots) {
+    const power = cls.defaultSystems[sysId] ?? 0
+    world.spawn(
+      ShipSystemState({
+        systemId: sysId,
+        level: power,
+        installedLevel: 1,
+        powerAlloc: power,
+        integrityPct: 1,
+        chargeSec: 0,
+        manningEntity: null,
+      }),
+      EntityKey({ key: `ship-sys-${sysId}` }),
+    )
+  }
+
+  for (let i = 0; i < cls.weaponMounts; i++) {
+    const wid = cls.defaultWeapons[i] ?? ''
+    world.spawn(
+      WeaponMount({
+        mountIdx: i,
+        weaponId: wid,
+        chargeSec: 0,
+        ready: false,
+        targetEnemyRoomId: null,
+      }),
+      EntityKey({ key: `ship-weapon-${i}` }),
+    )
+  }
+}
+
 function runSceneBootstrap(scene: SceneConfig): void {
   switch (scene.sceneType) {
     case 'micro': bootstrapMicroScene(scene); break
+    case 'ship':  bootstrapShipScene(scene);  break
   }
 }
 

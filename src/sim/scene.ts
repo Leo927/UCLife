@@ -14,6 +14,9 @@ import {
   FactionRole,
 } from '../ecs/traits'
 import { markPathfindingDirty } from '../systems/pathfinding'
+import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
+import { getShipClass } from '../data/ships'
+import { worldConfig } from '../config'
 
 interface SceneState {
   activeId: SceneId
@@ -115,4 +118,37 @@ export function migratePlayerToScene(
   if (newPlayer.has(PendingEviction)) newPlayer.remove(PendingEviction)
 
   useScene.getState().setActive(toSceneId)
+}
+
+const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
+
+// Walks the player into the ship's bridge (or whichever room the scene
+// declares as playerSpawnRoomId). The ship world's Ship/ShipRoom/etc.
+// entities persist across boardings — they live as long as the koota world
+// does, which is for the program's lifetime.
+export function boardShip(): void {
+  if (getActiveSceneId() === SHIP_SCENE_ID) return
+
+  const cfg = getSceneConfig(SHIP_SCENE_ID) as ShipSceneConfig
+  const cls = getShipClass(cfg.shipClassId)
+  const room = cls.rooms.find((r) => r.id === cfg.playerSpawnRoomId)
+  if (!room) {
+    throw new Error(
+      `boardShip: ship class "${cls.id}" has no room "${cfg.playerSpawnRoomId}"`,
+    )
+  }
+  const px = (room.bounds.x + room.bounds.w / 2) * worldConfig.tilePx
+  const py = (room.bounds.y + room.bounds.h / 2) * worldConfig.tilePx
+  migratePlayerToScene(SHIP_SCENE_ID, { x: px, y: py })
+}
+
+export function disembarkShip(
+  toSceneId: SceneId,
+  arrivalTilePx: { x: number; y: number },
+): void {
+  const fromSceneId = getActiveSceneId()
+  if (fromSceneId !== SHIP_SCENE_ID) {
+    throw new Error(`disembarkShip from non-ship scene: ${fromSceneId}`)
+  }
+  migratePlayerToScene(toSceneId, arrivalTilePx)
 }

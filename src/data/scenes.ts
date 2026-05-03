@@ -1,8 +1,9 @@
 import json5 from 'json5'
 import raw from './scenes.json5?raw'
 import type { DoorSide } from './buildingTypes'
+import { isShipClassId, getShipClass } from './ships'
 
-export type SceneType = 'micro' | 'macro'
+export type SceneType = 'micro' | 'macro' | 'ship'
 
 export type RoadGridConfig = {
   avenueSpacingTiles: { min: number; max: number }
@@ -44,16 +45,28 @@ export type FixedBuildingRef = {
   tile: { x: number; y: number }
 }
 
-export interface SceneConfig {
+export interface MicroSceneConfig {
   id: string
   titleZh: string
-  sceneType: SceneType
+  sceneType: 'micro'
   tilesX: number
   tilesY: number
   playerSpawnTile?: { x: number; y: number }
   procgen?: ProcgenConfig
   fixedBuildings?: FixedBuildingRef[]
 }
+
+export interface ShipSceneConfig {
+  id: string
+  titleZh: string
+  sceneType: 'ship'
+  shipClassId: string
+  tilesX: number
+  tilesY: number
+  playerSpawnRoomId: string
+}
+
+export type SceneConfig = MicroSceneConfig | ShipSceneConfig
 
 interface SceneFile {
   scenes: SceneConfig[]
@@ -71,6 +84,19 @@ for (const s of parsed.scenes) {
   seen.add(s.id)
   if (s.tilesX <= 0 || s.tilesY <= 0) {
     throw new Error(`scenes.json5: scene "${s.id}" has non-positive dimensions`)
+  }
+  if (s.sceneType === 'ship') {
+    if (!isShipClassId(s.shipClassId)) {
+      throw new Error(
+        `scenes.json5: scene "${s.id}" references unknown shipClassId "${s.shipClassId}"`,
+      )
+    }
+    const cls = getShipClass(s.shipClassId)
+    if (!cls.rooms.some((r) => r.id === s.playerSpawnRoomId)) {
+      throw new Error(
+        `scenes.json5: scene "${s.id}" playerSpawnRoomId "${s.playerSpawnRoomId}" is not a room of ship class "${s.shipClassId}"`,
+      )
+    }
   }
 }
 

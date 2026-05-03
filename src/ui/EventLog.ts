@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useClock } from '../sim/clock'
 
 export interface LogEntry {
   id: number
@@ -29,3 +30,11 @@ export const useEventLog = create<EventLogState>((set) => ({
   }),
   clear: () => set({ entries: [] }),
 }))
+
+// Convenience for non-React callsites that don't need to thread the current
+// game-time through (encounter outcomes, future combat log lines). Reads
+// gameDate from the clock store at call time.
+export function logEvent(textZh: string): void {
+  const ms = useClock.getState().gameDate.getTime()
+  useEventLog.getState().push(textZh, ms)
+}

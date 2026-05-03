@@ -20,6 +20,7 @@ import { ambitionsSystem } from '../systems/ambitions'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
+import { useEncounter } from './encounters'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -86,9 +87,25 @@ function frame(now: number) {
   const dt = Math.min(now - lastFrame, 100)
   lastFrame = now
 
+  // Pause-on-event: an encounter being open implies the sim must be paused
+  // (Design/encounters.md). The encounter store sets speed=0 on open; this
+  // guard re-asserts pause if anything else nudged the speed during a frame.
+  {
+    const enc = useEncounter.getState().current
+    if (enc && useClock.getState().speed !== 0) {
+      useClock.getState().setSpeed(0)
+    }
+  }
+
   const sp = effectiveSpeed()
   if (sp > 0) {
-    const minutesThisFrame = (dt / 1000) * sp
+    // Combat mode runs at human-readable real-time scale (1 real-sec ≈ 1
+    // game-sec) — encoded by dividing the per-frame minute count by 60. See
+    // Design/combat.md "Bridge mode".
+    const isCombat = useClock.getState().mode === 'combat'
+    const minutesThisFrame = isCombat
+      ? (dt / 1000) * sp / 60
+      : (dt / 1000) * sp
 
     movementSystem(world, minutesThisFrame)
     npcSystem(world, dt, sp)
