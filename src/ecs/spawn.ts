@@ -17,6 +17,7 @@ import { getWeapon } from '../data/weapons'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
+import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
 import { getAppearanceOverride } from '../data/appearance'
 import { generateAppearanceForName } from '../data/appearanceGen'
 import { specialNpcs } from '../data/specialNpcs'
@@ -841,6 +842,7 @@ function runSceneBootstrap(scene: SceneConfig): void {
   switch (scene.sceneType) {
     case 'micro': bootstrapMicroScene(scene); break
     case 'ship':  bootstrapShipScene(scene);  break
+    case 'space': bootstrapSpaceCampaign();   break
   }
 }
 

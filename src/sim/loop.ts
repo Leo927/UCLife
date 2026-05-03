@@ -1,4 +1,4 @@
-import { world } from '../ecs/world'
+import { world, getActiveSceneId, getWorld } from '../ecs/world'
 import { useClock, gameDayNumber } from './clock'
 import { useUI } from '../ui/uiStore'
 import { saveGame } from '../save'
@@ -18,6 +18,7 @@ import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
 import { combatSystem } from '../systems/combat'
+import { spaceSimSystem } from '../systems/spaceSim'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
@@ -93,6 +94,12 @@ function frame(now: number) {
   // its UI snapshot consistent. See Design/combat.md "Bridge mode".
   if (useClock.getState().mode === 'combat') {
     combatSystem(world, dt)
+  }
+
+  // Phase 6.0 spaceCampaign tick. Runs only when the player is in the
+  // space scene; slice 5 lifts this gate so off-helm autopilot continues.
+  if (getActiveSceneId() === 'spaceCampaign') {
+    spaceSimSystem(getWorld('spaceCampaign'), dt / 1000)
   }
 
   const sp = effectiveSpeed()

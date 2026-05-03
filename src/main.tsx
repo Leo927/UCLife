@@ -9,6 +9,7 @@ import { useClock } from './sim/clock'
 import {
   IsPlayer, Position, MoveTarget, Road, Building, Wall, FlightHub, Door, Bed, Path,
   Ambitions, Flags, Character, Attributes, Skills, Money, Reputation, EnemyShipState,
+  Course,
   type AmbitionSlot,
 } from './ecs/traits'
 import type { FactionId } from './data/factions'
@@ -227,6 +228,20 @@ if (import.meta.env.DEV) {
     getShipState,
     useCombatStore,
     useTransition,
+    enterSpace() { useScene.getState().setActive('spaceCampaign'); return true },
+    setCourse(tx: number, ty: number, destPoiId: string | null = null) {
+      const w = getWorld('spaceCampaign')
+      const e = w.queryFirst(IsPlayer, Course)
+      if (!e) return false
+      e.set(Course, { tx, ty, destPoiId, active: true })
+      return true
+    },
+    shipPos() {
+      const w = getWorld('spaceCampaign')
+      const e = w.queryFirst(IsPlayer, Position)
+      if (!e) return null
+      return { ...e.get(Position)! }
+    },
     setShipOwned() {
       const p = world.queryFirst(IsPlayer)
       if (!p) return false

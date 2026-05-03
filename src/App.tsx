@@ -1,4 +1,6 @@
 import { Game } from './render/Game'
+import { SpaceView } from './ui/SpaceView'
+import { useScene } from './sim/scene'
 import { Hud } from './ui/Hud'
 import { ActionStatus } from './ui/ActionStatus'
 import { DeathModal } from './ui/DeathModal'
@@ -21,10 +23,13 @@ import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
 import { SpriteTester } from './render/sprite/__debug__/SpriteTester'
 
 export function App() {
+  const activeId = useScene((s) => s.activeId)
+  const inSpace = activeId === 'spaceCampaign'
   return (
     <div className="app">
       <Hud />
       <Game />
+      {inSpace && <SpaceView />}
       <ActionStatus />
       <StatusBarFooter />
       <StatusPanel />

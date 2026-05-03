@@ -15,7 +15,7 @@ import { useClock } from '../sim/clock'
 import { useUI } from '../ui/uiStore'
 import { worldConfig, actionsConfig } from '../config'
 import { Flags, Ship } from '../ecs/traits'
-import { boardShip, disembarkShip } from '../sim/scene'
+import { boardShip, disembarkShip, useScene } from '../sim/scene'
 import { runTransition } from '../sim/transition'
 import { getActiveSceneId } from '../ecs/world'
 import { getPoi } from '../data/pois'
@@ -188,9 +188,10 @@ export function interactionSystem(world: World) {
         useUI.getState().showToast('星图仅在飞船舰桥内可用')
         continue
       }
-      // Modal starmap is gone (Phase 6.0 pivot); slice 4 wires this to the
-      // spaceCampaign scene swap.
-      useUI.getState().showToast('星图待实装')
+      // Slice 5 will replace this kiosk with a Helm interact tile that also
+      // toggles AtHelm. For now, the bridge kiosk is the entry point into
+      // the spaceCampaign scene for testing.
+      useScene.getState().setActive('spaceCampaign')
       continue
     }
     if (nearestKind === 'work') {

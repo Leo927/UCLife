@@ -3,7 +3,7 @@ import raw from './scenes.json5?raw'
 import type { DoorSide } from './buildingTypes'
 import { isShipClassId, getShipClass } from './ships'
 
-export type SceneType = 'micro' | 'macro' | 'ship'
+export type SceneType = 'micro' | 'macro' | 'ship' | 'space'
 
 export type RoadGridConfig = {
   avenueSpacingTiles: { min: number; max: number }
@@ -66,7 +66,18 @@ export interface ShipSceneConfig {
   playerSpawnRoomId: string
 }
 
-export type SceneConfig = MicroSceneConfig | ShipSceneConfig
+// Open-space sector scene (Phase 6.0). No procgen, no walls, no
+// fixedBuildings; bodies + POIs come from celestialBodies.json5 / pois.json5
+// and are spawned by sim/spaceBootstrap.ts.
+export interface SpaceSceneConfig {
+  id: string
+  titleZh: string
+  sceneType: 'space'
+  tilesX: number
+  tilesY: number
+}
+
+export type SceneConfig = MicroSceneConfig | ShipSceneConfig | SpaceSceneConfig
 
 interface SceneFile {
   scenes: SceneConfig[]
@@ -120,5 +131,14 @@ export function isSceneId(id: string): boolean {
   return byId.has(id)
 }
 
-export const maxSceneTilesX = Math.max(...parsed.scenes.map((s) => s.tilesX))
-export const maxSceneTilesY = Math.max(...parsed.scenes.map((s) => s.tilesY))
+// Pathfinding (src/systems/pathfinding.ts) and HPA* (src/systems/hpa.ts)
+// pre-allocate a half-tile grid buffer sized to these maxes. The
+// spaceCampaign sector is 30000 × 24000 tiles — 1500× larger than any city
+// scene — and would blow the buffer. Space scenes have no pathfinding
+// (continuous physics, no walls), so excluding them is safe.
+export const maxSceneTilesX = Math.max(
+  ...parsed.scenes.filter((s) => s.sceneType !== 'space').map((s) => s.tilesX),
+)
+export const maxSceneTilesY = Math.max(
+  ...parsed.scenes.filter((s) => s.sceneType !== 'space').map((s) => s.tilesY),
+)

@@ -371,6 +371,75 @@ export const CrewStation = trait(() => ({
   roomEntity: null as Entity | null,
 }))
 
+// ── Phase 6.0 spaceCampaign traits ────────────────────────────────────
+//
+// World-pos entities live in the spaceCampaign koota world. Bodies and
+// POIs are decorative (their positions are derived per-frame from
+// orbits.ts; the Position trait is a cache). Ships have continuous
+// physics — Velocity / Thrust / Course drive them via the engine.
+
+export const Body = trait({
+  bodyId: '',         // refs celestialBodies.json5
+})
+
+export const PoiTag = trait({
+  poiId: '',          // refs pois.json5
+})
+
+export const ShipBody = trait({
+  // Marker that this entity participates in space physics. Distinguishes
+  // the player fleet from celestial bodies and POIs in queries.
+})
+
+export const Velocity = trait({
+  vx: 0,
+  vy: 0,
+})
+
+export const Thrust = trait({
+  // px/sec² acceleration the system applies this frame. Reset to 0 by
+  // the integrator after consumption — set by helm input or autopilot.
+  ax: 0,
+  ay: 0,
+})
+
+export const Course = trait({
+  // Autopilot target. tx/ty in world px. destPoiId optional — when set,
+  // an arrival snaps the ship to that POI's derived position and docks.
+  tx: 0,
+  ty: 0,
+  destPoiId: null as string | null,
+  active: false,
+})
+
+export const Helm = trait({
+  // An interact tile in playerShipInterior that, when pressed E, takes
+  // helm. Slice 5 wires the actual interaction; this trait is the
+  // anchor a slice-5 'helm' Interactable kind will reference.
+})
+
+export const AtHelm = trait({
+  // Marker on the player entity in spaceCampaign world while at-helm.
+  // Slice 5 toggles this on enter / off when leaving the helm.
+})
+
+export const EnemyAI = trait(() => ({
+  // Carried by enemy ships in spaceCampaign. Mode + patrol path live
+  // here; aggro state is computed each tick from spatial queries.
+  shipClassId: '',
+  mode: 'patrol' as 'patrol' | 'idle' | 'chase' | 'flee',
+  patrolPath: [] as { x: number; y: number }[],
+  patrolIdx: 0,
+  aggroRadius: 0,
+  fleeHullPct: 0,
+}))
+
+export const MaintenanceLoad = trait({
+  // Total per-tick supply drain contribution from MS units / modules
+  // attached to this ship. Slice 7 reads this for supply economy.
+  loadUnits: 0,
+})
+
 // Starsector-shape enemy ship state during a tactical engagement.
 // Continuous-space position + heading, full stat block, hardpoint list.
 // Held as plain trait data on a placeholder entity in the player ship's
