@@ -817,7 +817,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   // as a lightweight defaultWeapons existence check at boot time.
   for (const wid of cls.defaultWeapons) if (wid) getWeapon(wid)
 
-  // Bridge gets the starmap kiosk; hangar gets the disembark kiosk.
+  // Bridge gets the helm kiosk; hangar gets the disembark kiosk.
   for (const room of cls.rooms) {
     if (room.id !== 'bridge' && room.id !== 'hangarBay') continue
     const cx = (room.bounds.x + room.bounds.w / 2) * TILE
@@ -825,8 +825,8 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
     if (room.id === 'bridge') {
       world.spawn(
         Position({ x: cx, y: cy - TILE * 0.5 }),
-        Interactable({ kind: 'openStarmap', label: '打开星图', fee: 0 }),
-        EntityKey({ key: 'ship-openStarmap' }),
+        Interactable({ kind: 'helm', label: '操舵 / 航行', fee: 0 }),
+        EntityKey({ key: 'ship-helm' }),
       )
     } else {
       world.spawn(

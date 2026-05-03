@@ -15,7 +15,8 @@ import { useClock } from '../sim/clock'
 import { useUI } from '../ui/uiStore'
 import { worldConfig, actionsConfig } from '../config'
 import { Flags, Ship } from '../ecs/traits'
-import { boardShip, disembarkShip, useScene } from '../sim/scene'
+import { boardShip, disembarkShip } from '../sim/scene'
+import { takeHelm } from '../sim/helm'
 import { runTransition } from '../sim/transition'
 import { getActiveSceneId } from '../ecs/world'
 import { getPoi } from '../data/pois'
@@ -183,15 +184,13 @@ export function interactionSystem(world: World) {
       runTransition({ midpoint: () => disembarkShip(targetSceneId, target) })
       continue
     }
-    if (nearestKind === 'openStarmap') {
+    if (nearestKind === 'helm') {
       if (getActiveSceneId() !== 'playerShipInterior') {
-        useUI.getState().showToast('星图仅在飞船舰桥内可用')
+        useUI.getState().showToast('操舵台仅在飞船舰桥内可用')
         continue
       }
-      // Slice 5 will replace this kiosk with a Helm interact tile that also
-      // toggles AtHelm. For now, the bridge kiosk is the entry point into
-      // the spaceCampaign scene for testing.
-      useScene.getState().setActive('spaceCampaign')
+      const result = takeHelm()
+      if (!result.ok) useUI.getState().showToast(result.message ?? '无法操舵')
       continue
     }
     if (nearestKind === 'work') {

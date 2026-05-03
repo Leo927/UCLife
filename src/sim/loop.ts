@@ -1,4 +1,4 @@
-import { world, getActiveSceneId, getWorld } from '../ecs/world'
+import { world, getWorld } from '../ecs/world'
 import { useClock, gameDayNumber } from './clock'
 import { useUI } from '../ui/uiStore'
 import { saveGame } from '../save'
@@ -21,7 +21,7 @@ import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
-import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
+import { IsPlayer, Action, Vitals, Health, Ambitions, ShipBody, type ActionKind } from '../ecs/traits'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -96,10 +96,15 @@ function frame(now: number) {
     combatSystem(world, dt)
   }
 
-  // Phase 6.0 spaceCampaign tick. Runs only when the player is in the
-  // space scene; slice 5 lifts this gate so off-helm autopilot continues.
-  if (getActiveSceneId() === 'spaceCampaign') {
-    spaceSimSystem(getWorld('spaceCampaign'), dt / 1000)
+  // Phase 6.0 spaceCampaign tick. Runs every frame regardless of the active
+  // camera scene so off-helm autopilot keeps integrating while the player
+  // walks around the ship interior. Belt-and-suspenders gate: only tick if
+  // the campaign world has a player ship (i.e. setupWorld() has run).
+  {
+    const space = getWorld('spaceCampaign')
+    if (space.queryFirst(IsPlayer, ShipBody)) {
+      spaceSimSystem(space, dt / 1000)
+    }
   }
 
   const sp = effectiveSpeed()

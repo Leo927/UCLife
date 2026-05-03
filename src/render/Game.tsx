@@ -330,7 +330,7 @@ const COLORS: Record<InteractableKind, { fill: string; stroke: string }> = {
   buyShip: { fill: '#0f3a4a', stroke: '#22d3ee' },
   boardShip: { fill: '#0c4a6e', stroke: '#38bdf8' },
   disembarkShip: { fill: '#1e293b', stroke: '#94a3b8' },
-  openStarmap: { fill: '#312e81', stroke: '#818cf8' },
+  helm: { fill: '#3a1f4a', stroke: '#a78bfa' },
 }
 
 function NPCMark({ entity }: { entity: Entity }) {

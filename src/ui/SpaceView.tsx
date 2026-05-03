@@ -8,6 +8,7 @@ import {
 import { CELESTIAL_BODIES, type CelestialKind } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
+import { leaveHelm } from '../sim/helm'
 
 const SPACE_SCENE_ID = 'spaceCampaign'
 
@@ -150,20 +151,27 @@ export function SpaceView() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // TAB toggles fit-system mode; ESC exits both fit mode and any open panel.
+  // TAB toggles fit-system mode; ESC leaves the helm (returning to the ship
+  // interior). A panel/fit-mode reset happens implicitly because the scene
+  // swap unmounts SpaceView.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Tab') {
         e.preventDefault()
         setFitMode((m) => !m)
       } else if (e.key === 'Escape') {
-        setFitMode(false)
-        setPanel(null)
+        if (panel) {
+          setPanel(null)
+        } else if (fitMode) {
+          setFitMode(false)
+        } else {
+          leaveHelm()
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [panel, fitMode])
 
   // Touch `tick` so the linter does not flag it; the value itself is just a
   // re-render trigger, not a data input.
@@ -363,6 +371,24 @@ export function SpaceView() {
           )}
         </Layer>
       </Stage>
+      <button
+        onClick={() => leaveHelm()}
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          right: 12,
+          background: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid #475569',
+          color: '#e2e8f0',
+          padding: '8px 14px',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: 13,
+          borderRadius: 4,
+          cursor: 'pointer',
+        }}
+      >
+        离开操舵台 (ESC)
+      </button>
       {panelPoi && (
         <div
           style={{

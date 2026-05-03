@@ -4,7 +4,7 @@
 
 import { getWorld } from '../ecs/world'
 import {
-  Body, PoiTag, ShipBody, Velocity, Thrust, Course, AtHelm,
+  Body, PoiTag, ShipBody, Velocity, Thrust, Course,
   Position, IsPlayer, EntityKey,
 } from '../ecs/traits'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
@@ -90,6 +90,9 @@ export function bootstrapSpaceCampaign(): void {
     )
   }
 
+  // AtHelm is owned by the helm transition (sim/helm.ts), not the bootstrap.
+  // The player exists here so spaceSimSystem can integrate motion from the
+  // moment the campaign world is alive — slice 5 lifts the active-scene gate.
   world.spawn(
     IsPlayer,
     Position({ x: spawnPos.x, y: spawnPos.y }),
@@ -97,7 +100,6 @@ export function bootstrapSpaceCampaign(): void {
     Velocity({ vx: 0, vy: 0 }),
     Thrust({ ax: 0, ay: 0 }),
     Course({ tx: 0, ty: 0, destPoiId: null, active: false }),
-    AtHelm,
     EntityKey({ key: 'spacePlayer' }),
   )
 }
