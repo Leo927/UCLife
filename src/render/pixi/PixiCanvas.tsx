@@ -12,10 +12,19 @@ import { useEffect, useRef } from 'react'
 import { Application } from 'pixi.js'
 
 interface Props {
+  /** Drawing-buffer width in CSS px. */
   width: number
+  /** Drawing-buffer height in CSS px. */
   height: number
   /** RGB integer (e.g. 0x0a0a0d). */
   background?: number
+  /**
+   * Override host-div CSS. Default makes the host fixed at (width × height).
+   * Set to e.g. `{ width: '100%', height: '100%' }` to let the canvas
+   * CSS-scale to fit a sized parent — drawing buffer stays at width×height,
+   * browser scales the rendered image.
+   */
+  hostStyle?: React.CSSProperties
   /** Called once the Application is initialized and the canvas is mounted. */
   onReady?: (app: Application) => void
 }
@@ -46,7 +55,15 @@ export function PixiCanvas(props: Props): JSX.Element {
         a.destroy(true, { children: true, texture: true })
         return
       }
-      host.appendChild(a.canvas)
+      // Make the canvas CSS-fit its host. Pixi's autoDensity sets explicit
+      // pixel dimensions in canvas.style; override so the host's chosen size
+      // (default = width×height, but configurable via hostStyle) controls
+      // the on-screen size.
+      const canvasEl = a.canvas as HTMLCanvasElement
+      canvasEl.style.width = '100%'
+      canvasEl.style.height = '100%'
+      canvasEl.style.display = 'block'
+      host.appendChild(canvasEl)
       app = a
       onReadyRef.current?.(a)
     })()
@@ -60,5 +77,7 @@ export function PixiCanvas(props: Props): JSX.Element {
     }
   }, [props.width, props.height, props.background])
 
-  return <div ref={hostRef} style={{ width: props.width, height: props.height }} />
+  const style: React.CSSProperties = props.hostStyle
+    ?? { width: props.width, height: props.height }
+  return <div ref={hostRef} style={style} />
 }

@@ -8,7 +8,8 @@
 // starts. Instead we poll the ship world via a 30Hz interval; combat
 // traits only mutate at frame rate so this is fine.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
 } from '../systems/combat'
@@ -16,6 +17,8 @@ import { getWorld } from '../ecs/world'
 import { Ship, WeaponMount, EnemyShipState } from '../ecs/traits'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
+import { PixiCanvas } from '../render/pixi'
+import { PixiTacticalRenderer, type ShipSnap as PixiShipSnap } from '../render/space/PixiTacticalRenderer'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -125,12 +128,33 @@ function ShipHud(props: { side: 'left' | 'right'; title: string; snap: PlayerSna
   )
 }
 
+function playerVisual(p: PlayerSnap): PixiShipSnap {
+  return {
+    x: p.pos.x, y: p.pos.y,
+    ringRadius: 32, coreRadius: 14,
+    color: 0x4ade80,
+    ringAlpha: p.fluxCurrent < p.fluxMax ? 0.7 : 0.15,
+  }
+}
+
+function enemyVisual(e: EnemySnap): PixiShipSnap {
+  return {
+    x: e.pos.x, y: e.pos.y,
+    ringRadius: 28, coreRadius: 12,
+    color: 0xdc2626,
+    ringAlpha: e.shieldUp ? 0.7 : 0.15,
+  }
+}
+
 export function TacticalView() {
   const open = useCombatStore((s) => s.open)
   const paused = useCombatStore((s) => s.paused)
   const lastFlashZh = useCombatStore((s) => s.lastFlashZh)
   const lastFlashAtMs = useCombatStore((s) => s.lastFlashAtMs)
   const [tick, setTick] = useState(0)
+
+  const rendererRef = useRef<PixiTacticalRenderer | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -140,6 +164,20 @@ export function TacticalView() {
       if (now - last >= 33) {
         last = now
         setTick((t) => (t + 1) & 0xffff)
+        const r = rendererRef.current
+        if (r) {
+          const p = snapshotPlayer()
+          const e = snapshotEnemy()
+          const projectiles = useCombatStore.getState().getProjectiles()
+          r.update({
+            arenaW: ARENA_W, arenaH: ARENA_H,
+            player: p ? playerVisual(p) : null,
+            enemy: e ? enemyVisual(e) : null,
+            projectiles: projectiles.map((pj) => ({
+              id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
+            })),
+          })
+        }
       }
       raf = requestAnimationFrame(loop)
     }
@@ -163,6 +201,19 @@ export function TacticalView() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  // Tear down renderer when the overlay closes — its parent unmounts the
+  // PixiCanvas, but the renderer holds DisplayObjects we created on top of
+  // the app.stage that should be released too.
+  useEffect(() => {
+    if (open) return
+    const r = rendererRef.current
+    if (r) {
+      r.destroy()
+      rendererRef.current = null
+      canvasRef.current = null
+    }
+  }, [open])
+
   if (!open) return null
   void tick
 
@@ -173,16 +224,23 @@ export function TacticalView() {
   const flashAge = performance.now() - lastFlashAtMs
   const showFlash = lastFlashZh && flashAge < 1500
 
-  const projectiles = useCombatStore.getState().getProjectiles()
-
   // Click on the arena: set the player's move target. Pause-friendly —
-  // queues a destination that the combat tick steers toward.
-  const onArenaClick = (ev: React.MouseEvent<SVGSVGElement>) => {
-    const svg = ev.currentTarget
-    const rect = svg.getBoundingClientRect()
+  // queues a destination that the combat tick steers toward. Coords are
+  // converted via the canvas's getBoundingClientRect so CSS scaling works
+  // as it did with the SVG.
+  const onArenaClick = (ev: React.MouseEvent<HTMLDivElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return
     const x = ((ev.clientX - rect.left) / rect.width) * ARENA_W
     const y = ((ev.clientY - rect.top) / rect.height) * ARENA_H
     useCombatStore.getState().setPlayerTarget({ x, y })
+  }
+
+  const onPixiReady = (app: Application) => {
+    rendererRef.current = new PixiTacticalRenderer(app, ARENA_W, ARENA_H)
+    canvasRef.current = app.canvas as HTMLCanvasElement
   }
 
   const playerCls = getShipClass(player.classId)
@@ -209,56 +267,31 @@ export function TacticalView() {
           <ShipHud side="right" title={enemy.nameZh} snap={enemy} />
         </div>
 
-        {/* Tactical arena — top-down 2D view. Click to set player target. */}
-        <div className="tactical-arena">
-          <svg
-            viewBox={`0 0 ${ARENA_W} ${ARENA_H}`}
-            preserveAspectRatio="xMidYMid meet"
-            onClick={onArenaClick}
-            style={{ width: '100%', height: 360, background: '#070710', border: '1px solid #2a2a30', cursor: 'crosshair' }}
-          >
-            {/* Arena edges + grid */}
-            <rect x={0} y={0} width={ARENA_W} height={ARENA_H} fill="none" stroke="#1f1f25" strokeWidth={2} />
-
-            {/* Player ship */}
-            <g>
-              <circle
-                cx={player.pos.x}
-                cy={player.pos.y}
-                r={32}
-                fill="none"
-                stroke="#4ade80"
-                strokeWidth={2}
-                opacity={player.fluxCurrent < player.fluxMax ? 0.7 : 0.15}
-              />
-              <circle cx={player.pos.x} cy={player.pos.y} r={14} fill="#4ade80" />
-            </g>
-
-            {/* Enemy ship */}
-            <g>
-              <circle
-                cx={enemy.pos.x}
-                cy={enemy.pos.y}
-                r={28}
-                fill="none"
-                stroke="#dc2626"
-                strokeWidth={2}
-                opacity={enemy.shieldUp ? 0.7 : 0.15}
-              />
-              <circle cx={enemy.pos.x} cy={enemy.pos.y} r={12} fill="#dc2626" />
-            </g>
-
-            {/* Projectiles */}
-            {projectiles.map((p) => (
-              <circle
-                key={p.id}
-                cx={p.x}
-                cy={p.y}
-                r={3}
-                fill={p.ownerSide === 'player' ? '#4ade80' : '#f97316'}
-              />
-            ))}
-          </svg>
+        {/* Tactical arena — top-down 2D Pixi view. Click sets player target.
+            Canvas drawing buffer is native arena size (1000×600); the host
+            div CSS-fits the 360-tall container while preserving aspect ratio
+            (letterbox-equivalent of the previous SVG preserveAspectRatio). */}
+        <div
+          className="tactical-arena"
+          onClick={onArenaClick}
+          style={{
+            width: '100%', height: 360,
+            background: '#070710', border: '1px solid #2a2a30',
+            cursor: 'crosshair', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <PixiCanvas
+            width={ARENA_W}
+            height={ARENA_H}
+            background={0x070710}
+            hostStyle={{
+              height: '100%',
+              aspectRatio: `${ARENA_W} / ${ARENA_H}`,
+              maxWidth: '100%',
+            }}
+            onReady={onPixiReady}
+          />
         </div>
 
         {/* Weapon charge queue — shows readiness per mount. Auto-fires when
