@@ -1,11 +1,11 @@
-// Encounter engine — Slice F. Reads templates declared in src/data/encounters.ts
-// (Slice C), evaluates blue-option qualifiers, runs choices, dispatches
-// outcomes. Owns its own zustand store; does NOT touch src/ui/uiStore.ts.
+// Encounter engine. Reads templates declared in src/data/encounters.ts,
+// evaluates blue-option qualifiers, runs choices, dispatches outcomes.
+// Owns its own zustand store.
 //
 // Pause-on-event: opening an encounter forces speed=0 (Design/encounters.md).
 // Outcome dispatch is responsible for the post-modal clock state — by default
 // we resume to speed 1; the `combat` outcome flips clock.mode to 'combat'
-// instead, where Slice G's bridge overlay takes over.
+// so the Starsector tactical view takes over.
 
 import { create } from 'zustand'
 import {
@@ -16,25 +16,22 @@ import {
   type Outcome,
   type Qualifier,
 } from '../data/encounters'
-import { getNode, getSector } from '../data/starmap'
+import { getPoi, getRegion } from '../data/starmap'
 import { useClock } from './clock'
 import { world } from '../ecs/world'
 import { IsPlayer, Money, Skills, Inventory, Reputation } from '../ecs/traits'
-import { spendFuel, damageHull, getShipState } from './ship'
+import { spendFuel, damageHull } from './ship'
 import { logEvent } from '../ui/EventLog'
 import { startCombat } from '../systems/combat'
 
 export interface EncounterContext {
-  // Where the encounter is happening — useful for routing combat to the right
-  // enemy ship spawn template later. For 6.0 spine, just the node id.
-  nodeId?: string
+  poiId?: string
 }
 
 export interface EncounterRuntime {
   templateId: string
   template: EncounterTemplate
   ctx: EncounterContext
-  // Choices that pass qualifier evaluation — what gets shown to the player.
   visibleChoices: Choice[]
 }
 
@@ -45,8 +42,6 @@ interface EncounterState {
   close: () => void
 }
 
-// Trampoline used by `branch` outcomes; the store reads + clears it after
-// running outcomes so a single choice resolution can swap the active template.
 let lastBranchedTemplate: string | null = null
 
 export const useEncounter = create<EncounterState>((set, get) => ({
@@ -91,40 +86,34 @@ export const useEncounter = create<EncounterState>((set, get) => ({
   },
 }))
 
-// Top-level helper for systems to dispatch from outside React.
 export function triggerEncounter(templateId: string, ctx: EncounterContext = {}): void {
   useEncounter.getState().trigger(templateId, ctx)
 }
 
-// Slice K spine integration. Resolves a node arrival into a concrete encounter
-// template and dispatches it. The fallback chain:
-//   1. Node has `encounterPoolId`: Phase 6.0 spine treats this as a *direct*
-//      templateId — pool authoring lands in 6.1 and rewrites this branch into
-//      a real weighted roll. As a spine convenience, an `_pool` suffix is
-//      stripped before resolution (`pirate_patrol_pool` → `pirate_patrol`)
-//      so Slice A's forward-looking data names map onto the 3 templates that
-//      actually exist. Ids that still don't resolve fall through to the
-//      sector pool.
-//   2. Sector encounter pool, weighted, filtered by warPhase ('pre' until
-//      Phase 7 ships). Entries whose templateId doesn't resolve are dropped
-//      from the roll — Slice A's sector pools reference forward-looking ids
-//      that haven't shipped yet.
-//   3. No-op — design supports nodes that just route without firing an event.
-export function triggerEncounterAtNode(nodeId: string): void {
-  const node = getNode(nodeId)
-  if (!node) return
+// Phase 6.0 spine: resolves a POI arrival into an encounter template
+// rolled against the POI's region pool. POIs with `encounterPoolId`
+// override the region roll (e.g. derelict-flagged POIs always pull
+// from the derelict pool). Dockable POIs (sceneId set) skip the
+// encounter layer entirely — the player walks into the city scene.
+export function triggerEncounterAtPoi(poiId: string): void {
+  const poi = getPoi(poiId)
+  if (!poi) return
+  if (poi.sceneId) return  // Dockable POI — walk in instead.
 
-  if (node.encounterPoolId) {
-    const direct = resolvePoolToTemplate(node.encounterPoolId)
+  // POI-specific override (`encounterPoolId`) — Phase 6.1+ wires the
+  // forward-looking pool ids to real templates. Spine treats it as a
+  // direct templateId, with the `_pool` suffix optionally stripped.
+  if (poi.encounterPoolId) {
+    const direct = resolvePoolToTemplate(poi.encounterPoolId)
     if (direct) {
-      triggerEncounter(direct, { nodeId })
+      triggerEncounter(direct, { poiId })
       return
     }
   }
 
-  const sector = getSector(node.sectorId)
-  if (!sector) return
-  const eligible = sector.encounterPool.filter((e) =>
+  const region = getRegion(poi.region)
+  if (!region) return
+  const eligible = region.encounterPool.filter((e) =>
     (!e.conditions?.warPhase || e.conditions.warPhase === 'pre')
     && ENCOUNTERS[e.templateId] != null,
   )
@@ -135,7 +124,7 @@ export function triggerEncounterAtNode(nodeId: string): void {
   for (const e of eligible) {
     r -= e.weight
     if (r <= 0) {
-      triggerEncounter(e.templateId, { nodeId })
+      triggerEncounter(e.templateId, { poiId })
       return
     }
   }
@@ -158,7 +147,6 @@ function isChoiceVisible(c: Choice): boolean {
 
 export interface QualifierResult {
   met: boolean
-  // Short zh-CN-ish hint shown as a badge on satisfied blue options.
   label?: string
 }
 
@@ -172,19 +160,15 @@ export function evaluateQualifier(q: Qualifier): QualifierResult {
       const v = s[q.skillId] ?? 0
       return { met: v >= q.threshold, label: `${q.skillId} ≥ ${q.threshold}` }
     }
-    case 'system': {
-      // Phase 6.0 spine — installed-systems lookup not yet wired. The
-      // encounters that *need* this branch are flagged unavailableInSpine in
-      // Slice C, so they never reach this code path. Returning false here is
-      // the safe default for any qualifier that slips through (e.g. used as a
-      // roll's `on` field, where a false met just falls through to the RNG
-      // path). Slice 6.2 lifts the actual ShipSystemState lookup here.
-      void getShipState()
-      const minLevel = q.minLevel ?? 1
-      return { met: false, label: `system ${q.systemId} ≥ ${minLevel}` }
-    }
+    case 'system':
+      // FTL-era ship-system qualifier. Phase 6.0 Starsector pivot drops
+      // ship "systems" as installed levels — the equivalents are now
+      // outfitting / hardpoint loadout (Phase 6.2). Returning false here
+      // is the safe default for any qualifier still authored against the
+      // old schema; encounters.json5 flags these as unavailableInSpine.
+      return { met: false, label: `system ${q.systemId}` }
     case 'crewSpec':
-      return { met: false, label: `crew: ${q.specId}` } // Phase 6.1 wires
+      return { met: false, label: `crew: ${q.specId}` }
     case 'factionRep': {
       const r = player.get(Reputation)
       if (!r) return { met: false }
@@ -198,7 +182,7 @@ export function evaluateQualifier(q: Qualifier): QualifierResult {
       return { met: v >= (q.minCount ?? 1), label: `${q.itemId}` }
     }
     case 'origin':
-      return { met: false } // origin trait not yet on entities
+      return { met: false }
   }
 }
 
@@ -209,10 +193,6 @@ function runChoiceOutcomes(choice: Choice, ctx: EncounterContext): void {
   }
   if (choice.roll) {
     const roll = choice.roll
-    // Spine roll model: a satisfied qualifier auto-succeeds; otherwise a flat
-    // 0-100 RNG roll vs. successThreshold. Phase 6.1 layers in skill-value-
-    // modulated rolls so a partial qualifier (skill at 90% of the bar) still
-    // helps.
     const q = evaluateQualifier(roll.on)
     const success = q.met || Math.random() * 100 < roll.successThreshold
     const outcomes = success ? roll.successOutcomes : roll.failureOutcomes
@@ -231,8 +211,6 @@ function applyOutcome(o: Outcome, _ctx: EncounterContext): void {
       return
     }
     case 'fuel':
-      // ship.spendFuel deducts a positive amount; negative inputs add. delta
-      // semantics on outcomes are signed (delta < 0 = loss) so we negate.
       spendFuel(-o.delta)
       return
     case 'hull':
@@ -254,9 +232,8 @@ function applyOutcome(o: Outcome, _ctx: EncounterContext): void {
       return
     case 'nothing':
       return
-    case 'combat': {
+    case 'combat':
       startCombat(o.enemyShipId)
       return
-    }
   }
 }

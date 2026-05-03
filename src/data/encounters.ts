@@ -53,7 +53,10 @@ export interface Choice {
 
 export interface EncounterTemplate {
   id: string
-  nodeTypes?: string[]
+  // POI-type tags this template can spawn at. Region encounter pools roll
+  // by region first; the template's poiTypes filter narrows the eligible
+  // set further. Optional — empty/undefined means "any".
+  poiTypes?: string[]
   textZh: string
   choices: Choice[]
 }

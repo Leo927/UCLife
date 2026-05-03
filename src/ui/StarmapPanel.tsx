@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useUI } from './uiStore'
-import { STARMAP, getNode, neighborsOf, type FactionKey, type StarmapNode } from '../data/starmap'
-import { getShipState, getDockedNodeId } from '../sim/ship'
+import {
+  STARMAP, getPoi, burnCost, type FactionKey, type Poi,
+} from '../data/starmap'
+import { getShipState, getDockedPoiId } from '../sim/ship'
 import { useTransition } from '../sim/transition'
-import { jumpTo, canJumpTo } from '../systems/starmap'
+import { burnTo, canBurnTo } from '../systems/starmap'
 
 const FACTION_COLOR: Record<FactionKey, string> = {
   civilian: '#94a3b8',
@@ -13,6 +15,16 @@ const FACTION_COLOR: Record<FactionKey, string> = {
   pirate: '#7c3aed',
   neutral: '#a3a3a3',
   none: '#525252',
+}
+
+const FACTION_LABEL: Record<FactionKey, string> = {
+  civilian: '民用',
+  efsf: '联邦军',
+  ae: 'AE',
+  zeon: '吉翁',
+  pirate: '海盗',
+  neutral: '中立',
+  none: '无主',
 }
 
 const SERVICE_LABEL: Record<string, string> = {
@@ -34,6 +46,17 @@ const TYPE_LABEL: Record<string, string> = {
   mining: '矿场',
   anomaly: '异常',
   shipyard: '船坞',
+  salvage: '废料场',
+}
+
+const FAIL_HINT: Record<string, string> = {
+  'no-ship': '没有飞船',
+  'not-docked': '飞船未在停靠点',
+  'unknown-poi': '未知坐标',
+  'insufficient-fuel': '燃料不足',
+  'insufficient-supplies': '补给不足',
+  'in-transition': '正在航行中',
+  'same-poi': '已在此处',
 }
 
 function formatDuration(min: number): string {
@@ -44,38 +67,24 @@ function formatDuration(min: number): string {
   return `${h} 小时 ${m} 分钟`
 }
 
-const FAIL_HINT: Record<string, string> = {
-  'no-ship': '没有飞船',
-  'not-docked': '飞船未在节点',
-  'not-neighbor': '该节点不在跳跃范围内',
-  'insufficient-fuel': '燃料不足',
-  'in-transition': '正在跳跃中',
-}
-
 export function StarmapPanel() {
   const open = useUI((s) => s.starmapOpen)
   const setStarmap = useUI((s) => s.setStarmap)
   const inTransition = useTransition((s) => s.inProgress)
-  // After a jump completes, transition.inProgress flips false — we use
-  // that to bump a revision and re-read getShipState() (which is ECS-backed,
-  // not zustand-subscribed).
+  // Bump on transition completion so the panel re-reads ship state.
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     if (!inTransition) setRevision((r) => r + 1)
   }, [inTransition])
+  void revision
 
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const ship = open ? getShipState() : null
-  const dockedId = open ? getDockedNodeId() : null
-  // Bust memoization on revision so the SVG redraws when the ship moves.
-  const neighborSet = useMemo(() => {
-    if (!dockedId) return new Set<string>()
-    return new Set(neighborsOf(dockedId).map((n) => n.node.id))
-  }, [dockedId, revision])
-
   if (!open) return null
+
+  const ship = getShipState()
+  const dockedId = getDockedPoiId()
 
   const close = () => {
     setStarmap(false)
@@ -83,12 +92,20 @@ export function StarmapPanel() {
     setSelectedId(null)
   }
 
-  const dockedNode = dockedId ? getNode(dockedId) ?? null : null
+  const dockedPoi = dockedId ? getPoi(dockedId) ?? null : null
   const focusId = hoveredId ?? selectedId ?? dockedId ?? null
-  const focusNode = focusId ? getNode(focusId) ?? null : null
-  const focusEdge = focusId && dockedId && focusId !== dockedId
-    ? neighborsOf(dockedId).find((n) => n.node.id === focusId)?.edge ?? null
+  const focusPoi = focusId ? getPoi(focusId) ?? null : null
+  const focusCost = (focusId && dockedId && focusId !== dockedId)
+    ? burnCost(dockedId, focusId)
     : null
+
+  // Sort majors first, procedural last — keeps the labeled UC POIs
+  // visually dominant while the seeded minor scatter sits in the
+  // background.
+  const orderedPois = [...STARMAP.pois].sort((a, b) => {
+    if (!!a.procedural === !!b.procedural) return 0
+    return a.procedural ? 1 : -1
+  })
 
   return (
     <div className="status-overlay" onClick={close}>
@@ -107,7 +124,7 @@ export function StarmapPanel() {
         onClick={(e) => e.stopPropagation()}
       >
         <header className="status-header">
-          <h2>星图</h2>
+          <h2>星图 · 地球圈</h2>
           <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
 
@@ -119,9 +136,11 @@ export function StarmapPanel() {
           <>
             <section className="status-section">
               <div className="starmap-status">
-                <span>当前位置 · {dockedNode ? dockedNode.nameZh : '航行中'}</span>
+                <span>当前位置 · {dockedPoi ? dockedPoi.nameZh : '航行中'}</span>
                 <span>燃料 {ship.fuelCurrent}/{ship.fuelMax}</span>
-                <span>装甲 {ship.hullCurrent}/{ship.hullMax}</span>
+                <span>补给 {ship.suppliesCurrent}/{ship.suppliesMax}</span>
+                <span>装甲 {Math.round(ship.armorCurrent)}/{ship.armorMax}</span>
+                <span>船体 {Math.round(ship.hullCurrent)}/{ship.hullMax}</span>
               </div>
             </section>
 
@@ -132,55 +151,53 @@ export function StarmapPanel() {
                   className="starmap-svg"
                   preserveAspectRatio="xMidYMid meet"
                 >
-                  <g className="starmap-edges">
-                    {STARMAP.edges.map((e) => {
-                      const a = getNode(e.from)
-                      const b = getNode(e.to)
-                      if (!a || !b) return null
-                      const reachable =
-                        dockedId !== null &&
-                        ((e.from === dockedId && neighborSet.has(e.to)) ||
-                          (e.to === dockedId && neighborSet.has(e.from)))
-                      return (
-                        <line
-                          key={`${e.from}->${e.to}`}
-                          x1={a.mapPos.x}
-                          y1={a.mapPos.y}
-                          x2={b.mapPos.x}
-                          y2={b.mapPos.y}
-                          stroke={reachable ? '#4ade80' : '#3a3a44'}
-                          strokeWidth={reachable ? 0.4 : 0.25}
-                          strokeDasharray={e.inSectorOnly ? undefined : '1.5,1'}
-                          opacity={reachable ? 0.9 : 0.5}
-                        />
-                      )
-                    })}
+                  {/* Region centroids — soft colored discs in the background. */}
+                  <g className="starmap-regions">
+                    {STARMAP.regions.map((r) => (
+                      <circle
+                        key={r.id}
+                        cx={r.centroid.x}
+                        cy={r.centroid.y}
+                        r={9}
+                        fill="#1a1a22"
+                        opacity={0.35}
+                      />
+                    ))}
                   </g>
 
-                  <g className="starmap-nodes">
-                    {STARMAP.nodes.map((n) => {
-                      const isCurrent = n.id === dockedId
-                      const isReachable = neighborSet.has(n.id)
-                      const isFocus = n.id === focusId
-                      const dim = !isCurrent && !isReachable
-                      const fill = FACTION_COLOR[n.factionControlPre] ?? '#525252'
+                  {/* Selected/destination route line drawn from the docked POI. */}
+                  {dockedPoi && focusPoi && focusPoi.id !== dockedPoi.id && (
+                    <line
+                      x1={dockedPoi.pos.x}
+                      y1={dockedPoi.pos.y}
+                      x2={focusPoi.pos.x}
+                      y2={focusPoi.pos.y}
+                      stroke="#4ade80"
+                      strokeWidth={0.4}
+                      strokeDasharray="1.5,1"
+                      opacity={0.8}
+                    />
+                  )}
+
+                  <g className="starmap-pois">
+                    {orderedPois.map((p) => {
+                      const isCurrent = p.id === dockedId
+                      const isFocus = p.id === focusId
+                      const fill = FACTION_COLOR[p.factionControlPre] ?? '#525252'
+                      const baseR = p.procedural ? 1.4 : 2.5
                       return (
                         <g
-                          key={n.id}
-                          opacity={dim ? 0.4 : 1}
-                          style={{
-                            cursor: isReachable ? 'pointer' : 'default',
-                          }}
-                          onMouseEnter={() => setHoveredId(n.id)}
+                          key={p.id}
+                          opacity={p.procedural ? 0.7 : 1}
+                          style={{ cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredId(p.id)}
                           onMouseLeave={() => setHoveredId(null)}
-                          onClick={() => {
-                            if (isReachable) setSelectedId(n.id)
-                          }}
+                          onClick={() => setSelectedId(p.id)}
                         >
                           {isCurrent && (
                             <circle
-                              cx={n.mapPos.x}
-                              cy={n.mapPos.y}
+                              cx={p.pos.x}
+                              cy={p.pos.y}
                               r={3}
                               className="starmap-pulse"
                               fill="none"
@@ -189,23 +206,25 @@ export function StarmapPanel() {
                             />
                           )}
                           <circle
-                            cx={n.mapPos.x}
-                            cy={n.mapPos.y}
-                            r={2.5}
+                            cx={p.pos.x}
+                            cy={p.pos.y}
+                            r={baseR}
                             fill={fill}
                             stroke={isFocus ? '#e6e6ea' : '#0d0d10'}
                             strokeWidth={isFocus ? 0.6 : 0.35}
                           />
-                          <text
-                            x={n.mapPos.x}
-                            y={n.mapPos.y + 5.5}
-                            fontSize={2.4}
-                            textAnchor="middle"
-                            fill={dim ? '#6a6a72' : '#e6e6ea'}
-                            style={{ pointerEvents: 'none' }}
-                          >
-                            {n.shortZh ?? n.nameZh}
-                          </text>
+                          {!p.procedural && (
+                            <text
+                              x={p.pos.x}
+                              y={p.pos.y + 5.5}
+                              fontSize={2.4}
+                              textAnchor="middle"
+                              fill="#e6e6ea"
+                              style={{ pointerEvents: 'none' }}
+                            >
+                              {p.shortZh ?? p.nameZh}
+                            </text>
+                          )}
                         </g>
                       )
                     })}
@@ -214,25 +233,24 @@ export function StarmapPanel() {
               </div>
 
               <aside className="starmap-info">
-                {focusNode ? (
-                  <NodeInfoCard
-                    node={focusNode}
-                    isCurrent={focusNode.id === dockedId}
-                    edgeFuel={focusEdge?.fuelCost}
-                    edgeDuration={focusEdge?.durationMin}
-                    onJump={() => jumpTo(focusNode.id)}
+                {focusPoi ? (
+                  <PoiInfoCard
+                    poi={focusPoi}
+                    isCurrent={focusPoi.id === dockedId}
+                    cost={focusCost}
+                    onBurn={() => burnTo(focusPoi.id)}
                     disabledReason={
-                      focusNode.id === dockedId
-                        ? '已在此节点'
+                      focusPoi.id === dockedId
+                        ? '已在此处'
                         : (() => {
-                            const r = canJumpTo(focusNode.id)
+                            const r = canBurnTo(focusPoi.id)
                             if (r.ok) return null
-                            return FAIL_HINT[r.reason!] ?? '不可跳跃'
+                            return FAIL_HINT[r.reason!] ?? '不可航行'
                           })()
                     }
                   />
                 ) : (
-                  <p className="map-place-desc">悬停或点击节点查看详情。</p>
+                  <p className="map-place-desc">悬停或点击坐标查看详情。</p>
                 )}
               </aside>
             </div>
@@ -243,50 +261,39 @@ export function StarmapPanel() {
   )
 }
 
-function NodeInfoCard(props: {
-  node: StarmapNode
+function PoiInfoCard(props: {
+  poi: Poi
   isCurrent: boolean
-  edgeFuel?: number
-  edgeDuration?: number
-  onJump: () => void
+  cost: { fuel: number; supplies: number; durationMin: number; distance: number } | null
+  onBurn: () => void
   disabledReason: string | null
 }) {
-  const { node, isCurrent, edgeFuel, edgeDuration, onJump, disabledReason } = props
-  const sector = STARMAP.sectors.find((s) => s.id === node.sectorId)
-  const factionLabel: Record<FactionKey, string> = {
-    civilian: '民用',
-    efsf: '联邦军',
-    ae: 'AE',
-    zeon: '吉翁',
-    pirate: '海盗',
-    neutral: '中立',
-    none: '无主',
-  }
-  const canShowJump = !isCurrent && edgeFuel != null && edgeDuration != null
-  const buttonLabel = canShowJump
-    ? `跳跃 · 燃料 ${edgeFuel} · 时间 ${formatDuration(edgeDuration)}`
-    : '跳跃'
+  const { poi, isCurrent, cost, onBurn, disabledReason } = props
+  const buttonLabel = cost
+    ? `航行 · 燃料 ${cost.fuel} · 补给 ${cost.supplies} · 时间 ${formatDuration(cost.durationMin)}`
+    : '航行'
 
   return (
     <div className="starmap-info-card">
       <div className="starmap-info-name">
-        {node.nameZh}
+        {poi.nameZh}
         {isCurrent && <span className="map-place-here">当前</span>}
       </div>
       <div className="status-meta">
-        {sector?.nameZh ?? node.sectorId} · {TYPE_LABEL[node.type] ?? node.type} · {factionLabel[node.factionControlPre] ?? node.factionControlPre}
+        {TYPE_LABEL[poi.type] ?? poi.type} · {FACTION_LABEL[poi.factionControlPre] ?? poi.factionControlPre}
+        {poi.procedural && ' · 临时坐标'}
       </div>
-      {node.services.length > 0 && (
+      {poi.services.length > 0 && (
         <div className="starmap-info-services">
-          服务:{node.services.map((s) => SERVICE_LABEL[s] ?? s).join(' · ')}
+          服务:{poi.services.map((s) => SERVICE_LABEL[s] ?? s).join(' · ')}
         </div>
       )}
-      {node.description && (
-        <p className="map-place-desc">{node.description}</p>
+      {poi.description && (
+        <p className="map-place-desc">{poi.description}</p>
       )}
       <button
         className="transit-terminal-go starmap-jump-btn"
-        onClick={onJump}
+        onClick={onBurn}
         disabled={disabledReason != null}
         title={disabledReason ?? undefined}
       >

@@ -17,7 +17,7 @@ import {
   Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
   Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
-  Ship, ShipRoom, ShipSystemState, WeaponMount,
+  Ship, WeaponMount,
   type AmbitionSlot, type AmbitionHistoryEntry,
 } from '../ecs/traits'
 import type { TraitInstance } from 'koota'
@@ -46,10 +46,11 @@ function metaKey(slot: SlotId): string { return `uclife:save:${slot}:meta` }
 // migration that rewrites this into the autosave slot.
 const LEGACY_KEY = 'uclife:autosave'
 
-// v2 (Phase 6.0 Slice I): adds the optional `ship` block. v1 saves load with
-// ship state at deterministic defaults (player still owns the ship if their
-// Flags carries `shipOwned`); we accept v1 with a one-line event-log notice.
-const SAVE_VERSION = 2
+// v3 (Starsector pivot): replaces the FTL-era room/system block with a
+// flat Starsector stat snapshot. v1 + v2 saves load with ship state at
+// deterministic defaults (player still owns the ship if Flags.shipOwned
+// is set); a one-line event-log notice flags the migration.
+const SAVE_VERSION = 3
 
 // Per-entity snapshot. `key` matches an EntityKey already in the world (or,
 // for immigrants, identifies the NPC to re-spawn). All trait fields are
@@ -84,7 +85,13 @@ interface EntitySnap {
   reputation?: TraitInstance<typeof Reputation>
   jobTenure?: TraitInstance<typeof JobTenure>
   factionRole?: TraitInstance<typeof FactionRole>
-  ambitions?: { active: AmbitionSlot[]; history: AmbitionHistoryEntry[]; lastSwapMs: number }
+  ambitions?: {
+    active: AmbitionSlot[]
+    history: AmbitionHistoryEntry[]
+    apBalance: number
+    apEarned: number
+    perks: string[]
+  }
   flags?: { flags: Record<string, boolean> }
 }
 
@@ -102,17 +109,17 @@ export interface SaveMeta {
   alive: number
 }
 
-// Long-arc ship state. `chargeSec`/`ready`/`targetEnemyRoomId` on weapon
-// mounts are deliberately omitted — they only mean anything inside an active
-// engagement, and Slice G locks save-during-combat. EnemyShipState is never
-// snapshotted; resetWorld() destroys it on load.
+// Long-arc ship state — Starsector-shape stat block + hardpoint loadout.
+// Transient combat state (charge, projectiles, EnemyShipState) is never
+// persisted; combat-time saves are refused.
 interface ShipSaveBlock {
   hullCurrent: number
+  armorCurrent: number
+  fluxCurrent: number
   fuelCurrent: number
-  dockedAtNodeId: string
-  reactorAllocated: number
-  rooms: { roomId: string; oxygenPct: number; fireSec: number; breachSec: number }[]
-  systems: { systemId: string; level: number; installedLevel: number; powerAlloc: number; integrityPct: number }[]
+  suppliesCurrent: number
+  dockedAtPoiId: string
+  fleetPos: { x: number; y: number }
   weapons: { mountIdx: number; weaponId: string }[]
 }
 
@@ -230,7 +237,9 @@ function snapshotEntity(entity: Entity): EntitySnap {
     snap.ambitions = {
       active: a.active.map((s) => ({ ...s })),
       history: a.history.map((h) => ({ ...h })),
-      lastSwapMs: a.lastSwapMs,
+      apBalance: a.apBalance,
+      apEarned: a.apEarned,
+      perks: [...a.perks],
     }
   }
   if (entity.has(Flags)) {
@@ -276,33 +285,6 @@ function snapshotShip(): ShipSaveBlock | undefined {
   if (!shipEnt) return undefined
   const s = shipEnt.get(Ship)!
 
-  const rooms: ShipSaveBlock['rooms'] = []
-  for (const e of w.query(ShipRoom, EntityKey)) {
-    const key = e.get(EntityKey)!.key
-    if (!key.startsWith('ship-room-')) continue
-    const r = e.get(ShipRoom)!
-    rooms.push({
-      roomId: r.roomDefId,
-      oxygenPct: r.oxygenPct,
-      fireSec: r.fireSec,
-      breachSec: r.breachSec,
-    })
-  }
-
-  const systems: ShipSaveBlock['systems'] = []
-  for (const e of w.query(ShipSystemState, EntityKey)) {
-    const key = e.get(EntityKey)!.key
-    if (!key.startsWith('ship-sys-')) continue
-    const s2 = e.get(ShipSystemState)!
-    systems.push({
-      systemId: s2.systemId,
-      level: s2.level,
-      installedLevel: s2.installedLevel,
-      powerAlloc: s2.powerAlloc,
-      integrityPct: s2.integrityPct,
-    })
-  }
-
   const weapons: ShipSaveBlock['weapons'] = []
   for (const e of w.query(WeaponMount, EntityKey)) {
     const key = e.get(EntityKey)!.key
@@ -313,11 +295,12 @@ function snapshotShip(): ShipSaveBlock | undefined {
 
   return {
     hullCurrent: s.hullCurrent,
+    armorCurrent: s.armorCurrent,
+    fluxCurrent: s.fluxCurrent,
     fuelCurrent: s.fuelCurrent,
-    dockedAtNodeId: s.dockedAtNodeId,
-    reactorAllocated: s.reactorAllocated,
-    rooms,
-    systems,
+    suppliesCurrent: s.suppliesCurrent,
+    dockedAtPoiId: s.dockedAtPoiId,
+    fleetPos: { x: s.fleetPos.x, y: s.fleetPos.y },
     weapons,
   }
 }
@@ -335,39 +318,15 @@ function restoreShip(block: ShipSaveBlock): void {
     shipEnt.set(Ship, {
       ...cur,
       hullCurrent: block.hullCurrent,
+      armorCurrent: block.armorCurrent,
+      fluxCurrent: block.fluxCurrent,
       fuelCurrent: block.fuelCurrent,
-      dockedAtNodeId: block.dockedAtNodeId,
-      reactorAllocated: block.reactorAllocated,
+      suppliesCurrent: block.suppliesCurrent,
+      dockedAtPoiId: block.dockedAtPoiId,
+      fleetPos: { x: block.fleetPos.x, y: block.fleetPos.y },
       // Combat is transient — saves never write inCombat:true (manual blocks,
       // autosave skips), but force false here for defense.
       inCombat: false,
-    })
-  }
-
-  for (const r of block.rooms) {
-    const e = byKey.get(`ship-room-${r.roomId}`)
-    if (!e) continue
-    const cur = e.get(ShipRoom)!
-    e.set(ShipRoom, {
-      ...cur,
-      oxygenPct: r.oxygenPct,
-      fireSec: r.fireSec,
-      breachSec: r.breachSec,
-    })
-  }
-
-  for (const s of block.systems) {
-    const e = byKey.get(`ship-sys-${s.systemId}`)
-    if (!e) continue
-    const cur = e.get(ShipSystemState)!
-    e.set(ShipSystemState, {
-      ...cur,
-      level: s.level,
-      installedLevel: s.installedLevel,
-      powerAlloc: s.powerAlloc,
-      integrityPct: s.integrityPct,
-      // Charge is transient.
-      chargeSec: 0,
     })
   }
 
@@ -380,7 +339,7 @@ function restoreShip(block: ShipSaveBlock): void {
       weaponId: wpn.weaponId,
       chargeSec: 0,
       ready: false,
-      targetEnemyRoomId: null,
+      targetIdx: 0,
     })
   }
 }
@@ -481,14 +440,16 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   } catch (e) {
     return { ok: false, reason: `parse: ${(e as Error).message}` }
   }
-  // v1 saves predate Phase 6 ship-state. Load anyway — ship lands at
-  // bootstrap defaults (hull/fuel max, docked at vonBraun); the player keeps
-  // shipOwned via Flags so they can still board their vessel. Other version
-  // mismatches stay refusing.
-  if (bundle.version !== SAVE_VERSION && bundle.version !== 1) {
+  // v1 / v2 saves predate the Starsector pivot. Load anyway — ship lands
+  // at bootstrap defaults (hull/fuel/supplies max, docked at vonBraun);
+  // the player keeps shipOwned via Flags so they can still board their
+  // vessel. The old `ship` block (rooms/systems/reactor) is silently
+  // dropped — the new Starsector stat block doesn't share its shape.
+  if (bundle.version !== SAVE_VERSION && bundle.version !== 1 && bundle.version !== 2) {
     return { ok: false, reason: `version mismatch: save=${bundle.version} app=${SAVE_VERSION}` }
   }
   const isLegacyShipless = bundle.version === 1
+  const isLegacyFTL = bundle.version === 2
   if (bundle.seed !== WORLD_SEED) {
     // Refuse rather than silently mis-overlay: different seeds generate
     // different sector slots, so EntityKeys won't line up.
@@ -676,7 +637,9 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
       const payload = {
         active: snap.ambitions.active.map((s) => ({ ...s })),
         history: snap.ambitions.history.map((h) => ({ ...h })),
-        lastSwapMs: snap.ambitions.lastSwapMs,
+        apBalance: snap.ambitions.apBalance ?? 0,
+        apEarned: snap.ambitions.apEarned ?? 0,
+        perks: snap.ambitions.perks ? [...snap.ambitions.perks] : [],
       }
       if (entity.has(Ambitions)) entity.set(Ambitions, payload)
       else entity.add(Ambitions(payload))
@@ -697,12 +660,14 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   if (bundle.relations) restoreRelations(world, byKey, bundle.relations)
 
   // Ship state lives in a separate scene world; bootstrap already seeded
-  // deterministic defaults during resetWorld(). v2 saves overlay the
-  // long-arc deltas; v1 saves leave the defaults and notify the player.
-  if (bundle.ship) {
+  // deterministic defaults during resetWorld(). v3 saves overlay the
+  // long-arc deltas; v1/v2 saves leave the defaults and notify the player.
+  if (bundle.ship && bundle.version === SAVE_VERSION) {
     restoreShip(bundle.ship)
   } else if (isLegacyShipless) {
     logEvent('存档先于 Phase 6 — 飞船状态已重置为默认')
+  } else if (isLegacyFTL) {
+    logEvent('存档为 Phase 6 旧版 — 飞船重置为新结构默认')
   }
 
   // Combat is transient. Reset the bridge-overlay store so no stale pause

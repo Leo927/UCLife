@@ -9,10 +9,12 @@ import {
   JobPerformance, Bed, Wall, Door, Attributes, BarSeat, RoughSpot,
   EntityKey, Reputation, JobTenure, FactionRole, Appearance, Transit,
   FlightHub, Road, Ambitions, Flags,
-  Ship, ShipRoom, ShipSystemState, WeaponMount,
+  Ship, ShipRoom, WeaponMount,
   type Gender, type InteractableKind,
 } from './traits'
 import { getShipClass } from '../data/ships'
+import { getWeapon } from '../data/weapons'
+import { getPoi } from '../data/starmap'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
@@ -747,26 +749,33 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   }
 }
 
-// Ship interior bootstrap. Spawns the Ship singleton + one ShipRoom per
-// blueprint room + one ShipSystemState per installed slot + one WeaponMount
-// per hardpoint. Walls, doors, and crew stations are Slice J's concern —
-// the room rectangles render via Building until then.
+// Ship interior bootstrap. Spawns the walkable flagship: Ship singleton
+// (Starsector stat block), one ShipRoom per blueprint room (pure walkable
+// space — the FTL room/system/oxygen/fire model goes away), one
+// WeaponMount per hardpoint, and the starmap + disembark kiosks at the
+// bridge / hangar.
 function bootstrapShipScene(scene: ShipSceneConfig): void {
   const cls = getShipClass(scene.shipClassId)
 
-  let allocSum = 0
-  for (const sysId of cls.systemSlots) {
-    allocSum += cls.defaultSystems[sysId] ?? 0
-  }
+  // Player starts docked at Von Braun by default. fleetPos snaps to the
+  // POI's normalized position so the first starmap render reads cleanly.
+  const dockedPoi = getPoi('vonBraun')
+  const fleetPos = dockedPoi ? { ...dockedPoi.pos } : { x: 50, y: 50 }
 
   world.spawn(
     Ship({
       classId: cls.id,
       hullCurrent: cls.hullMax, hullMax: cls.hullMax,
+      armorCurrent: cls.armorMax, armorMax: cls.armorMax,
+      fluxMax: cls.fluxMax, fluxCurrent: 0,
+      fluxDissipation: cls.fluxDissipation,
+      shieldEfficiency: cls.shieldEfficiency,
+      topSpeed: cls.topSpeed,
+      maneuverability: cls.maneuverability,
       fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
-      reactorMax: cls.reactorMax,
-      reactorAllocated: allocSum,
-      dockedAtNodeId: 'vonBraun',
+      suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
+      dockedAtPoiId: 'vonBraun',
+      fleetPos,
       inCombat: false,
     }),
     EntityKey({ key: 'ship' }),
@@ -780,11 +789,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
     world.spawn(
       Position({ x: px + pw / 2, y: py + ph / 2 }),
       Building({ x: px, y: py, w: pw, h: ph, label: room.nameZh }),
-      ShipRoom({
-        roomDefId: room.id,
-        system: room.system,
-        oxygenPct: 1, fireSec: 0, breachSec: 0,
-      }),
+      ShipRoom({ roomDefId: room.id }),
       EntityKey({ key: `ship-room-${room.id}` }),
     )
   }
@@ -792,38 +797,27 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   layoutShipInterior(cls)
   markPathfindingDirty()
 
-  for (const sysId of cls.systemSlots) {
-    const power = cls.defaultSystems[sysId] ?? 0
-    world.spawn(
-      ShipSystemState({
-        systemId: sysId,
-        level: power,
-        installedLevel: 1,
-        powerAlloc: power,
-        integrityPct: 1,
-        chargeSec: 0,
-        manningEntity: null,
-      }),
-      EntityKey({ key: `ship-sys-${sysId}` }),
-    )
-  }
-
-  for (let i = 0; i < cls.weaponMounts; i++) {
-    const wid = cls.defaultWeapons[i] ?? ''
+  for (const m of cls.mounts) {
+    const wid = cls.defaultWeapons[m.idx] ?? ''
+    // Default targetIdx is 0 (first hostile in the EnemyShipState array);
+    // tactical UI lets the player retarget.
     world.spawn(
       WeaponMount({
-        mountIdx: i,
+        mountIdx: m.idx,
         weaponId: wid,
+        size: m.size,
         chargeSec: 0,
         ready: false,
-        targetEnemyRoomId: null,
+        targetIdx: 0,
       }),
-      EntityKey({ key: `ship-weapon-${i}` }),
+      EntityKey({ key: `ship-weapon-${m.idx}` }),
     )
   }
+  // Reference getWeapon so unused-import lint stays quiet — also serves
+  // as a lightweight defaultWeapons existence check at boot time.
+  for (const wid of cls.defaultWeapons) if (wid) getWeapon(wid)
 
-  // Bridge gets the starmap kiosk; hangar gets the disembark kiosk. Slice
-  // 6.1 will replace these placeholders with a proper console + airlock.
+  // Bridge gets the starmap kiosk; hangar gets the disembark kiosk.
   for (const room of cls.rooms) {
     if (room.id !== 'bridge' && room.id !== 'hangarBay') continue
     const cx = (room.bounds.x + room.bounds.w / 2) * TILE

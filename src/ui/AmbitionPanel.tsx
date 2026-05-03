@@ -2,12 +2,12 @@ import { useState, useMemo } from 'react'
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Ambitions, type AmbitionSlot } from '../ecs/traits'
 import { ambitions, getAmbition, normalizeRequirement } from '../data/ambitions'
+import { PERKS, getPerk } from '../data/perks'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { readStageProgress } from '../systems/ambitions'
+import { invalidatePerkCache } from '../systems/perkEffects'
 import { useEventLog } from './EventLog'
-
-const MS_PER_GAME_YEAR = 365 * 24 * 60 * 60 * 1000
 
 const REQUIREMENT_LABELS: Record<string, string> = {
   strength: '力量',
@@ -37,6 +37,15 @@ const REQUIREMENT_LABELS: Record<string, string> = {
   daysAtFlopWithNoJob: '潦倒天数',
 }
 
+const CATEGORY_LABEL: Record<string, string> = {
+  vital: '生理',
+  skill: '技能',
+  social: '社交',
+  economic: '经济',
+  combat: '战斗',
+  faction: '势力',
+}
+
 function reqLabel(key: string): string {
   return REQUIREMENT_LABELS[key] ?? key
 }
@@ -49,15 +58,6 @@ function formatThreshold(req: ReturnType<typeof normalizeRequirement>): string {
   return `${req.gte ?? 0}`
 }
 
-function formatCooldownRemaining(deltaMs: number): string {
-  const days = Math.ceil(deltaMs / (24 * 60 * 60 * 1000))
-  if (days >= 30) {
-    const months = Math.ceil(days / 30)
-    return `还需 ${months} 个月`
-  }
-  return `还需 ${days} 天`
-}
-
 export function AmbitionPanel() {
   const open = useUI((s) => s.ambitionsOpen)
   const setOpen = useUI((s) => s.setAmbitions)
@@ -68,17 +68,18 @@ export function AmbitionPanel() {
 
   const forcePicker = !!amb && amb.active.length === 0
   const [pickerMode, setPickerMode] = useState(false)
+  const [perkStoreMode, setPerkStoreMode] = useState(false)
   const inPicker = forcePicker || pickerMode
-
-  const [selected, setSelected] = useState<string[]>([])
 
   if (!open && !forcePicker) return null
   if (!player || !amb) return null
 
+  const activeIds = new Set(amb.active.map((s) => s.id))
+
   const close = () => {
     if (forcePicker) return
     setPickerMode(false)
-    setSelected([])
+    setPerkStoreMode(false)
     setOpen(false)
   }
 
@@ -87,128 +88,167 @@ export function AmbitionPanel() {
     close()
   }
 
-  const swapDisabled = amb.lastSwapMs > 0 && (gameMs - amb.lastSwapMs) < MS_PER_GAME_YEAR
-  const swapTitle = swapDisabled
-    ? `更换志向冷却中 · ${formatCooldownRemaining(MS_PER_GAME_YEAR - (gameMs - amb.lastSwapMs))}`
-    : undefined
-
-  const selectionConflicts = (id: string): boolean => {
-    if (selected.includes(id)) return false
-    const def = getAmbition(id)
-    if (!def) return false
-    for (const s of selected) {
-      const sDef = getAmbition(s)
-      if (!sDef) continue
-      if (def.conflicts.includes(s) || sDef.conflicts.includes(id)) return true
-    }
-    return false
-  }
-
-  const togglePick = (id: string) => {
-    setSelected((cur) => {
-      if (cur.includes(id)) return cur.filter((x) => x !== id)
-      if (cur.length >= 2) return cur
-      if (selectionConflicts(id)) return cur
-      return [...cur, id]
-    })
-  }
-
-  const confirmPick = () => {
-    if (selected.length !== 2) return
-    const wasFirstPick = amb.active.length === 0
-    const replaced = amb.active.filter((s) => !selected.includes(s.id))
-    const nextHistory = [...amb.history]
-    for (const r of replaced) {
-      nextHistory.push({ id: r.id, completedStages: r.currentStage, droppedAtMs: gameMs })
-    }
-    const nextActive: AmbitionSlot[] = selected.map((id) => {
-      const existing = amb.active.find((s) => s.id === id)
-      if (existing) return existing
-      return { id, currentStage: 0, streakAnchorMs: null }
-    })
-    player.set(Ambitions, {
-      active: nextActive,
-      history: nextHistory,
-      // First-time pick is not a "swap" — leave cooldown unstarted.
-      lastSwapMs: wasFirstPick ? 0 : gameMs,
-    })
-    setSelected([])
-    setPickerMode(false)
-    if (forcePicker) {
-      // forced-picker dismisses by becoming non-empty.
+  // ── PICKER MODE — pick any number, drop any number ────────────────
+  // Per the Sims pivot, no cap on simultaneously-pursued ambitions and
+  // conflicts surface as informational warnings, not blockers.
+  const togglePursue = (id: string) => {
+    const cur = amb.active.find((s) => s.id === id)
+    if (cur) {
+      // Drop. History records the partial progress.
+      const next = amb.active.filter((s) => s.id !== id)
+      const nextHistory = [...amb.history, {
+        id, completedStages: cur.currentStage, droppedAtMs: gameMs,
+      }]
+      player.set(Ambitions, {
+        active: next, history: nextHistory,
+        apBalance: amb.apBalance, apEarned: amb.apEarned, perks: amb.perks,
+      })
+    } else {
+      const slot: AmbitionSlot = { id, currentStage: 0, streakAnchorMs: null }
+      player.set(Ambitions, {
+        active: [...amb.active, slot], history: amb.history,
+        apBalance: amb.apBalance, apEarned: amb.apEarned, perks: amb.perks,
+      })
     }
   }
 
-  // ── PICKER MODE ────────────────────────────────────────────────────────
   if (inPicker) {
+    const conflictIds = (id: string): string[] => {
+      const def = getAmbition(id)
+      if (!def) return []
+      const out: string[] = []
+      for (const a of amb.active) {
+        if (a.id === id) continue
+        const aDef = getAmbition(a.id)
+        if (!aDef) continue
+        if (def.conflicts.includes(a.id) || aDef.conflicts.includes(id)) {
+          out.push(aDef.nameZh)
+        }
+      }
+      return out
+    }
     return (
       <div
         className="status-overlay"
         onClick={onOverlayClick}
-        data-ambition-picker={forcePicker ? 'forced' : 'swap'}
+        data-ambition-picker={forcePicker ? 'forced' : 'manage'}
       >
         <div className="status-panel" onClick={(e) => e.stopPropagation()}>
           <header className="status-header">
-            <h2>{forcePicker ? '选择两个志向' : '更换志向'}</h2>
+            <h2>{forcePicker ? '选择一个志向开始' : '管理志向'}</h2>
             {!forcePicker && (
               <button className="status-close" onClick={() => setPickerMode(false)} aria-label="关闭">✕</button>
             )}
           </header>
           <section className="status-section">
             <p className="status-meta">
-              志向不是任务。它告诉你想要什么；做不做、怎么做，由你。需选两个。
+              志向不是任务。可以同时追求任意个；冲突仅作提示。完成阶段获得志向点用于购买永久天赋。
             </p>
           </section>
           <section className="status-section">
             {ambitions.map((a) => {
-              const picked = selected.includes(a.id)
-              const conflict = selectionConflicts(a.id)
-              const disabled = !picked && (selected.length >= 2 || conflict)
+              const isActive = activeIds.has(a.id)
+              const conflicts = conflictIds(a.id)
               return (
                 <div key={a.id} className="transit-terminal-row" data-ambition-id={a.id}>
                   <div className="transit-terminal-info">
                     <div className="transit-terminal-name">{a.nameZh}</div>
                     <p className="transit-terminal-desc">{a.blurbZh}</p>
-                    {conflict && (
-                      <p className="transit-terminal-desc" style={{ color: 'var(--danger, #ef4444)' }}>
-                        与已选志向冲突
+                    {conflicts.length > 0 && (
+                      <p className="transit-terminal-desc" style={{ color: 'var(--warn, #f59e0b)' }}>
+                        提示:与已选志向冲突 ({conflicts.join('、')})
                       </p>
                     )}
                   </div>
                   <button
                     className="transit-terminal-go"
-                    onClick={() => togglePick(a.id)}
-                    disabled={disabled}
-                    title={conflict ? '与已选志向冲突' : undefined}
-                    data-ambition-pick={picked ? 'on' : 'off'}
+                    onClick={() => togglePursue(a.id)}
+                    data-ambition-pick={isActive ? 'on' : 'off'}
                   >
-                    {picked ? '✓ 已选' : '选定'}
+                    {isActive ? '✓ 追求中' : '追求'}
                   </button>
                 </div>
               )
             })}
-          </section>
-          <section className="status-section">
-            <div className="transit-terminal-row">
-              <div className="transit-terminal-info">
-                <div className="status-meta">已选 {selected.length} / 2</div>
-              </div>
-              <button
-                className="transit-terminal-go"
-                onClick={confirmPick}
-                disabled={selected.length !== 2}
-                data-ambition-confirm
-              >
-                确认
-              </button>
-            </div>
           </section>
         </div>
       </div>
     )
   }
 
-  // ── VIEW MODE ──────────────────────────────────────────────────────────
+  // ── PERK STORE MODE ───────────────────────────────────────────────
+  if (perkStoreMode) {
+    const purchasedSet = new Set(amb.perks)
+
+    const buyPerk = (perkId: string) => {
+      if (purchasedSet.has(perkId)) return
+      const def = getPerk(perkId)
+      if (!def) return
+      if (amb.apBalance < def.apCost) return
+      player.set(Ambitions, {
+        active: amb.active, history: amb.history,
+        apBalance: amb.apBalance - def.apCost,
+        apEarned: amb.apEarned,
+        perks: [...amb.perks, perkId],
+      })
+      invalidatePerkCache()
+    }
+
+    const grouped = useMemo(() => {
+      const out: Record<string, typeof PERKS[number][]> = {}
+      for (const p of PERKS) {
+        if (!out[p.category]) out[p.category] = []
+        out[p.category].push(p)
+      }
+      return out
+    }, [])
+    void grouped  // memo deps stable; only PERKS used.
+
+    return (
+      <div className="status-overlay" onClick={onOverlayClick}>
+        <div className="status-panel" onClick={(e) => e.stopPropagation()}>
+          <header className="status-header">
+            <h2>天赋商店</h2>
+            <button className="status-close" onClick={() => setPerkStoreMode(false)} aria-label="关闭">✕</button>
+          </header>
+          <section className="status-section">
+            <div className="status-meta">
+              志向点 · 余额 {amb.apBalance} / 总计 {amb.apEarned}
+            </div>
+          </section>
+          {Object.entries(grouped).map(([cat, list]) => (
+            <section key={cat} className="status-section">
+              <h3>{CATEGORY_LABEL[cat] ?? cat}</h3>
+              {list.map((p) => {
+                const owned = purchasedSet.has(p.id)
+                const affordable = amb.apBalance >= p.apCost
+                return (
+                  <div key={p.id} className="transit-terminal-row" data-perk-id={p.id}>
+                    <div className="transit-terminal-info">
+                      <div className="transit-terminal-name">
+                        {p.nameZh} <span className="status-meta">· {p.apCost} AP</span>
+                      </div>
+                      <p className="transit-terminal-desc">{p.descZh}</p>
+                    </div>
+                    <button
+                      className="transit-terminal-go"
+                      onClick={() => buyPerk(p.id)}
+                      disabled={owned || !affordable}
+                      data-perk-owned={owned ? 'true' : 'false'}
+                    >
+                      {owned ? '已拥有' : (affordable ? '购买' : '点数不足')}
+                    </button>
+                  </div>
+                )
+              })}
+            </section>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── VIEW MODE ──────────────────────────────────────────────────────
   return (
     <div className="status-overlay" onClick={onOverlayClick}>
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
@@ -216,6 +256,11 @@ export function AmbitionPanel() {
           <h2>志向</h2>
           <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
+        <section className="status-section">
+          <div className="status-meta">
+            志向点 · 余额 {amb.apBalance} / 总计 {amb.apEarned} · 已购天赋 {amb.perks.length}
+          </div>
+        </section>
         {amb.active.map((slot) => {
           const def = getAmbition(slot.id)
           if (!def) return null
@@ -271,16 +316,22 @@ export function AmbitionPanel() {
         <section className="status-section">
           <div className="transit-terminal-row">
             <div className="transit-terminal-info">
-              <div className="status-meta">每年最多更换一次。换志向会丢失被换出那个的进度。</div>
+              <div className="status-meta">追求与放弃志向不再有冷却或上限。</div>
             </div>
             <button
               className="transit-terminal-go"
               onClick={() => setPickerMode(true)}
-              disabled={swapDisabled}
-              title={swapTitle}
-              data-ambition-swap
+              data-ambition-manage
             >
-              更换志向
+              管理志向
+            </button>
+            <button
+              className="transit-terminal-go"
+              onClick={() => setPerkStoreMode(true)}
+              data-perk-store
+              style={{ marginLeft: 8 }}
+            >
+              天赋商店
             </button>
           </div>
         </section>

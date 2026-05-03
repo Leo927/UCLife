@@ -18,7 +18,7 @@ import { ambitionsSystem } from './systems/ambitions'
 import { getAirportPlacement } from './sim/airportPlacements'
 import { flightHubs } from './data/flights'
 import { findPath } from './systems/pathfinding'
-import { jumpTo } from './systems/starmap'
+import { burnTo } from './systems/starmap'
 import { boardShip, disembarkShip } from './sim/scene'
 import { getShipState } from './sim/ship'
 import { useEncounter } from './sim/encounters'
@@ -144,7 +144,9 @@ if (import.meta.env.DEV) {
       return {
         active: a.active.map((s) => ({ ...s })),
         history: a.history.map((h) => ({ ...h })),
-        lastSwapMs: a.lastSwapMs,
+        apBalance: a.apBalance,
+        apEarned: a.apEarned,
+        perks: [...a.perks],
         title: ch?.title ?? '',
       }
     },
@@ -156,11 +158,13 @@ if (import.meta.env.DEV) {
       if (!player) return {}
       return { ...player.get(Flags)!.flags }
     },
-    pickAmbitions(ids: [string, string]) {
+    pickAmbitions(ids: string[]) {
       const player = world.queryFirst(IsPlayer, Ambitions)
       if (!player) return false
       const next: AmbitionSlot[] = ids.map((id) => ({ id, currentStage: 0, streakAnchorMs: null }))
-      player.set(Ambitions, { active: next, history: [], lastSwapMs: 0 })
+      player.set(Ambitions, {
+        active: next, history: [], apBalance: 0, apEarned: 0, perks: [],
+      })
       return true
     },
     setPlayerStat(path: string, value: number) {
@@ -219,8 +223,8 @@ if (import.meta.env.DEV) {
       ambitionsSystem(world, useClock.getState().gameDate)
       return true
     },
-    // ── Phase 6.0 Slice K (combat-spine smoke test) ──────────────────
-    jumpTo,
+    // ── Phase 6.0 Starsector pivot — debug surface ──────────────────
+    burnTo,
     boardShip,
     disembarkShip,
     getShipState,

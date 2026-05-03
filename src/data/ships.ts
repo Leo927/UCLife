@@ -1,20 +1,21 @@
 import json5 from 'json5'
 import raw from './ships.json5?raw'
-import { SHIP_SYSTEMS, isSystemId, type SystemId } from './shipSystems'
-import { isWeaponId } from './weapons'
+import { isWeaponId, getWeapon } from './weapons'
+
+// Player ship blueprints (Starsector-shape). See ships.json5 for schema.
+// Validation is deliberate — silent typos here cause silent ship-fitout
+// bugs at runtime, and combat balance reads off these numbers.
 
 export type ShipClassKind = 'civilian' | 'merc' | 'military' | 'capital'
 
 export type DoorSide = 'north' | 'south' | 'east' | 'west'
 
+export type MountSize = 'small' | 'medium' | 'large'
+
 export interface ShipRoomDef {
   id: string
   nameZh: string
   bounds: { x: number; y: number; w: number; h: number }
-  // null when the room is pure walking space (corridor / quarters with
-  // no installed system). Phase 6.0 spine fills every room with a
-  // system; null is reserved for Phase 6.1+ ship classes.
-  system: SystemId | null
 }
 
 export interface ShipDoorDef {
@@ -23,18 +24,29 @@ export interface ShipDoorDef {
   side: DoorSide
 }
 
+export interface ShipMountDef {
+  idx: number
+  size: MountSize
+  arc: number       // total firing arc in radians
+  facing: number    // mount center angle in radians (0 = +x)
+}
+
 export interface ShipClassDef {
   id: string
   nameZh: string
   descZh: string
   shipClass: ShipClassKind
   hullMax: number
-  reactorMax: number
+  armorMax: number
+  fluxMax: number
+  fluxDissipation: number
+  shieldEfficiency: number
+  topSpeed: number
+  maneuverability: number
   fuelMax: number
+  suppliesMax: number
   crewMax: number
-  systemSlots: SystemId[]
-  defaultSystems: Partial<Record<SystemId, number>>
-  weaponMounts: number
+  mounts: ShipMountDef[]
   defaultWeapons: string[]
   priceFiat: number
   rooms: ShipRoomDef[]
@@ -52,18 +64,18 @@ if (!Array.isArray(parsed.ships) || parsed.ships.length === 0) {
 }
 
 const VALID_CLASSES: ReadonlySet<ShipClassKind> = new Set<ShipClassKind>([
-  'civilian',
-  'merc',
-  'military',
-  'capital',
+  'civilian', 'merc', 'military', 'capital',
 ])
 
 const VALID_SIDES: ReadonlySet<DoorSide> = new Set<DoorSide>([
-  'north',
-  'south',
-  'east',
-  'west',
+  'north', 'south', 'east', 'west',
 ])
+
+const VALID_MOUNT_SIZES: ReadonlySet<MountSize> = new Set<MountSize>([
+  'small', 'medium', 'large',
+])
+
+const SIZE_RANK: Record<MountSize, number> = { small: 1, medium: 2, large: 3 }
 
 const seen = new Set<string>()
 for (const ship of parsed.ships) {
@@ -72,155 +84,86 @@ for (const ship of parsed.ships) {
   seen.add(ship.id)
 
   if (!VALID_CLASSES.has(ship.shipClass)) {
+    throw new Error(`ships.json5: ship "${ship.id}" invalid shipClass "${ship.shipClass}"`)
+  }
+  if (ship.hullMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" hullMax must be > 0`)
+  if (ship.armorMax < 0) throw new Error(`ships.json5: ship "${ship.id}" armorMax must be >= 0`)
+  if (ship.fluxMax < 0) throw new Error(`ships.json5: ship "${ship.id}" fluxMax must be >= 0`)
+  if (ship.fluxDissipation < 0) throw new Error(`ships.json5: ship "${ship.id}" fluxDissipation must be >= 0`)
+  if (ship.shieldEfficiency < 0) throw new Error(`ships.json5: ship "${ship.id}" shieldEfficiency must be >= 0`)
+  if (ship.topSpeed < 0) throw new Error(`ships.json5: ship "${ship.id}" topSpeed must be >= 0`)
+  if (ship.maneuverability < 0 || ship.maneuverability > 2) {
+    throw new Error(`ships.json5: ship "${ship.id}" maneuverability must be in [0, 2]`)
+  }
+  if (ship.fuelMax < 0) throw new Error(`ships.json5: ship "${ship.id}" fuelMax must be >= 0`)
+  if (ship.suppliesMax < 0) throw new Error(`ships.json5: ship "${ship.id}" suppliesMax must be >= 0`)
+  if (ship.crewMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crewMax must be > 0`)
+  if (ship.priceFiat < 0) throw new Error(`ships.json5: ship "${ship.id}" priceFiat must be >= 0`)
+
+  // Mounts
+  const mountIdxSeen = new Set<number>()
+  for (const m of ship.mounts) {
+    if (mountIdxSeen.has(m.idx)) {
+      throw new Error(`ships.json5: ship "${ship.id}" duplicate mount idx ${m.idx}`)
+    }
+    mountIdxSeen.add(m.idx)
+    if (!VALID_MOUNT_SIZES.has(m.size)) {
+      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} invalid size "${m.size}"`)
+    }
+    if (m.arc <= 0 || m.arc > Math.PI * 2) {
+      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} arc must be in (0, 2π]`)
+    }
+  }
+
+  // Default weapons fit under mount sizes (in declared order).
+  if (ship.defaultWeapons.length > ship.mounts.length) {
     throw new Error(
-      `ships.json5: ship "${ship.id}" has invalid shipClass "${ship.shipClass}"`,
+      `ships.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} default weapons but only ${ship.mounts.length} mounts`,
     )
   }
-  if (ship.hullMax <= 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" hullMax must be > 0`)
-  }
-  if (ship.reactorMax < 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" reactorMax must be >= 0`)
-  }
-  if (ship.fuelMax < 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" fuelMax must be >= 0`)
-  }
-  if (ship.crewMax <= 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" crewMax must be > 0`)
-  }
-  if (ship.weaponMounts < 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" weaponMounts must be >= 0`)
-  }
-  if (ship.priceFiat < 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" priceFiat must be >= 0`)
-  }
-
-  // Validate system slots against the system catalog.
-  const slotSet = new Set<SystemId>()
-  for (const slotId of ship.systemSlots) {
-    if (!isSystemId(slotId)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" systemSlots references unknown system "${slotId}"`,
-      )
-    }
-    if (slotSet.has(slotId)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" systemSlots has duplicate "${slotId}"`,
-      )
-    }
-    slotSet.add(slotId)
-  }
-
-  // Default-system levels must reference an installed slot and respect
-  // the system's maxLevel.
-  for (const [sysId, level] of Object.entries(ship.defaultSystems)) {
-    if (!isSystemId(sysId)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" defaultSystems references unknown system "${sysId}"`,
-      )
-    }
-    if (!slotSet.has(sysId)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" defaultSystems for "${sysId}" but slot not installed`,
-      )
-    }
-    const lvl = level ?? 0
-    if (lvl < 0) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" defaultSystems."${sysId}" must be >= 0 (got ${lvl})`,
-      )
-    }
-    const maxLvl = SHIP_SYSTEMS[sysId].maxLevel
-    if (lvl > maxLvl) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" defaultSystems."${sysId}"=${lvl} exceeds maxLevel ${maxLvl}`,
-      )
-    }
-  }
-
-  // Weapons: every default weapon must exist and we can't ship more
-  // defaults than mounts.
-  if (ship.defaultWeapons.length > ship.weaponMounts) {
-    throw new Error(
-      `ships.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} default weapons but only ${ship.weaponMounts} mounts`,
-    )
-  }
-  for (const wId of ship.defaultWeapons) {
+  ship.defaultWeapons.forEach((wId, i) => {
     if (!isWeaponId(wId)) {
+      throw new Error(`ships.json5: ship "${ship.id}" defaultWeapons[${i}] unknown weapon "${wId}"`)
+    }
+    const w = getWeapon(wId)
+    const mountSize = ship.mounts[i].size
+    if (SIZE_RANK[w.size] > SIZE_RANK[mountSize]) {
       throw new Error(
-        `ships.json5: ship "${ship.id}" defaultWeapons references unknown weapon "${wId}"`,
+        `ships.json5: ship "${ship.id}" default weapon "${wId}" (size ${w.size}) too large for mount ${i} (size ${mountSize})`,
       )
     }
-  }
+  })
 
-  // Rooms: ids unique, system references valid, every system in
-  // systemSlots is fulfilled by exactly one room.
+  // Rooms — id uniqueness + size sanity. The walkable layer is now
+  // decoupled from system slots so we don't enforce coverage anymore.
   const roomIds = new Set<string>()
-  const fulfilledSystems = new Set<SystemId>()
   for (const room of ship.rooms) {
-    if (!room.id) throw new Error(`ships.json5: ship "${ship.id}" has room without id`)
+    if (!room.id) throw new Error(`ships.json5: ship "${ship.id}" room missing id`)
     if (roomIds.has(room.id)) {
       throw new Error(`ships.json5: ship "${ship.id}" duplicate room id "${room.id}"`)
     }
     roomIds.add(room.id)
     if (room.bounds.w <= 0 || room.bounds.h <= 0) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" room "${room.id}" has non-positive size`,
-      )
-    }
-    if (room.system !== null) {
-      if (!isSystemId(room.system)) {
-        throw new Error(
-          `ships.json5: ship "${ship.id}" room "${room.id}" references unknown system "${room.system}"`,
-        )
-      }
-      if (!slotSet.has(room.system)) {
-        throw new Error(
-          `ships.json5: ship "${ship.id}" room "${room.id}" hosts system "${room.system}" not in systemSlots`,
-        )
-      }
-      if (fulfilledSystems.has(room.system)) {
-        throw new Error(
-          `ships.json5: ship "${ship.id}" system "${room.system}" assigned to multiple rooms`,
-        )
-      }
-      fulfilledSystems.add(room.system)
-    }
-  }
-  for (const slotId of ship.systemSlots) {
-    if (!fulfilledSystems.has(slotId)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" system "${slotId}" in systemSlots has no room`,
-      )
+      throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" non-positive size`)
     }
   }
 
-  // Doors: both endpoints must be known rooms.
   for (const door of ship.doors) {
     if (!roomIds.has(door.roomA)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" door references unknown room "${door.roomA}"`,
-      )
+      throw new Error(`ships.json5: ship "${ship.id}" door references unknown room "${door.roomA}"`)
     }
     if (!roomIds.has(door.roomB)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" door references unknown room "${door.roomB}"`,
-      )
+      throw new Error(`ships.json5: ship "${ship.id}" door references unknown room "${door.roomB}"`)
     }
     if (door.roomA === door.roomB) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" door connects room "${door.roomA}" to itself`,
-      )
+      throw new Error(`ships.json5: ship "${ship.id}" door connects "${door.roomA}" to itself`)
     }
     if (!VALID_SIDES.has(door.side)) {
-      throw new Error(
-        `ships.json5: ship "${ship.id}" door has invalid side "${door.side}"`,
-      )
+      throw new Error(`ships.json5: ship "${ship.id}" door has invalid side "${door.side}"`)
     }
   }
 
-  // Connectivity: every room must be reachable from the first room
-  // through the door graph. Ensures the player can walk anywhere.
+  // Connectivity — every room reachable from the first room.
   if (ship.rooms.length > 0) {
     const adj = new Map<string, string[]>()
     for (const r of ship.rooms) adj.set(r.id, [])
@@ -242,9 +185,7 @@ for (const ship of parsed.ships) {
     }
     if (visited.size !== ship.rooms.length) {
       const unreached = ship.rooms.filter((r) => !visited.has(r.id)).map((r) => r.id)
-      throw new Error(
-        `ships.json5: ship "${ship.id}" has unreachable rooms: ${unreached.join(', ')}`,
-      )
+      throw new Error(`ships.json5: ship "${ship.id}" unreachable rooms: ${unreached.join(', ')}`)
     }
   }
 }

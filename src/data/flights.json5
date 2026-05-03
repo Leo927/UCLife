@@ -19,11 +19,10 @@
       nameZh: '冯·布劳恩航天港',
       shortZh: '航天港',
       sceneId: 'startTown',
-      // Maps this hub onto the Phase 6 starmap graph. Captain jumps and
-      // passenger flights share the same underlying graph; passenger
-      // routing collapses one or more starmap edges into a single
-      // booked trip.
-      nodeId: 'vonBraun',
+      // Maps this hub onto a Phase 6 starmap POI. Passenger flights are a
+      // thin booking modal over the same continuous-space data layer that
+      // captain burns walk; both share POI ids.
+      poiId: 'vonBraun',
       description: '冯·布劳恩中心区的航天港售票处。',
     },
     {
@@ -31,8 +30,7 @@
       nameZh: '祖姆市航天港',
       shortZh: '祖姆航天港',
       sceneId: 'zumCity',
-      // Side 3 (Zum City) is not yet a starmap node in this slice;
-      // nodeId omitted until Side 3 is added to starmap.json5.
+      poiId: 'side3',
       description: 'Side 3 共和国首府的中央航天港售票处。',
     },
   ],

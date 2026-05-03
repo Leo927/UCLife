@@ -43,6 +43,7 @@
           payoff: {
             titleZh: '机工预备生',
             logZh: '体检合格。教官说你的反应速度勉强够上预备生的门槛。',
+            ap: 1,
           },
         },
         {
@@ -52,6 +53,7 @@
             titleZh: '驾驶员候补',
             logZh: '资格证下来了。教官签字时手抖了一下，墨迹歪在了角上。',
             unlocks: ['mw_school_dialogue'],
+            ap: 2,
           },
         },
         {
@@ -60,6 +62,7 @@
           payoff: {
             titleZh: '准驾驶员',
             logZh: '模拟舱里你做完了第一套规避动作。手心出汗，但没有报警。',
+            ap: 2,
           },
         },
         {
@@ -69,6 +72,7 @@
             titleZh: '机动工兵驾驶员',
             logZh: '从舱里下来时风很大。地勤朝你点了点头，没说话。',
             unlocks: ['mw_cockpit_dialogue'],
+            ap: 3,
           },
         },
         {
@@ -77,6 +81,7 @@
           payoff: {
             titleZh: '王牌驾驶员',
             logZh: '基地里的人开始记住你的呼号。这不一定是好事。',
+            ap: 4,
           },
         },
       ],
@@ -95,6 +100,7 @@
           payoff: {
             titleZh: 'AE 入门技工',
             logZh: '你的工卡换了颜色。同事说这种小事谁都不会注意。',
+            ap: 1,
           },
         },
         {
@@ -104,6 +110,7 @@
             titleZh: 'AE 中层管理',
             logZh: '你第一次签下别人的考勤表。手指停了两秒。',
             unlocks: ['ae_manager_dialogue'],
+            ap: 2,
           },
         },
         {
@@ -112,6 +119,7 @@
           payoff: {
             titleZh: 'AE 资深工程师',
             logZh: '走廊里的灯被你换了一盏，没人发现。',
+            ap: 2,
           },
         },
         {
@@ -121,6 +129,7 @@
             titleZh: 'AE 董事',
             logZh: '会议室的椅子比你想象的要硬。',
             unlocks: ['ae_board_dialogue'],
+            ap: 3,
           },
         },
         {
@@ -130,6 +139,7 @@
             titleZh: 'AE 总工程师',
             logZh: '一份代号为 RX 的图纸放在了你桌上。封面是手写的。',
             unlocks: ['ae_chief_dialogue'],
+            ap: 4,
           },
         },
       ],
@@ -148,6 +158,7 @@
           payoff: {
             titleZh: '吧台常客',
             logZh: '拉兹罗记住了你点的酒。这不算什么，但也不是什么都不算。',
+            ap: 1,
           },
         },
         {
@@ -157,6 +168,7 @@
             titleZh: '酒馆帮工',
             logZh: '你周三晚上替拉兹罗看了一会儿吧台。回来时他什么都没问。',
             unlocks: ['lazlo_helper_dialogue'],
+            ap: 2,
           },
         },
         {
@@ -166,6 +178,7 @@
             titleZh: '酒馆合伙人',
             logZh: '账本上多了一栏写你名字。墨水还没干。',
             unlocks: ['lazlo_partner_dialogue'],
+            ap: 3,
           },
         },
         {
@@ -175,6 +188,7 @@
             titleZh: '酒馆老板',
             logZh: '拉兹罗把钥匙放在吧台上推过来。他说他要去散步。',
             unlocks: ['lazlo_owner_dialogue'],
+            ap: 4,
           },
         },
       ],
@@ -194,6 +208,7 @@
             titleZh: '吉翁同情者',
             logZh: '你在码头边的小酒馆里听了一晚的话。回来时口袋里多了一张折好的纸。',
             unlocks: ['zeon_sympathizer_dialogue'],
+            ap: 1,
           },
         },
         {
@@ -203,6 +218,7 @@
             titleZh: '吉翁联络员',
             logZh: '一个陌生人在巷子里把通讯频率塞进了你手心。',
             unlocks: ['zeon_contact_dialogue'],
+            ap: 2,
           },
         },
         {
@@ -212,6 +228,7 @@
             titleZh: '吉翁准义勇兵',
             logZh: '一份名单上多了你的名字。你没看见，但你能感觉到。',
             unlocks: ['zeon_recruit_dialogue'],
+            ap: 3,
           },
         },
         {
@@ -221,6 +238,7 @@
             titleZh: '吉翁义勇兵',
             logZh: '行李很轻。你把钥匙留给了门房。',
             unlocks: ['zeon_volunteer_dialogue'],
+            ap: 4,
           },
         },
       ],
@@ -239,6 +257,7 @@
           payoff: {
             titleZh: '存款人',
             logZh: '银行回执上的数字第一次跨了五位。',
+            ap: 1,
           },
         },
         {
@@ -248,6 +267,7 @@
             titleZh: '调查通过',
             logZh: '一封盖着联邦邮戳的信送到门口。门房说不像广告。',
             unlocks: ['fed_clearance_dialogue'],
+            ap: 2,
           },
         },
         {
@@ -257,6 +277,7 @@
             titleZh: '回乡者',
             logZh: '票根上写着里斯本。日期还有两个月。',
             unlocks: ['earth_ticket_dialogue'],
+            ap: 4,
           },
         },
       ],
@@ -275,6 +296,7 @@
           payoff: {
             titleZh: '失业者',
             logZh: '工卡作废通知贴在门上。墨迹很淡。',
+            ap: 1,
           },
         },
         {
@@ -283,6 +305,7 @@
           payoff: {
             titleZh: '漂泊者',
             logZh: '你交回了门禁卡。前台没抬头。',
+            ap: 1,
           },
         },
         {
@@ -291,6 +314,7 @@
           payoff: {
             titleZh: '街边人',
             logZh: '冯·布劳恩晚上的人造光不算冷，但也算不上暖。',
+            ap: 1,
           },
         },
         {
@@ -299,6 +323,7 @@
           payoff: {
             titleZh: '赤贫',
             logZh: '钱包里只剩一张过期的车票。你没有扔。',
+            ap: 2,
           },
         },
         {
@@ -308,6 +333,7 @@
             titleZh: '城市的影子',
             logZh: '没有人知道你的名字了。包括你自己。',
             unlocks: ['dropout_endured_dialogue'],
+            ap: 4,
           },
         },
       ],

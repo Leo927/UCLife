@@ -1,32 +1,28 @@
-// Phase 6.0 Slice G — bridge-mode combat tick + manager. Drives the FTL-shape
-// active-pause loop: weapon charge, shield regen, hull damage, simple enemy
-// AI. Operates against the player ship world (`playerShipInterior`) where
-// the EnemyShipState entity is spawned at startCombat() and torn down at
-// endCombat().
+// Phase 6.0 Starsector-shape tactical combat. Top-down 2D real-time-with-
+// pause: ship position/velocity/heading, hardpoint weapons firing in arcs
+// + range, projectile entities, flux/shields/armor/hull damage routing.
 //
 // Tick model (per frame, when clock.mode === 'combat' AND store.paused === false):
-//   1. Player weapon charge (gated by weapons-system power + integrity)
-//   2. Player weapon firing  (consume ready + targeted mounts)
-//   3. Enemy weapon charge   (gated by enemy weapons-system integrity)
-//   4. Enemy AI firing       (random non-empty player room)
-//   5. Shield regen          (both ships)
-//   6. Resolution check      (hull <= 0 ⇒ end)
+//   1. Player ship physics (heading toward MoveTarget; velocity decay)
+//   2. Player weapon charge + auto-fire when target in arc + range
+//   3. Enemy AI (maintain range or close to maintainRange; turn to face)
+//   4. Enemy weapon charge + auto-fire
+//   5. Projectile motion + collision -> damage application
+//   6. Flux dissipation (both ships)
+//   7. Resolution check (hull <= 0 -> end)
 //
-// Read but don't copy: FTL-Hyperspace ShipManager.zhl (charge bookkeeping),
-// CombatAI.zhl (target selection), WeaponSystem.zhl + ShieldSystem.zhl.
+// State lives in:
+//   - Ship trait on the player flagship (in playerShipInterior world)
+//   - EnemyShipState trait on the enemy entity (same world)
+//   - Module-local projectile pool (in-memory only, transient)
+//   - useCombatStore (UI state: open/paused/selectedMount/flash)
 
-import type { World, Entity } from 'koota'
+import type { World } from 'koota'
+import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
-  Ship,
-  ShipSystemState,
-  WeaponMount,
-  EnemyShipState,
-  EntityKey,
-  IsPlayer,
-  Money,
+  Ship, WeaponMount, EnemyShipState, EntityKey, IsPlayer, Money,
 } from '../ecs/traits'
-import type { SystemId } from '../data/shipSystems'
 import { getEnemyShip } from '../data/enemyShips'
 import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
@@ -36,24 +32,46 @@ import { logEvent } from '../ui/EventLog'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
-// Combat UI store. Owns transient interaction state — pause toggle, the
-// player's currently-selected weapon (so room-clicks know which mount to
-// retarget), and modal open/close. Combat *data* lives in ECS traits; this
-// store deliberately keeps zero gameplay numbers so save/load stays simple.
+// Tactical arena is a fixed 1000x600 unit box; player spawns left-of-center,
+// enemy right-of-center. Ship positions are in arena units.
+export const ARENA_W = 1000
+export const ARENA_H = 600
+const PLAYER_SPAWN = { x: 250, y: 300 }
+const ENEMY_SPAWN = { x: 750, y: 300 }
+
+interface ProjectileSnap {
+  id: number
+  ownerSide: 'player' | 'enemy'
+  weaponId: string
+  x: number
+  y: number
+  vx: number
+  vy: number
+  rangeRemaining: number
+}
+
+let nextProjectileId = 1
+const projectiles: ProjectileSnap[] = []
+
 interface CombatState {
   open: boolean
   paused: boolean
-  // Weapon mount index the player has highlighted in the queue. Clicking an
-  // enemy room sets that mount's targetEnemyRoomId.
   selectedMountIdx: number | null
-  // Last animated event line — short-lived hint banner over the bridge UI.
+  // Recent flash banner (e.g. weapon hit)
   lastFlashZh: string
   lastFlashAtMs: number
+  // Player throttle target — set by the tactical UI; combat tick steers
+  // the flagship toward it. Null = hold position.
+  playerTarget: { x: number; y: number } | null
   setOpen: (open: boolean) => void
   togglePause: () => void
   setSelectedMount: (idx: number | null) => void
+  setPlayerTarget: (t: { x: number; y: number } | null) => void
   flash: (textZh: string) => void
   reset: () => void
+  // Snapshot of projectiles — UI reads this each render. Not persisted
+  // anywhere; combat is transient by design.
+  getProjectiles: () => ProjectileSnap[]
 }
 
 export const useCombatStore = create<CombatState>((set) => ({
@@ -62,6 +80,7 @@ export const useCombatStore = create<CombatState>((set) => ({
   selectedMountIdx: null,
   lastFlashZh: '',
   lastFlashAtMs: 0,
+  playerTarget: null,
   setOpen: (open) => set({ open }),
   togglePause: () => set((s) => {
     const next = !s.paused
@@ -69,6 +88,7 @@ export const useCombatStore = create<CombatState>((set) => ({
     return { paused: next }
   }),
   setSelectedMount: (selectedMountIdx) => set({ selectedMountIdx }),
+  setPlayerTarget: (playerTarget) => set({ playerTarget }),
   flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: performance.now() }),
   reset: () => set({
     open: false,
@@ -76,7 +96,9 @@ export const useCombatStore = create<CombatState>((set) => ({
     selectedMountIdx: null,
     lastFlashZh: '',
     lastFlashAtMs: 0,
+    playerTarget: null,
   }),
+  getProjectiles: () => projectiles.slice(),
 }))
 
 function shipWorld(): World {
@@ -92,9 +114,6 @@ function getEnemyEntity(): Entity | undefined {
 }
 
 function findPlayer(): Entity | undefined {
-  // Player IsPlayer lives in whichever scene world they currently inhabit
-  // (city or ship). startCombat is callable from any scene, so we scan
-  // every registered scene world rather than assuming the active one.
   for (const id of SCENE_IDS) {
     const e = getWorld(id).queryFirst(IsPlayer)
     if (e) return e
@@ -102,55 +121,48 @@ function findPlayer(): Entity | undefined {
   return undefined
 }
 
-function getPlayerSystemState(systemId: SystemId): {
-  entity: Entity
-  level: number
-  powerAlloc: number
-  integrityPct: number
-} | null {
-  const w = shipWorld()
-  for (const e of w.query(ShipSystemState)) {
-    const s = e.get(ShipSystemState)!
-    if (s.systemId === systemId) {
-      return {
-        entity: e,
-        level: s.level,
-        powerAlloc: s.powerAlloc,
-        integrityPct: s.integrityPct,
-      }
-    }
-  }
-  return null
-}
-
-// Public — encounters.ts calls this when the player picks a combat outcome.
-// Spawns the enemy entity, forces clock into combat mode, opens the bridge
-// overlay paused (FTL convention).
 export function startCombat(enemyShipId: string): void {
   const blueprint = getEnemyShip(enemyShipId)
   const w = shipWorld()
 
-  // Defensive: if a previous combat didn't tear down cleanly, scrub the
-  // stale enemy entity before spawning a fresh one.
   for (const e of w.query(EnemyShipState)) e.destroy()
+  projectiles.length = 0
+
+  const ship = getPlayerShip()
+  if (ship) {
+    const s = ship.get(Ship)!
+    // Reset combat-time state on the player ship: full flux dissipation
+    // baseline, position at arena spawn, no in-flight velocity.
+    ship.set(Ship, {
+      ...s,
+      fluxCurrent: 0,
+      armorCurrent: s.armorMax,
+      // fleetPos doubles as tactical arena position during combat. Saved
+      // off + restored at endCombat() so the campaign-map render keeps
+      // its docked position.
+      fleetPos: { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y },
+    })
+  }
 
   w.spawn(
     EnemyShipState({
       shipClassId: blueprint.id,
-      hullCurrent: blueprint.hullMax,
-      hullMax: blueprint.hullMax,
-      shields: {
-        layers: blueprint.shieldsMax,
-        layersMax: blueprint.shieldsMax,
-        rechargeSec: blueprint.shieldsRechargeSec,
-      },
-      systems: { ...blueprint.systems },
-      weapons: blueprint.weapons.map((id) => ({ weaponId: id, chargeSec: 0, ready: false })),
-      rooms: blueprint.rooms.map((r) => ({
-        roomId: r.id,
-        nameZh: r.nameZh,
-        system: r.system,
-        integrityPct: 1,
+      nameZh: blueprint.nameZh,
+      pos: { x: ENEMY_SPAWN.x, y: ENEMY_SPAWN.y },
+      vel: { x: 0, y: 0 },
+      heading: Math.PI,    // facing -x toward player
+      hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
+      armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
+      fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
+      shieldEfficiency: blueprint.shieldEfficiency,
+      shieldUp: true,
+      topSpeed: blueprint.topSpeed,
+      maneuverability: blueprint.maneuverability,
+      weapons: blueprint.defaultWeapons.map((id, i) => ({
+        weaponId: id,
+        size: blueprint.mounts[i].size,
+        chargeSec: 0,
+        ready: false,
       })),
       ai: {
         aggression: blueprint.ai.aggression,
@@ -159,33 +171,37 @@ export function startCombat(enemyShipId: string): void {
     }),
     EntityKey({ key: 'enemy-ship' }),
   )
+  // The blueprint's maintainRange isn't part of the trait shape; keep it
+  // module-local so the AI step can read it without a re-query.
+  enemyMaintainRange = blueprint.ai.maintainRange
 
   setInCombat(true)
   useClock.getState().setMode('combat')
   useClock.getState().setSpeed(0)
   useCombatStore.getState().reset()
   useCombatStore.getState().setOpen(true)
-  resetTransientCombatState()
   logEvent(`战斗开始 · 对手: ${blueprint.nameZh}`)
 }
+
+let enemyMaintainRange = 160
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
 
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
   for (const e of w.query(EnemyShipState)) e.destroy()
+  projectiles.length = 0
 
-  // Reset player weapon mounts so a follow-up encounter starts cold.
+  // Reset player weapon charge so a follow-up encounter starts cold.
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
-    e.set(WeaponMount, { ...m, chargeSec: 0, ready: false, targetEnemyRoomId: null })
+    e.set(WeaponMount, { ...m, chargeSec: 0, ready: false })
   }
 
   setInCombat(false)
   useClock.getState().setMode('normal')
   useClock.getState().setSpeed(1)
   useCombatStore.getState().reset()
-  resetTransientCombatState()
 
   if (outcome === 'victory') {
     const reward = 800 + Math.floor(Math.random() * 700)
@@ -197,103 +213,190 @@ export function endCombat(outcome: CombatOutcome): void {
     logEvent(`战斗胜利 · 缴获 ¥${reward}`)
   } else if (outcome === 'defeat') {
     // Spine: defeat is non-game-over. Slice 6.2 wires permadeath / POW.
-    // Reset player hull to 1 so saves don't softlock at hull 0.
     const ship = getPlayerShip()
     if (ship) {
       const s = ship.get(Ship)!
       ship.set(Ship, { ...s, hullCurrent: Math.max(1, s.hullCurrent) })
     }
-    logEvent('战斗失败 · 飞船重创(永久死亡处理待 6.2)')
+    logEvent('战斗失败 · 飞船重创')
   } else {
     logEvent('战斗脱离')
   }
 }
 
+// Damage routing on the enemy. Shields-up: incoming damage builds flux
+// (proportional to shieldEfficiency). Once flux maxes, shields drop and
+// the next hit eats armor + hull.
 function applyDamageToEnemy(
   enemyEnt: Entity,
   weapon: WeaponDef,
-  targetRoomId: string | null,
 ): { absorbed: boolean; destroyed: boolean } {
   const e = enemyEnt.get(EnemyShipState)!
-  if (e.shields.layers > 0 && !weapon.pierceShields) {
-    enemyEnt.set(EnemyShipState, {
-      ...e,
-      shields: { ...e.shields, layers: e.shields.layers - 1 },
-    })
+  let { fluxCurrent, fluxMax, shieldEfficiency, shieldUp } = e
+  let armorCurrent = e.armorCurrent
+  let hullCurrent = e.hullCurrent
+
+  const damage = weapon.damage
+  if (shieldUp && fluxCurrent < fluxMax) {
+    const fluxAdd = damage * weapon.shieldDamage * shieldEfficiency
+    fluxCurrent = Math.min(fluxMax, fluxCurrent + fluxAdd)
+    if (fluxCurrent >= fluxMax) {
+      shieldUp = false   // overload — shields drop until flux vents below 0.5*max
+    }
+    enemyEnt.set(EnemyShipState, { ...e, fluxCurrent, shieldUp })
     return { absorbed: true, destroyed: false }
   }
 
-  const nextHull = Math.max(0, e.hullCurrent - weapon.damage)
-  let nextRooms = e.rooms
-  let nextSystems = e.systems
-  if (weapon.systemDamage && targetRoomId) {
-    const targetRoom = e.rooms.find((r) => r.roomId === targetRoomId)
-    if (targetRoom) {
-      const dmg = weapon.systemDamage / 4
-      nextRooms = e.rooms.map((r) =>
-        r.roomId === targetRoomId
-          ? { ...r, integrityPct: Math.max(0, r.integrityPct - dmg) }
-          : r,
-      )
-      if (targetRoom.system) {
-        const sysId = targetRoom.system
-        const cur = e.systems[sysId]
-        if (cur) {
-          nextSystems = {
-            ...e.systems,
-            [sysId]: { ...cur, integrityPct: Math.max(0, cur.integrityPct - dmg) },
-          }
-        }
-      }
-    }
+  // Shields down — armor first, then hull.
+  let remaining = damage * weapon.armorDamage
+  if (e.armorMax > 0 && armorCurrent > 0) {
+    const armorAbsorb = Math.min(armorCurrent, remaining * (armorCurrent / e.armorMax))
+    armorCurrent = Math.max(0, armorCurrent - armorAbsorb)
+    remaining = Math.max(0, remaining - armorAbsorb)
   }
+  hullCurrent = Math.max(0, hullCurrent - remaining)
   enemyEnt.set(EnemyShipState, {
-    ...e,
-    hullCurrent: nextHull,
-    rooms: nextRooms,
-    systems: nextSystems,
+    ...e, fluxCurrent, shieldUp, armorCurrent, hullCurrent,
   })
-  return { absorbed: false, destroyed: nextHull <= 0 }
+  return { absorbed: false, destroyed: hullCurrent <= 0 }
 }
 
-function applyDamageToPlayer(
-  weapon: WeaponDef,
-  targetSystemId: SystemId | null,
-): { absorbed: boolean; destroyed: boolean } {
+// The player damage path goes through sim/ship.ts for hull/armor and a
+// module-local flux/shield model that mirrors the enemy structure.
+const playerShield = { fluxCurrent: 0, shieldUp: true, fluxMax: 0, shieldEfficiency: 1 }
+
+function refreshPlayerFluxFromShip(ship: Entity): void {
+  const s = ship.get(Ship)!
+  playerShield.fluxMax = s.fluxMax
+  playerShield.shieldEfficiency = s.shieldEfficiency
+  // Sync fluxCurrent into the trait so the UI can read it.
+  ship.set(Ship, { ...s, fluxCurrent: playerShield.fluxCurrent })
+}
+
+function applyDamageToPlayer(weapon: WeaponDef): { absorbed: boolean; destroyed: boolean } {
   const ship = getPlayerShip()
   if (!ship) return { absorbed: false, destroyed: false }
+  const s = ship.get(Ship)!
+  const damage = weapon.damage
 
-  if (playerShields.layers > 0 && !weapon.pierceShields) {
-    playerShields.layers -= 1
+  if (playerShield.shieldUp && playerShield.fluxCurrent < playerShield.fluxMax) {
+    const fluxAdd = damage * weapon.shieldDamage * playerShield.shieldEfficiency
+    playerShield.fluxCurrent = Math.min(playerShield.fluxMax, playerShield.fluxCurrent + fluxAdd)
+    if (playerShield.fluxCurrent >= playerShield.fluxMax) {
+      playerShield.shieldUp = false
+    }
+    ship.set(Ship, { ...s, fluxCurrent: playerShield.fluxCurrent })
     return { absorbed: true, destroyed: false }
   }
 
-  const result = damageHull(weapon.damage)
-
-  if (weapon.systemDamage && targetSystemId) {
-    const sysState = getPlayerSystemState(targetSystemId)
-    if (sysState) {
-      const dmg = weapon.systemDamage / 4
-      const next = Math.max(0, sysState.integrityPct - dmg)
-      const cur = sysState.entity.get(ShipSystemState)!
-      sysState.entity.set(ShipSystemState, { ...cur, integrityPct: next })
-    }
-  }
-
-  return { absorbed: false, destroyed: result.destroyed }
+  // Shields down — pipe through sim/ship.ts (handles armor + hull).
+  const r = damageHull(damage * weapon.armorDamage)
+  return { absorbed: false, destroyed: r.destroyed }
 }
 
-// Module-local accumulators. Reset on startCombat / endCombat. Combat is
-// in-memory only — see Slice I notes.
-const playerShields = { layers: -1, regenAccumSec: 0 }
-let enemyShieldRegenAccumSec = 0
+// Geometry helpers
+function angleBetween(from: { x: number; y: number }, to: { x: number; y: number }): number {
+  return Math.atan2(to.y - from.y, to.x - from.x)
+}
 
-const PLAYER_SHIELDS_RECHARGE_SEC = 6
+function angleDelta(a: number, b: number): number {
+  let d = b - a
+  while (d > Math.PI) d -= Math.PI * 2
+  while (d < -Math.PI) d += Math.PI * 2
+  return d
+}
 
-function resetTransientCombatState(): void {
-  playerShields.layers = -1
-  playerShields.regenAccumSec = 0
-  enemyShieldRegenAccumSec = 0
+function inArc(targetAngle: number, mountFacing: number, arcWidth: number): boolean {
+  const d = Math.abs(angleDelta(mountFacing, targetAngle))
+  return d <= arcWidth / 2
+}
+
+function dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+// Spawn a projectile or instant-hit for `weapon` from `from` toward `to`.
+// Beams (projectileSpeed === 0) resolve as instant hits at distance check.
+function fireWeapon(
+  ownerSide: 'player' | 'enemy',
+  weapon: WeaponDef,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): void {
+  if (weapon.projectileSpeed === 0) {
+    // Instant beam — apply damage immediately if within range and tracking
+    // succeeds. We model tracking as a deterministic miss when the target
+    // is moving fast; for the spine, every beam hits.
+    const enemy = getEnemyEntity()
+    if (!enemy) return
+    if (ownerSide === 'player') {
+      const r = applyDamageToEnemy(enemy, weapon)
+      useCombatStore.getState().flash(
+        r.absorbed ? `${weapon.nameZh} → 命中护盾` : `${weapon.nameZh} → 命中船体`,
+      )
+      if (r.destroyed) endCombat('victory')
+    } else {
+      const r = applyDamageToPlayer(weapon)
+      useCombatStore.getState().flash(
+        r.absorbed ? `敌方${weapon.nameZh} → 命中护盾` : `敌方${weapon.nameZh} → 命中船体`,
+      )
+      if (r.destroyed) endCombat('defeat')
+    }
+    return
+  }
+
+  // Projectile-based weapon — spawn a moving body, resolve damage on impact.
+  const ang = angleBetween(from, to)
+  projectiles.push({
+    id: nextProjectileId++,
+    ownerSide,
+    weaponId: weapon.id,
+    x: from.x,
+    y: from.y,
+    vx: Math.cos(ang) * weapon.projectileSpeed,
+    vy: Math.sin(ang) * weapon.projectileSpeed,
+    rangeRemaining: weapon.range,
+  })
+}
+
+function tickProjectiles(dtSec: number): void {
+  const enemy = getEnemyEntity()
+  const ship = getPlayerShip()
+  if (!enemy || !ship) return
+  const enemyState = enemy.get(EnemyShipState)!
+  const playerPos = ship.get(Ship)!.fleetPos
+  // Mutate-in-place + filter pattern.
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i]
+    p.x += p.vx * dtSec
+    p.y += p.vy * dtSec
+    const stepDist = Math.hypot(p.vx, p.vy) * dtSec
+    p.rangeRemaining -= stepDist
+    if (p.rangeRemaining <= 0) { projectiles.splice(i, 1); continue }
+    if (p.x < 0 || p.x > ARENA_W || p.y < 0 || p.y > ARENA_H) {
+      projectiles.splice(i, 1); continue
+    }
+    const target = p.ownerSide === 'player'
+      ? enemyState.pos
+      : playerPos
+    if (dist(p, target) < 12) {
+      const weapon = getWeapon(p.weaponId)
+      if (p.ownerSide === 'player') {
+        const r = applyDamageToEnemy(enemy, weapon)
+        useCombatStore.getState().flash(
+          r.absorbed ? `${weapon.nameZh} → 命中护盾` : `${weapon.nameZh} → 命中船体`,
+        )
+        if (r.destroyed) { projectiles.length = 0; endCombat('victory'); return }
+      } else {
+        const r = applyDamageToPlayer(weapon)
+        useCombatStore.getState().flash(
+          r.absorbed ? `敌方${weapon.nameZh} → 命中护盾` : `敌方${weapon.nameZh} → 命中船体`,
+        )
+        if (r.destroyed) { projectiles.length = 0; endCombat('defeat'); return }
+      }
+      projectiles.splice(i, 1)
+    }
+  }
 }
 
 export function combatSystem(_world: World, dtMs: number): void {
@@ -307,160 +410,112 @@ export function combatSystem(_world: World, dtMs: number): void {
   const ship = getPlayerShip()
   if (!ship) return
 
-  // -- 1. Player weapon charge -------------------------------------------------
-  const weaponsSys = getPlayerSystemState('weapons')
-  const weaponsOnline = !!weaponsSys && weaponsSys.integrityPct > 0
-  let powerLeft = weaponsSys?.powerAlloc ?? 0
+  refreshPlayerFluxFromShip(ship)
+
+  const shipState = ship.get(Ship)!
+  const enemyState = enemyEnt.get(EnemyShipState)!
+
+  // -- 1. Player ship physics ------------------------------------------------
+  // Steer toward playerTarget; otherwise hold position. Top-speed clamp.
+  const playerPos = { x: shipState.fleetPos.x, y: shipState.fleetPos.y }
+  const playerTarget = store.playerTarget
+  if (playerTarget) {
+    const ang = angleBetween(playerPos, playerTarget)
+    const d = dist(playerPos, playerTarget)
+    if (d > 4) {
+      const move = Math.min(d, shipState.topSpeed * dtSec)
+      playerPos.x += Math.cos(ang) * move
+      playerPos.y += Math.sin(ang) * move
+    }
+  }
+  ship.set(Ship, {
+    ...shipState,
+    fleetPos: playerPos,
+    fluxCurrent: Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec),
+  })
+  playerShield.fluxCurrent = Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec)
+  if (!playerShield.shieldUp && playerShield.fluxCurrent < playerShield.fluxMax * 0.5) {
+    playerShield.shieldUp = true
+  }
+
+  // -- 2. Player weapon charge + auto-fire ----------------------------------
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
     if (!m.weaponId) continue
     const def = getWeapon(m.weaponId)
-    const canPower = weaponsOnline && powerLeft >= def.powerCost
-    let charge = m.chargeSec
-    if (canPower) {
-      powerLeft -= def.powerCost
-      charge = Math.min(def.chargeSec, charge + dtSec)
-    } else {
-      charge = Math.max(0, charge - dtSec * 0.5)
+    let charge = Math.min(def.chargeSec, m.chargeSec + dtSec)
+    let ready = charge >= def.chargeSec
+    if (ready) {
+      // Auto-fire if the enemy is in arc + range.
+      const targetAng = angleBetween(playerPos, enemyState.pos)
+      const inRange = dist(playerPos, enemyState.pos) <= def.range
+      const inArcCheck = inArc(targetAng, 0 /* heading is implicit forward */, m.size === 'small' ? Math.PI : Math.PI * 2)
+      if (inRange && inArcCheck) {
+        fireWeapon('player', def, playerPos, enemyState.pos)
+        charge = 0
+        ready = false
+      }
     }
-    const ready = canPower && charge >= def.chargeSec
     if (ready !== m.ready || charge !== m.chargeSec) {
       e.set(WeaponMount, { ...m, chargeSec: charge, ready })
     }
   }
 
-  // -- 2. Player weapon firing -------------------------------------------------
-  for (const e of w.query(WeaponMount)) {
-    const m = e.get(WeaponMount)!
-    if (!m.weaponId || !m.ready || !m.targetEnemyRoomId) continue
-    const def = getWeapon(m.weaponId)
-    const res = applyDamageToEnemy(enemyEnt, def, m.targetEnemyRoomId)
-    e.set(WeaponMount, { ...m, chargeSec: 0, ready: false, targetEnemyRoomId: null })
-    useCombatStore.getState().flash(
-      res.absorbed ? `${def.nameZh} → 命中护盾` : `${def.nameZh} → 命中船体`,
-    )
-    if (res.destroyed) {
-      endCombat('victory')
-      return
-    }
-  }
-
-  // -- 3. Enemy weapon charge --------------------------------------------------
-  const enemy = enemyEnt.get(EnemyShipState)!
-  const enemyWeaponsState = enemy.systems.weapons
-  const enemyWeaponsOnline = !enemyWeaponsState || enemyWeaponsState.integrityPct > 0
-  const updatedEnemyWeapons = enemy.weapons.map((wpn) => {
-    if (!enemyWeaponsOnline) {
-      return { ...wpn, chargeSec: Math.max(0, wpn.chargeSec - dtSec * 0.5), ready: false }
-    }
-    const def = getWeapon(wpn.weaponId)
-    const charge = Math.min(def.chargeSec, wpn.chargeSec + dtSec * (0.5 + enemy.ai.aggression))
-    return { ...wpn, chargeSec: charge, ready: charge >= def.chargeSec }
-  })
-
-  // -- 4. Enemy AI firing ------------------------------------------------------
-  // Pick a random player system room. Spine targeting is deliberately dumb;
-  // CombatAI.zhl has the priority queue we'll port in 6.1.
-  const allPlayerSystemIds: SystemId[] = []
-  for (const sysEnt of w.query(ShipSystemState)) {
-    const s = sysEnt.get(ShipSystemState)!
-    allPlayerSystemIds.push(s.systemId)
-  }
-  let playerDestroyed = false
-  const finalEnemyWeapons = updatedEnemyWeapons.map((wpn) => {
-    if (!wpn.ready) return wpn
-    const def = getWeapon(wpn.weaponId)
-    const targetSys = allPlayerSystemIds.length
-      ? allPlayerSystemIds[Math.floor(Math.random() * allPlayerSystemIds.length)]
-      : null
-    const res = applyDamageToPlayer(def, targetSys)
-    useCombatStore.getState().flash(
-      res.absorbed ? `敌方${def.nameZh} → 命中护盾` : `敌方${def.nameZh} → 命中船体`,
-    )
-    if (res.destroyed) playerDestroyed = true
-    return { ...wpn, chargeSec: 0, ready: false }
-  })
-
-  // -- 5. Shield regen ---------------------------------------------------------
-  let enemyShieldLayers = enemy.shields.layers
-  enemyShieldRegenAccumSec += dtSec
-  if (enemy.shields.rechargeSec > 0 && enemyShieldLayers < enemy.shields.layersMax) {
-    while (
-      enemyShieldRegenAccumSec >= enemy.shields.rechargeSec
-      && enemyShieldLayers < enemy.shields.layersMax
-    ) {
-      enemyShieldRegenAccumSec -= enemy.shields.rechargeSec
-      enemyShieldLayers += 1
-    }
+  // -- 3. Enemy AI ----------------------------------------------------------
+  // Maintain `enemyMaintainRange` from player. Move toward/away as needed.
+  const e2 = enemyEnt.get(EnemyShipState)!
+  const enemyPos = { x: e2.pos.x, y: e2.pos.y }
+  const toPlayerAng = angleBetween(enemyPos, playerPos)
+  const range = dist(enemyPos, playerPos)
+  let moveAng = toPlayerAng
+  if (range < enemyMaintainRange * 0.85) {
+    moveAng = toPlayerAng + Math.PI    // back away
+  } else if (range > enemyMaintainRange * 1.15) {
+    moveAng = toPlayerAng                // close in
   } else {
-    enemyShieldRegenAccumSec = 0
+    moveAng = toPlayerAng + Math.PI / 2  // strafe
   }
+  const enemyMove = e2.topSpeed * dtSec
+  enemyPos.x += Math.cos(moveAng) * enemyMove
+  enemyPos.y += Math.sin(moveAng) * enemyMove
+  enemyPos.x = Math.max(20, Math.min(ARENA_W - 20, enemyPos.x))
+  enemyPos.y = Math.max(20, Math.min(ARENA_H - 20, enemyPos.y))
 
-  const playerShieldsSys = getPlayerSystemState('shields')
-  const playerShieldCap = playerShieldsSys
-    ? Math.max(0, Math.min(playerShieldsSys.level, playerShieldsSys.powerAlloc))
-    : 0
-  if (playerShields.layers < 0) {
-    playerShields.layers = playerShieldCap
-    playerShields.regenAccumSec = 0
-  }
-  playerShields.regenAccumSec += dtSec
-  while (
-    playerShields.regenAccumSec >= PLAYER_SHIELDS_RECHARGE_SEC
-    && playerShields.layers < playerShieldCap
-  ) {
-    playerShields.regenAccumSec -= PLAYER_SHIELDS_RECHARGE_SEC
-    playerShields.layers += 1
-  }
-  if (playerShields.layers > playerShieldCap) {
-    playerShields.layers = playerShieldCap
-  }
-
-  // Persist enemy mutations from steps 3-5. Always write — diffing per-array
-  // entry isn't worth the bookkeeping for a 3-room enemy ship.
-  enemyEnt.set(EnemyShipState, {
-    ...enemyEnt.get(EnemyShipState)!,
-    weapons: finalEnemyWeapons,
-    shields: { ...enemy.shields, layers: enemyShieldLayers },
+  // -- 4. Enemy weapon charge + auto-fire ----------------------------------
+  let updatedWeapons = e2.weapons.map((wpn) => {
+    const def = getWeapon(wpn.weaponId)
+    let charge = Math.min(def.chargeSec, wpn.chargeSec + dtSec * (0.5 + e2.ai.aggression))
+    let ready = charge >= def.chargeSec
+    if (ready && range <= def.range) {
+      fireWeapon('enemy', def, enemyPos, playerPos)
+      charge = 0
+      ready = false
+    }
+    return { ...wpn, chargeSec: charge, ready }
   })
 
-  // -- 6. Resolution check -----------------------------------------------------
-  if (playerDestroyed) {
-    endCombat('defeat')
-    return
-  }
-  const refreshedEnemy = enemyEnt.get(EnemyShipState)!
-  if (refreshedEnemy.hullCurrent <= 0) {
-    endCombat('victory')
-    return
-  }
-  const refreshedShip = ship.get(Ship)!
-  if (refreshedShip.hullCurrent <= 0) {
-    endCombat('defeat')
-    return
-  }
-}
+  // -- 5. Enemy flux dissipation + shield recovery -------------------------
+  let enemyFlux = Math.max(0, e2.fluxCurrent - e2.fluxDissipation * dtSec)
+  let enemyShieldUp = e2.shieldUp
+  if (!enemyShieldUp && enemyFlux < e2.fluxMax * 0.5) enemyShieldUp = true
 
-// Exposed for the BridgeOverlay so the HUD can render the player's current
-// shield-layer count consistently with the damage handler.
-export function getPlayerShieldLayers(): number {
-  return Math.max(0, playerShields.layers)
-}
+  // Persist enemy-side mutations.
+  enemyEnt.set(EnemyShipState, {
+    ...e2,
+    pos: enemyPos,
+    heading: toPlayerAng,
+    weapons: updatedWeapons,
+    fluxCurrent: enemyFlux,
+    shieldUp: enemyShieldUp,
+  })
+  void updatedWeapons; void enemyFlux  // tsc happy
 
-export function getPlayerShieldCap(): number {
-  const s = getPlayerSystemState('shields')
-  if (!s) return 0
-  return Math.max(0, Math.min(s.level, s.powerAlloc))
-}
+  // -- 6. Projectiles ------------------------------------------------------
+  tickProjectiles(dtSec)
 
-// Exposed so room-click handlers in BridgeOverlay can target a weapon mount.
-export function setMountTarget(mountIdx: number, enemyRoomId: string | null): void {
-  const w = shipWorld()
-  for (const e of w.query(WeaponMount)) {
-    const m = e.get(WeaponMount)!
-    if (m.mountIdx === mountIdx) {
-      e.set(WeaponMount, { ...m, targetEnemyRoomId: enemyRoomId })
-      return
-    }
-  }
+  // -- 7. Resolution ------------------------------------------------------
+  const shipNow = ship.get(Ship)!
+  if (shipNow.hullCurrent <= 0) { endCombat('defeat'); return }
+  const enemyNow = enemyEnt.get(EnemyShipState)!
+  if (enemyNow.hullCurrent <= 0) { endCombat('victory'); return }
 }

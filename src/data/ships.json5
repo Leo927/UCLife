@@ -1,33 +1,36 @@
-// Ship class blueprints. Phase 6.0 ships exactly one class — the light
-// freighter that the player buys as a Phase 6 capstone — to keep the
-// data spine narrow while Slices D+J consume it. Phase 6.1+ adds merc
-// gunboats, AE corvettes, salvage tugs, etc. by appending entries here.
+// Player ship class blueprints — Starsector-shape stat block.
 //
-// Schema (see ships.ts for the typed shape):
-//   id              — stable string key
-//   nameZh / descZh — player-facing zh-CN strings
-//   shipClass       — coarse archetype: civilian | merc | military | capital
-//   hullMax         — total hull HP before destruction
-//   reactorMax      — total reactor power available at full charge
-//   fuelMax         — fuel capacity in jump-units (see Design/starmap.md)
-//   crewMax         — hard cap on crew aboard
-//   systemSlots     — which subsystems this hull can install (refs
-//                     shipSystems.json5 by SystemId)
-//   defaultSystems  — starting installed level per system; absence/0
-//                     means "slot present, not yet purchased". Levels
-//                     must respect each system's maxLevel.
-//   weaponMounts    — number of hardpoints
-//   defaultWeapons  — starting weapon ids (refs weapons.json5)
-//   priceFiat       — fiat market price for purchase
-//   rooms           — list of room rectangles in ship-local tile-space.
-//                     Each room maps to a single system (or null for
-//                     pure walking space). Bounds are tile-aligned.
-//   doors           — adjacencies between rooms; `side` is the side of
-//                     roomA the door sits on, so the engine can pick a
-//                     pixel position deterministically.
+// A ship's combat performance is the product of:
+//   hullMax           — total hull integrity (HP). 0 = destroyed.
+//   armorMax          — armor before hull damage. Reduces incoming damage
+//                       proportionally to remaining armor pct.
+//   fluxMax           — capacitor budget for shields + weapon firing
+//   fluxDissipation   — flux/sec the ship vents passively
+//   shieldEfficiency  — multiplier on incoming-damage flux conversion
+//                       when shields are up. 1 = neutral; <1 = better.
+//   topSpeed          — tactical-arena units/sec at full throttle
+//   maneuverability   — 0..1 multiplier on turn rate
 //
-// Reference (read but don't copy): FTL-Hyperspace hyperspace.xml
-// `<shipBlueprint>`, libzhlgen ShipBlueprint.zhl + ShipManager.zhl.
+// Logistics (campaign map):
+//   fuelMax / suppliesMax — campaign-map travel resources
+//   crewMax               — hard cap on crew aboard
+//
+// Hardpoints (`mounts`):
+//   array of `{ idx, size: 'small' | 'medium' | 'large', arc: number,
+//   facing: number }`. `arc` is total firing arc in radians; `facing`
+//   is mount center angle (0 = +x, π/2 = +y). Weapons must match or
+//   be smaller than the mount size.
+//
+// Walkable interior:
+//   rooms[]   — list of room rectangles in ship-local tile space
+//   doors[]   — adjacencies between rooms (procgen/ship.ts converts to
+//               Wall + Door entities). The walkable layer survives the
+//               Starsector pivot because it carries downtime, mode-
+//               switch transit, and story beats — but not combat UI.
+//
+// Phase 6.0 ships exactly one class: the light freighter the player
+// buys as a Phase 6 capstone. Phase 6.2+ adds frigates / destroyers /
+// carriers by appending entries here.
 
 {
   ships: [
@@ -36,41 +39,39 @@
       nameZh: '轻型货船 · 改装型',
       descZh: 'AE 二手货船底盘改装的轻型武装船。机库勉强能容下一台 MS。',
       shipClass: 'civilian',
-      hullMax: 12,
-      reactorMax: 8,
+      hullMax: 800,
+      armorMax: 200,
+      fluxMax: 1500,
+      fluxDissipation: 75,
+      shieldEfficiency: 1.0,
+      topSpeed: 60,
+      maneuverability: 0.55,
       fuelMax: 16,
+      suppliesMax: 40,
       crewMax: 4,
-      systemSlots: ['shields', 'engines', 'oxygen', 'weapons', 'hangar', 'pilot'],
-      defaultSystems: {
-        shields: 1,
-        engines: 1,
-        oxygen: 1,
-        weapons: 1,
-        hangar: 0,
-        pilot: 1,
-      },
-      weaponMounts: 2,
+      mounts: [
+        // Two forward-facing small hardpoints with overlapping arcs.
+        { idx: 0, size: 'small', arc: 1.0, facing: 0 },
+        { idx: 1, size: 'small', arc: 1.0, facing: 0 },
+      ],
       defaultWeapons: ['beamMk1'],
       priceFiat: 80000,
       rooms: [
-        { id: 'bridge',     nameZh: '舰桥',     bounds: { x: 0, y: 0, w: 2, h: 2 }, system: 'pilot' },
-        { id: 'shieldRoom', nameZh: '护盾室',   bounds: { x: 2, y: 0, w: 2, h: 2 }, system: 'shields' },
-        { id: 'weaponRoom', nameZh: '武器室',   bounds: { x: 4, y: 0, w: 2, h: 2 }, system: 'weapons' },
-        { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 2, w: 2, h: 2 }, system: 'engines' },
-        { id: 'oxygenRoom', nameZh: '生命维持', bounds: { x: 2, y: 2, w: 2, h: 2 }, system: 'oxygen' },
-        { id: 'hangarBay',  nameZh: '机库',     bounds: { x: 4, y: 2, w: 2, h: 2 }, system: 'hangar' },
+        { id: 'bridge',     nameZh: '舰桥',     bounds: { x: 0, y: 0, w: 2, h: 2 } },
+        { id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 0, w: 2, h: 2 } },
+        { id: 'mess',       nameZh: '餐厅',     bounds: { x: 4, y: 0, w: 2, h: 2 } },
+        { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 2, w: 2, h: 2 } },
+        { id: 'medbay',     nameZh: '医务室',   bounds: { x: 2, y: 2, w: 2, h: 2 } },
+        { id: 'hangarBay',  nameZh: '机库',     bounds: { x: 4, y: 2, w: 2, h: 2 } },
       ],
-      // Horizontal corridors along the top + bottom rows, plus three
-      // vertical doors connecting top-row rooms to their bottom-row
-      // counterparts. Every room is reachable from every other.
       doors: [
-        { roomA: 'bridge',     roomB: 'shieldRoom', side: 'east' },
-        { roomA: 'shieldRoom', roomB: 'weaponRoom', side: 'east' },
-        { roomA: 'engineRoom', roomB: 'oxygenRoom', side: 'east' },
-        { roomA: 'oxygenRoom', roomB: 'hangarBay',  side: 'east' },
+        { roomA: 'bridge',     roomB: 'crewQ',      side: 'east' },
+        { roomA: 'crewQ',      roomB: 'mess',       side: 'east' },
+        { roomA: 'engineRoom', roomB: 'medbay',     side: 'east' },
+        { roomA: 'medbay',     roomB: 'hangarBay',  side: 'east' },
         { roomA: 'bridge',     roomB: 'engineRoom', side: 'south' },
-        { roomA: 'shieldRoom', roomB: 'oxygenRoom', side: 'south' },
-        { roomA: 'weaponRoom', roomB: 'hangarBay',  side: 'south' },
+        { roomA: 'crewQ',      roomB: 'medbay',     side: 'south' },
+        { roomA: 'mess',       roomB: 'hangarBay',  side: 'south' },
       ],
     },
   ],

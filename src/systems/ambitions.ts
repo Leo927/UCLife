@@ -3,9 +3,10 @@
 // plus a small set of derived accessors (aeRank, residenceTier, hasNoJob,
 // hasNoHome, daysAtFlopWithNoJob). On stage advance, fires the payoff:
 // title overrides Character.title, log line is pushed to the event log,
-// unlock flags are set on the player's Flags trait. warPayoff is inert in 5.0.
+// unlock flags are set on the player's Flags trait, and Ambition Points
+// are credited to the Ambitions trait. warPayoff is inert in 5.0.
 //
-// Cheap (one entity, ≤2 active × handful of reads) so no throttling.
+// Cheap (one entity, multiple active × handful of reads) so no throttling.
 
 import type { Entity, World } from 'koota'
 import {
@@ -64,8 +65,6 @@ function hasNoHomeValue(entity: Entity): number {
   return !home || home.bed === null ? 1 : 0
 }
 
-// True when the dropout streak conditions are currently met. Keep in sync
-// with `daysAtFlopWithNoJob` semantics: residence is flop or none AND no Job.
 function dropoutConditionsMet(entity: Entity): boolean {
   return hasNoJobValue(entity) === 1 && residenceTierValue(entity) <= 1
 }
@@ -138,6 +137,7 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
   const currentMs = gameDate.getTime()
   let dirty = false
   let titleOverride: string | null = null
+  let apGained = 0
 
   for (let i = 0; i < amb.active.length; i++) {
     const slot = amb.active[i]
@@ -146,7 +146,6 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
     const stage = def.stages[slot.currentStage]
     if (!stage) continue  // Already past last stage.
 
-    // Maintain dropout streak anchor for any slot whose stage references it.
     const usesStreak = 'daysAtFlopWithNoJob' in stage.requirements
     if (usesStreak) {
       if (dropoutConditionsMet(player)) {
@@ -169,10 +168,9 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
 
     // Stage advance.
     slot.currentStage += 1
-    slot.streakAnchorMs = null  // Reset for next stage.
+    slot.streakAnchorMs = null
     dirty = true
 
-    // Apply payoff.
     titleOverride = stage.payoff.titleZh
     useEventLog.getState().push(stage.payoff.logZh, currentMs)
     if (stage.payoff.unlocks && stage.payoff.unlocks.length > 0) {
@@ -183,13 +181,20 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
         player.set(Flags, { flags: nextFlags })
       }
     }
+    const ap = stage.payoff.ap ?? 1
+    apGained += ap
+    if (ap > 0) {
+      useEventLog.getState().push(`获得志向点 +${ap}`, currentMs)
+    }
   }
 
-  if (dirty) {
+  if (dirty || apGained > 0) {
     player.set(Ambitions, {
       active: amb.active,
       history: amb.history,
-      lastSwapMs: amb.lastSwapMs,
+      apBalance: amb.apBalance + apGained,
+      apEarned: amb.apEarned + apGained,
+      perks: amb.perks,
     })
   }
   if (titleOverride !== null) {
@@ -198,8 +203,6 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
   }
 }
 
-// Used by the AmbitionPanel and (indirectly) the smoke test to display the
-// full picker-list — including ambitions not currently active.
 export function allAmbitions() {
   return ambitions
 }

@@ -13,6 +13,7 @@ import { vitalsConfig, actionsConfig, aiConfig, worldConfig } from '../config'
 import { getJobSpec } from '../data/jobs'
 import { isolationMultiplier } from './relations'
 import { requestNpcWake } from './npc'
+import { applyVitalDecayMul } from './perkEffects'
 
 const { drain, actions: act, npcFatigueMult, hpRegenPerMin, hpDamagePerMin } = vitalsConfig
 const SLOW_FACTOR = worldConfig.activeZone.inactiveSlowFactor
@@ -149,6 +150,15 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     // Endurance softens fatigue accumulation only — sleep recovery untouched.
     if (d.dFatigue > 0) d.dFatigue *= statInvMult(statValue(entity, 'endurance'))
     if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
+
+    // Perk-driven vital decay multipliers — only positive (decay-direction)
+    // deltas are scaled. Recovery actions (eating, washing) keep their
+    // authored magnitude.
+    if (d.dHunger  > 0) d.dHunger  = applyVitalDecayMul('hunger',  d.dHunger)
+    if (d.dThirst  > 0) d.dThirst  = applyVitalDecayMul('thirst',  d.dThirst)
+    if (d.dFatigue > 0) d.dFatigue = applyVitalDecayMul('fatigue', d.dFatigue)
+    if (d.dHygiene > 0) d.dHygiene = applyVitalDecayMul('hygiene', d.dHygiene)
+    if (d.dBoredom > 0) d.dBoredom = applyVitalDecayMul('boredom', d.dBoredom)
 
     v.hunger  = clamp(v.hunger  + d.dHunger  * gameMinutes)
     v.thirst  = clamp(v.thirst  + d.dThirst  * gameMinutes)

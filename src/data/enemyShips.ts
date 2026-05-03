@@ -1,20 +1,36 @@
 import json5 from 'json5'
 import raw from './enemyShips.json5?raw'
-import { isSystemId, type SystemId } from './shipSystems'
-import { isWeaponId } from './weapons'
+import { isWeaponId, getWeapon } from './weapons'
+import type { MountSize } from './weapons'
 
-// Mirrors the runtime shape of EnemyShipState — Slice G spawns an entity
-// with these fields when combat starts.
+// Enemy ship blueprint — Starsector-shape stat block. Combat spawns an
+// EnemyShipState entity from one of these.
+
+export interface EnemyMountDef {
+  idx: number
+  size: MountSize
+  arc: number
+  facing: number
+}
+
 export interface EnemyShipBlueprint {
   id: string
   nameZh: string
+  descZh: string
   hullMax: number
-  shieldsMax: number
-  shieldsRechargeSec: number
-  weapons: string[]
-  systems: Partial<Record<SystemId, { level: number; integrityPct: number }>>
-  rooms: { id: string; nameZh: string; system: SystemId | null }[]
-  ai: { aggression: number; retreatThresholdPct: number }
+  armorMax: number
+  fluxMax: number
+  fluxDissipation: number
+  shieldEfficiency: number
+  topSpeed: number
+  maneuverability: number
+  mounts: EnemyMountDef[]
+  defaultWeapons: string[]
+  ai: {
+    aggression: number
+    retreatThresholdPct: number
+    maintainRange: number
+  }
 }
 
 interface EnemyShipsFile {
@@ -27,6 +43,11 @@ if (!Array.isArray(parsed.ships) || parsed.ships.length === 0) {
   throw new Error('enemyShips.json5 must declare at least one ship')
 }
 
+const VALID_SIZES: ReadonlySet<MountSize> = new Set<MountSize>([
+  'small', 'medium', 'large',
+])
+const SIZE_RANK: Record<MountSize, number> = { small: 1, medium: 2, large: 3 }
+
 const seen = new Set<string>()
 for (const ship of parsed.ships) {
   if (!ship.id) throw new Error('enemyShips.json5: ship missing id')
@@ -35,61 +56,52 @@ for (const ship of parsed.ships) {
   }
   seen.add(ship.id)
 
-  if (ship.hullMax <= 0) {
-    throw new Error(`enemyShips.json5: ship "${ship.id}" hullMax must be > 0`)
+  if (ship.hullMax <= 0) throw new Error(`enemyShips.json5: ship "${ship.id}" hullMax must be > 0`)
+  if (ship.armorMax < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" armorMax must be >= 0`)
+  if (ship.fluxMax < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" fluxMax must be >= 0`)
+  if (ship.fluxDissipation < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" fluxDissipation must be >= 0`)
+  if (ship.topSpeed < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" topSpeed must be >= 0`)
+  if (ship.maneuverability < 0 || ship.maneuverability > 2) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" maneuverability must be in [0,2]`)
   }
-  if (ship.shieldsMax < 0) {
-    throw new Error(`enemyShips.json5: ship "${ship.id}" shieldsMax must be >= 0`)
+
+  const mountIdxSeen = new Set<number>()
+  for (const m of ship.mounts) {
+    if (mountIdxSeen.has(m.idx)) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" duplicate mount idx ${m.idx}`)
+    }
+    mountIdxSeen.add(m.idx)
+    if (!VALID_SIZES.has(m.size)) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" mount ${m.idx} invalid size`)
+    }
   }
-  if (ship.shieldsRechargeSec <= 0 && ship.shieldsMax > 0) {
+
+  if (ship.defaultWeapons.length > ship.mounts.length) {
     throw new Error(
-      `enemyShips.json5: ship "${ship.id}" shieldsRechargeSec must be > 0 when shieldsMax > 0`,
+      `enemyShips.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} weapons but only ${ship.mounts.length} mounts`,
     )
   }
-
-  for (const wId of ship.weapons) {
+  ship.defaultWeapons.forEach((wId, i) => {
     if (!isWeaponId(wId)) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" weapon "${wId}" not in weapons.json5`)
+    }
+    const w = getWeapon(wId)
+    const mountSize = ship.mounts[i].size
+    if (SIZE_RANK[w.size] > SIZE_RANK[mountSize]) {
       throw new Error(
-        `enemyShips.json5: ship "${ship.id}" weapons references unknown weapon "${wId}"`,
+        `enemyShips.json5: ship "${ship.id}" weapon "${wId}" too large for mount ${i}`,
       )
     }
-  }
-
-  for (const sysId of Object.keys(ship.systems)) {
-    if (!isSystemId(sysId)) {
-      throw new Error(
-        `enemyShips.json5: ship "${ship.id}" systems references unknown system "${sysId}"`,
-      )
-    }
-  }
-
-  const roomIds = new Set<string>()
-  for (const room of ship.rooms) {
-    if (!room.id) {
-      throw new Error(`enemyShips.json5: ship "${ship.id}" room missing id`)
-    }
-    if (roomIds.has(room.id)) {
-      throw new Error(
-        `enemyShips.json5: ship "${ship.id}" duplicate room id "${room.id}"`,
-      )
-    }
-    roomIds.add(room.id)
-    if (room.system !== null && !isSystemId(room.system)) {
-      throw new Error(
-        `enemyShips.json5: ship "${ship.id}" room "${room.id}" references unknown system "${room.system}"`,
-      )
-    }
-  }
+  })
 
   if (ship.ai.aggression < 0 || ship.ai.aggression > 1) {
-    throw new Error(
-      `enemyShips.json5: ship "${ship.id}" ai.aggression must be in [0,1]`,
-    )
+    throw new Error(`enemyShips.json5: ship "${ship.id}" ai.aggression must be in [0,1]`)
   }
   if (ship.ai.retreatThresholdPct < 0 || ship.ai.retreatThresholdPct > 1) {
-    throw new Error(
-      `enemyShips.json5: ship "${ship.id}" ai.retreatThresholdPct must be in [0,1]`,
-    )
+    throw new Error(`enemyShips.json5: ship "${ship.id}" ai.retreatThresholdPct must be in [0,1]`)
+  }
+  if (ship.ai.maintainRange <= 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
   }
 }
 

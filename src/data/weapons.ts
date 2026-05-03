@@ -1,33 +1,25 @@
 import json5 from 'json5'
 import raw from './weapons.json5?raw'
 
-export type WeaponType = 'beam' | 'missile' | 'mega' | 'flak'
-
-// `room` targets a single enemy room; future weapon types may support
-// cluster / area effects. Keep narrow until a second mode actually ships.
-export type WeaponTargeting = 'room'
-
-// Coarse accuracy descriptor. Phase 6.0 keeps this as a hint string —
-// the live combat system in Phase 6.1+ resolves it against operator
-// Marksmanship and engine-driven evasion. `guided` shorthand corresponds
-// to FTL missile behavior (pierces shields, very high hit rate).
-export type WeaponAccuracy = 'low' | 'medium' | 'high' | 'guided'
+export type WeaponType = 'beam' | 'ballistic' | 'missile' | 'mega'
+export type MountSize = 'small' | 'medium' | 'large'
 
 export interface WeaponDef {
   id: string
   nameZh: string
   descZh: string
   type: WeaponType
-  powerCost: number
-  chargeSec: number
+  size: MountSize
   damage: number
-  systemDamage?: number
-  pierceShields?: boolean
-  shotCount: number
-  targetable: WeaponTargeting
-  accuracy: WeaponAccuracy
-  cost: number
+  range: number
+  chargeSec: number
+  fluxPerShot: number
+  shieldDamage: number
+  armorDamage: number
+  projectileSpeed: number
+  tracking: number
   tier: 1 | 2 | 3
+  cost: number
 }
 
 interface WeaponsFile {
@@ -41,17 +33,10 @@ if (!Array.isArray(parsed.weapons) || parsed.weapons.length === 0) {
 }
 
 const VALID_TYPES: ReadonlySet<WeaponType> = new Set<WeaponType>([
-  'beam',
-  'missile',
-  'mega',
-  'flak',
+  'beam', 'ballistic', 'missile', 'mega',
 ])
-
-const VALID_ACCURACY: ReadonlySet<WeaponAccuracy> = new Set<WeaponAccuracy>([
-  'low',
-  'medium',
-  'high',
-  'guided',
+const VALID_SIZES: ReadonlySet<MountSize> = new Set<MountSize>([
+  'small', 'medium', 'large',
 ])
 
 const seen = new Set<string>()
@@ -60,25 +45,28 @@ for (const w of parsed.weapons) {
   if (seen.has(w.id)) throw new Error(`weapons.json5: duplicate weapon id "${w.id}"`)
   seen.add(w.id)
   if (!VALID_TYPES.has(w.type)) {
-    throw new Error(`weapons.json5: weapon "${w.id}" has invalid type "${w.type}"`)
+    throw new Error(`weapons.json5: weapon "${w.id}" invalid type "${w.type}"`)
   }
-  if (!VALID_ACCURACY.has(w.accuracy)) {
-    throw new Error(`weapons.json5: weapon "${w.id}" has invalid accuracy "${w.accuracy}"`)
+  if (!VALID_SIZES.has(w.size)) {
+    throw new Error(`weapons.json5: weapon "${w.id}" invalid size "${w.size}"`)
   }
-  if (w.targetable !== 'room') {
-    throw new Error(`weapons.json5: weapon "${w.id}" has unsupported targetable "${w.targetable}"`)
+  if (w.damage < 0) {
+    throw new Error(`weapons.json5: weapon "${w.id}" damage must be >= 0`)
   }
-  if (w.powerCost < 0) {
-    throw new Error(`weapons.json5: weapon "${w.id}" powerCost must be >= 0`)
+  if (w.range <= 0) {
+    throw new Error(`weapons.json5: weapon "${w.id}" range must be > 0`)
   }
   if (w.chargeSec <= 0) {
     throw new Error(`weapons.json5: weapon "${w.id}" chargeSec must be > 0`)
   }
-  if (w.shotCount <= 0) {
-    throw new Error(`weapons.json5: weapon "${w.id}" shotCount must be > 0`)
+  if (w.fluxPerShot < 0) {
+    throw new Error(`weapons.json5: weapon "${w.id}" fluxPerShot must be >= 0`)
+  }
+  if (w.tracking < 0 || w.tracking > 1) {
+    throw new Error(`weapons.json5: weapon "${w.id}" tracking must be in [0, 1]`)
   }
   if (w.tier !== 1 && w.tier !== 2 && w.tier !== 3) {
-    throw new Error(`weapons.json5: weapon "${w.id}" tier must be 1|2|3 (got ${w.tier})`)
+    throw new Error(`weapons.json5: weapon "${w.id}" tier must be 1|2|3`)
   }
 }
 

@@ -45,6 +45,11 @@ export interface AmbitionStage {
     titleZh: string
     logZh: string
     unlocks?: string[]
+    // Ambition Points awarded on stage completion. Defaults to 1 if
+    // omitted; recommended range is 1..4 scaled to stage difficulty
+    // (see Design/social/ambitions.md). Cross-ambition unification:
+    // bartender stages and warlord stages award AP on the same scale.
+    ap?: number
   }
 }
 
@@ -142,6 +147,11 @@ function validate(file: AmbitionsFile): void {
           if (typeof u !== 'string' || !u) {
             throw new Error(`[ambitions:${a.id}#${i}] unlock flag must be non-empty string`)
           }
+        }
+      }
+      if (s.payoff.ap !== undefined) {
+        if (typeof s.payoff.ap !== 'number' || s.payoff.ap < 0 || !Number.isFinite(s.payoff.ap)) {
+          throw new Error(`[ambitions:${a.id}#${i}] payoff.ap must be a non-negative finite number`)
         }
       }
     })

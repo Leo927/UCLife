@@ -18,7 +18,7 @@ import { Flags, Ship } from '../ecs/traits'
 import { boardShip, disembarkShip } from '../sim/scene'
 import { runTransition } from '../sim/transition'
 import { getActiveSceneId } from '../ecs/world'
-import { getNode } from '../data/starmap'
+import { getPoi } from '../data/starmap'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
 
@@ -156,11 +156,11 @@ export function interactionSystem(world: World) {
     if (nearestKind === 'disembarkShip') {
       if (getActiveSceneId() !== 'playerShipInterior') continue
       const ship = world.queryFirst(Ship)
-      const dockedAt = ship?.get(Ship)?.dockedAtNodeId ?? ''
-      const node = dockedAt ? getNode(dockedAt) : undefined
-      const targetSceneId = node?.sceneId
+      const dockedAt = ship?.get(Ship)?.dockedAtPoiId ?? ''
+      const poi = dockedAt ? getPoi(dockedAt) : undefined
+      const targetSceneId = poi?.sceneId
       if (!targetSceneId || !isSceneId(targetSceneId)) {
-        useUI.getState().showToast('该节点不可登陆 (Phase 6.0)')
+        useUI.getState().showToast('该坐标不可登陆')
         continue
       }
       const hubId = `${targetSceneId}Airport`
@@ -176,7 +176,7 @@ export function interactionSystem(world: World) {
         }
       }
       if (!arrivalPx) {
-        useUI.getState().showToast('该节点不可登陆 (Phase 6.0)')
+        useUI.getState().showToast('该坐标不可登陆')
         continue
       }
       const target = arrivalPx

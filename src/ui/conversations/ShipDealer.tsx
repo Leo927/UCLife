@@ -83,9 +83,11 @@ export function ShipDealer() {
           <p className="map-place-desc">{cls.descZh}</p>
           <div className="ship-dealer-stats">
             <div>船体 {cls.hullMax}</div>
-            <div>反应堆 {cls.reactorMax}</div>
+            <div>装甲 {cls.armorMax}</div>
+            <div>电荷池 {cls.fluxMax}</div>
             <div>燃料 {cls.fuelMax}</div>
-            <div>武器槽 {cls.weaponMounts}</div>
+            <div>补给 {cls.suppliesMax}</div>
+            <div>武器槽 {cls.mounts.length}</div>
             <div>载员上限 {cls.crewMax}</div>
             {defaultWeaponLabels.length > 0 && (
               <div>预装武器 {defaultWeaponLabels.join(' / ')}</div>

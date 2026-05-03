@@ -14,7 +14,7 @@ import { TransitMap } from './ui/TransitMap'
 import { FlightModal } from './ui/FlightModal'
 import { StarmapPanel } from './ui/StarmapPanel'
 import { EncounterModal } from './ui/EncounterModal'
-import { BridgeOverlay } from './ui/BridgeOverlay'
+import { TacticalView } from './ui/TacticalView'
 import { TransitionOverlay } from './ui/TransitionOverlay'
 import { ShipDealer } from './ui/conversations/ShipDealer'
 import { NPCDialog } from './ui/NPCDialog'
@@ -39,7 +39,7 @@ export function App() {
       <FlightModal />
       <StarmapPanel />
       <EncounterModal />
-      <BridgeOverlay />
+      <TacticalView />
       <ShipDealer />
       <NPCDialog />
       <PortraitModal />

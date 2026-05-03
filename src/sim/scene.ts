@@ -119,7 +119,9 @@ export function migratePlayerToScene(
     newPlayer.add(Ambitions({
       active: ambitions.active.map((s) => ({ ...s })),
       history: ambitions.history.map((h) => ({ ...h })),
-      lastSwapMs: ambitions.lastSwapMs,
+      apBalance: ambitions.apBalance,
+      apEarned: ambitions.apEarned,
+      perks: [...ambitions.perks],
     }))
   }
   // Guard against accidentally carrying origin-scene refs across the

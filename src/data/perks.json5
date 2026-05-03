@@ -1,0 +1,164 @@
+// Phase 5/6 perks catalog (Sims-style aspiration rewards). Players spend
+// Ambition Points (AP) earned from any ambition's stage payoffs on perks
+// drawn from this universal catalog.
+//
+// Schema (validated in perks.ts):
+//   id          — stable string key
+//   nameZh      — zh-CN player-facing name
+//   descZh      — zh-CN one-paragraph blurb
+//   apCost      — AP price; tier ladder is 1 AP / 2 AP / 4 AP
+//   category    — vital | skill | social | economic | combat | faction
+//   effect      — discriminated union; system code branches on `kind`.
+//                 Phase 5.0 ships effect kinds in this order of risk:
+//                   - vitalDecay      : multiplier on the per-tick decay
+//                                       of one or all vitals (1.0 = no effect)
+//                   - skillXpMul      : multiplier on skill XP gain in a category
+//                                       (categories match SkillId)
+//                   - wageMul         : multiplier on workSystem wage payout
+//                   - shopDiscountMul : multiplier on shop prices (<1 cheaper)
+//                   - rentMul         : multiplier on bed nightly rent (<1 cheaper)
+//                 Future (combat/faction-tier perks) hook here as they land.
+//
+// Phase 6.0 ships only the perks above; the combat / faction-leader
+// categories are scaffolded but their effects don't yet activate.
+//
+// Pricing intent: 1 AP = "small permanent quality-of-life nudge", 2 AP =
+// "noticeable build choice", 4 AP = "significant lategame reward". Total
+// AP across the six starter ambitions is roughly 30-50, so a long career
+// can buy a meaningful but not unlimited set.
+
+{
+  perks: [
+    // ── Vital ────────────────────────────────────────────────────────
+    {
+      id: 'iron_stomach',
+      nameZh: '铁胃',
+      descZh: '饥饿增长减慢 10%。习惯了月面合成食品的副作用。',
+      apCost: 1,
+      category: 'vital',
+      effect: { kind: 'vitalDecay', vital: 'hunger', mul: 0.90 },
+    },
+    {
+      id: 'desert_kidneys',
+      nameZh: '沙漠之肾',
+      descZh: '口渴增长减慢 10%。',
+      apCost: 1,
+      category: 'vital',
+      effect: { kind: 'vitalDecay', vital: 'thirst', mul: 0.90 },
+    },
+    {
+      id: 'deep_sleeper',
+      nameZh: '深眠者',
+      descZh: '疲劳增长减慢 15%。',
+      apCost: 2,
+      category: 'vital',
+      effect: { kind: 'vitalDecay', vital: 'fatigue', mul: 0.85 },
+    },
+    {
+      id: 'long_distance',
+      nameZh: '长跑型',
+      descZh: '所有生理消耗减慢 10%。',
+      apCost: 4,
+      category: 'vital',
+      effect: { kind: 'vitalDecay', vital: 'all', mul: 0.90 },
+    },
+
+    // ── Skill ────────────────────────────────────────────────────────
+    {
+      id: 'natural_mechanic',
+      nameZh: '机械天赋',
+      descZh: '机械相关训练效率提升 20%。',
+      apCost: 1,
+      category: 'skill',
+      effect: { kind: 'skillXpMul', skill: 'mechanics', mul: 1.20 },
+    },
+    {
+      id: 'natural_pilot',
+      nameZh: '驾驶天赋',
+      descZh: '驾驶相关训练效率提升 20%。',
+      apCost: 2,
+      category: 'skill',
+      effect: { kind: 'skillXpMul', skill: 'piloting', mul: 1.20 },
+    },
+    {
+      id: 'natural_engineer',
+      nameZh: '工程天赋',
+      descZh: '工程相关训练效率提升 20%。',
+      apCost: 1,
+      category: 'skill',
+      effect: { kind: 'skillXpMul', skill: 'engineering', mul: 1.20 },
+    },
+    {
+      id: 'natural_bartender',
+      nameZh: '调酒天赋',
+      descZh: '调酒相关训练效率提升 20%。',
+      apCost: 1,
+      category: 'skill',
+      effect: { kind: 'skillXpMul', skill: 'bartending', mul: 1.20 },
+    },
+
+    // ── Economic ─────────────────────────────────────────────────────
+    {
+      id: 'good_negotiator',
+      nameZh: '好谈判家',
+      descZh: '工资 +10%。',
+      apCost: 2,
+      category: 'economic',
+      effect: { kind: 'wageMul', mul: 1.10 },
+    },
+    {
+      id: 'frugal',
+      nameZh: '节俭',
+      descZh: '商店购物折扣 5%。',
+      apCost: 1,
+      category: 'economic',
+      effect: { kind: 'shopDiscountMul', mul: 0.95 },
+    },
+    {
+      id: 'hard_bargainer',
+      nameZh: '硬议价人',
+      descZh: '住宿费用 -10%。',
+      apCost: 2,
+      category: 'economic',
+      effect: { kind: 'rentMul', mul: 0.90 },
+    },
+    {
+      id: 'family_money',
+      nameZh: '家底',
+      descZh: '工资 +25%。',
+      apCost: 4,
+      category: 'economic',
+      effect: { kind: 'wageMul', mul: 1.25 },
+    },
+
+    // ── Social ───────────────────────────────────────────────────────
+    // Effects are placeholder; relations system doesn't yet read perks.
+    // Phase 5.2 wires the talk-verb opinion gain through this kind.
+    {
+      id: 'good_listener',
+      nameZh: '好听众',
+      descZh: '与 NPC 的好感增长 +20%。(Phase 5.2 生效)',
+      apCost: 2,
+      category: 'social',
+      effect: { kind: 'placeholder' },
+    },
+    {
+      id: 'face_at_lazlos',
+      nameZh: '酒馆熟客',
+      descZh: '在酒吧第一次结识 NPC 时多 +1 魅力检定加成。(Phase 5.2 生效)',
+      apCost: 1,
+      category: 'social',
+      effect: { kind: 'placeholder' },
+    },
+
+    // ── Combat (scaffolded; not yet active) ──────────────────────────
+    {
+      id: 'gunner_eye',
+      nameZh: '炮手之眼',
+      descZh: '武器命中率 +5%。(Phase 6.1 生效)',
+      apCost: 2,
+      category: 'combat',
+      effect: { kind: 'placeholder' },
+    },
+  ],
+}

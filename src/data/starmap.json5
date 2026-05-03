@@ -1,37 +1,44 @@
-// Phase 6 starmap graph — Earth Sphere FTL-style beacon network.
+// Earth Sphere campaign map — Starsector-shape continuous 2D space.
 //
-// `nodes` are FTL-style "beacons" the player jumps between. Each node
-// carries a type, a faction-control pair (pre-war / post-war flips at
-// Phase 7), services available when not in combat, an optional
-// encounter pool for nodes whose event is fixed by location (a hostile
-// patrol always rolls patrol events), and a `mapPos` in normalized
-// 0–100 space for the starmap UI to render against any viewBox size.
-// Dockable major nodes carry a `sceneId` binding them 1:1 to a walkable
-// scene declared in scenes.json5; the player physically walks the scene
-// instead of seeing an abstract event.
+// POIs are points in normalized 0–100 space that the StarmapPanel maps to
+// any SVG viewBox. There are NO edges and NO sectors: travel is straight-
+// line burns through continuous space, with fuel + supplies + duration
+// scaling to the Euclidean distance between two POIs. Encounters trigger
+// at POI arrival (always), and probabilistically along long burns based
+// on regional faction control.
 //
-// `sectors` group nodes into thematic regions with shared encounter
-// pools and a difficulty band. The encounter pool is a weighted bag of
-// `templateId`s referencing entries in `data/encounters.json5` (which
-// does not yet exist — Phase 6.1 work — placeholder ids are fine and
-// will be resolved by the encounter engine when it lands).
+// Major POIs are hand-authored at canonical UC astrography positions
+// (Sides 1–7, Luna, Luna II, Earth orbit, asteroid clusters). Minor POIs
+// (procedural — derelicts, signal sources, salvage fields, mining
+// outposts) are scattered against `WORLD_SEED` at module import time and
+// share the same shape.
 //
-// `edges` are jumps between two nodes with a fuel cost (1–3 in this
-// slice) and a duration in game-minutes. `inSectorOnly` flags short
-// in-sector hops vs. cross-sector jumps for UI styling.
+// Each POI carries:
+//   - id, nameZh, type, factionControlPre/Post (Phase 7 flips)
+//   - pos {x,y} in 0..100 normalized space
+//   - region: a thematic region tag the encounter generator filters on
+//   - sceneId? optional binding to a walkable scene; player docks and
+//     walks in instead of seeing an abstract event
+//   - services? list of dock services (refuel, repair, refit, hire, store)
+//   - encounterPoolId? override the region's pool for this POI specifically
 //
-// Phase 7 will toggle faction control on contested nodes; the
-// `factionControlPost` field is the post-Phase-7 value applied at that
-// trigger. Pre-Phase-7 reads from `factionControlPre`.
+// Region pools are listed under `regions[]`. The active region for a
+// given fleet position is the closest region centroid (Voronoi-style).
+// Phase 7 will flip `factionControlPost` on contested POIs at the war
+// trigger; encounter pools also re-activate per region at that point.
 
 {
-  sectors: [
+  // Region centroids + thematic encounter pools. The captain's current
+  // region is decided by which region centroid is nearest — softly
+  // partitions the continuous map into encounter zones without forcing
+  // a hard border. Encounters listed here are weighted bags of template
+  // ids referenced by data/encounters.json5.
+  regions: [
     {
       id: 'lunarSphere',
       nameZh: '月球圈',
+      centroid: { x: 60, y: 45 },
       difficultyBand: 'tutorial',
-      nodeIds: ['vonBraun', 'granada', 'lunaII'],
-      // Tutorial pool — routine commerce and patrol stops.
       encounterPool: [
         { templateId: 'routine_jump', weight: 5 },
         { templateId: 'patrol_stop_civilian', weight: 2 },
@@ -39,113 +46,266 @@
       ],
     },
     {
+      id: 'side12cluster',
+      nameZh: 'Side 1/2 集群',
+      centroid: { x: 60, y: 28 },
+      difficultyBand: 'low',
+      encounterPool: [
+        { templateId: 'routine_jump', weight: 4 },
+        { templateId: 'patrol_stop_civilian', weight: 2 },
+      ],
+    },
+    {
+      id: 'side3approach',
+      nameZh: 'Side 3 接近线',
+      centroid: { x: 80, y: 50 },
+      difficultyBand: 'mid',
+      encounterPool: [
+        { templateId: 'routine_jump', weight: 2 },
+        { templateId: 'pirate_patrol', weight: 2 },
+        { templateId: 'patrol_stop_civilian', weight: 2 },
+      ],
+    },
+    {
+      id: 'side45graveyard',
+      nameZh: 'Side 4/5 集群',
+      centroid: { x: 45, y: 68 },
+      difficultyBand: 'mid',
+      encounterPool: [
+        { templateId: 'routine_jump', weight: 3 },
+        { templateId: 'derelict_signal', weight: 2 },
+        { templateId: 'salvage_field', weight: 1 },
+      ],
+    },
+    {
       id: 'shoalZone',
       nameZh: '浅滩区',
+      centroid: { x: 35, y: 55 },
       difficultyBand: 'mid',
-      nodeIds: ['shoalPatrol', 'derelictSig'],
-      // Pirate-heavy contested debris field. Event mix leans hostile;
-      // node-fixed pools (pirate_patrol_pool, derelict_pool) also fire
-      // at their respective nodes regardless of the sector roll.
       encounterPool: [
-        { templateId: 'pirate_ambush', weight: 4 },
+        { templateId: 'pirate_patrol', weight: 4 },
         { templateId: 'debris_hazard', weight: 2 },
         { templateId: 'distress_signal_trap', weight: 2 },
         { templateId: 'salvage_field', weight: 1 },
       ],
     },
     {
-      // Reserved sector for future expansion (Side 3 approach, Side 1/2
-      // cluster, Earth orbit, etc.). Empty until populated.
-      id: 'outerReserve',
-      nameZh: '外围保留区',
+      id: 'earthOrbit',
+      nameZh: '地球低轨',
+      centroid: { x: 50, y: 50 },
+      difficultyBand: 'low',
+      encounterPool: [
+        { templateId: 'routine_jump', weight: 5 },
+        { templateId: 'patrol_stop_civilian', weight: 3 },
+      ],
+    },
+    {
+      id: 'outerBelt',
+      nameZh: '外环',
+      centroid: { x: 92, y: 22 },
       difficultyBand: 'high',
-      nodeIds: [],
-      encounterPool: [],
+      encounterPool: [
+        { templateId: 'routine_jump', weight: 2 },
+        { templateId: 'derelict_signal', weight: 1 },
+      ],
     },
   ],
 
-  nodes: [
+  // Major POIs — fixed, named, canonical. UC astrography in 0..100 space:
+  // Earth at the center, Luna in its near orbit, Sides at L-points.
+  // Positions are arranged for readability, not precise orbital geometry.
+  pois: [
+    // — Lunar group ————————————————————————————————————————————
     {
       id: 'vonBraun',
       nameZh: '冯·布劳恩',
       shortZh: '冯·布劳恩',
-      sectorId: 'lunarSphere',
       type: 'colony',
       factionControlPre: 'civilian',
       factionControlPost: 'civilian',
-      services: ['refuel', 'repair', 'store'],
+      services: ['refuel', 'repair', 'store', 'hire'],
       sceneId: 'startTown',
-      mapPos: { x: 30, y: 50 },
+      pos: { x: 62, y: 44 },
+      region: 'lunarSphere',
       description: '月面最古老的民用穹顶都市；玩家的母港。',
     },
     {
       id: 'granada',
       nameZh: '格拉纳达',
       shortZh: '格拉纳达',
-      sectorId: 'lunarSphere',
       type: 'shipyard',
       factionControlPre: 'ae',
       factionControlPost: 'ae',
       services: ['refuel', 'repair', 'refit', 'hire'],
-      mapPos: { x: 38, y: 42 },
+      pos: { x: 65, y: 41 },
+      region: 'lunarSphere',
       description: 'AE 月面船坞群；军舰改装、雇佣与补给中心。',
     },
     {
       id: 'lunaII',
       nameZh: '月神二号',
       shortZh: '月神二号',
-      sectorId: 'lunarSphere',
       type: 'station',
       factionControlPre: 'efsf',
       factionControlPost: 'efsf',
       services: ['refuel', 'store'],
-      mapPos: { x: 50, y: 55 },
+      pos: { x: 56, y: 37 },
+      region: 'lunarSphere',
       description: '联邦军月球后勤站；战时升级为前线基地。',
     },
+
+    // — Earth & near-orbit ————————————————————————————————————
     {
-      id: 'shoalPatrol',
-      nameZh: '浅滩巡逻区',
-      shortZh: '浅滩巡逻',
-      sectorId: 'shoalZone',
-      type: 'patrol',
-      factionControlPre: 'pirate',
-      factionControlPost: 'pirate',
-      services: [],
-      // Always rolls from the pirate-patrol pool regardless of sector roll.
-      encounterPoolId: 'pirate_patrol_pool',
-      mapPos: { x: 70, y: 30 },
-      description: '海盗惯用的航路截击点；小心通过。',
+      id: 'earthOrbit',
+      nameZh: '地球低轨',
+      shortZh: '地球轨道',
+      type: 'station',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel', 'store'],
+      pos: { x: 50, y: 51 },
+      region: 'earthOrbit',
+      description: '联邦军在地球轨道的控制空间；战时升级为前线战区。',
     },
     {
-      id: 'derelictSig',
-      nameZh: '漂流信号源',
-      shortZh: '漂流信号',
-      sectorId: 'shoalZone',
-      type: 'derelict',
-      factionControlPre: 'none',
+      id: 'lisbon',
+      nameZh: '里斯本港',
+      shortZh: '里斯本',
+      type: 'colony',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel', 'store'],
+      pos: { x: 47, y: 56 },
+      region: 'earthOrbit',
+      description: '欧洲移民登陆港；地球商业枢纽。',
+    },
+    {
+      id: 'jaburo',
+      nameZh: 'Jaburo',
+      shortZh: 'Jaburo',
+      type: 'station',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel', 'repair'],
+      pos: { x: 53, y: 58 },
+      region: 'earthOrbit',
+      description: '联邦军总部所在地；地表深处。',
+    },
+
+    // — Sides 1–7 ————————————————————————————————————————————
+    {
+      id: 'side1',
+      nameZh: 'Side 1 · 萨恩',
+      shortZh: 'Side 1',
+      type: 'colony',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel', 'store'],
+      pos: { x: 50, y: 22 },
+      region: 'side12cluster',
+      description: '联邦民用殖民群；战时升级为前线集群。',
+    },
+    {
+      id: 'side2',
+      nameZh: 'Side 2 · 哈特',
+      shortZh: 'Side 2',
+      type: 'colony',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel', 'store'],
+      pos: { x: 70, y: 28 },
+      region: 'side12cluster',
+      description: '联邦民用殖民群；战时争夺区。',
+    },
+    {
+      id: 'side3',
+      nameZh: 'Side 3 · 蒙佐',
+      shortZh: 'Side 3',
+      type: 'colony',
+      factionControlPre: 'zeon',
+      factionControlPost: 'zeon',
+      services: ['refuel', 'store', 'hire'],
+      sceneId: 'zumCity',
+      pos: { x: 85, y: 50 },
+      region: 'side3approach',
+      description: '吉翁公国首都；外交据点，走私枢纽。',
+    },
+    {
+      id: 'side4',
+      nameZh: 'Side 4 · 摩尔',
+      shortZh: 'Side 4',
+      type: 'colony',
+      factionControlPre: 'efsf',
+      // Operation British target — Phase 7 transitions Side 4 to a debris
+      // field. Faction-control flip is symbolic; the encounter generator
+      // will replace docking with a graveyard pool.
       factionControlPost: 'none',
-      services: [],
-      encounterPoolId: 'derelict_pool',
-      mapPos: { x: 82, y: 38 },
-      description: '一艘漂流多年的废船仍在低功率广播应急信号。',
+      services: ['refuel', 'store'],
+      pos: { x: 38, y: 64 },
+      region: 'side45graveyard',
+      description: '联邦民用殖民群；战时遭殖民卫星坠落（Operation British 目标）。',
     },
-  ],
+    {
+      id: 'side5',
+      nameZh: 'Side 5 · 卢姆',
+      shortZh: 'Side 5',
+      type: 'colony',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel'],
+      pos: { x: 50, y: 72 },
+      region: 'side45graveyard',
+      description: '联邦民用殖民群；战时为卢姆战役战场。',
+    },
+    {
+      id: 'side6',
+      nameZh: 'Side 6 · 里阿',
+      shortZh: 'Side 6',
+      type: 'colony',
+      factionControlPre: 'neutral',
+      factionControlPost: 'neutral',
+      services: ['refuel', 'repair', 'store', 'hire'],
+      pos: { x: 30, y: 50 },
+      region: 'shoalZone',
+      description: '中立殖民群；战时关键的战略节点。',
+    },
+    {
+      id: 'side7',
+      nameZh: 'Side 7 · 诺亚',
+      shortZh: 'Side 7',
+      type: 'colony',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel'],
+      pos: { x: 18, y: 38 },
+      region: 'shoalZone',
+      description: '联邦在建殖民群；战后成为白色基地的发射地。',
+    },
 
-  // Connected graph: lunarSphere triangle (vonBraun ↔ granada ↔ lunaII),
-  // a long cross-sector jump (lunaII ↔ shoalPatrol), and a short
-  // in-sector hop (shoalPatrol ↔ derelictSig). Edges are undirected at
-  // the data level — the loader and graph helpers treat both endpoints
-  // symmetrically.
-  edges: [
-    // In-sector lunarSphere edges — short hops, low fuel cost.
-    { from: 'vonBraun',    to: 'granada',     fuelCost: 1, durationMin: 60,  inSectorOnly: true },
-    { from: 'vonBraun',    to: 'lunaII',      fuelCost: 2, durationMin: 120, inSectorOnly: true },
-    { from: 'granada',     to: 'lunaII',      fuelCost: 1, durationMin: 90,  inSectorOnly: true },
-
-    // Cross-sector jump — full FTL charge, longer duration.
-    { from: 'lunaII',      to: 'shoalPatrol', fuelCost: 3, durationMin: 360 },
-
-    // In-sector shoalZone edge.
-    { from: 'shoalPatrol', to: 'derelictSig', fuelCost: 1, durationMin: 45,  inSectorOnly: true },
+    // — Asteroid clusters ——————————————————————————————————————
+    {
+      id: 'axis',
+      nameZh: '阿克西斯',
+      shortZh: '阿克西斯',
+      type: 'asteroid',
+      factionControlPre: 'zeon',
+      factionControlPost: 'zeon',
+      services: ['refuel'],
+      pos: { x: 95, y: 18 },
+      region: 'outerBelt',
+      description: '吉翁在建的远疆要塞，战时的战略仓库。',
+    },
+    {
+      id: 'pezun',
+      nameZh: '佩尊',
+      shortZh: '佩尊',
+      type: 'asteroid',
+      factionControlPre: 'efsf',
+      factionControlPost: 'efsf',
+      services: ['refuel'],
+      pos: { x: 88, y: 78 },
+      region: 'outerBelt',
+      description: '联邦小行星矿业前哨。',
+    },
   ],
 }

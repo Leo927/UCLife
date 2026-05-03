@@ -1,7 +1,6 @@
 import { trait, relation } from 'koota'
 import type { Entity } from 'koota'
 import type { FactionId } from '../data/factions'
-import type { SystemId } from '../data/shipSystems'
 
 export const Position = trait({ x: 0, y: 0 })
 export const MoveTarget = trait({ x: 0, y: 0 })
@@ -283,28 +282,30 @@ export const Bed = trait({
   owned: false,
 })
 
-// Phase 5.0 — long-arc player goals. Player-only trait.
+// Phase 5.0 — long-arc player goals (Sims-style aspiration model).
+// Player-only trait.
 //
-// `active` holds the two ambition slots the player is currently aimed at.
-// Length 0 means "not yet picked" — the AmbitionPanel forces open in picker
-// mode until the player selects exactly two.
+// `active` holds every ambition the player is currently pursuing. There
+// is no cap on simultaneous ambitions (per the Sims-pivot in
+// Design/social/ambitions.md). Length 0 = not yet picked — AmbitionPanel
+// forces open in picker mode until at least one is selected.
 //
-// `lastSwapMs` is gameDate.getTime() at the last successful swap; the design
-// doc calls this "tick" but the codebase convention for time-anchored values
-// is game-time milliseconds (see Bed.rentPaidUntilMs, PendingEviction.expireMs).
-// 0 = never swapped → first swap is unconditionally allowed.
+// `apBalance` is unspent Ambition Points; `apEarned` is lifetime total
+// (used for UI display + history). Stage payoffs grant AP; perks are
+// bought from the catalog by spending AP. Perks are permanent.
+//
 // `streakAnchorMs` supports stages whose conditions must hold continuously
-// over time (e.g., dropout's "365 days at flop with no Job"). System sets it
-// when conditions hold and resets to null when they break; `daysAtFlopWithNoJob`
-// is read as `(currentMs - streakAnchorMs) / day_ms` only while the anchor is
-// live. Stages without time-streak requirements ignore the field.
+// over time (dropout's "365 days at flop with no Job"). The system sets it
+// when conditions hold and resets to null when they break.
 export interface AmbitionSlot { id: string; currentStage: number; streakAnchorMs: number | null }
 export interface AmbitionHistoryEntry { id: string; completedStages: number; droppedAtMs: number | null }
 
 export const Ambitions = trait(() => ({
   active: [] as AmbitionSlot[],
   history: [] as AmbitionHistoryEntry[],
-  lastSwapMs: 0,
+  apBalance: 0,
+  apEarned: 0,
+  perks: [] as string[],
 }))
 
 // String-keyed boolean flags set by ambition stage payoffs (and, later,
@@ -316,72 +317,85 @@ export const Flags = trait(() => ({
 // Phase 6.0 — ship-as-scene. The ship interior is a normal koota world (its
 // own coordinate space, walls/doors, NPC roster). Ship-wide state is held on
 // a single Ship singleton spawned at scene-bootstrap time; per-room and
-// per-system state ride alongside on dedicated entities.
+// per-loadout state ride alongside on dedicated entities.
 
-// Whole-ship state. One per ship-scene world. `dockedAtNodeId` empty string
-// means "in flight" (used by the starmap once Slice E lands).
+// Whole-ship state. One per ship-scene world. `dockedAtPoiId` empty string
+// means "in flight" (the starmap fleet token is moving). `fleetPos` is the
+// fleet token's normalized 0..100 position on the Earth Sphere campaign
+// map; updated continuously while traveling, snapped to a POI when docked.
+//
+// Starsector-shape combat stats (armor / fluxMax / fluxCurrent / fluxDissipation /
+// shieldEfficiency / topSpeed / maneuverability) live here as a single
+// flat block — there's only ever one player flagship in 6.0, and a flat
+// shape keeps the save/load layer simple.
 export const Ship = trait({
   classId: '',
   hullCurrent: 0, hullMax: 0,
+  armorMax: 0, armorCurrent: 0,
+  fluxMax: 0, fluxCurrent: 0,
+  fluxDissipation: 0,
+  shieldEfficiency: 1,    // multiplier on flux-per-damage (1 = neutral)
+  topSpeed: 0,            // map-units/sec equivalent for tactical movement
+  maneuverability: 0,     // 0..1, scales turn rate
   fuelCurrent: 0, fuelMax: 0,
-  reactorMax: 0,
-  reactorAllocated: 0,
-  dockedAtNodeId: '',
+  suppliesCurrent: 0, suppliesMax: 0,
+  dockedAtPoiId: '',
+  fleetPos: { x: 0, y: 0 } as { x: number; y: number },
   inCombat: false,
 })
 
-// One per room in the ship class's roomLayout. `oxygenPct` is ticked by the
-// oxygen system; <0.25 makes crew take damage. fireSec/breachSec are the
-// active hazard countdowns (game-min remaining); 0 means none.
+// One per room in the ship class's roomLayout. Pure walkable space — the
+// FTL-era oxygen / fire / breach / system fields were dropped in the
+// Starsector pivot. Rooms keep their name/visual identity for the
+// embodied layer (downtime, mode-switch, story beats); combat damage
+// no longer routes through them.
 export const ShipRoom = trait({
   roomDefId: '',
-  system: null as SystemId | null,
-  oxygenPct: 1,
-  fireSec: 0,
-  breachSec: 0,
 })
 
-// One per system slot the hull installs. Persists at level 0 when unmanned/
-// uninstalled — the slot is fitted but inert. `installedLevel` caps `level`;
-// the operating `level` further degrades via `integrityPct` damage stages.
-export const ShipSystemState = trait(() => ({
-  systemId: 'shields' as SystemId,
-  level: 0,
-  installedLevel: 0,
-  powerAlloc: 0,
-  integrityPct: 1,
-  chargeSec: 0,
-  manningEntity: null as Entity | null,
-}))
-
-// One per weapon hardpoint. Independent from ShipSystemState['weapons'] —
-// the weapons system gates them collectively, but each mount has its own
-// charge timer, target, and ready flag. Empty mount → weaponId === ''.
+// One per weapon hardpoint. The weaponId references data/weapons.json5;
+// `targetIdx` indexes into the active EnemyShip list during combat
+// (-1 = no target, default = nearest hostile). Charge tick is in seconds
+// of charge accumulated; `ready` flips true at chargeSec >= weapon.chargeSec.
 export const WeaponMount = trait({
   mountIdx: 0,
   weaponId: '',
+  size: 'small' as 'small' | 'medium' | 'large',
   chargeSec: 0,
   ready: false,
-  targetEnemyRoomId: null as string | null,
+  targetIdx: -1,
 })
 
 // Marks an actor (player or crew NPC) currently manning a station. Cleared
 // when they leave the room. `roomEntity` is the ShipRoom entity they're at.
 export const CrewStation = trait(() => ({
   roomEntity: null as Entity | null,
-  systemId: null as SystemId | null,
 }))
 
-// Phase-6.0-spine enemy ship. Plain data, NOT walkable — held as a single
-// trait on a placeholder entity in the player ship's world during combat.
-// Slice G replaces this with a richer combat sim; for now the shape is
-// enough to let bridge UI render and damage tick.
+// Starsector-shape enemy ship state during a tactical engagement.
+// Continuous-space position + heading, full stat block, hardpoint list.
+// Held as plain trait data on a placeholder entity in the player ship's
+// world; tactical UI snapshots from this each frame.
 export const EnemyShipState = trait(() => ({
   shipClassId: 'pirateLight' as string,
+  nameZh: '',
+  // Tactical position in map-units (combat arena is sized in arena units,
+  // not normalized 0..100 like the campaign map).
+  pos: { x: 0, y: 0 } as { x: number; y: number },
+  vel: { x: 0, y: 0 } as { x: number; y: number },
+  heading: 0,    // radians, 0 = +x
   hullCurrent: 0, hullMax: 0,
-  shields: { layers: 0, layersMax: 0, rechargeSec: 0 },
-  systems: {} as Partial<Record<SystemId, { integrityPct: number; level: number }>>,
-  weapons: [] as { weaponId: string; chargeSec: number; ready: boolean }[],
-  rooms: [] as { roomId: string; nameZh: string; system: SystemId | null; integrityPct: number }[],
+  armorCurrent: 0, armorMax: 0,
+  fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
+  shieldEfficiency: 1,
+  shieldUp: true,
+  topSpeed: 0,
+  maneuverability: 0.5,
+  weapons: [] as {
+    weaponId: string
+    size: 'small' | 'medium' | 'large'
+    chargeSec: number
+    ready: boolean
+  }[],
   ai: { aggression: 0.5, retreatThreshold: 0.2 },
 }))
