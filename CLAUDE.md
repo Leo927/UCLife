@@ -122,6 +122,19 @@ Never spawn NPCs inside luxury/apartment cells — locked cell doors will trap t
 
 In dev, `globalThis.__uclife__` is exposed with `{ world, useClock, useScene, movePlayerTo(tx, ty), countByKind() }`. Playwright smoke tests should drive scenarios through this handle. **Do not** dynamically `await import('/src/ecs/traits.ts')` from a test — it returns a different module instance and the imported traits won't match what the running app uses. Expose helper functions on `__uclife__` instead (see `src/main.tsx`).
 
+## Perf budgets — non-negotiable
+
+Any new (or materially changed) system that touches all entities of a class — NPCs, projectiles, interactables, ships, tiles — per click, per tick, or per frame **requires the following before it can be marked done:**
+
+1. **Stated target N** — the realistic upper bound this system must handle (e.g. "500 NPCs in a single scene", "1000 projectiles in a tactical encounter", "2000 tiles in the largest map").
+2. **Stated perf budget** — a concrete ms/tick or ms/frame target at that N (e.g. "<2ms/tick at N=500", "<0.5ms/click at N=1000").
+3. **Complexity analysis** — written in the PR/commit description: what's the per-call cost in terms of N, and what's the structural reason it stays under budget? "Linear scan, fine because N is small" is not acceptable for systems whose N grows with content.
+4. **Profile output** — for any system flagged hot (per-tick across all entities, per-frame in render, per-click across collections), include a profiling log line gated behind a `*_PROF=1` env var (see `HPA_PROF=1` in `src/systems/hpa.ts` for the pattern).
+
+The agent default is "ship the simplest data structure that compiles" — linear scans, nested loops over entity arrays, recomputing what could be cached. **This default has shipped multiple correctness regressions in this codebase** (BT-throttle attempt broke drive interrupts; HPA* short-path fallback masked 100% pathfinding failure; click handler still does O(N) NPC scan). Stop shipping naive baselines and patching the wall later. Confront the scaling at design time.
+
+When in doubt: prefer a battle-tested narrow library (`rbush` for spatial broad-phase, scene-graph hit-testing in the renderer, etc.) over a hand-rolled linear scan. Pull in the library *first*, not after the wall.
+
 ## Conventions
 
 - Comments are reserved for intention that cannot be inferred from the code directly. 
