@@ -5,10 +5,11 @@
 import { getWorld } from '../ecs/world'
 import {
   Body, PoiTag, ShipBody, Velocity, Thrust, Course,
-  Position, IsPlayer, EntityKey,
+  Position, IsPlayer, EntityKey, EnemyAI,
 } from '../ecs/traits'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS } from '../data/pois'
+import { SPACE_ENTITIES } from '../data/space-entities'
 import { derivedPos } from '../engine/space/orbits'
 import type { ParentResolver, OrbitalParams } from '../engine/space/types'
 import { getShipState } from './ship'
@@ -102,4 +103,24 @@ export function bootstrapSpaceCampaign(): void {
     Course({ tx: 0, ty: 0, destPoiId: null, active: false }),
     EntityKey({ key: 'spacePlayer' }),
   )
+
+  // Hand-placed enemies. ShipBody is intentionally omitted — that marker
+  // gates the player ship's autopilot path; enemies route through
+  // enemyAISystem instead.
+  for (const e of SPACE_ENTITIES) {
+    world.spawn(
+      Position({ x: e.spawn.x, y: e.spawn.y }),
+      Velocity({ vx: 0, vy: 0 }),
+      Thrust({ ax: 0, ay: 0 }),
+      EnemyAI({
+        shipClassId: e.shipClassId,
+        mode: e.aiMode,
+        patrolPath: [...(e.patrolPath ?? [])],
+        patrolIdx: 0,
+        aggroRadius: e.aggroRadius,
+        fleeHullPct: e.fleeHullPct,
+      }),
+      EntityKey({ key: `enemy-${e.id}` }),
+    )
+  }
 }

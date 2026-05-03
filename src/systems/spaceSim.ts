@@ -3,11 +3,17 @@ import { useClock } from '../sim/clock'
 import { spaceConfig } from '../config'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS } from '../data/pois'
-import { Position, Body, PoiTag, ShipBody, Velocity, Thrust, Course } from '../ecs/traits'
+import {
+  Position, Body, PoiTag, ShipBody, Velocity, Thrust, Course,
+  EnemyAI, EntityKey, IsPlayer,
+} from '../ecs/traits'
 import { derivedPos } from '../engine/space/orbits'
 import type { ParentResolver, OrbitalParams } from '../engine/space/types'
 import { step } from '../engine/space/integration'
 import { thrustToward } from '../engine/space/autopilot'
+import { contact } from '../engine/space/engagement'
+import { enemyAISystem } from './enemyAI'
+import { useEngagement } from '../sim/engagement'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -26,10 +32,24 @@ const resolveBody: ParentResolver = (id: string): OrbitalParams | undefined => {
   }
 }
 
+// Re-prompt cooldown — once an engagement modal resolves for an enemy,
+// suppress further prompts for that enemy until they exit aggro range
+// AND the cooldown elapses. Avoids re-firing the modal every frame while
+// still inside contact radius.
+const ENGAGEMENT_COOLDOWN_MS = 5000
+const engagementCooldownByKey = new Map<string, number>()
+const enemyOutOfAggro = new Set<string>()
+
 // One frame of the spaceCampaign sim. Caller is loop.ts; frequency ~60Hz.
 // Slice 4 runs this only when the camera is on the spaceCampaign scene.
-// Slice 5 will lift that gate so off-helm autopilot continues.
+// Slice 5 lifts that gate so off-helm autopilot continues.
+// Slice 6 adds enemy AI + engagement contact detection; the whole sim
+// freezes while the engagement modal is open.
 export function spaceSimSystem(world: World, dtSec: number): void {
+  // Pause integration while the engagement modal is open — Starsector-
+  // style "world pauses on contact" feel.
+  if (useEngagement.getState().open) return
+
   // 1. Derived t in days, scaled by orbitTimeScale.
   const gameMs = useClock.getState().gameDate.getTime()
   const tDays = (gameMs / MS_PER_DAY) * spaceConfig.orbitTimeScale
@@ -55,7 +75,10 @@ export function spaceSimSystem(world: World, dtSec: number): void {
     e.set(Position, derivedPos(poiParams, tDays, resolveBody))
   }
 
-  // 3. For each ship: autopilot fills Thrust if Course.active, then step.
+  // 3. Enemy AI fills Thrust on EnemyAI entities before integration.
+  enemyAISystem(world)
+
+  // 4. For each ship: autopilot fills Thrust if Course.active, then step.
   const maxSpeed = spaceConfig.baseShipMaxSpeed * spaceConfig.shipSpeedScale
   for (const e of world.query(ShipBody, Position, Velocity, Thrust, Course)) {
     const pos = e.get(Position)!
@@ -98,5 +121,60 @@ export function spaceSimSystem(world: World, dtSec: number): void {
     e.set(Velocity, { vx: k.vel.x, vy: k.vel.y })
     // Reset thrust each frame — input/autopilot reapplies next tick.
     e.set(Thrust, { ax: 0, ay: 0 })
+  }
+
+  // 5. Integrate enemy ships separately so player-ship gates (ShipBody +
+  // Course) stay scoped to the player. Enemies use the same integrator
+  // and same maxSpeed bound as the player; per-faction tuning lives in
+  // enemyAISystem (target speed, thrustAccel scaling).
+  const enemyMaxSpeed = maxSpeed * 0.85
+  for (const e of world.query(EnemyAI, Position, Velocity, Thrust)) {
+    const pos = e.get(Position)!
+    const vel = e.get(Velocity)!
+    const thrust = e.get(Thrust)!
+    const k = step(
+      { pos, vel: { x: vel.vx, y: vel.vy } },
+      { ax: thrust.ax, ay: thrust.ay },
+      enemyMaxSpeed,
+      dtSec,
+    )
+    e.set(Position, k.pos)
+    e.set(Velocity, { vx: k.vel.x, vy: k.vel.y })
+    e.set(Thrust, { ax: 0, ay: 0 })
+  }
+
+  // 6. Contact detection — if the player ship comes within
+  // aggroContactRadius of an enemy, prompt the engagement modal. Cooldown
+  // + "must exit aggro before re-prompting" guards prevent the modal from
+  // re-firing on every frame while inside contact range.
+  let playerPos: { x: number; y: number } | null = null
+  for (const pe of world.query(IsPlayer, ShipBody, Position)) {
+    playerPos = pe.get(Position)!
+    break
+  }
+  if (playerPos && !useEngagement.getState().open) {
+    const contactR = spaceConfig.aggroContactRadius
+    const nowMs = Date.now()
+    for (const e of world.query(EnemyAI, Position, EntityKey)) {
+      const ai = e.get(EnemyAI)!
+      const ePos = e.get(Position)!
+      const ek = e.get(EntityKey)!.key
+      const inContact = contact(playerPos, ePos, contactR)
+      if (!inContact) {
+        // Mark this enemy as having exited aggro for re-prompt eligibility.
+        enemyOutOfAggro.add(ek)
+        continue
+      }
+      const cooldownUntil = engagementCooldownByKey.get(ek) ?? 0
+      if (nowMs < cooldownUntil) continue
+      if (!enemyOutOfAggro.has(ek) && engagementCooldownByKey.has(ek)) {
+        // Still inside contact since last resolve — don't re-prompt.
+        continue
+      }
+      enemyOutOfAggro.delete(ek)
+      engagementCooldownByKey.set(ek, nowMs + ENGAGEMENT_COOLDOWN_MS)
+      useEngagement.getState().prompt(ek, ai.shipClassId)
+      break
+    }
   }
 }

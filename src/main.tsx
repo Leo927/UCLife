@@ -9,7 +9,7 @@ import { useClock } from './sim/clock'
 import {
   IsPlayer, Position, MoveTarget, Road, Building, Wall, FlightHub, Door, Bed, Path,
   Ambitions, Flags, Character, Attributes, Skills, Money, Reputation, EnemyShipState,
-  Course,
+  Course, EnemyAI, EntityKey,
   type AmbitionSlot,
 } from './ecs/traits'
 import type { FactionId } from './data/factions'
@@ -23,6 +23,7 @@ import { boardShip, disembarkShip } from './sim/scene'
 import { getShipState } from './sim/ship'
 import { useCombatStore } from './systems/combat'
 import { useTransition } from './sim/transition'
+import { useEngagement } from './sim/engagement'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'
@@ -242,6 +243,19 @@ if (import.meta.env.DEV) {
       if (!e) return null
       return { ...e.get(Position)! }
     },
+    listEnemies() {
+      const w = getWorld('spaceCampaign')
+      const out: { key: string; pos: { x: number; y: number }; mode: string }[] = []
+      for (const e of w.query(EnemyAI, Position, EntityKey)) {
+        out.push({
+          key: e.get(EntityKey)!.key,
+          pos: { ...e.get(Position)! },
+          mode: e.get(EnemyAI)!.mode,
+        })
+      }
+      return out
+    },
+    useEngagement,
     setShipOwned() {
       const p = world.queryFirst(IsPlayer)
       if (!p) return false
