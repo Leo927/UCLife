@@ -1,111 +1,73 @@
+// Phase 2 of the Konva → Pixi migration. This component is now a thin
+// React shell: it owns the PixiCanvas mount, runs the 30Hz snapshot
+// loop, and renders the DOM HUD overlays. All world-space drawing
+// happens inside PixiSpaceRenderer.
+
 import { useEffect, useRef, useState } from 'react'
-import { Stage, Layer, Rect, Circle, Line, Text, Group, Ring } from 'react-konva'
-import type Konva from 'konva'
+import type { Application } from 'pixi.js'
+import { PixiCanvas } from '../render/pixi'
+import { PixiSpaceRenderer, type SpaceSnapshot, type BodySnapshot, type PoiSnapshot, type ShipSnapshot } from '../render/space/PixiSpaceRenderer'
 import { getWorld } from '../ecs/world'
-import {
-  IsPlayer, Position, Body, PoiTag, Velocity, Course,
-} from '../ecs/traits'
-import { CELESTIAL_BODIES, type CelestialKind } from '../data/celestialBodies'
+import { IsPlayer, Position, Body, PoiTag, Velocity, Course } from '../ecs/traits'
+import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
 import { leaveHelm } from '../sim/helm'
 
 const SPACE_SCENE_ID = 'spaceCampaign'
 
-const BODY_COLOR: Record<CelestialKind, { fill: string; stroke: string }> = {
-  star:     { fill: '#fde68a', stroke: '#fef9c3' },
-  planet:   { fill: '#1e3a8a', stroke: '#93c5fd' },
-  moon:     { fill: '#525252', stroke: '#a3a3a3' },
-  colony:   { fill: '#14532d', stroke: '#4ade80' },
-  asteroid: { fill: '#3f2d14', stroke: '#a16207' },
-}
-
-interface SnapshotEntity {
-  id: number
-  x: number
-  y: number
-}
-
-interface BodySnapshot extends SnapshotEntity {
-  bodyId: string
-  nameZh: string
-  radius: number
-  kind: CelestialKind
-}
-
-interface PoiSnapshot extends SnapshotEntity {
-  poi: Poi
-}
-
-interface ShipSnapshot {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  course: { tx: number; ty: number; destPoiId: string | null; active: boolean } | null
-}
-
-interface Snapshot {
-  bodies: BodySnapshot[]
-  pois: PoiSnapshot[]
-  ship: ShipSnapshot | null
-}
-
 const bodyDataById = new Map(CELESTIAL_BODIES.map((b) => [b.id, b]))
 const poiDataById = new Map(POIS.map((p) => [p.id, p]))
 
-function snapshot(): Snapshot {
+function readBodies(): BodySnapshot[] {
   const w = getWorld(SPACE_SCENE_ID)
-  const bodies: BodySnapshot[] = []
+  const out: BodySnapshot[] = []
   for (const e of w.query(Body, Position)) {
     const b = e.get(Body)!
     const p = e.get(Position)!
     const data = bodyDataById.get(b.bodyId)
     if (!data) continue
-    bodies.push({
-      id: 0,
-      x: p.x,
-      y: p.y,
-      bodyId: b.bodyId,
-      nameZh: data.nameZh,
-      radius: data.bodyRadius,
-      kind: data.kind,
+    out.push({
+      x: p.x, y: p.y,
+      bodyId: b.bodyId, nameZh: data.nameZh,
+      radius: data.bodyRadius, kind: data.kind,
     })
   }
-  const pois: PoiSnapshot[] = []
+  return out
+}
+
+function readPois(): PoiSnapshot[] {
+  const w = getWorld(SPACE_SCENE_ID)
+  const out: PoiSnapshot[] = []
   for (const e of w.query(PoiTag, Position)) {
     const t = e.get(PoiTag)!
     const p = e.get(Position)!
     const data = poiDataById.get(t.poiId)
     if (!data) continue
-    pois.push({ id: 0, x: p.x, y: p.y, poi: data })
+    out.push({ x: p.x, y: p.y, poi: data })
   }
-
-  let ship: ShipSnapshot | null = null
-  const playerEnt = w.queryFirst(IsPlayer, Position, Velocity)
-  if (playerEnt) {
-    const pp = playerEnt.get(Position)!
-    const vv = playerEnt.get(Velocity)!
-    const cc = playerEnt.get(Course) ?? null
-    ship = {
-      x: pp.x,
-      y: pp.y,
-      vx: vv.vx,
-      vy: vv.vy,
-      course: cc ? { tx: cc.tx, ty: cc.ty, destPoiId: cc.destPoiId, active: cc.active } : null,
-    }
-  }
-  return { bodies, pois, ship }
+  return out
 }
 
-function fitTransform(snap: Snapshot, viewW: number, viewH: number): { scale: number; cx: number; cy: number } {
+function readShip(): ShipSnapshot | null {
+  const w = getWorld(SPACE_SCENE_ID)
+  const playerEnt = w.queryFirst(IsPlayer, Position, Velocity)
+  if (!playerEnt) return null
+  const pp = playerEnt.get(Position)!
+  const vv = playerEnt.get(Velocity)!
+  const cc = playerEnt.get(Course) ?? null
+  return {
+    x: pp.x, y: pp.y, vx: vv.vx, vy: vv.vy,
+    course: cc ? { tx: cc.tx, ty: cc.ty, destPoiId: cc.destPoiId, active: cc.active } : null,
+  }
+}
+
+function fitTransform(bodies: BodySnapshot[], pois: PoiSnapshot[], ship: ShipSnapshot | null, viewW: number, viewH: number) {
   const points: { x: number; y: number; r: number }[] = []
-  for (const b of snap.bodies) points.push({ x: b.x, y: b.y, r: b.radius })
-  for (const p of snap.pois) points.push({ x: p.x, y: p.y, r: 8 })
-  if (snap.ship) points.push({ x: snap.ship.x, y: snap.ship.y, r: 8 })
-
+  for (const b of bodies) points.push({ x: b.x, y: b.y, r: b.radius })
+  for (const p of pois) points.push({ x: p.x, y: p.y, r: 8 })
+  if (ship) points.push({ x: ship.x, y: ship.y, r: 8 })
   if (points.length === 0) return { scale: 1, cx: 0, cy: 0 }
-
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const p of points) {
     minX = Math.min(minX, p.x - p.r)
@@ -117,21 +79,45 @@ function fitTransform(snap: Snapshot, viewW: number, viewH: number): { scale: nu
   const w = (maxX - minX) + pad * 2
   const h = (maxY - minY) + pad * 2
   const scale = Math.min(viewW / w, viewH / h, 1)
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
-  return { scale, cx, cy }
+  return { scale, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 }
 }
 
-interface PanelState {
-  poiId: string
+function findNearbyPoi(pois: PoiSnapshot[], wx: number, wy: number): Poi | null {
+  let best: Poi | null = null
+  let bestD2 = spaceConfig.dockSnapRadius * spaceConfig.dockSnapRadius
+  for (const ps of pois) {
+    const dx = ps.x - wx
+    const dy = ps.y - wy
+    const d2 = dx * dx + dy * dy
+    if (d2 < bestD2) {
+      bestD2 = d2
+      best = ps.poi
+    }
+  }
+  return best
 }
+
+interface PanelState { poiId: string }
 
 export function SpaceView() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
-  const [tick, setTick] = useState(0)
   const [fitMode, setFitMode] = useState(false)
   const [panel, setPanel] = useState<PanelState | null>(null)
-  const stageRef = useRef<Konva.Stage>(null)
+
+  // Latest panel/fitMode in refs so the render loop can read them without
+  // restarting the loop on every state change.
+  const fitModeRef = useRef(fitMode)
+  fitModeRef.current = fitMode
+  const panelRef = useRef<PanelState | null>(panel)
+  panelRef.current = panel
+
+  const rendererRef = useRef<PixiSpaceRenderer | null>(null)
+  const sizeRef = useRef(size)
+  sizeRef.current = size
+
+  // Snapshot kept on the ref so canvas-click handlers see the same data the
+  // last frame rendered without re-snapping.
+  const lastPoisRef = useRef<PoiSnapshot[]>([])
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
@@ -139,12 +125,15 @@ export function SpaceView() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Throttled to ~30Hz. The dominant per-frame cost in this view was React
-  // reconciling ~30+ Konva nodes (bodies + POIs + labels + ship) at 60Hz;
-  // halving that is invisible to the eye since orbital motion at 1× game
-  // speed moves bodies a fraction of a pixel per frame anyway. The
-  // underlying spaceSimSystem still integrates ship motion at full rAF
-  // rate via loop.ts — only the visual snapshot is throttled.
+  useEffect(() => {
+    const r = rendererRef.current
+    if (r) r.resize(size.w, size.h)
+  }, [size])
+
+  // 30Hz throttled snapshot + render. Matches the previous Konva path —
+  // sim still ticks at full RAF rate via loop.ts; only the visual snapshot
+  // is throttled. RAF tick complexity is O(B + P) at B≈30 bodies and P≈30
+  // POIs — well inside the <3ms/frame budget.
   useEffect(() => {
     let raf = 0
     let last = 0
@@ -152,7 +141,34 @@ export function SpaceView() {
     const loop = (now: number) => {
       if (now - last >= FRAME_MS) {
         last = now
-        setTick((t) => (t + 1) | 0)
+        const r = rendererRef.current
+        if (r) {
+          const bodies = readBodies()
+          const pois = readPois()
+          const ship = readShip()
+          lastPoisRef.current = pois
+          const sz = sizeRef.current
+          const fitOn = fitModeRef.current
+          const fit = fitOn ? fitTransform(bodies, pois, ship, sz.w, sz.h) : null
+          let coursePreview: SpaceSnapshot['coursePreview'] = null
+          if (ship && ship.course?.active) {
+            let tx = ship.course.tx
+            let ty = ship.course.ty
+            if (ship.course.destPoiId) {
+              const found = pois.find((p) => p.poi.id === ship.course!.destPoiId)
+              if (found) { tx = found.x; ty = found.y }
+            }
+            coursePreview = { fromX: ship.x, fromY: ship.y, toX: tx, toY: ty }
+          }
+          r.update({
+            bodies, pois, ship,
+            dockSnapRadius: spaceConfig.dockSnapRadius,
+            fitMode: fitOn,
+            fit,
+            coursePreview,
+            hoveredPoiId: panelRef.current?.poiId ?? null,
+          })
+        }
       }
       raf = requestAnimationFrame(loop)
     }
@@ -160,128 +176,68 @@ export function SpaceView() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // TAB toggles fit-system mode; ESC leaves the helm (returning to the ship
-  // interior). A panel/fit-mode reset happens implicitly because the scene
-  // swap unmounts SpaceView.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Tab') {
         e.preventDefault()
         setFitMode((m) => !m)
       } else if (e.key === 'Escape') {
-        if (panel) {
-          setPanel(null)
-        } else if (fitMode) {
-          setFitMode(false)
-        } else {
-          leaveHelm()
-        }
+        if (panelRef.current) setPanel(null)
+        else if (fitModeRef.current) setFitMode(false)
+        else leaveHelm()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [panel, fitMode])
+  }, [])
 
-  // Touch `tick` so the linter does not flag it; the value itself is just a
-  // re-render trigger, not a data input.
-  void tick
-
-  const snap = snapshot()
-  const { w: viewW, h: viewH } = size
-
-  // Camera: fit-mode scales and centers on the system bbox; otherwise we
-  // follow the ship at scale 1.
-  let scale = 1
-  let cx = snap.ship?.x ?? 0
-  let cy = snap.ship?.y ?? 0
-  if (fitMode) {
-    const ft = fitTransform(snap, viewW, viewH)
-    scale = ft.scale
-    cx = ft.cx
-    cy = ft.cy
-  }
-  const offsetX = -cx * scale + viewW / 2
-  const offsetY = -cy * scale + viewH / 2
-
-  function worldFromScreen(sx: number, sy: number): { x: number; y: number } {
-    return { x: (sx - offsetX) / scale, y: (sy - offsetY) / scale }
+  const onReady = (app: Application) => {
+    const sz = sizeRef.current
+    rendererRef.current = new PixiSpaceRenderer(app, sz.w, sz.h)
   }
 
-  function findNearbyPoi(worldX: number, worldY: number): Poi | null {
-    let best: Poi | null = null
-    let bestD2 = spaceConfig.dockSnapRadius * spaceConfig.dockSnapRadius
-    for (const ps of snap.pois) {
-      const dx = ps.x - worldX
-      const dy = ps.y - worldY
-      const d2 = dx * dx + dy * dy
-      if (d2 < bestD2) {
-        bestD2 = d2
-        best = ps.poi
-      }
-    }
-    return best
-  }
-
-  function onStageClick(e: Konva.KonvaEventObject<MouseEvent>) {
-    const stage = stageRef.current
-    if (!stage) return
-    const pos = stage.getPointerPosition()
-    if (!pos) return
-    const wp = worldFromScreen(pos.x, pos.y)
-
-    // Right-click sets a Course; left-click queries the panel.
-    const isRight = e.evt.button === 2
+  // Click handling at the host-div level. Pixi's per-DisplayObject pointer
+  // events would force POI hit-testing to round-trip through Pixi's hit
+  // tree, but we already have a screen→world transform + linear scan that
+  // honors the snap-radius semantics — keep it simple.
+  const onCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = rendererRef.current
+    if (!r) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const sx = e.clientX - rect.left
+    const sy = e.clientY - rect.top
+    const wp = r.screenToWorld(sx, sy)
+    const isRight = e.button === 2
     if (isRight) {
-      e.evt.preventDefault()
+      e.preventDefault()
       const w = getWorld(SPACE_SCENE_ID)
       const player = w.queryFirst(IsPlayer, Course)
       if (!player) return
-      const near = findNearbyPoi(wp.x, wp.y)
+      const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
       if (near) {
-        const ent = (() => {
-          for (const pe of w.query(PoiTag, Position)) {
-            if (pe.get(PoiTag)!.poiId === near.id) return pe
+        let targetX = wp.x
+        let targetY = wp.y
+        for (const pe of w.query(PoiTag, Position)) {
+          if (pe.get(PoiTag)!.poiId === near.id) {
+            const tp = pe.get(Position)!
+            targetX = tp.x
+            targetY = tp.y
+            break
           }
-          return null
-        })()
-        const targetPos = ent?.get(Position) ?? { x: wp.x, y: wp.y }
-        player.set(Course, {
-          tx: targetPos.x,
-          ty: targetPos.y,
-          destPoiId: near.id,
-          active: true,
-        })
+        }
+        player.set(Course, { tx: targetX, ty: targetY, destPoiId: near.id, active: true })
       } else {
         player.set(Course, { tx: wp.x, ty: wp.y, destPoiId: null, active: true })
       }
     } else {
-      const near = findNearbyPoi(wp.x, wp.y)
+      const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
       if (near) setPanel({ poiId: near.id })
       else setPanel(null)
     }
   }
 
-  function onStageContextMenu(e: Konva.KonvaEventObject<PointerEvent>) {
-    e.evt.preventDefault()
-  }
-
-  // Course preview line endpoint — track the live POI position if dest set,
-  // else use the static target.
-  let coursePreview: { fromX: number; fromY: number; toX: number; toY: number } | null = null
-  if (snap.ship && snap.ship.course?.active) {
-    let tx = snap.ship.course.tx
-    let ty = snap.ship.course.ty
-    if (snap.ship.course.destPoiId) {
-      const found = snap.pois.find((p) => p.poi.id === snap.ship!.course!.destPoiId)
-      if (found) { tx = found.x; ty = found.y }
-    }
-    coursePreview = { fromX: snap.ship.x, fromY: snap.ship.y, toX: tx, toY: ty }
-  }
-
-  // Ship heading (pointing direction). Velocity preferred; fall back to up.
-  let shipAngle = -Math.PI / 2
-  if (snap.ship && (snap.ship.vx !== 0 || snap.ship.vy !== 0)) {
-    shipAngle = Math.atan2(snap.ship.vy, snap.ship.vx)
+  const onContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
   }
 
   const panelPoi = panel ? poiDataById.get(panel.poiId) ?? null : null
@@ -289,131 +245,19 @@ export function SpaceView() {
   return (
     <div
       className="space-view"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: '#020617',
-        zIndex: 5,
-      }}
+      style={{ position: 'fixed', inset: 0, background: '#020617', zIndex: 5 }}
+      onPointerDown={onCanvasPointerDown}
+      onContextMenu={onContextMenu}
     >
-      <Stage
-        ref={stageRef}
-        width={viewW}
-        height={viewH}
-        onClick={onStageClick}
-        onContextMenu={onStageContextMenu}
-      >
-        {/* listening={false} on the layer skips Konva hit-testing for every
-            child on every pointer move — clicks are resolved via the stage-
-            level handler that maps screen→world and tests against the
-            snapshot.pois list directly, so per-shape hit detection is wasted
-            work. perfectDrawEnabled={false} on filled shapes drops the
-            offscreen-canvas compositing pass for fill+stroke shapes. */}
-        <Layer x={offsetX} y={offsetY} scaleX={scale} scaleY={scale} listening={false}>
-          {/* Bodies */}
-          {snap.bodies.map((b) => {
-            const c = BODY_COLOR[b.kind]
-            return (
-              <Group key={`body-${b.bodyId}`}>
-                <Circle
-                  x={b.x}
-                  y={b.y}
-                  radius={b.radius}
-                  fill={c.fill}
-                  stroke={c.stroke}
-                  strokeWidth={2 / scale}
-                  perfectDrawEnabled={false}
-                />
-                <Text
-                  x={b.x + b.radius + 6 / scale}
-                  y={b.y - 8 / scale}
-                  text={b.nameZh}
-                  fontSize={14 / scale}
-                  fill="#cbd5e1"
-                  perfectDrawEnabled={false}
-                />
-              </Group>
-            )
-          })}
-          {/* POIs */}
-          {snap.pois.map((p) => {
-            const isHovered = panel?.poiId === p.poi.id
-            const r = 6
-            return (
-              <Group key={`poi-${p.poi.id}`}>
-                <Rect
-                  x={p.x - r}
-                  y={p.y - r}
-                  width={r * 2}
-                  height={r * 2}
-                  fill="#0ea5e9"
-                  stroke="#bae6fd"
-                  strokeWidth={1.5 / scale}
-                  perfectDrawEnabled={false}
-                />
-                {isHovered && (
-                  <Ring
-                    x={p.x}
-                    y={p.y}
-                    innerRadius={spaceConfig.dockSnapRadius - 2}
-                    outerRadius={spaceConfig.dockSnapRadius}
-                    fill="#fde68a"
-                    opacity={0.5}
-                    perfectDrawEnabled={false}
-                  />
-                )}
-                <Text
-                  x={p.x - 40}
-                  y={p.y + r + 4 / scale}
-                  text={p.poi.shortZh ?? p.poi.nameZh}
-                  fontSize={12 / scale}
-                  width={80}
-                  align="center"
-                  fill="#e2e8f0"
-                  perfectDrawEnabled={false}
-                />
-              </Group>
-            )
-          })}
-          {/* Course preview */}
-          {coursePreview && (
-            <Line
-              points={[coursePreview.fromX, coursePreview.fromY, coursePreview.toX, coursePreview.toY]}
-              stroke="#facc15"
-              strokeWidth={2 / scale}
-              dash={[8 / scale, 8 / scale]}
-              perfectDrawEnabled={false}
-            />
-          )}
-          {/* Player ship */}
-          {snap.ship && (
-            <Group x={snap.ship.x} y={snap.ship.y} rotation={(shipAngle * 180) / Math.PI}>
-              <Line
-                points={[12, 0, -8, -7, -8, 7]}
-                closed
-                fill="#facc15"
-                stroke="#fef3c7"
-                strokeWidth={1 / scale}
-                perfectDrawEnabled={false}
-              />
-            </Group>
-          )}
-        </Layer>
-      </Stage>
+      <PixiCanvas width={size.w} height={size.h} background={0x020617} onReady={onReady} />
       <button
         onClick={() => leaveHelm()}
         style={{
-          position: 'absolute',
-          bottom: 12,
-          right: 12,
-          background: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid #475569',
-          color: '#e2e8f0',
-          padding: '8px 14px',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          borderRadius: 4,
-          cursor: 'pointer',
+          position: 'absolute', bottom: 12, right: 12,
+          background: 'rgba(15, 23, 42, 0.92)', border: '1px solid #475569',
+          color: '#e2e8f0', padding: '8px 14px',
+          fontFamily: 'system-ui, sans-serif', fontSize: 13,
+          borderRadius: 4, cursor: 'pointer',
         }}
       >
         离开操舵台 (ESC)
@@ -421,17 +265,10 @@ export function SpaceView() {
       {panelPoi && (
         <div
           style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            width: 280,
-            background: 'rgba(15, 23, 42, 0.92)',
-            border: '1px solid #334155',
-            color: '#e2e8f0',
-            padding: '12px 14px',
-            fontFamily: 'system-ui, sans-serif',
-            fontSize: 13,
-            borderRadius: 4,
+            position: 'absolute', top: 12, right: 12, width: 280,
+            background: 'rgba(15, 23, 42, 0.92)', border: '1px solid #334155',
+            color: '#e2e8f0', padding: '12px 14px',
+            fontFamily: 'system-ui, sans-serif', fontSize: 13, borderRadius: 4,
           }}
         >
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{panelPoi.nameZh}</div>
