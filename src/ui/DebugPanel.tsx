@@ -1,13 +1,16 @@
 import { useQuery, useQueryFirst } from 'koota/react'
 import { useDebug, DEBUG_AVAILABLE } from '../debug/store'
-import { IsPlayer, Money, Skills, Character, Health, Knows } from '../ecs/traits'
+import { IsPlayer, Money, Skills, Character, Health, Knows, Flags } from '../ecs/traits'
 import { useUI } from './uiStore'
+import { useScene } from '../sim/scene'
 import { useClock } from '../sim/clock'
 import { skillsConfig, aiConfig, factionsConfig } from '../config'
 import { SKILL_ORDER } from '../data/skills'
 import type { SkillId } from '../data/skills'
 import type { FactionId } from '../data/factions'
 import { addRep } from '../systems/reputation'
+import { boardShip } from '../sim/scene'
+import { takeHelm } from '../sim/helm'
 
 export function DebugPanel() {
   const open = useDebug((s) => s.panelOpen)
@@ -60,6 +63,26 @@ export function DebugPanel() {
       count += 1
     }
     useUI.getState().showToast(`+ ${repGift} 声望 × ${count} 派系 (上限 S)`)
+  }
+
+  // Sets the shipOwned flag, walks the player into the ship interior, then
+  // launches via takeHelm. Equivalent to: AE buy → board kiosk → helm tile,
+  // collapsed into one click. Skips when already in space — the city player
+  // (which carries Money and is what useQueryFirst picks up) doesn't exist
+  // in the spaceCampaign world, so the button is naturally disabled there.
+  const giveAndLaunchShip = () => {
+    if (!player) return
+    const f = player.get(Flags) ?? { flags: {} }
+    const next = { flags: { ...f.flags, shipOwned: true } }
+    if (player.has(Flags)) player.set(Flags, next)
+    else player.add(Flags(next))
+
+    if (useScene.getState().activeId !== 'playerShipInterior') {
+      boardShip()
+    }
+    const r = takeHelm()
+    if (r.ok) useUI.getState().showToast('飞船已获得 · 已起航')
+    else useUI.getState().showToast(`起航失败: ${r.message ?? '未知原因'}`)
   }
 
   // Mirrors relationsSystem's bidirectional write — both A→B and B→A get the
@@ -167,6 +190,13 @@ export function DebugPanel() {
             <span className="debug-row-desc">把玩家与所有在世 NPC 的好感、熟悉度都拉满 (100/100)</span>
             <button className="debug-action" onClick={befriendAll} disabled={!player}>
               全部成为挚友
+            </button>
+          </div>
+          <div className="debug-row">
+            <span className="debug-row-label">立即获得飞船并起航</span>
+            <span className="debug-row-desc">设置飞船持有标志，登船，从冯·布劳恩起航进入星图</span>
+            <button className="debug-action" onClick={giveAndLaunchShip} disabled={!player}>
+              起航
             </button>
           </div>
         </section>

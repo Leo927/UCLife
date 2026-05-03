@@ -76,8 +76,12 @@ export function spaceSimSystem(world: World, dtSec: number): void {
     if (!params) continue
     e.set(Position, derivedPos(params, tDays, resolveBody))
   }
+  // Cache live POI positions by id this frame so the autopilot retarget
+  // loop below is O(1) instead of doing an O(N) world.query per ship.
+  const poiPosById = new Map<string, { x: number; y: number }>()
   for (const e of world.query(PoiTag, Position)) {
-    const p = poiById.get(e.get(PoiTag)!.poiId)
+    const poiId = e.get(PoiTag)!.poiId
+    const p = poiById.get(poiId)
     if (!p) continue
     const parent = resolveBody(p.bodyId)
     if (!parent) continue
@@ -87,7 +91,9 @@ export function spaceSimSystem(world: World, dtSec: number): void {
       orbitPeriodDays: p.orbitPeriodDays,
       orbitPhase: p.orbitPhase,
     }
-    e.set(Position, derivedPos(poiParams, tDays, resolveBody))
+    const pos = derivedPos(poiParams, tDays, resolveBody)
+    e.set(Position, pos)
+    poiPosById.set(poiId, pos)
   }
 
   // 3. Enemy AI fills Thrust on EnemyAI entities before integration.
@@ -105,13 +111,10 @@ export function spaceSimSystem(world: World, dtSec: number): void {
       let tx = course.tx
       let ty = course.ty
       if (course.destPoiId) {
-        for (const pe of world.query(PoiTag, Position)) {
-          if (pe.get(PoiTag)!.poiId === course.destPoiId) {
-            const pp = pe.get(Position)!
-            tx = pp.x
-            ty = pp.y
-            break
-          }
+        const pp = poiPosById.get(course.destPoiId)
+        if (pp) {
+          tx = pp.x
+          ty = pp.y
         }
       }
       const r = thrustToward(

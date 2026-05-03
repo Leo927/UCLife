@@ -139,12 +139,21 @@ export function SpaceView() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Re-render every rAF tick — koota's per-frame derivedPos updates land
-  // directly on the Position trait; we read inline below in render.
+  // Throttled to ~30Hz. The dominant per-frame cost in this view was React
+  // reconciling ~30+ Konva nodes (bodies + POIs + labels + ship) at 60Hz;
+  // halving that is invisible to the eye since orbital motion at 1× game
+  // speed moves bodies a fraction of a pixel per frame anyway. The
+  // underlying spaceSimSystem still integrates ship motion at full rAF
+  // rate via loop.ts — only the visual snapshot is throttled.
   useEffect(() => {
     let raf = 0
-    const loop = () => {
-      setTick((t) => (t + 1) | 0)
+    let last = 0
+    const FRAME_MS = 33
+    const loop = (now: number) => {
+      if (now - last >= FRAME_MS) {
+        last = now
+        setTick((t) => (t + 1) | 0)
+      }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
@@ -294,19 +303,34 @@ export function SpaceView() {
         onClick={onStageClick}
         onContextMenu={onStageContextMenu}
       >
-        <Layer x={offsetX} y={offsetY} scaleX={scale} scaleY={scale}>
+        {/* listening={false} on the layer skips Konva hit-testing for every
+            child on every pointer move — clicks are resolved via the stage-
+            level handler that maps screen→world and tests against the
+            snapshot.pois list directly, so per-shape hit detection is wasted
+            work. perfectDrawEnabled={false} on filled shapes drops the
+            offscreen-canvas compositing pass for fill+stroke shapes. */}
+        <Layer x={offsetX} y={offsetY} scaleX={scale} scaleY={scale} listening={false}>
           {/* Bodies */}
           {snap.bodies.map((b) => {
             const c = BODY_COLOR[b.kind]
             return (
               <Group key={`body-${b.bodyId}`}>
-                <Circle x={b.x} y={b.y} radius={b.radius} fill={c.fill} stroke={c.stroke} strokeWidth={2 / scale} />
+                <Circle
+                  x={b.x}
+                  y={b.y}
+                  radius={b.radius}
+                  fill={c.fill}
+                  stroke={c.stroke}
+                  strokeWidth={2 / scale}
+                  perfectDrawEnabled={false}
+                />
                 <Text
                   x={b.x + b.radius + 6 / scale}
                   y={b.y - 8 / scale}
                   text={b.nameZh}
                   fontSize={14 / scale}
                   fill="#cbd5e1"
+                  perfectDrawEnabled={false}
                 />
               </Group>
             )
@@ -325,6 +349,7 @@ export function SpaceView() {
                   fill="#0ea5e9"
                   stroke="#bae6fd"
                   strokeWidth={1.5 / scale}
+                  perfectDrawEnabled={false}
                 />
                 {isHovered && (
                   <Ring
@@ -334,6 +359,7 @@ export function SpaceView() {
                     outerRadius={spaceConfig.dockSnapRadius}
                     fill="#fde68a"
                     opacity={0.5}
+                    perfectDrawEnabled={false}
                   />
                 )}
                 <Text
@@ -344,6 +370,7 @@ export function SpaceView() {
                   width={80}
                   align="center"
                   fill="#e2e8f0"
+                  perfectDrawEnabled={false}
                 />
               </Group>
             )
@@ -355,6 +382,7 @@ export function SpaceView() {
               stroke="#facc15"
               strokeWidth={2 / scale}
               dash={[8 / scale, 8 / scale]}
+              perfectDrawEnabled={false}
             />
           )}
           {/* Player ship */}
@@ -366,6 +394,7 @@ export function SpaceView() {
                 fill="#facc15"
                 stroke="#fef3c7"
                 strokeWidth={1 / scale}
+                perfectDrawEnabled={false}
               />
             </Group>
           )}
