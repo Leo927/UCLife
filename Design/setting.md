@@ -21,8 +21,8 @@ The world clock is `UC YYYY.MM.DD HH:MM`. Setting events are scripted against da
 ## Spatial scope by phase
 
 - **Phases 0–5** — Von Braun (and Side 3 Zum City via the existing flight system) is the entire navigable world. The player's life happens in cities.
-- **Phase 6+** — when a player buys a ship, the **Earth Sphere** opens as a navigable starmap: Sides 1–7, Luna, Luna II, Earth orbit, asteroid clusters. Major nodes are canonical UC astrography. Detailed in [starmap.md](starmap.md).
-- **Phase 6.2+** — the **Jupiter expedition** opens as a long-arc optional deployment (helium-3 convoy run; frontier-flavored, no strategic-war pressure).
+- **Phase 6+** — when a player buys a ship, the **Earth Sphere** opens as a navigable continuous-space campaign map: Sides 1–7, Luna, Luna II, Earth orbit, asteroid clusters. Major POIs are canonical UC astrography. Detailed in [starmap.md](starmap.md).
+- **Phase 6.4+** — the **Jupiter expedition** opens as a long-arc optional deployment (helium-3 convoy run; frontier-flavored, no strategic-war pressure).
 
 The city-scale and starmap-scale layers coexist: a player can dock at Von Braun mid-deployment and walk back into the city sim, then return to the ship.
 
@@ -30,5 +30,5 @@ The city-scale and starmap-scale layers coexist: a player can dock at Von Braun 
 
 - [social/newsfeed.md](social/newsfeed.md) — date-keyed news events surface the timeline
 - [social/relationships.md](social/relationships.md) — faction reputation
-- [starmap.md](starmap.md) — Phase 6+ macro-geography (Earth Sphere graph + Jupiter expedition)
+- [starmap.md](starmap.md) — Phase 6+ macro-geography (Earth Sphere continuous-space campaign map + Jupiter expedition)
 - [phasing.md](phasing.md) — when faction-relevant systems land

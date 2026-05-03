@@ -7,7 +7,7 @@ Four sub-systems that together make UC Life Sim a *life* sim and not just a surv
 | [ambitions.md](ambitions.md) | Long-arc player goals — what to want | 5.0 |
 | [newsfeed.md](newsfeed.md) | Date-keyed events surfaced through diegetic channels | 5.1 |
 | [relationships.md](relationships.md) | Talk verb, per-NPC opinion, faction reputation | 5.2 |
-| [faction-management.md](faction-management.md) | Player runs a small group (FTL/mercenary layer) | 6 |
+| [faction-management.md](faction-management.md) | Player grows from one ship to a fleet to a colony to a small faction (Starsector layer) | 6 |
 
 ## Why this order
 

@@ -29,68 +29,90 @@ the primary delivery vehicle, not the exception.
 Combat has to be **good enough** for the players who pursued it, and
 **invisible enough** for the players who didn't.
 
-## Structural shape: FTL with MS-as-drone
+## Structural shape: Starsector with MS-as-fighter
 
-Combat reuses the FTL: Faster Than Light combat shape, with one critical
-difference: **the smallest controllable combat unit is a mobile suit, and
-the player character is a person on the ship who walks between control
-points.**
+Combat reuses the Starsector shape — top-down 2D real-time-with-pause
+tactical engagements where the player flies their flagship and commands
+escort ships in their fleet — with one critical difference: **the player
+can leave the tactical view at any moment by walking from the bridge to
+the hangar and climbing into a mobile suit.** The MS launches as one of
+the fleet's fighter wings, but with the player personally in the cockpit
+running the MS minigame.
 
 ```
-        Mother ship interior (koota scene)
-        ┌────────────────────────────┐
-        │  Bridge ← player walks → Hangar  →  MS in space
-        │     ↓                ↓                 ↓
-        │  ship control    climb into MS   cockpit minigame
-        │                                       (Engage/Evade/
-        │  Other rooms: medbay, engineering,     Suppress/Breach)
-        │  weapons, quarters, mess ─────────┘
-        └────────────────────────────┘
-                  ↕ (FTL-shape encounter)
-        ┌──────────────────────┐
-        │ Enemy ship           │  ← system bars + room damage view,
-        │ (rooms + systems)    │    not walkable
-        └──────────────────────┘
+        Campaign layer (Starsector-shape)
+        ┌──────────────────────────────────────┐
+        │  Earth Sphere continuous 2D map      │
+        │  Fleet token burns between POIs      │
+        │  (Sides, Luna, Earth orbit, asteroids)│
+        │       ↓ encounter triggers           │
+        ├──────────────────────────────────────┤
+        │  Tactical layer (Starsector-shape)   │
+        │  2D top-down, real-time + pause      │
+        │  Player flies flagship; AI-or-orders │
+        │  fleetmates; MS launch as fighters   │
+        │       ↕ walk to hangar / bridge      │
+        ├──────────────────────────────────────┤
+        │  Embodied layer (walkable ship scene)│
+        │  Bridge ← player walks → Hangar      │
+        │  Quarters, mess, medbay, engineering │
+        │  Used for: mode switch, downtime,    │
+        │  social, repair, story beats         │
+        ├──────────────────────────────────────┤
+        │  Cockpit layer (MS minigame)         │
+        │  Engage / Evade / Suppress / Breach  │
+        │  primitives, hostile-pilot reskins   │
+        └──────────────────────────────────────┘
 ```
 
-The mother ship is **a koota scene like Von Braun**. The player walks
-its rooms in real-time. Combat is real-time-with-pause: in pause, the
-player allocates reactor power across systems, queues weapon shots,
-issues movement orders. While unpaused, weapons charge, MS units fly,
-crew run, oxygen leaks, fires spread.
+The flagship is **a koota scene like Von Braun**. The player walks its
+rooms in real-time when not in tactical or cockpit view. **The walkable
+scene is not the combat UI.** During combat, the player is in tactical
+view (Starsector top-down) OR in the cockpit (MS minigame). The walking
+view exists for:
 
-### FTL → UC system mapping
+- Pre/post-deployment downtime — sleep, eat, train crew, talk to NPCs aboard
+- The **mode-switch transition** — to climb into an MS the player physically walks bridge → hangar; to return to fleet command they walk hangar → bridge
+- Story beats and social interactions with named crew
 
-| FTL system | UC analog | Notes |
+The mode-switch walk has a real cost: leaving the bridge mid-combat
+puts the flagship on AI for the duration of the walk. Walking back
+means the same. **This is the design's central tension** — direct MS
+impact vs. fleet command, mediated by the cost of physically transiting
+the ship. Higher Ship Command + Tactics skills make the AI flagship
+behave more competently while you're away, partly mitigating the cost.
+
+### Starsector → UC system mapping
+
+Ship subsystems are abstracted, not room-walked-in-realtime. Starsector's
+hull / armor / flux / shields / weapon mounts / fighter bays model maps
+directly. UC flavor names where canon supplies them:
+
+| Starsector | UC analog | Notes |
 |---|---|---|
+| Hull | Hull integrity | |
+| Armor | Composite armor | |
 | Shields | Energy shield (Minovsky-saturation barrier in late game) | |
-| Engines | Thruster + main drive | Evasion bonus + jump readiness |
-| Oxygen | Life support | |
-| Weapons | Ship-mounted beam / missile mounts | |
-| Drones | **Hangar** | MS launch bay; capacity = how many MS can be deployed at once; system level = launch + recovery cycle speed |
-| Medbay | Medical bay | |
-| Pilot | Bridge / helm | |
-| Sensors | Minovsky scope | Counters cloaking |
-| Doors | Bulkhead control | Lockdown vs. boarders |
-| Teleporter | Boarding pod / shuttle | Zaku-with-rifle is canon |
-| Cloaking | Minovsky particle saturation | |
-| Artillery | Mega particle cannon | |
-| Hacking | Electronic warfare suite | |
-| Clonebay | *Cut.* UC doesn't have cloning. | A character lost in combat is lost. |
-| Mind control | Newtype interference | Reserved for Phase 7+ |
+| Flux (vent / hard) | Reactor heat / capacitor | |
+| Engines | Thruster + main drive | Burn rate, evasion |
+| Weapon mounts (small/medium/large) | Beam / missile / mega-particle mounts | Same hardpoint logic |
+| Fighter bays | **Hangar** | Each bay holds an MS wing; player can take direct control of one MS |
+| Officer slots | Bridge officers | Crew with Ship Command / Tactics / Leadership skills |
+| Cargo / fuel / supplies | Same | Drives campaign-layer logistics |
 
 Crew specialization reuses the existing skill set:
 
-| Skill | Station bonus |
+| Skill | Combat effect |
 |---|---|
-| Piloting | MS combat performance (when piloting one); helm evasion (when on bridge) |
+| Piloting | MS combat performance (when piloting one); flagship maneuvering when no MS pilot is engaged |
 | Marksmanship | Weapon system charge speed and accuracy |
-| Mechanics | Any-system manning bonus; engineering repair speed |
-| Engineering | Reactor efficiency; large-system repair |
-| Tactics | Bridge-wide passive bonus to all stations (officer effect) |
-| Medicine | Medbay throughput and crit-injury survival |
-| Computers | Hacking and Sensors effectiveness |
-| Leadership | Crew morale; reduces panic on hull breach |
+| Mechanics | Damage-control speed; in-combat repair |
+| Engineering | Reactor / flux capacity efficiency |
+| Tactics | Fleet-wide passive bonus to fleetmate AI; better escort orders |
+| Ship Command | Gates fleet size; flagship maneuvering effectiveness |
+| Leadership | Crew morale; reduces panic; gates colony management |
+| Medicine | Post-combat injury recovery |
+| Computers | Sensors, electronic warfare effectiveness |
 
 This means the same character work the player did over years of life sim
 in Von Braun — befriending Lazlo's regulars, hiring co-workers, training
@@ -99,20 +121,19 @@ That's the unification.
 
 ## Player perspective taxonomy
 
-Three relationships to combat. Now framed as roles, not separate game
-modes — the *spatial* relationship between the player and combat
-determines mode.
+Four relationships to combat. The *spatial* relationship between the
+player and combat determines mode.
 
 | Mode | Spatial location | What they see | What they do |
 |---|---|---|---|
 | **Witness** | In Von Braun, never on a combat ship | Newsfeed, dome events, neighbors disappearing, prices shifting | Live their life under wartime pressure |
-| **Combatant** | In an MS cockpit launched from a ship hangar | Cockpit minigame against hostile pilots / drones / ships | Pilot the MS — same input model as the MW sim |
-| **Commander** | On a ship's bridge (theirs or as bridge officer) | FTL-shape ship view: rooms, systems, reactor power, weapons, enemy ship | Active-pause: allocate power, queue shots, order MS launch / recovery, direct boarders |
+| **Embodied** | Walking their ship (or a city) | Walkable koota scene; named crew at stations | Sleep, eat, train, talk, transition between Tactical and Cockpit |
+| **Tactical** | At the bridge during combat | Starsector-shape top-down 2D: flagship + escorts + enemy ships, hardpoints, flux, shields, fighter wings | Fly the flagship; issue orders to escorts; launch MS wings; active-pause to plan |
+| **Cockpit** | Inside an MS launched from the hangar | MS minigame view | Run Engage/Evade/Suppress/Breach primitives against hostile pilots/drones/ships |
 
-A single character moves between Combatant and Commander **by walking**
-to the bridge or the hangar. Walking from quarters to the bridge during
-combat takes real seconds; this matters. Witness players never reach a
-ship at all.
+A single character moves between Tactical and Cockpit **by walking** to
+the bridge or the hangar. That walk is where Embodied lives during
+combat. Witness players never reach a ship at all.
 
 ## Acquiring access to a ship
 
@@ -122,7 +143,7 @@ The player does not start with a ship. Three paths into one:
    buys a small ship, hires a small crew (recruited from city
    relationships). Pre-war engagements are corporate-security
    skirmishes, salvage operations, pirate hunts. Low stakes, optional.
-   This is the on-ramp for the FTL-shape system.
+   This is the on-ramp for the Starsector-shape system.
 2. **Phase 7 wartime assignment** — `mw_pilot` and `zeon_volunteer`
    ambitions resolve into being **assigned to someone else's ship as
    crew**. The player is an MS pilot and bridge-officer apprentice on
@@ -130,61 +151,88 @@ The player does not start with a ship. Three paths into one:
    campaign.
 3. **Phase 7 wartime — civilian transport** — for `earth_migration`
    players who clear immigration before war fully closes the lanes.
-   Their ship is non-combat; FTL-shape encounters are evade-based
-   (escape pirates, navigate hazards), no weapons. A different flavor
-   of FTL, same engine.
+   Their ship is non-combat; tactical encounters are evade-based
+   (escape pirates, navigate hazards), no weapons. Same engine,
+   different fit-out.
 
 `lazlos_owner`, `dropout`, `ae_chief_engineer` (unless they accept war
 contracts that put them on a corporate ship): never get a ship, stay in
 Witness mode. That is **a complete playthrough** and the design must
-support it as such.
+support it as such — see [social/ambitions.md](social/ambitions.md) for
+how the unified perk-point system keeps small-scale ambitions rewarding.
 
-## The mother ship as scene
+## Fleet scale: skill-gated, not hard-capped
 
-The mother ship reuses the koota scene infrastructure already powering
-Von Braun and Zum City. Specifically:
+There is **no hard fleet cap**. Fleet capacity is gated by player and
+officer skills — primarily **Ship Command**, secondarily **Tactics** and
+**Leadership**. A player who never trains command tops out at flagship
++ 1–2 escorts; a player who trains hard fields a real squadron.
+
+This is where late-game skill development gets concrete payoff. Ship
+Command and Tactics had no clear endgame target before; now they
+literally determine how many ships you can field. Leadership gates how
+many colonies you can govern.
+
+Specific capacity formula is a Phase 6.2 implementation concern.
+Structurally: capacity grows roughly linearly with skill level, with
+modest bonuses from officer skills. There is no soft cap that the
+player can't push past with investment.
+
+## Ship-as-scene (the flagship is your home)
+
+The player flagship reuses the koota scene infrastructure already
+powering Von Braun and Zum City. Specifically:
 
 - **One koota world per ship.** Existing per-scene world architecture.
 - **Rooms are ECS entities.** Same Building / Cell components used in city procgen.
 - **Crew = NPCs.** Same trait set, same BT framework, same drives. They eat in the mess, sleep in quarters, drink in the (smaller) ship bar, and have on-duty schedules that put them at their stations during combat.
 - **The player walks the ship the same way they walk Von Braun.** Same input, same pathfinding (HPA*).
-- **Travel between mother-ship and Von Braun** uses the existing flight system. The ship docks at a Von Braun port; player walks aboard.
+- **Travel between mother-ship and dockable cities** uses the existing flight system. The ship docks at a city port; player walks aboard.
 
-The ship is **persistent** — it doesn't reset between encounters. Damage,
-crew injuries, supplies, ambient state all carry. This is the long-arc
-your character lives on once they leave Von Braun.
+Escort ships in the fleet are **not** walkable scenes — they're tactical
+assets with their own NPC crew rosters. The flagship is the only
+walkable ship at any given time. If the player promotes another ship to
+flagship (story-rare), that ship becomes the new walkable scene and the
+old flagship demotes to tactical asset.
 
-## Bridge mode (FTL-shape ship control)
+The flagship is **persistent** — it doesn't reset between encounters.
+Damage, crew injuries, supplies, ambient state all carry. Repairs
+happen at safe POIs (dockable colonies, friendly stations, your own
+colony if you have one).
 
-The player is on the bridge. They see:
+## Tactical mode (Starsector-shape combat UI)
 
-- **Their own ship** (the koota scene) rendered with system-status overlay: each room shows its system's power allocation, charge, integrity, and crew assignment.
-- **The enemy ship** rendered to one side (right of screen, FTL-style) as a room-and-system grid only — not a walkable scene. System bars, hull integrity, current crew positions per room.
-- **Reactor power bar** at top: total available power, allocated breakdown, free reserve.
-- **Weapon queue** with charge timers and target selectors.
-- **MS deployment status** if the hangar is staffed — pilots in cockpits, MS in space, MS returning for repair/resupply.
+The player is on the bridge — but the bridge view *is* the tactical
+top-down Starsector-style view. They see:
 
-Active pause is bound to space (consistent with FTL). In pause:
+- **Their flagship** at the center, hardpoints firing, shields up, flux building
+- **Escorts** as fleetmate ships, AI-controlled, accepting orders (engage X, screen, retreat, regroup)
+- **Enemy ships** with their own hardpoints, shields, flux
+- **MS wings** as small fighter sprites launched from hangars (yours and theirs)
+- **Active-pause overlay** for issuing orders without time pressure
 
-- Drag power between systems
-- Queue weapon shots at enemy rooms
-- Order MS launch (assigns a crew pilot) or recovery
-- Order crew repositioning between rooms
-- Order boarding via teleporter / shuttle
+Active pause is bound to space (consistent with Starsector). In pause:
 
-When the player un-pauses, sim time continues. Game-clock during combat
-runs at a slowed ratio (1 real-second ≈ 1 game-second; not the standard
-city-mode 25:24) so events are readable.
+- Order escort movements and engagement targets
+- Queue weapon-group fires
+- Order MS wing launch / recall (assigns a crew pilot or the player themselves)
+- Order MS targeting priority
+- Order fleet-wide retreat
 
-**The bridge as a station the player mans:** a player character on the
-bridge with high Tactics gives a global ship bonus. If the player walks
-to engineering to fight a fire personally, the bridge bonus drops until
-an NPC takes over. Spatial choice has cost.
+When the player un-pauses, sim time continues. Game-clock during
+tactical combat runs at a slowed ratio (1 real-second ≈ 1 game-second;
+not the standard city-mode 25:24) so events are readable.
 
-## Cockpit mode (MS as drone)
+**Skill effect on tactical:** higher Ship Command makes the flagship's
+on-rails behavior smoother (better evasion, faster target switch).
+Higher Tactics gives a fleet-wide AI quality bonus (escorts make better
+positioning decisions). Higher Leadership reduces morale-driven crew
+panic when the flagship takes hull damage.
 
-The player walks to the hangar, climbs into an MS, the cockpit minigame
-takes over. Same input model as the MW sim:
+## Cockpit mode (MS as fighter wing the player can pilot)
+
+The player walks (Embodied) to the hangar, climbs into an MS. The
+cockpit minigame takes over. Same input model as the MW sim:
 
 | Hostile primitive | Built from MW primitive |
 |---|---|
@@ -198,32 +246,34 @@ A skirmish is a sequence of these primitives. The MS has integrity
 in an escape pod). MS damage persists between sorties until repaired by
 the hangar crew.
 
-The bridge battle continues while the player is in cockpit. The player
-hears bridge chatter (zh-CN voice / log lines). They can return any time
-by walking back into the hangar — which costs an MS recovery cycle (the
-hangar system level governs how fast).
+The tactical battle continues while the player is in cockpit. The
+player hears bridge chatter (zh-CN voice / log lines). The flagship is
+on AI while the player is away from the bridge — Ship Command + Tactics
+make this AI better. The player can return any time by ejecting or
+docking back into the hangar, then walking to the bridge.
 
 **Switching is the design's central tension.** The player constantly
 chooses between piloting (high direct impact, no command) and bridge
-(coordinating, but no MS in the field). This is the interesting decision
-the system generates.
+(coordinating, but no MS in the field). The walking-transit cost makes
+this a real decision, not a free toggle.
 
-## Crew death and FTL texture
+## Crew death and Starsector texture
 
-FTL combat is shaped by losing crew. UC inherits this. Named NPCs **can
-die** in combat — drowned in a vented room, killed by boarders,
-incinerated with their MS. Their relationship state dies with them; the
-player feels it.
+Starsector lets named officers die when their ship is destroyed. UC
+inherits this and goes further: named crew on the flagship can die not
+just when the ship is destroyed but when their **role** takes a hit
+(MS pilot ejected and not recovered, gunner killed by hardpoint
+breach, MS pilot incinerated in their cockpit). Their relationship
+state dies with them; the player feels it.
 
-Without a clonebay, there's no FTL-style instant respawn. The retreat
-options:
+There's no in-fiction respawn. The retreat options:
 
 - **Medbay** treats injuries up to a threshold; beyond it, the crew
-  member dies.
+  member dies
 - **Escape pods** for non-MS crew during a hull-loss event. Some make
-  it back, some don't (rolled).
+  it back, some don't (rolled)
 - **MS ejection** for MS pilots at integrity 0; survival depends on
-  whether the ship can recover the pod before a hostile does.
+  whether the fleet can recover the pod before a hostile does
 
 This is the Phase 4 physiology system shipping in earnest.
 
@@ -239,8 +289,10 @@ propagate to:
 - **Conscription pressure** on player and NPCs
 - **Population churn** (named NPCs drafted/killed/missing; refugees arrive)
 - **Building access** (consulates close, military zones lock)
-- **Encounter generation** for combat-mode players (which star systems
-  see action; which fronts your ship is deployed to)
+- **Encounter generation** for combat-mode players (which regions
+  see action; which fronts you're pressured into)
+- **Player-faction pressure** — if the player owns colonies, hostile
+  factions stage expeditions against them (the Starsector pattern)
 
 Strategic war runs whether or not the player owns a ship. It's the
 universal layer.
@@ -274,6 +326,8 @@ Single hard global flag flip. On transition:
 6. Economy parameters shift
 7. NPCs with combatant backstories leave; refugees spawn
 8. Some buildings transition state
+9. Player-faction colonies become target-eligible for hostile
+   expeditions
 
 There is no rolling back. Saves before are pre-war runs; saves after are
 wartime runs.
@@ -284,40 +338,45 @@ Combat must work under both settings:
 
 **Permadeath off (default):**
 - Player MS at integrity 0 → ejection + rescue (most of the time); injury arc; faction-rep penalty
-- Player ship at hull 0 → captured / escape pod survives → POW arc or rescue
-- Crew can still die — permadeath toggle is for the *player character*, not crew. Crew loss is the FTL texture.
+- Player flagship at hull 0 → captured / escape pod survives → POW arc or rescue
+- Crew can still die — permadeath toggle is for the *player character*, not crew. Crew loss is the texture.
+- Player-fleet escort losses are permanent (ships and crew); replacement requires recruitment + procurement
 
 **Permadeath on:**
 - Player MS at integrity 0 → ejection roll. Failure = run end.
-- Player ship at hull 0 → escape-pod roll. Failure = run end.
+- Player flagship at hull 0 → escape-pod roll. Failure = run end.
 - Crew loss is the same (already permanent without the toggle).
 
 Withdraw is always available pre-commit (matching the MW sim's design).
 
 ## Settled commitments
 
-The FTL-shape calls are now locked. Specifically:
+The Starsector-shape calls are now locked. Specifically:
 
-1. **Macro-geography: two systems.** Earth Sphere (primary wartime
-   theater, canonical UC astrography — Sides 1–7, Luna, Luna II,
-   Earth orbit, asteroid belts) and a Jupiter expedition (linear
-   long-arc, no strategic-war content, "step out of the war" option).
-   Full graph and sectoring in [starmap.md](starmap.md).
-2. **Single ship per run.** One ship at a time. Lost ships replaced
-   via story event, not parallel fleets.
-3. **Deployment cadence.** A deployment is an FTL-shape run of ~1–3
-   in-game weeks; between deployments, the ship docks (Von Braun,
-   Granada, Side 3 etc.) and the player resumes city life. Multiple
-   deployments per career.
+1. **Macro-geography: continuous 2D campaign.** Earth Sphere is one
+   continuous 2D map with named POIs (Sides 1–7, Luna, Luna II, Earth
+   orbit, asteroid clusters); Jupiter expedition is a separate map
+   reached by long burn. Full geography in [starmap.md](starmap.md).
+2. **Multi-ship fleet, skill-gated.** No hard cap. Ship Command +
+   Tactics + Leadership scale fleet capacity. Lost ships are permanent
+   losses, replaced by recruitment / procurement, not story event.
+3. **Deployment cadence.** A deployment is a Starsector-shape run of
+   ~1–3 in-game weeks of campaign-map travel + tactical encounters;
+   between deployments, the flagship docks (Von Braun, Granada, Side 3
+   etc.) and the player resumes city life. Multiple deployments per
+   career.
 4. **Damage persistence.** Within a deployment, damage and crew
-   injuries persist between encounters and are repaired at safe-node
-   stores (FTL-style). Between deployments, the ship docks and is
+   injuries persist between encounters and are repaired at safe POIs
+   (Starsector pattern). Between deployments, the ship docks and is
    fully serviced.
 5. **Conscription refusal.** Stat-checked roll, with `mw_pilot` active
    biasing the roll heavily toward acceptance. Federation rep, money
    for bribes, Charisma, and a clinic medical letter all modify the
-   roll. Failure forces the perspective shift into Combatant mode
-   regardless of the player's wishes.
+   roll. Failure forces the perspective shift into Tactical/Cockpit
+   mode regardless of the player's wishes.
+6. **Walkable flagship.** The player's flagship is a koota scene the
+   player walks. Escort ships in the fleet are tactical assets only.
+   Promoting an escort to flagship swaps which ship is walkable.
 
 ## Open questions remaining
 
@@ -333,16 +392,22 @@ The FTL-shape calls are now locked. Specifically:
    primitive parameters). **Defer; flagged here so it doesn't
    surprise the character system later.**
 
+3. **Fleet capacity formula.** Specific numbers for Ship Command /
+   Tactics / Leadership → fleet size are Phase 6.2 implementation.
+   Structural commitment: linear-with-skill, no soft cap, no hard cap.
+
 ## Phasing
 
 | Phase | Combat scope |
 |---|---|
 | **5.4c** | Cockpit minigame primitives ship in **simulator-only** form. AE MS-handling sim, Federation reservist drills. No real combat, no hostile NPCs, no ship. The player is still in Von Braun. |
-| **6.0** | FTL-shape engine: mother ship as scene, bridge mode, reactor power, weapons, hangar with NPC pilots, basic encounter generator. Pre-war merc work — corporate-security skirmishes, salvage, piracy. Player buys a small ship as a Phase 6 capstone. |
-| **6.1** | Player walks bridge ↔ hangar; player pilots an MS personally; cockpit primitives now have hostile counterparts (Engage/Evade/Suppress/Breach against NPC pilots with their own piloting/reflex stats). |
-| **6.2** | Boarding (teleporter), cloaking, sensors, hacking. Crew injury and death. Persistent damage between encounters within a deployment. |
+| **6.0** | Starsector-shape tactical foundation. Single-ship pre-war merc work. Walkable flagship as scene. Tactical view (top-down 2D, real-time + pause). Hardpoint weapons, flux, shields, hull. Encounter generator. Player buys their first ship as a Phase 6.0 capstone. |
+| **6.1** | Bridge ↔ hangar walkable transit. Player pilots an MS personally; cockpit primitives now have hostile counterparts (Engage/Evade/Suppress/Breach against NPC pilots with their own piloting/reflex stats). MS wings AI-piloted while player is at bridge. Walking-transit cost on flagship AI. |
+| **6.2** | Multi-ship fleet. Ship Command / Tactics / Leadership gate capacity. Escort ships as tactical assets with their own NPC crew. Fleet orders. Persistent fleet damage between encounters. |
+| **6.3** | Colony establishment. Player can claim an asteroid POI or build a new colony from scratch. Walkable colony scenes (smaller than cities, reusing scene/building/cell procgen with industrial pool). See [social/faction-management.md](social/faction-management.md). |
+| **6.4** | Faction-tier features: large-scale recruitment, governance choices, faction reputation as actor (player-faction has its own faction rep with NPC factions). Phase 7 hostile-expedition mechanic foundations. |
 | **7.0** | Phase 7 trigger fires. Strategic war model goes live. Newsfeed wartime mode. Conscription. Wartime ambitions. Civilian-war content (TV, prices, refugees, departing friends). |
-| **7.1** | Wartime deployment: `mw_pilot` / `zeon_volunteer` players assigned to NPC-captained ships. Sector-based campaign structure. Real MS combat under real stakes. |
+| **7.1** | Wartime deployment: `mw_pilot` / `zeon_volunteer` players assigned to NPC-captained ships. Sector-based campaign structure. Real MS combat under real stakes. Player-faction colonies become target-eligible for hostile expeditions. |
 | **7.2** | Mind-control / Newtype systems. Late-war fronts. Player can rise to command of their assigned ship. |
 | **8+** | LLM-driven battle chatter, surrender attempts, post-engagement debrief. |
 
@@ -351,8 +416,8 @@ The FTL-shape calls are now locked. Specifically:
 - **Not the heart of the game.** The heart is daily life under sim.
   Combat is one of several payoffs that life can lead toward.
 - **Not Gundam Battle Operation.** No twin-stick MS action. The cockpit
-  minigame primitive model is the ceiling. The FTL-shape bridge model
-  is the breadth.
+  minigame primitive model is the ceiling. Tactical scale is fleet, not
+  individual MS dogfight.
 - **Not skippable for combatants.** A `mw_pilot` who reaches Phase 7
   expects to fight. Auto-resolve from the simulator does **not** apply
   to real combat.
@@ -360,22 +425,23 @@ The FTL-shape calls are now locked. Specifically:
   trained piloting must be able to play through Phase 7 without combat
   ever forcing itself on them, except through conscription — and
   conscription must be refusable on stat checks.
-- **Not a full FTL clone.** UC drops the clonebay (no in-fiction
-  justification), reframes drones as MS (the player can BE the drone),
-  treats the player ship as a persistent walkable scene rather than a
-  schematic, and threads city life around the deployment cycle. The
-  shape is FTL; the texture is UC.
+- **Not a clone of any single game.** The shape is Starsector — fleet,
+  campaign map, top-down tactical, flagship-piloted. The deviation is
+  MS-as-fighter-the-player-can-be: you can leave the bridge and climb
+  into a fighter wing yourself, mediated by the walk through the
+  walkable flagship. The texture is UC: named crew, no FTL, no clones,
+  Minovsky physics governing what the systems can be.
 
 ## Related
 
-- [starmap.md](starmap.md) — Earth Sphere graph + Jupiter expedition; the geography this FTL-shape combat is drawn against
+- [starmap.md](starmap.md) — Earth Sphere continuous campaign map + Jupiter expedition; the geography this Starsector-shape combat is drawn against
 - [encounters.md](encounters.md) — form of node events; combat is reached through them, not directly
 - [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun
-- [social/faction-management.md](social/faction-management.md) — Phase 6 merc cell on a ship; this is where the FTL shape ships
+- [social/faction-management.md](social/faction-management.md) — Phase 6 fleet + colony layer; this is where the Starsector shape ships
 - [social/newsfeed.md](social/newsfeed.md) — strategic war's primary delivery channel; civilian-war texture
 - [characters/index.md](characters/index.md) — permadeath toggle interaction; crew death is independent of toggle
-- [characters/skills.md](characters/skills.md) — crew specialization at ship stations
+- [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership gate fleet and colony capacity
 - [npc-ai.md](npc-ai.md) — crew BT extends with combat-station drives
-- [worldgen.md](worldgen.md) — mother ship interior reuses scene-procgen building / cell pipelines
+- [worldgen.md](worldgen.md) — flagship interior + colony interior reuse scene-procgen building / cell pipelines
 - [phasing.md](phasing.md) — combat phasing relative to overall plan
