@@ -24,6 +24,9 @@ import { getShipState } from './sim/ship'
 import { useCombatStore } from './systems/combat'
 import { useTransition } from './sim/transition'
 import { useEngagement } from './sim/engagement'
+import { takeHelm } from './sim/helm'
+import { spaceSimSystem } from './systems/spaceSim'
+import { saveGame, loadGame } from './save'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'
@@ -261,6 +264,23 @@ if (import.meta.env.DEV) {
       return out
     },
     useEngagement,
+    takeHelmCheat() {
+      return takeHelm()
+    },
+    tickSpace(dtSec: number) {
+      const w = getWorld('spaceCampaign')
+      spaceSimSystem(w, dtSec)
+      return true
+    },
+    moveShipTo(x: number, y: number) {
+      const w = getWorld('spaceCampaign')
+      const e = w.queryFirst(IsPlayer, Position)
+      if (!e) return false
+      e.set(Position, { x, y })
+      return true
+    },
+    saveGame,
+    loadGame,
     setShipOwned() {
       const p = world.queryFirst(IsPlayer)
       if (!p) return false

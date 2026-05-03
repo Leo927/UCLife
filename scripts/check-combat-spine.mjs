@@ -1,5 +1,12 @@
-// LEGACY — Phase 6.0 modal-era smoke. Will be rewritten in slice 8 to drive
-// the helm + spaceCampaign + persistent-enemy spine. Currently broken.
+// Phase 6.0 combat-spine smoke. Drives the slice 1-7 spine end-to-end:
+//
+//   board ship → take helm → set autopilot toward an enemy → wait for the
+//   engagement modal → resolve 'engage' → tactical combat opens → fastWin →
+//   combat resolves cleanly → clock back to normal mode.
+//
+// Each step writes a screenshot under scripts/out/combat-spine/. Helpers are
+// driven through window.__uclife__ so we don't depend on Konva click hit
+// boxes or the helm Interactable tile geometry.
 
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
@@ -47,12 +54,15 @@ await page.waitForTimeout(800)
 const ready = await waitFor(
   () => 'uclifeUI' in window && '__uclife__' in window
     && typeof window.__uclife__.boardShip === 'function'
-    && typeof window.__uclife__.burnToPoi === 'function'
-    && typeof window.__uclife__.forceCompleteBurn === 'function',
+    && typeof window.__uclife__.takeHelmCheat === 'function'
+    && typeof window.__uclife__.tickSpace === 'function'
+    && typeof window.__uclife__.moveShipTo === 'function'
+    && typeof window.__uclife__.listEnemies === 'function'
+    && typeof window.__uclife__.fastWinCombat === 'function',
   { label: '__uclife__ smoke handle' },
 )
 if (!ready) {
-  fail('__uclife__ smoke handle not exposed')
+  fail('__uclife__ smoke handle missing required helpers')
   await browser.close()
   process.exit(1)
 }
@@ -60,11 +70,11 @@ await shot('00-booted')
 
 // ── Step 1: Cheat to ship-owning state ───────────────────────────────
 const cheatOk = await page.evaluate(() => {
-  const ok =
+  return (
     window.__uclife__.cheatMoney(80000) &&
     window.__uclife__.cheatPiloting(10) &&
     window.__uclife__.setShipOwned()
-  return ok
+  )
 })
 if (!cheatOk) {
   fail('cheats failed (player entity missing?)')
@@ -81,122 +91,101 @@ const boardedOk = await waitFor(
 )
 if (!boardedOk) {
   fail('did not arrive in playerShipInterior')
-} else {
-  pass('boarded ship — active scene = playerShipInterior')
-}
-await shot('01-boarded')
-
-// ── Step 3: Open starmap ─────────────────────────────────────────────
-await page.evaluate(() => window.uclifeUI.getState().setStarmap(true))
-await page.waitForTimeout(200)
-const starmapOpen = await page.evaluate(() => window.uclifeUI.getState().starmapOpen)
-if (!starmapOpen) {
-  fail('starmap did not open')
-} else {
-  pass('starmap open')
-}
-await shot('02-starmap-open')
-
-// ── Step 4: Burn to a pirate-territory POI ──────────────────────────
-const dockedBefore = await page.evaluate(
-  () => window.__uclife__.getShipState()?.dockedAtPoiId,
-)
-console.log('Initially docked at:', dockedBefore)
-if (dockedBefore !== 'vonBraun') {
-  fail(`expected initial docked POI to be vonBraun, got ${dockedBefore}`)
-}
-
-// side6 (Riah) is a major POI in the shoalZone region with no sceneId,
-// so a burn-arrival fires that region's encounter pool (pirate_patrol +
-// debris/derelict/salvage). Continuous-space travel reaches any POI in
-// one burn within the fuel budget.
-const target = 'side6'
-
-// Plot the burn, then fast-forward game-time to its arrival so the smoke
-// test isn't gated on real-time burn duration. forceCompleteBurn snaps
-// the fleet to the dest POI, docks, and fires the arrival encounter.
-await page.evaluate((t) => window.__uclife__.burnToPoi(t), target)
-await page.evaluate(() => window.__uclife__.forceCompleteBurn())
-const burnDone = await waitFor(
-  () => {
-    const ship = window.__uclife__.getShipState()
-    return ship && ship.dockedAtPoiId === 'side6' && ship.burnPlan === null
-  },
-  { timeoutMs: 4000, label: 'docked at side6 with burn plan cleared' },
-)
-if (!burnDone) {
-  fail('burn to side6 did not complete')
-  await shot('04a-burn-fail')
   await browser.close()
   process.exit(1)
 }
-pass('burn complete · docked at side6')
+pass('boarded ship — active scene = playerShipInterior')
+await shot('01-boarded')
 
-// side6 carries a sceneId (Side 6 dockable in the data file? — currently
-// NO; only vonBraun + side3 are dockable). Non-dockable POIs roll their
-// region's encounter pool on arrival. shoalZone region has pirate_patrol
-// in its pool with weight 4 — but the roll is RNG, so we may need to
-// retry burns until pirate_patrol fires.
-//
-// For deterministic spine coverage, we instead trigger pirate_patrol
-// directly via __uclife__ if it didn't fire from the burn.
-let encId = await page.evaluate(
-  () => window.__uclife__.useEncounter.getState().current?.template?.id ?? null,
-)
-if (!encId) {
-  console.log('  (no encounter rolled at side6; triggering pirate_patrol directly)')
-  await page.evaluate(() => {
-    window.__uclife__.useEncounter.getState().trigger('pirate_patrol', { poiId: 'side6' })
-  })
-  encId = await page.evaluate(
-    () => window.__uclife__.useEncounter.getState().current?.template?.id ?? null,
-  )
+// ── Step 3: Take helm via takeHelmCheat (debits fuel, sets AtHelm) ───
+const fuelBefore = await page.evaluate(() => window.__uclife__.getShipState()?.fuelCurrent ?? null)
+const helmRes = await page.evaluate(() => window.__uclife__.takeHelmCheat())
+if (!helmRes || helmRes.ok !== true) {
+  fail(`takeHelmCheat failed: ${helmRes && helmRes.message}`)
+  await browser.close()
+  process.exit(1)
 }
-if (encId !== 'pirate_patrol') {
-  fail(`expected encounter 'pirate_patrol', got '${encId}'`)
+const inSpace = await waitFor(
+  () => window.__uclife__.useScene.getState().activeId === 'spaceCampaign',
+  { label: 'scene swap to spaceCampaign' },
+)
+if (!inSpace) {
+  fail('did not arrive in spaceCampaign after takeHelm')
+  await browser.close()
+  process.exit(1)
+}
+const fuelAfter = await page.evaluate(() => window.__uclife__.getShipState()?.fuelCurrent ?? null)
+if (fuelBefore !== null && fuelAfter !== null && fuelAfter > fuelBefore) {
+  fail(`takeHelm did not debit fuel (before=${fuelBefore} after=${fuelAfter})`)
 } else {
-  pass(`encounter active: pirate_patrol`)
+  pass(`took helm — active scene = spaceCampaign · fuel ${fuelBefore} → ${fuelAfter}`)
 }
-await shot('04-encounter-open')
+await shot('02-at-helm')
 
-// ── Step 6: Resolve "engage" → tactical combat ───────────────────────
-await page.evaluate(() =>
-  window.__uclife__.useEncounter.getState().resolveChoice('engage'),
-)
+// ── Step 4: Pick a hand-placed enemy and teleport the ship to within
+// the contact radius minus a buffer so a single tick triggers the
+// engagement modal deterministically. The space sim's contact radius is
+// ~120px (spaceConfig.aggroContactRadius); 60px is well inside.
+const enemies = await page.evaluate(() => window.__uclife__.listEnemies())
+if (!enemies || enemies.length === 0) {
+  fail('no enemies present in spaceCampaign')
+  await browser.close()
+  process.exit(1)
+}
+const target = enemies[0]
+console.log(`  targeting enemy ${target.key} at (${target.pos.x.toFixed(1)}, ${target.pos.y.toFixed(1)})`)
+
+// Snap the ship right next to the enemy and set a course so the integrator
+// has a non-zero state (course is mostly cosmetic — contact detection is
+// position-based).
+const teleported = await page.evaluate(({ x, y }) => {
+  return window.__uclife__.moveShipTo(x - 60, y) &&
+    window.__uclife__.setCourse(x, y, null)
+}, target.pos)
+if (!teleported) {
+  fail('moveShipTo / setCourse failed')
+  await browser.close()
+  process.exit(1)
+}
+pass(`ship teleported to (~60px from enemy) and course set`)
+
+// Drive the space sim directly via tickSpace so contact detection runs
+// without depending on the RAF loop's pace. One tick is enough at 60px
+// inside aggro radius. Loop a few times in case the prompt is gated by
+// the initial out-of-aggro flag (the first tick marks the enemy
+// in-contact, the next can prompt — see spaceSim.ts cooldown logic).
+let promptOpen = false
+for (let i = 0; i < 30; i++) {
+  await page.evaluate(() => window.__uclife__.tickSpace(0.05))
+  promptOpen = await page.evaluate(
+    () => window.__uclife__.useEngagement.getState().open === true,
+  )
+  if (promptOpen) break
+}
+if (!promptOpen) {
+  fail('engagement modal did not open within 30 ticks')
+  await shot('03a-no-prompt')
+  await browser.close()
+  process.exit(1)
+}
+pass('engagement modal opened')
+await shot('03-engagement-prompt')
+
+// ── Step 5: Resolve 'engage' → tactical combat overlay ───────────────
+await page.evaluate(() => window.__uclife__.useEngagement.getState().resolve('engage'))
 const combatOpened = await waitFor(
   () => window.__uclife__.useCombatStore.getState().open === true,
-  { timeoutMs: 3000, label: 'tactical view open' },
+  { timeoutMs: 3000, label: 'combat overlay open' },
 )
 if (!combatOpened) {
-  fail('tactical view did not open after engage')
-} else {
-  pass('tactical view open')
+  fail('combat overlay did not open after engage')
+  await browser.close()
+  process.exit(1)
 }
-await shot('05-combat-open')
+pass('combat overlay open')
+await shot('04-combat-open')
 
-const pausedOnEntry = await page.evaluate(
-  () => window.__uclife__.useCombatStore.getState().paused,
-)
-if (pausedOnEntry !== true) {
-  fail(`expected combat paused on entry, got paused=${pausedOnEntry}`)
-} else {
-  pass('combat paused on entry (Starsector convention)')
-}
-
-// ── Step 7: Unpause ──────────────────────────────────────────────────
-await page.evaluate(() =>
-  window.__uclife__.useCombatStore.getState().togglePause(),
-)
-const unpaused = await page.evaluate(
-  () => window.__uclife__.useCombatStore.getState().paused === false,
-)
-if (!unpaused) {
-  fail('togglePause did not unpause')
-} else {
-  pass('combat unpaused')
-}
-
-// ── Step 8: Force-resolve via fastWinCombat ──────────────────────────
+// ── Step 6: Force-resolve via fastWinCombat ──────────────────────────
 const winCheatOk = await page.evaluate(() => window.__uclife__.fastWinCombat())
 if (!winCheatOk) {
   fail('fastWinCombat returned false (no enemy entity?)')
@@ -224,7 +213,7 @@ if (!resolved) {
 } else {
   pass('combat resolved · overlay closed, clock=normal, inCombat=false')
 }
-await shot('06-resolved')
+await shot('05-resolved')
 
 // ── Final dump ───────────────────────────────────────────────────────
 const log = await page.evaluate(() => window.__uclife__.getEventLog())

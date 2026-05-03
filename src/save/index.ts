@@ -18,6 +18,7 @@ import {
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
   Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
   Ship, WeaponMount,
+  ShipBody, Velocity, Course, AtHelm, EnemyAI,
   type AmbitionSlot, type AmbitionHistoryEntry,
 } from '../ecs/traits'
 import type { TraitInstance } from 'koota'
@@ -30,10 +31,12 @@ import { resetWorld, spawnNPC } from '../ecs/spawn'
 import { getPopulationState, setPopulationState } from '../systems/population'
 import { snapshotRelations, restoreRelations, type RelationSnap } from '../systems/relations'
 import { useCombatStore } from '../systems/combat'
+import { resetEngagementCooldowns } from '../sim/engagement'
 import { logEvent } from '../ui/EventLog'
 import { WORLD_SEED } from '../procgen'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
+const SPACE_SCENE_ID: SceneId = 'spaceCampaign'
 
 export type SlotId = 'auto' | 1 | 2 | 3
 export const MANUAL_SLOTS: ReadonlyArray<1 | 2 | 3> = [1, 2, 3]
@@ -50,7 +53,12 @@ const LEGACY_KEY = 'uclife:autosave'
 // flat Starsector stat snapshot. v1 + v2 saves load with ship state at
 // deterministic defaults (player still owns the ship if Flags.shipOwned
 // is set); a one-line event-log notice flags the migration.
-const SAVE_VERSION = 3
+// v4 (Phase 6.0 slice 8): adds spaceCampaign world snapshot — player ship
+// continuous-physics state (Position/Velocity/Course/AtHelm) plus enemy
+// positions, velocities, and EnemyAI mode/patrolIdx. v3 saves load with
+// the spaceCampaign world at fresh-bootstrap state (player at docked POI,
+// enemies at spawn coords).
+const SAVE_VERSION = 4
 
 // Per-entity snapshot. `key` matches an EntityKey already in the world (or,
 // for immigrants, identifies the NPC to re-spawn). All trait fields are
@@ -123,6 +131,27 @@ interface ShipSaveBlock {
   weapons: { mountIdx: number; weaponId: string }[]
 }
 
+// Continuous-space snapshot for the spaceCampaign world. Bodies and POIs
+// are derived from data + the game-clock so they're never persisted; only
+// the player ship's physics state and each enemy's mutable AI state are.
+// Patrol paths are data-driven (space-entities.json5) — only the index and
+// mode need to round-trip.
+interface SpaceSaveBlock {
+  player: {
+    pos: { x: number; y: number }
+    vel: { vx: number; vy: number }
+    course: { tx: number; ty: number; destPoiId: string | null; active: boolean }
+    atHelm: boolean
+  }
+  enemies: {
+    key: string
+    pos: { x: number; y: number }
+    vel: { vx: number; vy: number }
+    mode: 'patrol' | 'idle' | 'chase' | 'flee'
+    patrolIdx: number
+  }[]
+}
+
 interface SaveBundle {
   version: number
   seed: string
@@ -137,6 +166,9 @@ interface SaveBundle {
   // Optional so v1 bundles parse cleanly. Absence ⇒ leave the default ship
   // state that bootstrapShipScene seeds.
   ship?: ShipSaveBlock
+  // Optional so pre-v4 bundles parse cleanly. Absence ⇒ leave the
+  // spaceCampaign world at fresh-bootstrap state.
+  space?: SpaceSaveBlock
 }
 
 // Returns null for entities without an EntityKey trait (walls, doors,
@@ -344,6 +376,84 @@ function restoreShip(block: ShipSaveBlock): void {
   }
 }
 
+// Reads the spaceCampaign world directly. Returns undefined when bootstrap
+// hasn't run yet or when no player ShipBody is present (defensive — should
+// never happen post-setupWorld since bootstrapSpaceCampaign always spawns
+// the player ship).
+function snapshotSpace(): SpaceSaveBlock | undefined {
+  const w = getWorld(SPACE_SCENE_ID)
+  const player = w.queryFirst(IsPlayer, ShipBody)
+  if (!player) return undefined
+
+  const pos = player.get(Position)!
+  const vel = player.get(Velocity)!
+  const course = player.get(Course)!
+  const atHelm = player.has(AtHelm)
+
+  const enemies: SpaceSaveBlock['enemies'] = []
+  for (const e of w.query(EnemyAI, Position, Velocity, EntityKey)) {
+    const k = e.get(EntityKey)!.key
+    if (!k.startsWith('enemy-')) continue
+    const ai = e.get(EnemyAI)!
+    const ep = e.get(Position)!
+    const ev = e.get(Velocity)!
+    enemies.push({
+      key: k,
+      pos: { x: ep.x, y: ep.y },
+      vel: { vx: ev.vx, vy: ev.vy },
+      mode: ai.mode,
+      patrolIdx: ai.patrolIdx,
+    })
+  }
+
+  return {
+    player: {
+      pos: { x: pos.x, y: pos.y },
+      vel: { vx: vel.vx, vy: vel.vy },
+      course: { tx: course.tx, ty: course.ty, destPoiId: course.destPoiId, active: course.active },
+      atHelm,
+    },
+    enemies,
+  }
+}
+
+// Patches a SpaceSaveBlock onto the freshly-bootstrapped spaceCampaign world.
+// bootstrapSpaceCampaign always runs in resetWorld → setupWorld, so the
+// player ship and all data-driven enemies already exist; we only overlay
+// dynamic state. Patrol paths come from data and are not persisted — only
+// the index round-trips.
+function restoreSpace(block: SpaceSaveBlock): void {
+  const w = getWorld(SPACE_SCENE_ID)
+
+  const player = w.queryFirst(IsPlayer, ShipBody)
+  if (player) {
+    player.set(Position, { x: block.player.pos.x, y: block.player.pos.y })
+    player.set(Velocity, { vx: block.player.vel.vx, vy: block.player.vel.vy })
+    player.set(Course, {
+      tx: block.player.course.tx,
+      ty: block.player.course.ty,
+      destPoiId: block.player.course.destPoiId,
+      active: block.player.course.active,
+    })
+    if (block.player.atHelm && !player.has(AtHelm)) player.add(AtHelm)
+    else if (!block.player.atHelm && player.has(AtHelm)) player.remove(AtHelm)
+  }
+
+  const byKey = new Map<string, ReturnType<typeof w.queryFirst>>()
+  for (const e of w.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+  for (const snap of block.enemies) {
+    const e = byKey.get(snap.key)
+    if (!e) continue
+    e.set(Position, { x: snap.pos.x, y: snap.pos.y })
+    e.set(Velocity, { vx: snap.vel.vx, vy: snap.vel.vy })
+    const ai = e.get(EnemyAI)
+    if (ai) {
+      e.set(EnemyAI, { ...ai, mode: snap.mode, patrolIdx: snap.patrolIdx })
+    }
+  }
+}
+
 export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
   // Combat state is transient by design (Slice G). Manual saves refuse with
   // a toast-friendly error; autosave logs and skips so the throttle clock
@@ -374,6 +484,7 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
     entities,
     relations: snapshotRelations(world),
     ship: snapshotShip(),
+    space: snapshotSpace(),
   }
   const payload = superjson.stringify(bundle)
   await set(bundleKey(slot), payload)
@@ -445,11 +556,14 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   // the player keeps shipOwned via Flags so they can still board their
   // vessel. The old `ship` block (rooms/systems/reactor) is silently
   // dropped — the new Starsector stat block doesn't share its shape.
-  if (bundle.version !== SAVE_VERSION && bundle.version !== 1 && bundle.version !== 2) {
+  // v3 saves carry the new ship block but no spaceCampaign snapshot —
+  // the space world re-bootstraps to fresh defaults.
+  if (bundle.version !== SAVE_VERSION && bundle.version !== 1 && bundle.version !== 2 && bundle.version !== 3) {
     return { ok: false, reason: `version mismatch: save=${bundle.version} app=${SAVE_VERSION}` }
   }
   const isLegacyShipless = bundle.version === 1
   const isLegacyFTL = bundle.version === 2
+  const isLegacyPreSpace = bundle.version === 3
   if (bundle.seed !== WORLD_SEED) {
     // Refuse rather than silently mis-overlay: different seeds generate
     // different sector slots, so EntityKeys won't line up.
@@ -480,7 +594,15 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   const targetSceneId: SceneId = (bundle.activeSceneId && sceneIds.includes(bundle.activeSceneId))
     ? bundle.activeSceneId
     : initialSceneId
-  if (targetSceneId !== initialSceneId) {
+  if (targetSceneId === SPACE_SCENE_ID) {
+    // At-helm save: spaceCampaign's IsPlayer is the ship-as-entity, NOT a
+    // humanoid. The humanoid 'player' is still parked at initialSceneId
+    // post-resetWorld (setupWorld doesn't auto-board). Flip the active
+    // scene so restoreSpace below can overlay the ship's continuous-physics
+    // state and the ScopedRoot remount picks up spaceCampaign for render.
+    // Humanoid restoration on disembark is out of slice 8's scope.
+    useScene.getState().setActive(SPACE_SCENE_ID)
+  } else if (targetSceneId !== initialSceneId) {
     // Position is overlaid from the snapshot below; the arrival arg is just
     // a placeholder. migratePlayerToScene calls useScene.setActive internally.
     migratePlayerToScene(targetSceneId, { x: 0, y: 0 })
@@ -660,9 +782,9 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   if (bundle.relations) restoreRelations(world, byKey, bundle.relations)
 
   // Ship state lives in a separate scene world; bootstrap already seeded
-  // deterministic defaults during resetWorld(). v3 saves overlay the
+  // deterministic defaults during resetWorld(). v3+ saves overlay the
   // long-arc deltas; v1/v2 saves leave the defaults and notify the player.
-  if (bundle.ship && bundle.version === SAVE_VERSION) {
+  if (bundle.ship && (bundle.version === SAVE_VERSION || bundle.version === 3)) {
     restoreShip(bundle.ship)
   } else if (isLegacyShipless) {
     logEvent('存档先于 Phase 6 — 飞船状态已重置为默认')
@@ -670,10 +792,22 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     logEvent('存档为 Phase 6 旧版 — 飞船重置为新结构默认')
   }
 
-  // Combat is transient. Reset the bridge-overlay store so no stale pause
-  // flag / open modal survives a load. The clock is forced to mode:'normal'
-  // by the auto-pause setState below.
+  // spaceCampaign world: only v4+ carries a snapshot. Pre-v4 saves leave
+  // the freshly-bootstrapped state — player ship at the docked POI's t=0
+  // position, enemies at their data-driven spawns. Patrol paths come from
+  // data; only the index/mode round-trip.
+  if (bundle.space && bundle.version === SAVE_VERSION) {
+    restoreSpace(bundle.space)
+  } else if (isLegacyPreSpace) {
+    logEvent('存档先于太空世界持久化 — 飞船与敌舰位置已重置')
+  }
+
+  // Combat + engagement-modal state is transient. Reset both stores so no
+  // stale pause / open modal survives a load. The contact-detection cooldown
+  // map in spaceSim is already cleared by resetSpaceSimFlags() (called from
+  // resetWorld above); resetEngagementCooldowns drops the modal store too.
   useCombatStore.getState().reset()
+  resetEngagementCooldowns()
 
   // setupWorld spawns NPCs without Active — that's normally added on the
   // first activeZoneSystem tick. But loadGame auto-pauses, so no tick fires

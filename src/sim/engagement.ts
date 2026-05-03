@@ -67,3 +67,11 @@ export const useEngagement = create<EngagementState>((set, get) => ({
     set({ open: false, enemyKey: null, enemyShipClassId: null })
   },
 }))
+
+// Save/load reset hook — clears any stale modal state. The contact-detection
+// re-prompt cooldown map lives in spaceSim.ts and is wiped by
+// resetSpaceSimFlags(); this companion call drops the modal store itself so a
+// load taken with the engagement modal open doesn't leave a ghost prompt.
+export function resetEngagementCooldowns(): void {
+  useEngagement.setState({ open: false, enemyKey: null, enemyShipClassId: null })
+}
