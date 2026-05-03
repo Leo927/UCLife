@@ -1,0 +1,1 @@
+export { PixiCanvas } from './PixiCanvas'
