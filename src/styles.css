@@ -1581,6 +1581,22 @@ html, body, #root {
   margin-top: 8px;
   align-self: flex-start;
 }
+.starmap-cancel-btn {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.starmap-progress {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.starmap-progress-bar {
+  height: 100%;
+  background: #4ade80;
+  transition: width 120ms linear;
+}
 @media (max-width: 640px) {
   .starmap-body {
     flex-direction: column;

@@ -18,7 +18,7 @@ import { ambitionsSystem } from './systems/ambitions'
 import { getAirportPlacement } from './sim/airportPlacements'
 import { flightHubs } from './data/flights'
 import { findPath } from './systems/pathfinding'
-import { burnTo } from './systems/starmap'
+import { burnToPoi, burnToPos, forceCompleteBurn } from './systems/starmap'
 import { boardShip, disembarkShip } from './sim/scene'
 import { getShipState } from './sim/ship'
 import { useEncounter } from './sim/encounters'
@@ -224,7 +224,9 @@ if (import.meta.env.DEV) {
       return true
     },
     // ── Phase 6.0 Starsector pivot — debug surface ──────────────────
-    burnTo,
+    burnToPoi,
+    burnToPos,
+    forceCompleteBurn,
     boardShip,
     disembarkShip,
     getShipState,

@@ -18,7 +18,7 @@ import {
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
   Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
   Ship, WeaponMount,
-  type AmbitionSlot, type AmbitionHistoryEntry,
+  type AmbitionSlot, type AmbitionHistoryEntry, type BurnPlan,
 } from '../ecs/traits'
 import type { TraitInstance } from 'koota'
 import { world, getActiveSceneId, getWorld, type SceneId } from '../ecs/world'
@@ -120,6 +120,7 @@ interface ShipSaveBlock {
   suppliesCurrent: number
   dockedAtPoiId: string
   fleetPos: { x: number; y: number }
+  burnPlan: BurnPlan | null
   weapons: { mountIdx: number; weaponId: string }[]
 }
 
@@ -301,6 +302,7 @@ function snapshotShip(): ShipSaveBlock | undefined {
     suppliesCurrent: s.suppliesCurrent,
     dockedAtPoiId: s.dockedAtPoiId,
     fleetPos: { x: s.fleetPos.x, y: s.fleetPos.y },
+    burnPlan: s.burnPlan ? { ...s.burnPlan } : null,
     weapons,
   }
 }
@@ -324,6 +326,7 @@ function restoreShip(block: ShipSaveBlock): void {
       suppliesCurrent: block.suppliesCurrent,
       dockedAtPoiId: block.dockedAtPoiId,
       fleetPos: { x: block.fleetPos.x, y: block.fleetPos.y },
+      burnPlan: block.burnPlan ? { ...block.burnPlan } : null,
       // Combat is transient — saves never write inCombat:true (manual blocks,
       // autosave skips), but force false here for defense.
       inCombat: false,

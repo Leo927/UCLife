@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUI } from './uiStore'
 import {
-  STARMAP, getPoi, burnCost, type FactionKey, type Poi,
+  STARMAP, getPoi, getRegion, burnCostBetween, distancePos,
+  POI_SNAP_RADIUS, nearestSnappablePoi,
+  type FactionKey, type MapPos, type Poi, type BurnCost,
 } from '../data/starmap'
-import { getShipState, getDockedPoiId } from '../sim/ship'
-import { useTransition } from '../sim/transition'
-import { burnTo, canBurnTo } from '../systems/starmap'
+import { getShipState, getDockedPoiId, getBurnPlan } from '../sim/ship'
+import { burnToPos, burnToPoi, canBurnToPos, getBurnProgress } from '../systems/starmap'
 
 const FACTION_COLOR: Record<FactionKey, string> = {
   civilian: '#94a3b8',
@@ -51,12 +52,13 @@ const TYPE_LABEL: Record<string, string> = {
 
 const FAIL_HINT: Record<string, string> = {
   'no-ship': '没有飞船',
-  'not-docked': '飞船未在停靠点',
+  'no-origin': '舰队位置未知',
   'unknown-poi': '未知坐标',
   'insufficient-fuel': '燃料不足',
   'insufficient-supplies': '补给不足',
-  'in-transition': '正在航行中',
-  'same-poi': '已在此处',
+  'in-transition': '正在切换',
+  'in-burn': '航行中',
+  'too-close': '距离过近',
 }
 
 function formatDuration(min: number): string {
@@ -67,37 +69,68 @@ function formatDuration(min: number): string {
   return `${h} 小时 ${m} 分钟`
 }
 
+interface PlannedTarget {
+  pos: MapPos
+  poi: Poi | null
+}
+
 export function StarmapPanel() {
   const open = useUI((s) => s.starmapOpen)
   const setStarmap = useUI((s) => s.setStarmap)
-  const inTransition = useTransition((s) => s.inProgress)
-  // Bump on transition completion so the panel re-reads ship state.
-  const [revision, setRevision] = useState(0)
-  useEffect(() => {
-    if (!inTransition) setRevision((r) => r + 1)
-  }, [inTransition])
-  void revision
 
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Re-render every frame while open so the fleet token visibly traverses
+  // along the burn plan. Cheap: the SVG redraw is small and only fires
+  // while this overlay is mounted.
+  const [, setFrame] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    let id = 0
+    const loop = () => {
+      setFrame((n) => (n + 1) & 0xfffff)
+      id = requestAnimationFrame(loop)
+    }
+    id = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(id)
+  }, [open])
+
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const [hoveredPos, setHoveredPos] = useState<MapPos | null>(null)
+  const [planned, setPlanned] = useState<PlannedTarget | null>(null)
 
   if (!open) return null
 
   const ship = getShipState()
+  const burn = getBurnPlan()
   const dockedId = getDockedPoiId()
+  const dockedPoi = dockedId ? getPoi(dockedId) ?? null : null
+  const fleetPos: MapPos | null = ship ? { x: ship.fleetPos.x, y: ship.fleetPos.y } : null
 
   const close = () => {
     setStarmap(false)
-    setHoveredId(null)
-    setSelectedId(null)
+    setHoveredPos(null)
+    setPlanned(null)
   }
 
-  const dockedPoi = dockedId ? getPoi(dockedId) ?? null : null
-  const focusId = hoveredId ?? selectedId ?? dockedId ?? null
-  const focusPoi = focusId ? getPoi(focusId) ?? null : null
-  const focusCost = (focusId && dockedId && focusId !== dockedId)
-    ? burnCost(dockedId, focusId)
-    : null
+  // Snap a hover/click coordinate either to a nearby POI or leave it as
+  // free-space coords. Hover preview uses the same snap so the cursor
+  // visually "grips" landmarks.
+  function resolveTarget(rawPos: MapPos): PlannedTarget {
+    const snap = nearestSnappablePoi(rawPos)
+    if (snap) return { pos: snap.pos, poi: snap }
+    return { pos: rawPos, poi: null }
+  }
+
+  function svgFromEvent(e: React.MouseEvent): MapPos | null {
+    const svg = svgRef.current
+    if (!svg) return null
+    const pt = svg.createSVGPoint()
+    pt.x = e.clientX
+    pt.y = e.clientY
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return null
+    const local = pt.matrixTransform(ctm.inverse())
+    return { x: local.x, y: local.y }
+  }
 
   // Sort majors first, procedural last — keeps the labeled UC POIs
   // visually dominant while the seeded minor scatter sits in the
@@ -106,6 +139,37 @@ export function StarmapPanel() {
     if (!!a.procedural === !!b.procedural) return 0
     return a.procedural ? 1 : -1
   })
+
+  const burning = burn != null
+  const previewTarget: PlannedTarget | null = burning
+    ? null
+    : (planned ?? (hoveredPos ? resolveTarget(hoveredPos) : null))
+  const previewCost: BurnCost | null = previewTarget && fleetPos
+    ? burnCostBetween(fleetPos, previewTarget.pos)
+    : null
+  const previewBlock = previewTarget && !burning
+    ? canBurnToPos(previewTarget.pos)
+    : { ok: true as const }
+
+  const handleSvgMove = (e: React.MouseEvent) => {
+    if (burning) return
+    const p = svgFromEvent(e)
+    if (p) setHoveredPos(p)
+  }
+  const handleSvgLeave = () => setHoveredPos(null)
+  const handleSvgClick = (e: React.MouseEvent) => {
+    if (burning) return
+    const p = svgFromEvent(e)
+    if (!p) return
+    setPlanned(resolveTarget(p))
+  }
+
+  const commitBurn = () => {
+    if (!planned) return
+    if (planned.poi) burnToPoi(planned.poi.id)
+    else burnToPos(planned.pos, null)
+    setPlanned(null)
+  }
 
   return (
     <div className="status-overlay" onClick={close}>
@@ -136,7 +200,9 @@ export function StarmapPanel() {
           <>
             <section className="status-section">
               <div className="starmap-status">
-                <span>当前位置 · {dockedPoi ? dockedPoi.nameZh : '航行中'}</span>
+                <span>
+                  当前位置 · {dockedPoi ? dockedPoi.nameZh : (burning ? '航行中' : '空域漂流')}
+                </span>
                 <span>燃料 {ship.fuelCurrent}/{ship.fuelMax}</span>
                 <span>补给 {ship.suppliesCurrent}/{ship.suppliesMax}</span>
                 <span>装甲 {Math.round(ship.armorCurrent)}/{ship.armorMax}</span>
@@ -147,9 +213,14 @@ export function StarmapPanel() {
             <div className="starmap-body">
               <div className="starmap-graph">
                 <svg
+                  ref={svgRef}
                   viewBox="0 0 100 100"
                   className="starmap-svg"
                   preserveAspectRatio="xMidYMid meet"
+                  onMouseMove={handleSvgMove}
+                  onMouseLeave={handleSvgLeave}
+                  onClick={handleSvgClick}
+                  style={{ cursor: burning ? 'progress' : 'crosshair' }}
                 >
                   {/* Region centroids — soft colored discs in the background. */}
                   <g className="starmap-regions">
@@ -165,36 +236,47 @@ export function StarmapPanel() {
                     ))}
                   </g>
 
-                  {/* Selected/destination route line drawn from the docked POI. */}
-                  {dockedPoi && focusPoi && focusPoi.id !== dockedPoi.id && (
+                  {/* Active burn route — origin marker → fleet token → destination. */}
+                  {burn && (
+                    <>
+                      <line
+                        x1={burn.fromX} y1={burn.fromY}
+                        x2={burn.toX} y2={burn.toY}
+                        stroke="#4ade80"
+                        strokeWidth={0.35}
+                        strokeDasharray="0.8,0.8"
+                        opacity={0.5}
+                      />
+                      <circle cx={burn.toX} cy={burn.toY} r={1.4}
+                        fill="none" stroke="#4ade80" strokeWidth={0.4}
+                      />
+                    </>
+                  )}
+
+                  {/* Hover/planned preview burn line. */}
+                  {previewTarget && fleetPos && (
                     <line
-                      x1={dockedPoi.pos.x}
-                      y1={dockedPoi.pos.y}
-                      x2={focusPoi.pos.x}
-                      y2={focusPoi.pos.y}
-                      stroke="#4ade80"
+                      x1={fleetPos.x} y1={fleetPos.y}
+                      x2={previewTarget.pos.x} y2={previewTarget.pos.y}
+                      stroke={previewBlock.ok ? '#4ade80' : '#ef4444'}
                       strokeWidth={0.4}
                       strokeDasharray="1.5,1"
-                      opacity={0.8}
+                      opacity={0.85}
                     />
                   )}
 
                   <g className="starmap-pois">
                     {orderedPois.map((p) => {
                       const isCurrent = p.id === dockedId
-                      const isFocus = p.id === focusId
+                      const isFocus =
+                        (planned?.poi?.id === p.id) ||
+                        (!planned && hoveredPos != null
+                         && distancePos(hoveredPos, p.pos) <= POI_SNAP_RADIUS)
                       const fill = FACTION_COLOR[p.factionControlPre] ?? '#525252'
                       const baseR = p.procedural ? 1.4 : 2.5
                       return (
-                        <g
-                          key={p.id}
-                          opacity={p.procedural ? 0.7 : 1}
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredId(p.id)}
-                          onMouseLeave={() => setHoveredId(null)}
-                          onClick={() => setSelectedId(p.id)}
-                        >
-                          {isCurrent && (
+                        <g key={p.id} opacity={p.procedural ? 0.7 : 1}>
+                          {isCurrent && !burning && (
                             <circle
                               cx={p.pos.x}
                               cy={p.pos.y}
@@ -212,6 +294,7 @@ export function StarmapPanel() {
                             fill={fill}
                             stroke={isFocus ? '#e6e6ea' : '#0d0d10'}
                             strokeWidth={isFocus ? 0.6 : 0.35}
+                            style={{ pointerEvents: 'none' }}
                           />
                           {!p.procedural && (
                             <text
@@ -229,28 +312,73 @@ export function StarmapPanel() {
                       )
                     })}
                   </g>
+
+                  {/* Free-space planned target (when not snapped to a POI). */}
+                  {planned && !planned.poi && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <circle cx={planned.pos.x} cy={planned.pos.y} r={1.2}
+                        fill="none" stroke="#4ade80" strokeWidth={0.4}
+                      />
+                      <line
+                        x1={planned.pos.x - 1.6} y1={planned.pos.y}
+                        x2={planned.pos.x + 1.6} y2={planned.pos.y}
+                        stroke="#4ade80" strokeWidth={0.3}
+                      />
+                      <line
+                        x1={planned.pos.x} y1={planned.pos.y - 1.6}
+                        x2={planned.pos.x} y2={planned.pos.y + 1.6}
+                        stroke="#4ade80" strokeWidth={0.3}
+                      />
+                    </g>
+                  )}
+
+                  {/* Fleet token — always rendered so the player sees their
+                      ship in 2D space, whether docked, burning, or drifting. */}
+                  {fleetPos && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <circle
+                        cx={fleetPos.x} cy={fleetPos.y} r={1.6}
+                        fill="#fef9c3" stroke="#0d0d10" strokeWidth={0.4}
+                      />
+                      <circle
+                        cx={fleetPos.x} cy={fleetPos.y} r={2.6}
+                        fill="none" stroke="#fef9c3" strokeWidth={0.25}
+                        opacity={burning ? 0.9 : 0.45}
+                      />
+                    </g>
+                  )}
                 </svg>
               </div>
 
               <aside className="starmap-info">
-                {focusPoi ? (
-                  <PoiInfoCard
-                    poi={focusPoi}
-                    isCurrent={focusPoi.id === dockedId}
-                    cost={focusCost}
-                    onBurn={() => burnTo(focusPoi.id)}
-                    disabledReason={
-                      focusPoi.id === dockedId
-                        ? '已在此处'
-                        : (() => {
-                            const r = canBurnTo(focusPoi.id)
-                            if (r.ok) return null
-                            return FAIL_HINT[r.reason!] ?? '不可航行'
-                          })()
+                {burning && burn ? (
+                  <BurnProgressCard
+                    destPoiName={
+                      burn.destPoiId
+                        ? (getPoi(burn.destPoiId)?.nameZh ?? '未知坐标')
+                        : '空域坐标'
                     }
+                    progress={getBurnProgress() ?? 0}
+                    arriveAtMs={burn.arriveAtMs}
+                  />
+                ) : planned ? (
+                  <PlannedBurnCard
+                    target={planned}
+                    cost={previewCost}
+                    blockReason={previewBlock.ok ? null : (FAIL_HINT[previewBlock.reason!] ?? '不可航行')}
+                    onConfirm={commitBurn}
+                    onCancel={() => setPlanned(null)}
+                  />
+                ) : previewTarget ? (
+                  <PoiInfoCard
+                    target={previewTarget}
+                    cost={previewCost}
+                    isCurrent={previewTarget.poi?.id === dockedId}
                   />
                 ) : (
-                  <p className="map-place-desc">悬停或点击坐标查看详情。</p>
+                  <p className="map-place-desc">
+                    点击地图任意位置来规划航行;靠近坐标会自动吸附到该坐标。
+                  </p>
                 )}
               </aside>
             </div>
@@ -262,17 +390,26 @@ export function StarmapPanel() {
 }
 
 function PoiInfoCard(props: {
-  poi: Poi
+  target: PlannedTarget
+  cost: BurnCost | null
   isCurrent: boolean
-  cost: { fuel: number; supplies: number; durationMin: number; distance: number } | null
-  onBurn: () => void
-  disabledReason: string | null
 }) {
-  const { poi, isCurrent, cost, onBurn, disabledReason } = props
-  const buttonLabel = cost
-    ? `航行 · 燃料 ${cost.fuel} · 补给 ${cost.supplies} · 时间 ${formatDuration(cost.durationMin)}`
-    : '航行'
-
+  const { target, cost, isCurrent } = props
+  if (!target.poi) {
+    return (
+      <div className="starmap-info-card">
+        <div className="starmap-info-name">空域坐标</div>
+        <div className="status-meta">未命名 · 无服务</div>
+        {cost && (
+          <p className="map-place-desc">
+            航行 · 燃料 {cost.fuel} · 补给 {cost.supplies} · {formatDuration(cost.durationMin)}
+          </p>
+        )}
+      </div>
+    )
+  }
+  const poi = target.poi
+  const region = getRegion(poi.region)
   return (
     <div className="starmap-info-card">
       <div className="starmap-info-name">
@@ -281,6 +418,7 @@ function PoiInfoCard(props: {
       </div>
       <div className="status-meta">
         {TYPE_LABEL[poi.type] ?? poi.type} · {FACTION_LABEL[poi.factionControlPre] ?? poi.factionControlPre}
+        {region && ` · ${region.nameZh}`}
         {poi.procedural && ' · 临时坐标'}
       </div>
       {poi.services.length > 0 && (
@@ -288,17 +426,79 @@ function PoiInfoCard(props: {
           服务:{poi.services.map((s) => SERVICE_LABEL[s] ?? s).join(' · ')}
         </div>
       )}
-      {poi.description && (
-        <p className="map-place-desc">{poi.description}</p>
+      {poi.description && <p className="map-place-desc">{poi.description}</p>}
+      {cost && !isCurrent && (
+        <p className="map-place-desc">
+          航行 · 燃料 {cost.fuel} · 补给 {cost.supplies} · {formatDuration(cost.durationMin)}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function PlannedBurnCard(props: {
+  target: PlannedTarget
+  cost: BurnCost | null
+  blockReason: string | null
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const { target, cost, blockReason, onConfirm, onCancel } = props
+  const name = target.poi ? target.poi.nameZh : '空域坐标'
+  const buttonLabel = cost
+    ? `航行 · 燃料 ${cost.fuel} · 补给 ${cost.supplies} · ${formatDuration(cost.durationMin)}`
+    : '航行'
+  return (
+    <div className="starmap-info-card">
+      <div className="starmap-info-name">规划航行 → {name}</div>
+      {target.poi && (
+        <div className="status-meta">
+          {TYPE_LABEL[target.poi.type] ?? target.poi.type} · {FACTION_LABEL[target.poi.factionControlPre]}
+        </div>
+      )}
+      {!target.poi && (
+        <div className="status-meta">坐标 ({target.pos.x.toFixed(1)}, {target.pos.y.toFixed(1)})</div>
       )}
       <button
         className="transit-terminal-go starmap-jump-btn"
-        onClick={onBurn}
-        disabled={disabledReason != null}
-        title={disabledReason ?? undefined}
+        onClick={onConfirm}
+        disabled={blockReason != null}
+        title={blockReason ?? undefined}
       >
-        {disabledReason ?? buttonLabel}
+        {blockReason ?? buttonLabel}
       </button>
+      <button
+        className="status-close starmap-cancel-btn"
+        onClick={onCancel}
+        style={{ marginTop: 8 }}
+      >
+        取消
+      </button>
+    </div>
+  )
+}
+
+function BurnProgressCard(props: {
+  destPoiName: string
+  progress: number
+  arriveAtMs: number
+}) {
+  const { destPoiName, progress, arriveAtMs } = props
+  const pct = Math.round(progress * 100)
+  const arrivalDate = new Date(arriveAtMs)
+  return (
+    <div className="starmap-info-card">
+      <div className="starmap-info-name">航行中 → {destPoiName}</div>
+      <div className="starmap-progress">
+        <div className="starmap-progress-bar" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="status-meta">
+        进度 {pct}% · 预计抵达 {arrivalDate.getHours().toString().padStart(2, '0')}:
+        {arrivalDate.getMinutes().toString().padStart(2, '0')}
+      </div>
+      <p className="map-place-desc">
+        舰队正在跨越空间。让游戏继续运行(可使用快进)以推进航程。
+      </p>
     </div>
   )
 }

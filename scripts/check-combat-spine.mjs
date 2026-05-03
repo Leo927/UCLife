@@ -58,7 +58,8 @@ await page.waitForTimeout(800)
 const ready = await waitFor(
   () => 'uclifeUI' in window && '__uclife__' in window
     && typeof window.__uclife__.boardShip === 'function'
-    && typeof window.__uclife__.burnTo === 'function',
+    && typeof window.__uclife__.burnToPoi === 'function'
+    && typeof window.__uclife__.forceCompleteBurn === 'function',
   { label: '__uclife__ smoke handle' },
 )
 if (!ready) {
@@ -122,14 +123,17 @@ if (dockedBefore !== 'vonBraun') {
 // one burn within the fuel budget.
 const target = 'side6'
 
-await page.evaluate((t) => window.__uclife__.burnTo(t), target)
+// Plot the burn, then fast-forward game-time to its arrival so the smoke
+// test isn't gated on real-time burn duration. forceCompleteBurn snaps
+// the fleet to the dest POI, docks, and fires the arrival encounter.
+await page.evaluate((t) => window.__uclife__.burnToPoi(t), target)
+await page.evaluate(() => window.__uclife__.forceCompleteBurn())
 const burnDone = await waitFor(
   () => {
     const ship = window.__uclife__.getShipState()
-    const t = window.__uclife__.useTransition.getState()
-    return ship && ship.dockedAtPoiId === 'side6' && t.inProgress === false
+    return ship && ship.dockedAtPoiId === 'side6' && ship.burnPlan === null
   },
-  { timeoutMs: 6000, label: 'docked at side6 with transition idle' },
+  { timeoutMs: 4000, label: 'docked at side6 with burn plan cleared' },
 )
 if (!burnDone) {
   fail('burn to side6 did not complete')

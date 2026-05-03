@@ -18,6 +18,7 @@ import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
 import { combatSystem } from '../systems/combat'
+import { starmapSystem } from '../systems/starmap'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
@@ -148,6 +149,7 @@ function frame(now: number) {
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
+      starmapSystem()
     }
 
     // First-run forced picker: open the panel if the player has no active

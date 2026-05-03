@@ -263,8 +263,12 @@ export function distanceBetween(fromId: string, toId: string): number {
   const a = poiById.get(fromId)
   const b = poiById.get(toId)
   if (!a || !b) return Infinity
-  const dx = b.pos.x - a.pos.x
-  const dy = b.pos.y - a.pos.y
+  return distancePos(a.pos, b.pos)
+}
+
+export function distancePos(a: MapPos, b: MapPos): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
   return Math.sqrt(dx * dx + dy * dy)
 }
 
@@ -315,8 +319,35 @@ export function burnCost(fromId: string, toId: string): BurnCost {
   if (!isFinite(distance)) {
     return { fuel: 0, supplies: 0, durationMin: 0, distance: 0 }
   }
+  return burnCostForDistance(distance)
+}
+
+export function burnCostBetween(from: MapPos, to: MapPos): BurnCost {
+  return burnCostForDistance(distancePos(from, to))
+}
+
+function burnCostForDistance(distance: number): BurnCost {
   const fuel = Math.max(MIN_FUEL, Math.ceil(distance / FUEL_PER_UNIT))
   const supplies = Math.ceil(distance / SUPPLIES_PER_UNIT)
   const durationMin = Math.max(MIN_DURATION, Math.floor(distance * MIN_PER_UNIT))
   return { fuel, supplies, durationMin, distance }
+}
+
+// POI-snap radius in normalized map units. A click within this distance of
+// a major POI snaps the burn target to that POI's position and tags the
+// plan with destPoiId so the fleet auto-docks on arrival. Outside this,
+// the click resolves to free-space coordinates.
+export const POI_SNAP_RADIUS = 3
+
+export function nearestSnappablePoi(pos: MapPos): Poi | null {
+  let best: Poi | null = null
+  let bestD = POI_SNAP_RADIUS
+  for (const p of allPois) {
+    const d = distancePos(pos, p.pos)
+    if (d <= bestD) {
+      bestD = d
+      best = p
+    }
+  }
+  return best
 }
