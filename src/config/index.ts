@@ -30,3 +30,6 @@ export type { PopulationConfig } from './population'
 
 export { factionsConfig } from './factions'
 export type { FactionsConfig, FactionSpec } from './factions'
+
+export { spaceConfig } from './space'
+export type { SpaceConfig } from './space'

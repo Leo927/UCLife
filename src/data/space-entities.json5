@@ -1,0 +1,97 @@
+// Hand-placed persistent enemies in the Earth Sphere campaign sector.
+//
+// Each entry spawns a real koota entity at game start; entities persist
+// state (hull, position, ai mode) across encounters. There are NO RNG
+// encounter rolls — every threat the player meets is one of these
+// entities, visible on the map at all times.
+//
+// shipClassId references src/data/ships.json5. Slice 1 only stores the
+// id; slice 5 wires it through the ship spawner. If the id doesn't exist
+// in ships.json5 yet, the loader still accepts the entry (the spawner
+// will be the place to bind hull stats).
+//
+// Coordinates are absolute world px in a 30000 × 24000 sector. The shoal
+// zone sits between Sides 5/6 around the lunar shell (y≈12000); the
+// outer belt sits past 16000 from Earth.
+{
+  entities: [
+    // Shoal-zone pirate skirmishers — patrol loops between Sides 5/6 area.
+    {
+      id: 'pirate-shoal-1',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 9500, y: 11200 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 9500, y: 11200 },
+        { x: 10500, y: 12400 },
+        { x: 9200, y: 12800 },
+        { x: 8800, y: 11800 },
+      ],
+      aggroRadius: 600,
+      fleeHullPct: 0.25,
+    },
+    {
+      id: 'pirate-shoal-2',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 11800, y: 12600 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 11800, y: 12600 },
+        { x: 12600, y: 13400 },
+        { x: 11200, y: 13200 },
+      ],
+      aggroRadius: 600,
+      fleeHullPct: 0.25,
+    },
+    {
+      id: 'pirate-shoal-3',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 10200, y: 13800 },
+      aiMode: 'idle',
+      aggroRadius: 500,
+      fleeHullPct: 0.2,
+    },
+    {
+      id: 'pirate-shoal-4',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 8400, y: 13200 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 8400, y: 13200 },
+        { x: 7800, y: 12400 },
+        { x: 8200, y: 11600 },
+      ],
+      aggroRadius: 600,
+      fleeHullPct: 0.25,
+    },
+
+    // Outer-belt raiders — heavier, near Axis/Pezun radii.
+    {
+      id: 'pirate-outer-1',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_raider',
+      spawn: { x: 27000, y: 8400 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 27000, y: 8400 },
+        { x: 28000, y: 9200 },
+        { x: 26200, y: 9600 },
+      ],
+      aggroRadius: 800,
+      fleeHullPct: 0.15,
+    },
+    {
+      id: 'pirate-outer-2',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_raider',
+      spawn: { x: 4200, y: 18800 },
+      aiMode: 'idle',
+      aggroRadius: 800,
+      fleeHullPct: 0.15,
+    },
+  ],
+}

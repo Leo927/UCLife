@@ -1,0 +1,165 @@
+// Celestial bodies in the Earth Sphere campaign sector.
+//
+// Each body declares its parent (or null for root), orbital radius in
+// world px, period in game-days, starting phase in radians, and a
+// visual disc radius. Per-frame world position is derived in the
+// engine layer (slice 3) — this file owns the parameters only.
+//
+// Distances are absolute world pixels in a 30000 × 24000 sector. Earth
+// sits roughly mid-sector. Take-off fuel cost is the gravity-well
+// price paid the moment the ship detaches from the body's surface.
+//
+// Phases are chosen so the opening map matches UC astrography flavor
+// even though everything drifts: Side 3 sits far at L2; Sides 4/5
+// straddle L4/L5; Lunar siblings (Sides 5/6 of the shoal cluster) get
+// periods close to the Moon's so they tag along visually. Lunar
+// siblings here means the shoal-zone bodies near Moon's orbital shell —
+// Side 5 and Side 6 share Moon-ish periods so they linger near the
+// Moon during normal play sessions.
+{
+  bodies: [
+    // Root.
+    {
+      id: 'earth',
+      kind: 'planet',
+      nameZh: '地球',
+      pos: { x: 15000, y: 12000 },
+      bodyRadius: 600,
+      takeoffFuelCost: 80,
+    },
+
+    // Lunar shell.
+    {
+      id: 'moon',
+      kind: 'moon',
+      nameZh: '月球',
+      parentId: 'earth',
+      orbitRadius: 4000,
+      orbitPeriodDays: 27.3,
+      orbitPhase: 0,
+      bodyRadius: 200,
+      takeoffFuelCost: 12,
+    },
+
+    // Side colonies — varying radii 8000–14000 around Earth, distinct phases
+    // for opening-map readability.
+    //
+    // Side 1 (Zahn) and Side 2 (Hatte): Federation civilian space at upper-
+    // mid radius. Period ~80 days at this radius reads as "slow but visibly
+    // moving" within a session.
+    {
+      id: 'side1',
+      kind: 'colony',
+      nameZh: 'Side 1 · 萨恩',
+      parentId: 'earth',
+      orbitRadius: 9000,
+      orbitPeriodDays: 80,
+      orbitPhase: -1.2,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+    {
+      id: 'side2',
+      kind: 'colony',
+      nameZh: 'Side 2 · 哈特',
+      parentId: 'earth',
+      orbitRadius: 10000,
+      orbitPeriodDays: 90,
+      orbitPhase: -0.4,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+
+    // Side 3 (Munzo): far at L2, behind Earth from Moon's perspective.
+    // Largest radius among habitable sides.
+    {
+      id: 'side3',
+      kind: 'colony',
+      nameZh: 'Side 3 · 蒙佐',
+      parentId: 'earth',
+      orbitRadius: 13000,
+      orbitPeriodDays: 130,
+      orbitPhase: 3.14159265,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+
+    // Side 4 (Moore): near L4, leading the Earth-Moon line by ~60° (π/3).
+    {
+      id: 'side4',
+      kind: 'colony',
+      nameZh: 'Side 4 · 摩尔',
+      parentId: 'earth',
+      orbitRadius: 11000,
+      orbitPeriodDays: 100,
+      orbitPhase: 1.04719755,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+
+    // Side 5 (Loum): near L5, trailing by ~60°. Period close to Moon's so
+    // it lingers in the shoal zone with the Moon during a session.
+    {
+      id: 'side5',
+      kind: 'colony',
+      nameZh: 'Side 5 · 卢姆',
+      parentId: 'earth',
+      orbitRadius: 8000,
+      orbitPeriodDays: 30,
+      orbitPhase: -1.04719755,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+
+    // Side 6 (Riah): neutral hub, also near the lunar shell. Different
+    // phase from Side 5 so they don't overlap visually.
+    {
+      id: 'side6',
+      kind: 'colony',
+      nameZh: 'Side 6 · 里阿',
+      parentId: 'earth',
+      orbitRadius: 8500,
+      orbitPeriodDays: 32,
+      orbitPhase: 1.9,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+
+    // Side 7 (Noa): under construction. Mid-radius, distinct phase.
+    {
+      id: 'side7',
+      kind: 'colony',
+      nameZh: 'Side 7 · 诺亚',
+      parentId: 'earth',
+      orbitRadius: 12000,
+      orbitPeriodDays: 115,
+      orbitPhase: 2.6,
+      bodyRadius: 80,
+      takeoffFuelCost: 2,
+    },
+
+    // Outer-belt asteroid posts — long radii, slow.
+    {
+      id: 'axis',
+      kind: 'asteroid',
+      nameZh: '阿克西斯',
+      parentId: 'earth',
+      orbitRadius: 18000,
+      orbitPeriodDays: 220,
+      orbitPhase: -2.4,
+      bodyRadius: 60,
+      takeoffFuelCost: 2,
+    },
+    {
+      id: 'pezun',
+      kind: 'asteroid',
+      nameZh: '佩尊',
+      parentId: 'earth',
+      orbitRadius: 16000,
+      orbitPeriodDays: 180,
+      orbitPhase: 2.2,
+      bodyRadius: 60,
+      takeoffFuelCost: 2,
+    },
+  ],
+}

@@ -206,5 +206,16 @@
       tilesY: 16,
       playerSpawnRoomId: 'bridge',
     },
+
+    {
+      id: 'spaceCampaign',
+      titleZh: '太空 · 地球圈',
+      // sceneType='space' is declared in scenes.ts in slice 4. Content
+      // sources are celestialBodies.json5 + pois.json5 + space-entities.json5;
+      // there is no procgen, no walls, no fixedBuildings.
+      sceneType: 'space',
+      tilesX: 30000,
+      tilesY: 24000,
+    },
   ],
 }

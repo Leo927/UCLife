@@ -1,0 +1,48 @@
+// Space-scene tunables. Speeds, drain rates, snap radii — everything that
+// the engine layer (src/engine/space/) and the campaign systems
+// (src/systems/space.ts, src/sim/space*.ts) read. Edit + refresh; no
+// hot-reload (per CLAUDE.md, json5 configs are parsed once at module load).
+{
+  // Global multiplier on max ship speed. 1 = baseShipMaxSpeed exactly;
+  // raise for tuning sessions, lower if combat feels twitchy.
+  shipSpeedScale: 1,
+
+  // Hard speed ceiling for a ship at thrust scale 1, in world px / sec.
+  baseShipMaxSpeed: 220,
+
+  // Acceleration per Thrust unit in world px/sec². At thrust=1 the ship
+  // spins up from 0 to baseShipMaxSpeed in ~2.75 sec.
+  thrustAccel: 80,
+
+  // Fuel consumed per (thrust * second) of burn. Coasting is free.
+  fuelPerThrustSec: 0.4,
+
+  // Continuous supply drain — life support, paid every game-hour
+  // regardless of activity.
+  supplyDrainPerHour: 1.0,
+
+  // Per-MS-aboard maintenance load drained per game-hour. Larger fleets
+  // eat more even at rest.
+  perMaintenanceLoadDrainPerHour: 0.5,
+
+  // Per-real-second supply cost while active combat repair runs (the
+  // auto-fix-hull tick on the ship sheet).
+  combatRepairDrainPerSec: 0.2,
+
+  // Multiplier on orbit angular velocity. 1 = canonical period in
+  // game-days exactly (Moon completes one revolution in 27.3 game-days).
+  // Bump for visible drift in short test sessions.
+  orbitTimeScale: 1,
+
+  // Distance at which a ship enters an enemy's aggro check, in world px.
+  // Enemies whose own aggroRadius overlaps fire the engagement modal.
+  aggroContactRadius: 24,
+
+  // Padding on each edge when TAB fits the whole sector to viewport.
+  fitSystemPaddingPx: 200,
+
+  // Click-target snap radius, in world px. Clicking within this distance
+  // of a POI's derived position targets the POI specifically; outside
+  // this, clicks resolve to free-space coordinates.
+  dockSnapRadius: 80,
+}

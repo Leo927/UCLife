@@ -1,231 +1,256 @@
 # Macro-geography & campaign map
 
-*The set of locations the player can travel to in Phase 6+ deployments.
-Two regions: Earth Sphere (primary wartime theater) and Jupiter
-expedition (optional/late, frontier-flavored). Lifts canonical UC
-astrography; structured as a Starsector-shape continuous-space campaign
-map.*
+*The 2D continuous-space sector the player flies their ship through in
+Phase 6+. Earth Sphere is a real koota scene (`spaceCampaign`) with
+orbital mechanics: bodies and POIs revolve around their parents in real
+game-time, and the player's ship is a free-flying entity in the same
+coordinate space.*
 
 ## Why this file exists
 
-Phase 6 introduces ship deployments. A deployment is movement of the
-player's fleet across a 2D continuous campaign map, with combat / event
-encounters triggered at points of interest (POIs) and during transit.
-This file specifies the geography that map is drawn against.
+Phase 6 introduces ship deployments. A deployment is **the player flying
+their ship across continuous space** (Starsector shape) toward bodies,
+stations, and hostile contacts. There is no abstract burn modal, no
+random-encounter roll, no graph of beacons. The campaign map IS a scene.
 
-UC Life Sim **does not** simulate orbital mechanics. The campaign map
-is a **2D top-down continuous space** of named POIs at fixed positions
-— the resolution Gundam novels and shows actually use, and the
-resolution Starsector itself uses. "Side 5 is at L1" gives the named
-POI its position; reaching it is a burn through 2D space at fleet speed,
-not a Hohmann transfer.
-
-This is a deliberate departure from a beacon / node graph: UC has **no
-FTL within Earth Sphere**, so travel is continuous. The Starsector
-shape — fleet token burns through space, encounters trigger by spatial
-proximity to other fleets / POIs / events — matches the canon.
+This file specifies the geography that scene is built against, the
+orbital model that places content in it, the engine boundary that keeps
+the simulation reusable, and the flow between the helm tile (inside the
+ship) and the space scene (outside the ship).
 
 ## Two regions
 
-The spatial extent reachable in combat-mode play:
+1. **Earth Sphere** — Earth, Sides 1–7, Luna (Von Braun), Luna II,
+   Earth orbit, asteroid clusters (Axis, Pezun). One continuous 2D
+   campaign scene at ~30000×24000 px world envelope.
+2. **Jupiter expedition** — long-burn transit + a smaller separate
+   scene at the destination. Same engine, different content tables.
+   Phase 6.4 work; mentioned here for shape, not specced in detail.
 
-1. **Earth Sphere** — Earth, Sides 1–7, Luna (Von Braun is here),
-   Luna II, Earth orbit, asteroid clusters. Densely populated,
-   politically charged, the primary wartime theater. Almost all
-   canonical UC events happen here. **One continuous 2D campaign map.**
-2. **Jupiter expedition** — long-arc deployment to escort or join the
-   helium-3 convoys. Frontier-flavor: isolation, anomalies, sparse
-   encounters, no strategic-war pressure. Always available but high
-   real-time cost. A different texture, not parallel content.
-   **Reached by long-burn transit; rendered as a separate, smaller 2D
-   map at the destination end.**
+## The campaign IS a scene
 
-Phase 6 pre-war activity is mostly Earth Sphere. Phase 7 wartime activity
-is Earth Sphere (the canonical battles). Jupiter is the **"go somewhere
-quiet"** option — players who join a Jupiter run during war duck out of
-strategic-war content and return weeks later to a changed world. That
-asymmetry is intentional.
+`spaceCampaign` is a row in `src/data/scenes.json5` with
+`sceneType: 'space'`. Like every scene, it owns a koota world, a
+coordinate space, and its own tick. Unlike micro/ship scenes, it has no
+walls, no procgen, no fixedBuildings — content comes from celestial
+bodies, POIs, and hand-placed entities (enemies, debris, anomalies).
 
-## Earth Sphere: continuous 2D map
+Sector envelope: **30000 × 24000 px** in world units. Tuned so the
+Earth↔Moon hop is the *shortest* civilian route and the side colonies
+sit *much further out*, giving the player a real reason to ration fuel.
+Earth sits roughly mid-sector at (15000, 12000); Sides spread across
+the rest at orbital radii of 8000–14000 from Earth. Axis and Pezun sit
+at 16000–18000 — the outer belt. The envelope is large enough that 1× zoom
+shows only a fraction of the sector and TAB-fit is the canonical "where
+am I" gesture.
 
-The map is rendered top-down at a scale where Earth, Luna, Luna II, the
-seven Sides, and the major asteroid clusters all fit on screen at the
-default zoom level. The player zooms in to see fleet detail and zooms
-out for navigation overview (Starsector pattern).
+## Orbital model
 
-Major POIs are **fixed and named** — the iconic places. UC fans expect
-to see Side 3, Loum, Luna II, Solomon. These are hand-authored at
-canonical positions.
+Every celestial body declares `(parentId, orbitRadius, orbitPeriodDays,
+orbitPhase)` and a per-frame derivation function returns its current
+world position. Earth is the root with explicit `pos` and no parent.
+The Moon orbits Earth; sides orbit Earth at varying radii and phases;
+Axis and Pezun orbit Earth at outer-belt radii. POIs orbit their host
+**body** (not Earth directly) — Von Braun and Granada orbit the Moon at
+small radii (180–190 px, lunar surface visualization); Lisbon and
+Jaburo orbit Earth at surface radius (650 px); Earth-orbit sits at
+800 px low orbit; the Side N POI orbits the Side N body at ~60 px.
 
-| POI | Faction (pre-war / post-war) | Phase 6 role | Phase 7 role |
+Periods are in **game-days**. `orbitTimeScale` (default 1) is a config
+multiplier for tuning the visible drift speed — at 1, the Moon
+completes one orbit every 27.3 in-game days, which is canon-true and
+slow enough that within a single play session the Moon visibly moves
+without warping. The phase column lets us start each side at a distinct
+canon-flavor angle (Side 4 near L4, Side 5 near L5, Side 3 at L2 far
+side, etc.) so the opening map matches UC astrography even though the
+positions drift over time.
+
+Because positions are derived per-frame, the engine never stores
+"current pos" for orbital content — it's always
+`derivePos(body, t)` → `{x, y}`. Save/load only stores the game clock;
+positions reconstruct.
+
+## Ship as ECS entity
+
+The player's ship is a koota entity in the `spaceCampaign` world with
+`Position`, `Velocity`, `Thrust`, and a back-reference to the
+`playerShipInterior` scene. Movement uses semi-implicit Euler:
+`v += thrust * dt`, clamped to `baseShipMaxSpeed * shipSpeedScale`,
+then `pos += v * dt`. There's no orbital mechanics on the ship itself —
+the player flies straight lines through the field of orbiting content.
+This is the Starsector simplification.
+
+Enemy ships work the same way. They are persistent hand-placed entities
+declared in `src/data/space-entities.json5` with a spawn position, AI
+mode (`patrol`/`idle`), and an aggro radius. **There are no RNG
+encounters.** Every threat the player meets is a real persistent entity
+that lives on the map even when the player is elsewhere; if the player
+flees an enemy and comes back, that enemy is still there (with current
+hull and current position).
+
+## Helm vs off-helm
+
+The player can **leave the helm** during flight. The bridge tile and
+the space scene tick simultaneously:
+
+| Player state | Bridge scene tick | Space scene tick | Ship control |
 |---|---|---|---|
-| Luna · Von Braun | Civilian / Civilian | Player home port; ships dock here | Same; war pressure on dome |
-| Luna · Granada | AE-aligned / AE-aligned | AE shipyards: refit, refuel, hire | AE military supplier; restricted access |
-| Luna II | EFSF / EFSF | Federation supply hub | Major Federation forward base |
-| Earth · low orbit | EFSF / EFSF | Federation control space | Contested battlespace |
-| Earth · surface (Lisbon, Jaburo, Sydney) | EFSF / EFSF | Civilian commerce; immigration POIs | Sydney is colony-drop site (0079.01.04); Jaburo is Federation HQ |
-| Side 1 (Zahn) | EFSF / EFSF | Civilian colony cluster | Frontline cluster |
-| Side 2 (Hatte) | EFSF / EFSF | Civilian colony cluster | Mid-war contested |
-| Side 3 (Munzo / Republic of Zeon) | Zeon / Zeon | Diplomatic post; smuggling | Capital of Zeon war effort |
-| Side 4 (Moore) | EFSF / Zeon-overrun | Civilian colony cluster | **Destroyed** in Operation British |
-| Side 5 (Loum) | EFSF / Contested | Civilian colony cluster | **Battle of Loum** site (0079.01.15) |
-| Side 6 (Riah) | Neutral / Neutral | Trade hub; negotiable to either side | Switches; key strategic node |
-| Side 7 (Noa) | EFSF (under construction) / EFSF | Half-built colony | Pegasus-class launch site (post-Phase 7+) |
-| Asteroid · Axis | Zeon (under construction) / Zeon | Distant frontier | Zeon strategic depot |
-| Asteroid · Pezun | EFSF / EFSF | Mining outpost | Federation forward base |
-| Shoal Zone (around Sides 5/6) | Contested / Contested | Pirate territory | Major battle theater |
+| Sitting at the helm | Yes | Yes | Player input → Thrust |
+| Walking the ship | Yes | Yes | Autopilot continues last order |
+| Docked at a POI | Yes | Frozen | Velocity = 0 |
 
-**Procedural minor POIs** scatter the map between major POIs — mining
-outposts, derelict ships, distress signals, salvage fields, asteroid
-fields, hidden caches. These are Starsector's "things you find while
-burning between places." Drawn from a POI-type table per region, not
-hand-authored. Placement is seeded against the existing `WORLD_SEED` so
-the same run yields the same map.
+Autopilot is a per-ship trait. While at the helm, player input
+overrides it. While off-helm, autopilot drives Thrust toward whatever
+target was last set — usually a POI snap point. If autopilot can't
+resolve the target (POI gone, target deselected), the ship coasts.
 
-Player-built / player-claimed colonies (Phase 6.3+) become persistent
-POIs on the map at the position the player established them. See
-[social/faction-management.md](social/faction-management.md).
+This is the Starsector "set course and walk away" pattern, but inside
+the ship instead of on the campaign map. The simultaneous-tick design
+also means the player can take off from a city, walk to the bridge, and
+arrive to find the ship already in space and moving — the autopilot
+handles the take-off burn.
+
+## Take-off cost
+
+Leaving a POI's surface costs fuel. Cost varies wildly by gravity well:
+
+- Earth surface: 80 fuel (deep well, Lisbon/Jaburo)
+- Moon surface: 12 fuel (Von Braun, Granada)
+- Lunar high orbit: 8 fuel (Luna II)
+- Side colonies: 2 fuel (no real well)
+- Asteroid posts (Axis, Pezun): 2 fuel
+
+This is why returning to Earth is a *commitment*, not a routine commute.
+Side-to-side hops are cheap; a Lunar-Earth round trip is the major
+fuel-sink event of an early-game run. The take-off fuel is consumed at
+detach time, not paid back if the player aborts immediately.
+
+## Continuous fuel/supply economy
+
+Fuel and supplies drain in real game-time, not per-burn:
+
+- **Fuel** burns whenever Thrust > 0 — `fuelPerThrustSec * |thrust| * dt`.
+  At rest fuel is free (you coast).
+- **Supplies** drain continuously even at rest:
+  - `supplyDrainPerHour` (life support — flat per game-hour)
+  - `perMaintenanceLoadDrainPerHour * (sum of MS aboard)` — heavier
+    fleets eat more
+  - `combatRepairDrainPerSec` — paid per real-second of active combat
+    repair (the auto-fix-hull tick on the ship sheet)
+
+Supplies hitting zero triggers crew-morale collapse (mutiny risk) per
+the older spec. Fuel hitting zero strands the ship — drift to the
+nearest gravity well. These behaviors are wired in slice 7 (continuous
+economy).
+
+## Engagement, not RNG
+
+Hand-placed enemies have an aggroContactRadius (default 24 px). The
+player can **see** them on the map at all times — they're rendered
+icons. When the player enters their aggro radius, the engagement modal
+fires: `engage / flee / negotiate`. **The player chooses to fight.**
+Sneaking past an enemy by giving them wide berth is a real strategy.
+Enemies persist hull state between encounters — flee a bandit at 30%
+hull and they're still at 30% hull when you come back.
+
+## TAB fit-zoom
+
+At 30000×24000 px the player can never see the whole sector at game
+zoom. TAB toggles a fit-zoom that frames the entire sector with
+`fitSystemPaddingPx` margin on each edge. POIs, enemies, and the
+player's ship are all visible at fit-zoom; TAB again returns to the
+prior camera. This is the canonical "what's around me" gesture and the
+only way to plan a long burn.
+
+## Engine / data / config separation
+
+This is the slice that makes the campaign reusable:
+
+- `src/engine/space/` — pure ECS-agnostic functions. Orbit derivation,
+  semi-implicit Euler integration, autopilot steering. No koota
+  imports, no React imports, no global state. Takes plain data in,
+  returns plain data out. Should be testable as a standalone module on
+  another project.
+- `src/data/celestialBodies.json5` + `.ts` — body table.
+- `src/data/pois.json5` + `.ts` — POI table.
+- `src/data/space-entities.json5` + `.ts` — hand-placed enemy spawns.
+- `src/config/space.json5` + `.ts` — speed, drain rates, aggro radius,
+  every tunable.
+- `src/sim/space*.ts` — koota glue: spawning, traits, save/load
+  mapping.
+- `src/systems/space.ts` — per-tick wiring: drives the engine functions
+  against the koota world.
+- `src/ui/SpaceView.tsx` — render layer.
+
+POI positions and enemy aggro tests **must** flow through the engine,
+not through ad-hoc math in the UI or the systems layer. If a calc shows
+up in two places, it lives in `src/engine/space/`.
 
 ## Region structure (encounter-pool zones)
 
-A "region" is an area of the campaign map with a thematic encounter
-pool and a difficulty band. Regions overlap softly — the map is
-continuous, not partitioned. The player's current encounter pool is
-determined by which region's territory their fleet is currently in,
-and which faction controls it.
+Regions remain useful as a label for which thematic content cluster a
+position belongs to (for music, for hostile-faction patrol density, for
+news flavor). The `region` field is preserved on every POI. There is
+**no** region centroid Voronoi for runtime use anymore — we no longer
+roll random encounters per region. The region tag is metadata for slice
+6+ (hostile patrol patterns, music cues), not pathfinding.
 
-Earth Sphere regions:
+Earth Sphere regions (preserved labels):
 
-- **Lunar Sphere** — Luna + nearby asteroid clusters. Tutorial-tier difficulty.
-- **Side 3 approach** — Zeon-aligned space. Smugglers and Zeon patrols (pre-war: usually neutral; post-war: hostile). Politically charged at every phase.
-- **Side 1/2 cluster** — Federation civilian space; calm pre-war, active wartime.
-- **Side 4/5 cluster** — Federation civilian space pre-war; **graveyard** post-war (Operation British, Loum). Lore-thick once Phase 7 fires.
-- **Earth orbit** — heavy Federation military presence, civilian transit. Wartime: contested.
-- **Earth surface (Atmosphere drop)** — special: requires re-entry-capable ship (rare, story-gated). Mostly Phase 7+ content.
-- **Shoal Zone** — perpetually contested, pirate-heavy, debris hazards.
-- **Outer asteroid belt** — Axis approach; rare encounters.
-
-Region progression isn't always forward. Wartime deployments can order
-the player to redeploy across the theater. Pre-war merc work is
-free-form — the player picks contracts and decides where to burn.
-
-## Jupiter expedition
-
-A linear long-burn between Earth Sphere and Jupiter, then a small
-continuous map at the destination end:
-
-- **Outer System Transit** — sparse traversal: asteroid hazards,
-  isolation, occasional Jupiter Energy Fleet convoys, pirate raids,
-  rare anomalies. Days to weeks of in-game travel time.
-- **Jupiter local space** — small 2D map: helium-3 mining flotillas,
-  deep-space politics, lore-thick events, radiation hazards near the
-  gas giant.
-
-A Jupiter expedition is a **long real-time commitment** (weeks of
-deployment). It is **not** part of the Phase 7 war theater — players who
-join the Jupiter run during war disappear from strategic-war content for
-the duration. When they return, the world has shifted: people they knew
-may be dead; fronts have moved; news they never saw is in their journal
-backlog.
-
-Implementation: same campaign-map / encounter system, different POI
-tables and encounter pools.
-
-## How POIs feed encounters
-
-Each POI carries:
-
-- **Type** — civilian colony, military base, mining outpost, distress signal, derelict, asteroid field, hostile patrol, anomaly, etc.
-- **Encounter pool** — which combat / event templates can spawn when the fleet enters proximity
-- **Faction control** — which sides the player is welcome / hostile / neutral toward (drives combat triggering and store access)
-- **Services** when not in combat — refuel, repair, hire crew, store, news refresh
-- **Visibility** — sensor range; some POIs (cloaked stations, hidden caches) require active scanning to detect
-
-This gives the encounter generator the data it needs without
-specifying individual encounters here. Encounter **form** is specified
-in [encounters.md](encounters.md): text-event-first, blue options keyed
-to skills / crew / systems / faction rep, combat as one possible
-outcome among several. Content (the templates themselves) is
-implementation-time work in `data/encounters.json5` (Phase 6).
-
-## Travel and transit
-
-Reuses the existing transit / flight system in `data/flights.json5`,
-extended for 2D continuous-space movement. A burn:
-
-- Costs **fuel** (a new ship resource — fleet-wide, scales with fleet size)
-- Costs **supplies** (a Starsector-style logistics resource — crew rations + maintenance)
-- Costs in-game **time** (proportional to distance and burn-rate; in-deployment time advances during travel)
-- Has **encounter risk** dependent on regional faction control and
-  fleet visibility
-
-Fleet visibility scales with fleet size: a single ship is harder to
-detect than a five-ship squadron. Higher Computers / sensor-officer
-skill increases your sensor range; specific ship modifications can
-reduce your own visibility (Minovsky particle saturation in late game).
-
-Fleets that run out of fuel mid-burn drift to the nearest gravity
-well — usually a hostile or hazardous POI. Running out of supplies
-triggers crew morale collapse (escalating mutiny risk).
-
-### Passenger flights vs captain burns: same data, different UI
-
-Civilian players in Phases 0–5 (and combat-mode players who don't
-currently have their fleet at the departure port) book passenger flights
-between dockable cities. These traversals consume **the same campaign
-map** as captain burns — the route is one or more legs across the map
-— but the **UI shell is different**:
-
-| Role | UI | Player agency during travel |
-|---|---|---|
-| **Passenger** | Existing thin booking modal: pick destination, hyperspeed through duration, arrive | None — the player chose to travel and trusts the route |
-| **Captain** | Full campaign-map interface: pick destination, plot burn, allocate fuel/supplies, respond to encounters in real-time-with-pause | Continuous decisions over routing, fuel, supplies, encounters |
-
-The default civilian playthrough must **never** be forced through the
-campaign-map UI for routine commuting. That layer's interest comes from
-the decisions a captain makes inside it; a passenger has no decisions,
-so the campaign map collapses to ceremony. Forcing it on Witness-mode
-players would mis-signal that combat-mode is the "real" game.
-
-**Where the two views can converge:** a hostile-intercept event during
-a passenger flight is the one legitimate moment to drop the passenger
-into a tactical-encounter view (their commercial vessel boarded /
-attacked). At that point the player's relationship to the journey has
-changed from "routine commute" to "event," and the UI shift carries
-that shift in narrative weight. This is a story-rare trigger, not a
-per-flight roll.
-
-**Engineering benefit:** one campaign map + one travel cost model
-serves both layers. Phase 6 doesn't need to invent a parallel travel
-system; it inherits the data layer the passenger flights already
-populate.
+- **lunarSphere** — Luna + Moon-orbital POIs.
+- **side12cluster** — Federation civilian space.
+- **side3approach** — Zeon-aligned space; tense at every phase.
+- **side45graveyard** — Federation civilian pre-war; Operation British
+  + Loum graveyard post-war.
+- **earthOrbit** — Earth + Earth-surface POIs.
+- **shoalZone** — Side 5/6 area, pirate territory, debris hazards.
+- **outerBelt** — Axis + Pezun.
 
 ## What this is NOT
 
-- **Not a 3D space simulation.** The campaign map is a 2D continuous space at Starsector fidelity.
-- **Not orbital mechanics.** Burns are straight-line at variable speed; gravity wells exist as drift attractors when out of fuel, not as simulated forces.
-- **Not procedurally infinite.** Major POIs are fixed and named — that's how UC astrography earns its weight. Procedural variation lives in *minor* POIs and in encounter generation, not in major-POI geography.
-- **Not a node graph.** The earlier FTL-style beacon-graph design is dropped. UC has no FTL inside Earth Sphere; continuous space is the canon-correct fit.
-- **Not visited as a scene by default.** Most POIs are abstract (you see the encounter, not the place). Some major POIs (Von Braun, Side 3 Zum City, player-built colonies) ARE walkable scenes the player can dock at and disembark into. The dockable POIs are the ones already specced in `scenes.json5` plus any colonies the player establishes.
+- **Not a node graph.** Continuous space, free movement.
+- **Not a panel/modal.** SpaceView is a real scene with its own world.
+- **Not free of orbital mechanics.** Bodies orbit; POIs orbit bodies.
+- **Not RNG-driven.** Every enemy is hand-placed and persistent.
+- **Not a Hohmann simulator.** Ships fly straight at variable thrust;
+  bodies orbit but the player's ship doesn't follow Kepler.
+- **Not visited only abstractly.** Some POIs are dockable into a
+  walkable scene (Von Braun → `startTown`, Side 3 → `zumCity`). Those
+  bindings live in `pois.json5` as `sceneId`.
 
 ## Phasing
 
 | Phase | Scope |
 |---|---|
-| **6.0** | Earth Sphere continuous-space map ships with major POIs + procedural minor POIs. Fleet token traversal in 2D. Fuel + supplies + encounter-risk costs. Single-ship campaign movement. Flight system extended from "two-scene flight pair" to "campaign-map plotting." |
-| **6.1** | Encounter generator wires POI types and regions to encounter pools. Sensor / visibility play. |
-| **6.2** | Multi-ship fleet movement on the campaign map. Fleet visibility scales with size. Hostile fleet tokens visible on the map; player can engage / evade. |
-| **6.3** | Player-claimed and player-built colony POIs persist on the map. See [social/faction-management.md](social/faction-management.md). |
-| **6.4** | Jupiter expedition ships with its long-burn transit + Jupiter local map + POI table. |
-| **7.0** | Phase 7 trigger flips faction control on contested / wartime POIs. Side 4 destroyed (POI removed / replaced with debris field). Loum becomes a battlespace. New encounter pools activate per region. Hostile factions stage expeditions against player-faction colonies. |
-| **7.1** | Wartime deployment structure (faction orders) for assigned-to-ship players. |
-| **7.2** | Atmosphere-drop region enabled if a story-gated re-entry ship is acquired. |
+| **6.0.1** | Design doc + data scaffold (this slice). New `space.json5` config, `celestialBodies.{json5,ts}`, `pois.{json5,ts}`, `space-entities.{json5,ts}`. New `spaceCampaign` row in `scenes.json5`. No engine, UI, or wiring. |
+| **6.0.2** | Rip out the legacy modal, BurnPlan, region centroid, and RNG encounters. Delete `starmap.{json5,ts}` and `encounters.{json5,ts}`. |
+| **6.0.3** | Engine layer: pure orbit derivation + semi-implicit Euler integration + autopilot steering in `src/engine/space/`. |
+| **6.0.4** | SpaceView render + ECS traits (Position, Velocity, Thrust, Orbit, ShipRef, EnemyRef) + camera + click-to-target. |
+| **6.0.5** | Helm tile inside the ship interior. Multi-world simultaneous tick (bridge + space). Off-helm autopilot. |
+| **6.0.6** | Hand-placed enemy AI; engage/flee/negotiate modal on contact. Persistent hull state across encounters. |
+| **6.0.7** | Continuous fuel/supply economy. Take-off cost wired. Mutiny / drift-to-well failure modes. |
+| **6.0.8** | Save/load round-trip; smoke-test rewrite. |
+| **6.1** | Sensor / visibility play. Cloaked POIs (Pezun salvage, hidden caches) require active scanning. |
+| **6.2** | Multi-ship fleet movement. Fleet visibility scales with ship count. |
+| **6.3** | Player-claimed colony POIs persist on the map. |
+| **6.4** | Jupiter expedition: long-burn transit + Jupiter local map. Same engine, different content tables. |
+| **7.0** | Phase 7 trigger flips faction control on contested POIs; Side 4 becomes debris (POI replaced with derelict body). Hostile patrols escalate by region. |
+| **7.1** | Wartime deployment orders structure for assigned-to-ship players. |
+| **7.2** | Atmosphere drop region — story-gated re-entry capability. |
 
 ## Related
 
-- [combat.md](combat.md) — consumes this map for Starsector-shape encounter flow
-- [encounters.md](encounters.md) — form of POI events (text-event-first, blue options, combat as one outcome)
+- [combat.md](combat.md) — consumes this scene for tactical encounters
+- [encounters.md](encounters.md) — text-event form (still relevant for
+  POI services and dialogues, just not for transit RNG)
 - [setting.md](setting.md) — UC astrography reference
-- [worldgen.md](worldgen.md) — dockable-POI interiors reuse city procgen; player colonies reuse industrial-pool procgen
-- [social/faction-management.md](social/faction-management.md) — player-faction colonies become persistent POIs on this map
-- [phasing.md](phasing.md) — Phase 6 consumes this; Phase 7 changes faction control of POIs
+- [worldgen.md](worldgen.md) — dockable-POI interiors reuse city procgen
+- [social/faction-management.md](social/faction-management.md) —
+  player-faction colonies become persistent POIs
+- [phasing.md](phasing.md) — Phase 6 consumes this; Phase 7 changes
+  faction control of POIs
+- `src/data/celestialBodies.json5` — body orbital table
+- `src/data/pois.json5` — POI table (orbits its host body)
+- `src/data/space-entities.json5` — hand-placed enemy spawns
+- `src/config/space.json5` — engine tunables
+- `src/data/scenes.json5` — `spaceCampaign` scene row
