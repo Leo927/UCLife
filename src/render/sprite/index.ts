@@ -5,7 +5,17 @@ import type { LpcAnimation, LpcManifest } from './types'
 
 export type { LpcAnimation, LpcManifest, LpcDirection } from './types'
 export { appearanceToLpc } from './appearanceToLpc'
-export { composeSheet, FRAME_SIZE, FRAMES_PER_ROW, SHEET_WIDTH, SHEET_HEIGHT, clearSheetCache } from './compose'
+export {
+  composeSheet,
+  FRAME_SIZE,
+  FRAMES_PER_ROW,
+  SHEET_WIDTH,
+  SHEET_HEIGHT,
+  clearSheetCache,
+  spriteStats,
+  resetSpriteStats,
+  getSpriteCacheSize,
+} from './compose'
 
 const DIRECTION_ROW = { up: 0, left: 1, down: 2, right: 3 } as const
 
