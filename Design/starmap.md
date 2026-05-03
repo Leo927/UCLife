@@ -118,7 +118,10 @@ Each node carries:
 - **Services** when not in combat — refuel, repair, hire crew, store, news refresh
 
 This gives the FTL-shape encounter generator the data it needs without
-specifying individual encounters here. Encounter content is
+specifying individual encounters here. Encounter **form** is specified
+in [encounters.md](encounters.md): text-event-first, blue options keyed
+to skills / crew / systems / faction rep, combat as one possible
+outcome among several. Content (the templates themselves) is
 implementation-time work in `data/encounters.json5` (Phase 6).
 
 ## Travel between nodes
@@ -187,6 +190,7 @@ populate.
 ## Related
 
 - [combat.md](combat.md) — consumes this graph for FTL-shape encounter flow
+- [encounters.md](encounters.md) — form of node events (text-event-first, blue options, combat as one outcome)
 - [setting.md](setting.md) — UC astrography reference
 - [worldgen.md](worldgen.md) — dockable-node interiors reuse city procgen
 - [phasing.md](phasing.md) — Phase 6 consumes this; Phase 7 changes faction control of nodes

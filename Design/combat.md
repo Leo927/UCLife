@@ -369,6 +369,7 @@ The FTL-shape calls are now locked. Specifically:
 ## Related
 
 - [starmap.md](starmap.md) — Earth Sphere graph + Jupiter expedition; the geography this FTL-shape combat is drawn against
+- [encounters.md](encounters.md) — form of node events; combat is reached through them, not directly
 - [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun
 - [social/faction-management.md](social/faction-management.md) — Phase 6 merc cell on a ship; this is where the FTL shape ships
