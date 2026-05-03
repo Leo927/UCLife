@@ -320,22 +320,13 @@ export const Flags = trait(() => ({
 // per-loadout state ride alongside on dedicated entities.
 
 // Whole-ship state. One per ship-scene world. `dockedAtPoiId` empty string
-// means "in flight" (the starmap fleet token is moving along `burnPlan`).
-// `fleetPos` is the fleet token's normalized 0..100 position on the Earth
-// Sphere campaign map; updated by the starmap tick along the burn plan,
-// snapped to a POI when docked.
+// means "in flight". `fleetPos` is the fleet token's position on the Earth
+// Sphere campaign map; snapped to a POI when docked.
 //
 // Starsector-shape combat stats (armor / fluxMax / fluxCurrent / fluxDissipation /
 // shieldEfficiency / topSpeed / maneuverability) live here as a single
 // flat block — there's only ever one player flagship in 6.0, and a flat
 // shape keeps the save/load layer simple.
-export type BurnPlan = {
-  fromX: number; fromY: number
-  toX: number; toY: number
-  startedAtMs: number     // game-time ms when the burn began
-  arriveAtMs: number      // game-time ms the burn lands; lerp t = (now-start)/(end-start)
-  destPoiId: string | null  // null = burn ends in empty space; set = auto-dock on arrival
-}
 export const Ship = trait({
   classId: '',
   hullCurrent: 0, hullMax: 0,
@@ -349,7 +340,6 @@ export const Ship = trait({
   suppliesCurrent: 0, suppliesMax: 0,
   dockedAtPoiId: '',
   fleetPos: { x: 0, y: 0 } as { x: number; y: number },
-  burnPlan: null as BurnPlan | null,
   inCombat: false,
 })
 

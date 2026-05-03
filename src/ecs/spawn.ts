@@ -14,7 +14,6 @@ import {
 } from './traits'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
-import { getPoi } from '../data/starmap'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
@@ -757,10 +756,10 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
 function bootstrapShipScene(scene: ShipSceneConfig): void {
   const cls = getShipClass(scene.shipClassId)
 
-  // Player starts docked at Von Braun by default. fleetPos snaps to the
-  // POI's normalized position so the first starmap render reads cleanly.
-  const dockedPoi = getPoi('vonBraun')
-  const fleetPos = dockedPoi ? { ...dockedPoi.pos } : { x: 50, y: 50 }
+  // Player starts docked at Von Braun by default. Derived world position
+  // from orbital parameters lands in slice 3 — for now fleetPos is a
+  // placeholder; the docked-POI id is the source of truth.
+  const fleetPos = { x: 0, y: 0 }
 
   world.spawn(
     Ship({

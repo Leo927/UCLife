@@ -18,11 +18,9 @@ import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
 import { combatSystem } from '../systems/combat'
-import { starmapSystem } from '../systems/starmap'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, Ambitions, type ActionKind } from '../ecs/traits'
-import { useEncounter } from './encounters'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -89,16 +87,6 @@ function frame(now: number) {
   const dt = Math.min(now - lastFrame, 100)
   lastFrame = now
 
-  // Pause-on-event: an encounter being open implies the sim must be paused
-  // (Design/encounters.md). The encounter store sets speed=0 on open; this
-  // guard re-asserts pause if anything else nudged the speed during a frame.
-  {
-    const enc = useEncounter.getState().current
-    if (enc && useClock.getState().speed !== 0) {
-      useClock.getState().setSpeed(0)
-    }
-  }
-
   // Combat tick runs at frame rate independent of game-speed scaling — the
   // combatSystem reads its own dt and bails internally when paused. Drive it
   // before the speed-gated city sim so a paused combat (speed=0) still gets
@@ -149,7 +137,6 @@ function frame(now: number) {
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
-      starmapSystem()
     }
 
     // First-run forced picker: open the panel if the player has no active

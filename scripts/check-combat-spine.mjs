@@ -1,16 +1,5 @@
-// Phase 6.0 Starsector-pivot — combat spine vertical smoke test.
-//
-// Drives the new continuous-space spine end-to-end through the __uclife__
-// debug handle: cheat into ship-owning state, board, open starmap, burn to
-// a pirate-patrol POI, accept an encounter combat outcome, force-resolve
-// the fight, and verify the world unwinds back to normal.
-//
-// REQUIRES a dev server already running on :5173 — run `npm run dev` first.
-//
-// CLAUDE.md note: cheats are routed through __uclife__ helpers rather than
-// dynamic-importing /src/ecs/traits.ts, because Vite serves the dynamic
-// import as a *separate* module instance and trait identities won't match
-// the running app.
+// LEGACY — Phase 6.0 modal-era smoke. Will be rewritten in slice 8 to drive
+// the helm + spaceCampaign + persistent-enemy spine. Currently broken.
 
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'

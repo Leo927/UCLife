@@ -12,8 +12,6 @@ import { AmbitionPanel } from './ui/AmbitionPanel'
 import { MapPanel } from './ui/MapPanel'
 import { TransitMap } from './ui/TransitMap'
 import { FlightModal } from './ui/FlightModal'
-import { StarmapPanel } from './ui/StarmapPanel'
-import { EncounterModal } from './ui/EncounterModal'
 import { TacticalView } from './ui/TacticalView'
 import { TransitionOverlay } from './ui/TransitionOverlay'
 import { ShipDealer } from './ui/conversations/ShipDealer'
@@ -37,8 +35,6 @@ export function App() {
       <MapPanel />
       <TransitMap />
       <FlightModal />
-      <StarmapPanel />
-      <EncounterModal />
       <TacticalView />
       <ShipDealer />
       <NPCDialog />

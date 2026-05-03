@@ -1,7 +1,7 @@
 import json5 from 'json5'
 import raw from './flights.json5?raw'
 import { isSceneId } from './scenes'
-import { getPoi } from './starmap'
+import { getPoi } from './pois'
 import type { SceneId } from '../ecs/world'
 
 // Static metadata about a flight hub. The hub's runtime location (ticket
@@ -9,12 +9,10 @@ import type { SceneId } from '../ecs/world'
 // sim/airportPlacements.ts. `id` is referenced by routes; `sceneId` binds
 // the hub 1:1 to the airport spawned in that scene's procgen.
 //
-// `poiId` (Phase 6) maps the hub onto the starmap continuous-space POI
-// list in `data/starmap.json5`. Hubs whose host scene corresponds to a
-// dockable POI set this to the matching POI id; passenger flights are a
-// thin booking modal over the same data layer captain burns walk (per
-// "passenger flights vs captain burns: same data, different UI" in
-// Design/starmap.md).
+// `poiId` (Phase 6) maps the hub onto the campaign POI list in
+// `data/pois.json5`. Hubs whose host scene corresponds to a dockable POI
+// set this to the matching POI id; passenger flights are a thin booking
+// modal over the same data layer captain burns walk.
 export interface FlightHub {
   id: string
   nameZh: string

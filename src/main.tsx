@@ -18,10 +18,8 @@ import { ambitionsSystem } from './systems/ambitions'
 import { getAirportPlacement } from './sim/airportPlacements'
 import { flightHubs } from './data/flights'
 import { findPath } from './systems/pathfinding'
-import { burnToPoi, burnToPos, forceCompleteBurn } from './systems/starmap'
 import { boardShip, disembarkShip } from './sim/scene'
 import { getShipState } from './sim/ship'
-import { useEncounter } from './sim/encounters'
 import { useCombatStore } from './systems/combat'
 import { useTransition } from './sim/transition'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
@@ -224,13 +222,9 @@ if (import.meta.env.DEV) {
       return true
     },
     // ── Phase 6.0 Starsector pivot — debug surface ──────────────────
-    burnToPoi,
-    burnToPos,
-    forceCompleteBurn,
     boardShip,
     disembarkShip,
     getShipState,
-    useEncounter,
     useCombatStore,
     useTransition,
     setShipOwned() {

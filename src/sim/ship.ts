@@ -3,7 +3,7 @@
 // directly so the new Starsector-shape stat block stays consistent.
 
 import { getWorld } from '../ecs/world'
-import { Ship, type BurnPlan } from '../ecs/traits'
+import { Ship } from '../ecs/traits'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -100,14 +100,4 @@ export function setInCombat(inCombat: boolean): void {
   const ent = getPlayerShipEntity()
   if (!ent) return
   ent.set(Ship, { ...ent.get(Ship)!, inCombat })
-}
-
-export function getBurnPlan(): BurnPlan | null {
-  return getShipState()?.burnPlan ?? null
-}
-
-export function setBurnPlan(plan: BurnPlan | null): void {
-  const ent = getPlayerShipEntity()
-  if (!ent) return
-  ent.set(Ship, { ...ent.get(Ship)!, burnPlan: plan })
 }

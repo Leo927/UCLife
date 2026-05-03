@@ -18,7 +18,7 @@ import { Flags, Ship } from '../ecs/traits'
 import { boardShip, disembarkShip } from '../sim/scene'
 import { runTransition } from '../sim/transition'
 import { getActiveSceneId } from '../ecs/world'
-import { getPoi } from '../data/starmap'
+import { getPoi } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
 
@@ -188,7 +188,9 @@ export function interactionSystem(world: World) {
         useUI.getState().showToast('星图仅在飞船舰桥内可用')
         continue
       }
-      useUI.getState().setStarmap(true)
+      // Modal starmap is gone (Phase 6.0 pivot); slice 4 wires this to the
+      // spaceCampaign scene swap.
+      useUI.getState().showToast('星图待实装')
       continue
     }
     if (nearestKind === 'work') {
