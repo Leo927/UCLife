@@ -1,8 +1,11 @@
 # Mobile worker subsystem
 
 *The first concrete gameplay verb behind the piloting skill. Feeds the
-`mw_pilot` ambition; later reskinned for spacecraft and (Phase 7+) mobile
-suits. Phase 5.4.*
+`mw_pilot` ambition. Industrial work is the on-ramp; AE prototype
+validation, AE MS-handling simulators, and Federation reservist drills
+ship as scenario reskins of the same primitives so combat-flavored
+piloting content exists pre-war without needing live combat. Real
+mobile-suit combat waits for Phase 7. Phase 5.4.*
 
 ## Why this exists
 
@@ -30,8 +33,8 @@ in the city** the player walks to — never a raw menu button.
 |---|---|---|---|---|
 | **Sim Pod** | MW Academy (fixed building, commercial district near AE complex) | Day 1 | 1 task, ~60s | Player pays ¥150–¥800 per session |
 | **MW Operator job** | Spaceport Dock (fixed building) | After `mw_pilot` stage 2 (qualification) — listed at HR Office | 3–5 tasks per shift, full work-shift commit | Wage scales with mean session score |
-| **AE Test Range** | Inside AE Complex | After `mw_pilot` stage 3 (simulator training) | 1 task, T4 difficulty | Free; AE rep + piloting XP |
-| **Federation MW Trial** | Federation consulate annex | After `mw_pilot` stage 4 (real-machine evaluation) | 1 task, T5 difficulty | Federation rep + piloting XP; failure costs Federation rep |
+| **AE Test Range** | Inside AE Complex | After `mw_pilot` stage 3 (simulator training) | T3–T4. Per session pick *civilian engineering* or *MS-handling sim* track. | Free; AE rep + piloting XP |
+| **Federation MW Trial** | Federation consulate annex | After `mw_pilot` stage 4 (real-machine evaluation) | T4–T5 reservist drills: live-fire snap-targets, evade-cone, formation waypoints. | Federation rep + piloting XP; failure costs Federation rep |
 
 Sim Pod is the only entry available at piloting 0. Players grind there to
 clear stage-1's piloting threshold, then use the MW Operator job as the
@@ -63,6 +66,33 @@ per task: tolerance window, time pressure, load mass, waypoint count. The
 session UI displays a bar telling the player the task tier (T1–T5) before
 they accept it; if they have an auto-resolve unlock (see below) it offers
 a button to skip.
+
+## Scenario contexts
+
+The four primitives are mechanically fixed. The **fiction wrapped around
+them changes per entry point**, and that fiction matters: UC 0077 is two
+years before the One Year War, but tanks, aircraft, prototype MS frames,
+and reservist drill programs are all already in service. AE in
+particular is running handling-model simulators on civilian contract for
+both Federation and Zeon clients. A piloting verb that ignores this
+flattens the actual military-industrial texture of pre-war lunar life.
+
+| Context | Where | Primitive flavor | Tier |
+|---|---|---|---|
+| **Industrial** | Sim Pod, MW Operator job | Cargo lift / weld seam / scrap salvage / load stack — yard work | T1–T3 |
+| **AE prototype validation** | AE Test Range (civ track) | Same primitives, oversize / unstable loads — engineering data capture | T3–T4 |
+| **AE MS-handling simulator** | AE Test Range (R&D track) | Walk-balance (Lift, no payload), tracking moving target (Weld reskin), evade-cone (Stack reskin) — early MS handling models AE is selling to its clients | T4–T5 |
+| **Federation reservist drill** | Federation MW Trial | Live-fire snap-target sequence (Salvage reskin), evade reticle (Stack reskin), formation-march waypoints (Lift reskin) | T4–T5 |
+
+Mechanically these are reskins — the authoring cost per context is one
+sprite set + one zh-CN copy pass, not a new minigame. Narratively, a
+player pursuing `mw_pilot` cycles between civilian engineering and pre-war
+military rehearsal across stages 3–5, which is the right texture for the
+period.
+
+The `zeon_volunteer` ambition's piloting requirement implies a
+clandestine counterpart (Zeon sympathizer cell sim) gated by Zeon rep.
+That's specced under Phase 5.5 below; it reuses the same primitives.
 
 ## Task primitives
 
@@ -189,16 +219,20 @@ job listings, which is exactly the integration phase 5.0 designed for.
 |---|---|
 | **5.4a** | Sim Pod fixed building + minigame engine (input model + Lift primitive only) + T1 tier + XP wiring. Demo: a player walks to the academy, plays a T1 lift, gains piloting XP. |
 | **5.4b** | Stack, Weld, Salvage primitives. T2/T3 tiers. MW Operator job listing gated on `mw_school_dialogue`. Hyperspeed-equivalent auto-resolve. |
-| **5.4c** | AE Test Range + Federation Trial entry points. T4/T5 tiers. Endurance fatigue overlay. |
+| **5.4c** | AE Test Range + Federation Trial entry points. T4/T5 tiers. Endurance fatigue overlay. AE Test Range ships both civilian-engineering and MS-handling-sim tracks. Federation Trial is reservist drill content. |
 | **5.4d** | Tuning pass: rebalance XP yields, tolerance curves, money cost/payout against playtest data. |
+| **5.5** | Zeon sympathizer cell sim — clandestine entry point gated by Zeon rep, reusing existing primitives with Zeon-side scenario copy. Bridges `zeon_volunteer`'s piloting requirement. |
 | **6+** | Spacecraft reskin (same input model, new primitives: docking, Lagrange-point coast). |
-| **7+** | Mobile suit reskin under wartime context. |
+| **7+** | Live mobile-suit combat. The simulator content shipped in 5.4c was the rehearsal — Phase 7 turns the rehearsal into a fight. |
 
 ## What this minigame is NOT
 
-- **Not a combat sim.** UC 0077 mobile workers do industrial work. War
-  repurposing waits for Phase 7 unlocks. The peacetime fantasy is being
-  inside a giant crane-mech, not a giant gun.
+- **Not live combat.** No actual hostile pilot is on the other side of
+  these scenarios. Military rehearsal, AE MS-handling simulators, and
+  Federation reservist live-fire drills are all canonical UC 0077
+  content and the minigame wears those clothes from day one. What
+  waits for Phase 7 is *real* combat with stakes the player can die
+  from.
 - **Not a separate mode.** It's a verb the player triggers from a
   walk-up interactable, same as eating or reading. The sim clock pauses
   during a session; the player returns to Von Braun afterward with money
