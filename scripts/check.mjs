@@ -43,6 +43,15 @@ async function probe(label, viewport) {
 
   await page.screenshot({ path: `scripts/out/${label}.png`, fullPage: true })
 
+  // Fresh boots auto-open the forced ambition picker, which intercepts
+  // every click until an ambition is chosen. Picking sets forcePicker=false
+  // but leaves ambitionsOpen=true (manage mode), so close that too.
+  await page.evaluate(() => {
+    window.__uclife__?.pickAmbitions?.(['mw_pilot'])
+    window.uclifeUI?.getState().setAmbitions(false)
+  })
+  await page.waitForTimeout(100)
+
   await page.click('.status-footer')
   await page.waitForTimeout(300)
   const panelOpen = await page.evaluate(() => !!document.querySelector('.status-panel'))
