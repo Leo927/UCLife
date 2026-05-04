@@ -54,13 +54,4 @@ note top of HUD
   React rendering pure-read of ECS.
 end note
 
-note bottom of GAME
-  (DRIFT) Design/architecture.md still
-  says "useQuery to subscribe to
-  renderable entities". Real Game.tsx
-  uses per-frame snapshots — chosen
-  for Pixi perf. The doc is wrong;
-  this diagram is canonical.
-end note
-
 @enduml

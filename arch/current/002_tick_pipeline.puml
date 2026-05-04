@@ -10,8 +10,9 @@ participant "sim/loop\nframe(now)" as L
 participant "combatSystem" as COMBAT
 participant "spaceSimSystem\n(spaceCampaign world)" as SPACE
 participant "real-time triple\nmovement → npc → interaction" as REAL
-participant "per-tick chain\n(13 systems, see note)" as TICK
-participant "save\n(throttled autosave)" as SV
+participant "per-tick chain\n(14 systems, see note)" as TICK
+participant "sim/events\n(pub/sub seam)" as EV
+participant "boot/autosaveBinding\n(throttle + in-flight guard)" as SV
 participant "ui (clock + toasts)" as UI
 
 raf -> L : requestAnimationFrame
@@ -34,11 +35,13 @@ alt effectiveSpeed > 0
     L -> TICK : run chain in fixed order
   end
   alt day rollover
-    L -> SV : tryAutosave('日翻页')
+    L -> EV : emitSim('day:rollover')
+    EV -> SV : autosaveBinding subscriber\n→ saveGame('auto')
   end
   L -> UI : evaluate hyperspeed gate;\nsetMode('committed' | 'normal')
   alt entering hyperspeed
-    L -> SV : tryAutosave('快进开始')
+    L -> EV : emitSim('hyperspeed:start')
+    EV -> SV : autosaveBinding subscriber\n→ saveGame('auto')
   end
   alt leaving hyperspeed in danger
     L -> UI : showToast('快进暂停 · …') with\n'强制快进' action
@@ -66,11 +69,13 @@ note over TICK
 end note
 
 note over L, SV
-  (CONCERN) sim/loop directly imports
-  save/index. The loop "knows" about
-  persistence. An event seam
-  ('day:rollover', 'hyperspeed:start')
-  would let save/ subscribe instead.
+  Autosave is decoupled via sim/events.ts.
+  loop emits 'day:rollover' /
+  'hyperspeed:start'; src/boot/
+  autosaveBinding.ts subscribes and calls
+  save/saveGame('auto') with throttle +
+  in-flight guard. sim/loop no longer
+  imports from save/.
 end note
 
 @enduml

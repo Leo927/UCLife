@@ -1,5 +1,5 @@
 @startuml current_004_save_load_roundtrip
-title UC Life Sim — save / load round-trip (SAVE_VERSION = 4)
+title UC Life Sim — save / load round-trip (SAVE_VERSION = 6)
 
 skinparam shadowing false
 skinparam sequenceMessageAlign center
@@ -7,9 +7,10 @@ skinparam defaultFontName "Inter, sans-serif"
 
 actor "caller\n(autosave / SystemMenu)" as C
 participant "save/index.ts" as SV
+participant "save/registry.ts\n(SaveHandler map,\n'pre' / 'post' phases)" as REG
+participant "boot/saveHandlers/*\n(clock, population, ship,\nspace, scene, combat,\nrelations, …)" as HND
 participant "active world\n(via Proxy)" as W
-participant "ship + space worlds\n(via getWorld)" as WX
-participant "sim/scene + clock + loop" as SIM
+participant "sim/events.ts\n(pub/sub seam)" as EV
 participant "ecs/spawn\nresetWorld + spawnNPC" as SPAWN
 participant "idb-keyval\n(superjson)" as IDB
 
@@ -18,47 +19,47 @@ participant "idb-keyval\n(superjson)" as IDB
 C -> SV : saveGame('auto' | 1..3)
 SV -> SV : refuse if clock.mode === 'combat'
 SV -> W  : query(EntityKey) → snapshotEntity
-SV -> WX : snapshotShip() + snapshotSpace()
-SV -> W  : snapshotRelations
-SV -> IDB : set(bundleKey + metaKey)
+SV -> REG : snapshotAll()
+REG -> HND : each handler.snapshot()
+REG --> SV : { handlerId → blob }
+SV -> IDB : set(bundleKey + metaKey)\n(bundle.subsystems = blobs)
 
 == loadGame(slot) ==
 
 C -> SV : loadGame(slot)
 SV -> IDB : read bundle
 SV -> SV : reject on version / seed mismatch
-SV -> SIM : stopLoop()
-SV -> SPAWN : resetWorld()  (rebuilds *every* scene from data + seed)
-SV -> SIM : useScene.setActive(target)\nor migratePlayerToScene(target)
+SV -> SV : migrateLegacyBundle()\n(pre-v5 top-level → subsystems bag)
+SV -> EV : emitSim('load:start')
 note right
-  Bumps swapNonce → ScopedRoot
-  remounts <App>, killing useQuery
-  hooks that were orphaned by
-  world.reset().
+  loop subscribes and calls stopLoop().
+  No save → sim/loop import.
 end note
+SV -> SPAWN : resetWorld()  (rebuilds *every* scene from data + seed)
+SV -> REG : restoreAll(blobs, 'pre')
+REG -> HND : scene handler runs first\n(active scene id; world Proxy\nneeds target world before byKey)
 SV -> W  : index byKey via query(EntityKey)
 SV -> SPAWN : spawnNPC(...) for missing immigrants\n(keys 'npc-imm-*')
 SV -> W  : destroy entities not in saved keys
-SV -> W  : overlay each EntitySnap → 18 traits
-SV -> W  : restoreRelations(byKey, relations)
-SV -> WX : restoreShip / restoreSpace (v3+ / v4+)
+SV -> W  : overlay each EntitySnap → traits
 SV -> W  : mark every Character Active\n(load auto-pauses, no activeZone tick yet)
-SV -> SIM : clock.setState(speed:0, mode:'normal')
-SV -> SIM : startLoop()
+SV -> REG : restoreAll(blobs, 'post')
+REG -> HND : clock, population, ship, space,\nrelations, combat, engagement, …\n(order among 'post' handlers irrelevant)
+SV -> EV : emitSim('load:end')
+note right
+  loop subscribes and calls startLoop().
+end note
 SV --> C  : { ok: true }
 
-note over SV
-  (CONCERN) save/ couples to:
-   - sim/loop, sim/scene, sim/clock
-   - ecs/spawn, ecs/world
-   - getWorld('playerShipInterior')
-   - getWorld('spaceCampaign')
-   - systems/{combat, population,
-     relations, engagement} reset hooks
-  Every new system with module-level
-  state costs save/load coverage. A
-  "world reset lifecycle" event would
-  invert this.
+note over SV, REG
+  Per-subsystem reach is inverted via
+  the SaveHandler registry. save/index.ts
+  iterates handlers blindly — it does
+  not import from systems/, sim/scene,
+  sim/clock, sim/engagement. Adding a
+  new persisted subsystem == one new
+  file in src/boot/saveHandlers/, no
+  edit to save/index.ts.
 end note
 
 @enduml

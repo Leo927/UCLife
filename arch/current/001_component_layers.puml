@@ -77,7 +77,7 @@ L_BOOT --> L_UI
 ' iterates handlers blindly — it does not import from systems/, sim/scene,
 ' sim/clock, sim/engagement. Adding a 16th persisted subsystem == one
 ' new file in src/boot/saveHandlers/, no edit to save/index.ts.
-L_BOOT -[#red]-> L_SYS  : (V) __uclife__ DEV surface\nreaches ~10 subsystems
+L_BOOT -[#red]-> L_SYS  : (V) __uclife__ DEV surface\nreaches ~15 subsystems
 
 note right of L_SYS
   Module-level singletons in:

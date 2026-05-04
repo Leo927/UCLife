@@ -13,8 +13,6 @@ Diagrams here describe what the code **actually does today** at HEAD. They are i
 | `005_render_flow.puml` | Component | `render/Game.tsx` per-frame snapshot loop into `PixiGroundRenderer` vs. the koota `useQuery`/`useTrait` HUD path. |
 | `006_portrait_pipeline.puml` | Component | FC pregmod port: `bridge.ts` shim, `infrastructure/cacheLoader.ts`, `adapter/`, `react/Portrait.tsx`, with the GPL byte-identical core kept opaque. |
 
-## Notable drift
+## Drift status
 
-- `Design/architecture.md` still references `react-konva` + `easystarjs` + `LinguiJS`; the codebase ships `pixi.js` + a hand-rolled A* + HPA*, no i18n yet. The diagrams here override that doc.
-- The doc lists 7 systems in a flat tick order; the real loop runs ~16 systems split across per-frame and per-tick phases plus a separate combat/space tick. See `002_tick_pipeline.puml`.
-- The doc says "render is a pure read of sim via `useQuery`". Real `Game.tsx` deliberately bypasses `useQuery` for visual marks and pulls per-frame snapshots out of `world.query()` for perf reasons (Pixi migration).
+`Design/architecture.md` was refreshed to match HEAD: pixi.js + hand-rolled A\*/HPA\*, no i18n framework, full per-frame + per-tick chain order, render snapshot path, save handler registry, and the `sim/events.ts` pub/sub seam between sim/loop and save. Diagrams here remain canonical for the wire-level detail; the doc is the prose summary.
