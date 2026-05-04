@@ -1,28 +1,54 @@
 @startuml current_001_component_layers
-title UC Life Sim — current component layers (HEAD)
+title UC Life Sim - current component layers (HEAD)
 
-' Rule: data flows DOWN. Upward edges are violations.
-' This diagram shows ONLY the layering rule + the edges that cross more
-' than one layer or violate it. Per-layer file inventories are in notes,
-' not nested components — keeping the graph readable.
+' Rule: data flows DOWN. Upward edges (and violations) are flagged red.
+' The diagram is a strict vertical stack: each rank is one layer.
+' Hidden edges form the ranking spine so PlantUML can't sprawl horizontally.
+' ASCII-only labels (em-dashes garble under Java's default Windows charset).
 
 skinparam shadowing false
-skinparam packageStyle rectangle
 skinparam defaultFontName "Inter, sans-serif"
 skinparam linetype ortho
+skinparam ranksep 18
+skinparam nodesep 35
+skinparam rectangle {
+  BorderColor #888
+  FontSize 12
+}
 top to bottom direction
 
-package "config\n*.json5 → loaders, read once at boot" as L_CFG  #f3f6fa
-package "data\nstatic content (scenes, jobs, ships, …)" as L_DATA #f3f6fa
-package "procgen\npure, seeded — roads → blocks → cells" as L_PROC #eef5ee
-package "ecs\nkoota traits + Map<SceneId, World>" as L_ECS  #fff8ec
-package "ai\nmistreevous BT (trees + agent)" as L_AI   #fff3e6
-package "sim\nclock, scene, loop, ship, transition" as L_SIM  #fff3e6
-package "systems\n28 files (vitals, work, npc, combat, …)" as L_SYS  #fff3e6
-package "save\nidb-keyval + superjson" as L_SAVE #f0e6ff
-package "render\npixi + sprite + portrait" as L_REND #e9f3ff
-package "ui\nReact DOM + zustand stores" as L_UI   #e9f3ff
-package "boot\nmain.tsx :: ScopedRoot" as L_BOOT #ffffff
+' --- rank 0: declarations + composition root ---
+together {
+  rectangle "config\n.json5 -> loaders, read once at boot"          as L_CFG  #f3f6fa
+  rectangle "boot\nmain.tsx :: ScopedRoot"                          as L_BOOT #ffffff
+}
+rectangle "data\nstatic content (scenes, jobs, ships, ...)"          as L_DATA #f3f6fa
+rectangle "procgen\npure, seeded -- roads -> blocks -> cells"        as L_PROC #eef5ee
+rectangle "ecs\nkoota traits + Map<SceneId, World>"                  as L_ECS  #fff8ec
+together {
+  rectangle "ai\nmistreevous BT (trees + agent)"                     as L_AI   #fff3e6
+  rectangle "sim\nclock, scene, loop, ship, transition"              as L_SIM  #fff3e6
+}
+rectangle "systems\n28 files (vitals, work, npc, combat, ...)"       as L_SYS  #fff3e6
+together {
+  rectangle "save\nidb-keyval + superjson"                           as L_SAVE #f0e6ff
+  rectangle "render\npixi + sprite + portrait"                       as L_REND #e9f3ff
+}
+rectangle "ui\nReact DOM + zustand stores"                           as L_UI   #e9f3ff
+
+' --- hidden ranking spine: forces strict vertical stack ---
+L_CFG  -[hidden]-> L_DATA
+L_BOOT -[hidden]-> L_DATA
+L_DATA -[hidden]-> L_PROC
+L_PROC -[hidden]-> L_ECS
+L_ECS  -[hidden]-> L_AI
+L_ECS  -[hidden]-> L_SIM
+L_AI   -[hidden]-> L_SYS
+L_SIM  -[hidden]-> L_SYS
+L_SYS  -[hidden]-> L_SAVE
+L_SYS  -[hidden]-> L_REND
+L_SAVE -[hidden]-> L_UI
+L_REND -[hidden]-> L_UI
 
 ' --- intended (downward) dependency direction ---
 L_CFG  --> L_DATA
@@ -56,9 +82,9 @@ end note
 note right of L_REND
   render/ has its own internal seam:
    - Game.tsx + ground/PixiGroundRenderer
-     (ECS snapshot → pixi)
+     (ECS snapshot -> pixi)
    - sprite/ (LPC composer, anim ticker)
-   - portrait/ (FC pregmod port — opaque
+   - portrait/ (FC pregmod port -- opaque
      core, UC owns bridge + adapter)
   See 005_render_flow + 006_portrait_pipeline.
 end note

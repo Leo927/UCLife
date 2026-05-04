@@ -9,3 +9,5 @@ scripts/out
 checkout.txt
 tscout.txt
 .claude/settings.local.json
+arch/**/*.png
+arch/**/*.svg
