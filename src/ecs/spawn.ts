@@ -946,7 +946,6 @@ function runSceneBootstrap(scene: SceneConfig): void {
   switch (scene.sceneType) {
     case 'micro': bootstrapMicroScene(scene); break
     case 'ship':  bootstrapShipScene(scene);  break
-    case 'space': bootstrapSpaceCampaign();   break
   }
 }
 
@@ -993,6 +992,10 @@ export function setupWorld() {
   clearTransitPlacements()
 
   for (const scene of scenes) {
+    if (scene.sceneType === 'space') {
+      bootstrapSpaceCampaign()
+      continue
+    }
     setActiveSceneId(scene.id)
     runSceneBootstrap(scene)
     markPathfindingDirty()

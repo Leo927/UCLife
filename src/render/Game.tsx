@@ -37,7 +37,13 @@ export function Game() {
   const H = ROWS * TILE
 
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [canvas, setCanvas] = useState({ w: W, h: H })
+  // Cap the initial Konva Stage to viewport so the spaceCampaign scene
+  // (30000×24000 tiles → 960000×768000 px) doesn't allocate a multi-GB
+  // canvas for the ~12s it takes the resize observer to clamp it.
+  const [canvas, setCanvas] = useState(() => ({
+    w: Math.min(window.innerWidth, W),
+    h: Math.min(window.innerHeight, H),
+  }))
 
   useEffect(() => {
     setupWorld()
