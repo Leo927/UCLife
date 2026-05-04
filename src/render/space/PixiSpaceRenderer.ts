@@ -30,6 +30,7 @@
 import { Application, Container, Graphics, Text } from 'pixi.js'
 import type { CelestialKind } from '../../data/celestialBodies'
 import type { Poi } from '../../data/pois'
+import { ParticlePool, emitThrust } from './particles'
 
 const BODY_COLOR: Record<CelestialKind, { fill: number; stroke: number }> = {
   star:     { fill: 0xfde68a, stroke: 0xfef9c3 },
@@ -66,6 +67,8 @@ export interface SpaceSnapshot {
   coursePreview: { fromX: number; fromY: number; toX: number; toY: number } | null
   /** POI under the panel (highlighted with a snap-radius ring). */
   hoveredPoiId: string | null
+  /** Real elapsed seconds since previous update — used by particle systems. */
+  dtSec: number
 }
 
 interface BodyNode { root: Container; circle: Graphics; label: Text }
@@ -91,11 +94,13 @@ export class PixiSpaceRenderer {
   private bodyLayer: Container
   private courseLayer: Container
   private poiLayer: Container
+  private particleLayer: Container
   private shipLayer: Container
   private bodyNodes = new Map<string, BodyNode>()
   private poiNodes = new Map<string, PoiNode>()
   private shipShape: Graphics
   private courseLine: Graphics
+  private particles: ParticlePool
   private viewW: number
   private viewH: number
 
@@ -107,14 +112,18 @@ export class PixiSpaceRenderer {
     this.viewport.label = 'space-viewport'
     app.stage.addChild(this.viewport)
 
-    // Layer order matches the original Konva: bodies → course → POIs → ship.
+    // Layer order: bodies → course → POIs → particles (engine trails, etc) → ship.
+    // Particles render *under* the ship so the trail appears to come from
+    // behind it.
     this.bodyLayer = new Container()
     this.courseLayer = new Container()
     this.poiLayer = new Container()
+    this.particleLayer = new Container()
     this.shipLayer = new Container()
     this.viewport.addChild(this.bodyLayer)
     this.viewport.addChild(this.courseLayer)
     this.viewport.addChild(this.poiLayer)
+    this.viewport.addChild(this.particleLayer)
     this.viewport.addChild(this.shipLayer)
 
     this.courseLine = new Graphics()
@@ -122,6 +131,8 @@ export class PixiSpaceRenderer {
 
     this.shipShape = new Graphics()
     this.shipLayer.addChild(this.shipShape)
+
+    this.particles = new ParticlePool(app, this.particleLayer)
   }
 
   resize(w: number, h: number): void {
@@ -131,6 +142,7 @@ export class PixiSpaceRenderer {
   }
 
   destroy(): void {
+    this.particles.destroy()
     this.viewport.destroy({ children: true })
     this.bodyNodes.clear()
     this.poiNodes.clear()
@@ -161,6 +173,7 @@ export class PixiSpaceRenderer {
     this.syncPois(snap.pois, scale, snap.hoveredPoiId, snap.dockSnapRadius)
     this.syncCourse(snap.coursePreview, scale)
     this.syncShip(snap.ship, scale)
+    this.syncParticles(snap.ship, snap.dtSec)
 
     if (PROF) {
       spaceStats.frames++
@@ -168,6 +181,18 @@ export class PixiSpaceRenderer {
       spaceStats.bodyNodes = this.bodyNodes.size
       spaceStats.poiNodes = this.poiNodes.size
     }
+  }
+
+  private syncParticles(ship: ShipSnapshot | null, dtSec: number): void {
+    if (ship) {
+      // Emit thrust only when the ship is actually under thrust — proxied by
+      // active course. ECS Velocity may be non-zero during coast, which we
+      // don't want to trail.
+      if (ship.course?.active) {
+        emitThrust(this.particles, ship.x, ship.y, ship.vx, ship.vy, dtSec, 60)
+      }
+    }
+    this.particles.update(dtSec)
   }
 
   private syncBodies(bodies: BodySnapshot[], scale: number): void {

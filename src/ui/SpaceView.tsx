@@ -140,6 +140,7 @@ export function SpaceView() {
     const FRAME_MS = 33
     const loop = (now: number) => {
       if (now - last >= FRAME_MS) {
+        const dtSec = last === 0 ? FRAME_MS / 1000 : (now - last) / 1000
         last = now
         const r = rendererRef.current
         if (r) {
@@ -167,6 +168,7 @@ export function SpaceView() {
             fit,
             coursePreview,
             hoveredPoiId: panelRef.current?.poiId ?? null,
+            dtSec,
           })
         }
       }
