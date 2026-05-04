@@ -5,7 +5,7 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 
-const url = process.argv[2] ?? 'http://localhost:5173/'
+const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
 await mkdir('scripts/out', { recursive: true })
 
 const browser = await chromium.launch()

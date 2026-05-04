@@ -16,15 +16,18 @@ npm run build                # tsc -b && vite build (auto-runs build:portrait-ca
 npm run preview              # serve dist/
 npm run build:portrait-cache # rebuild SVG → JSON sprite maps under src/render/portrait/assets/cache/
 
-# Regression suite — REQUIRES `npm run dev` already running on :5173.
-# Centralized entrypoint; sources its step list from .github/workflows/ci.yml so
-# local and CI runs stay in lockstep. Outputs land in scripts/out/.
-npm run ci:local
+# Regression suite — standalone. Spawns its own Vite dev server on an
+# ephemeral port (no need to `npm run dev` first); each invocation gets a
+# fresh port so concurrent runs (subagents, worktrees) don't collide.
+# Sources its step list from .github/workflows/ci.yml so local and CI stay
+# in lockstep. Outputs land in scripts/out/.
+npm run ci:local                # serial (default)
+npm run ci:local -- --workers 4 # parallel against the same dev server
 ```
 
 **TDD is mandatory.** Write the failing test before the production code, watch it fail, then make it pass. Follow *Clean Code* (Robert C. Martin) for naming, function size, single responsibility, and dependency direction.
 
-The single source of truth for the regression suite is `npm run ci:local`. Add new coverage by extending `.github/workflows/ci.yml` (which `scripts/ci-local.mjs` parses); do **not** introduce parallel one-off check scripts that live outside the suite. Type-checking is `tsc -b` (run as part of `npm run build`).
+The single source of truth for the regression suite is `npm run ci:local`. Add new coverage by extending `.github/workflows/ci.yml` (which `scripts/ci-local.mjs` parses); do **not** introduce parallel one-off check scripts that live outside the suite. New `check-*.mjs` scripts must read their target URL as `process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'` so the runner can inject the ephemeral port. Type-checking is `tsc -b` (run as part of `npm run build`).
 
 ## LPC sprites in dev
 
