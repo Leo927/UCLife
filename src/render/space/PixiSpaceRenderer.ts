@@ -27,7 +27,8 @@
 // stars + 30 bodies. Phase 2 covers bodies + POIs + ship + course only;
 // projectiles / stars are deferred to later phases.
 
-import { Application, Container, Graphics, Text } from 'pixi.js'
+import { Application, Container, Graphics, Text, ColorMatrixFilter } from 'pixi.js'
+import { AdvancedBloomFilter } from 'pixi-filters'
 import type { CelestialKind } from '../../data/celestialBodies'
 import type { Poi } from '../../data/pois'
 import { ParticlePool, emitThrust } from './particles'
@@ -133,6 +134,33 @@ export class PixiSpaceRenderer {
     this.shipLayer.addChild(this.shipShape)
 
     this.particles = new ParticlePool(app, this.particleLayer)
+
+    // Post-fx, applied at layer granularity for tighter cost control.
+    // Bloom on engine trails + bodies (which include the star) = the bright
+    // sources. Bloom on the whole viewport would also light up POI rects
+    // and ship outlines, which we don't want — those should read crisp.
+    // Subtle cold-blue color grading on the whole viewport sets mood.
+    const bloom = new AdvancedBloomFilter({
+      threshold: 0.5,
+      bloomScale: 1.0,
+      brightness: 1.0,
+      blur: 6,
+      quality: 4,
+    })
+    this.particleLayer.filters = [bloom]
+    this.bodyLayer.filters = [bloom]
+
+    const grading = new ColorMatrixFilter()
+    // Slight cold-blue + reduced saturation. Matrix below desaturates ~10%
+    // and lifts blues ~5%; preserves the existing palette without washing
+    // out the celestial body colors.
+    grading.matrix = [
+      0.95, 0,    0,    0, 0,
+      0,    0.95, 0,    0, 0,
+      0,    0,    1.05, 0, 0,
+      0,    0,    0,    1, 0,
+    ]
+    this.viewport.filters = [grading]
   }
 
   resize(w: number, h: number): void {
