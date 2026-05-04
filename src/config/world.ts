@@ -15,7 +15,7 @@ export interface WorldConfig {
     npcCounter: number
   }
   activeZone: {
-    activePadTiles: number
+    activeRadiusTiles: number
     hysteresisTiles: number
     membershipTickMin: number
     inactiveSlowFactor: number

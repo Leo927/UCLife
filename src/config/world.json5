@@ -45,18 +45,20 @@
     npcCounter: 6,
   },
 
-  // Active-zone optimization. NPCs whose Position lies inside the player's
-  // active zone (camera viewport + activePadTiles of buffer) are "Active":
-  // rendered, BT at full cadence, vitals at full per-tick rate. Outside,
-  // they're "Inactive": no graphics, BT at coarse cadence, vitals scaled by
-  // inactiveSlowFactor. Only matters at scale — on a small map every NPC is
-  // always Active. Tune when enlarging the map.
+  // Active-zone optimization. NPCs whose Position lies within
+  // activeRadiusTiles of the player are "Active": rendered, BT at full
+  // cadence, vitals at full per-tick rate. Outside, they're "Inactive": no
+  // graphics, BT at coarse cadence, vitals scaled by inactiveSlowFactor.
+  // Only matters at scale — on a small map every NPC is always Active. Tune
+  // when enlarging the map.
   activeZone: {
-    // Tiles of buffer around the camera viewport that still count as
-    // Active. Bigger = smoother visual transitions when the camera pans
-    // toward an inactive NPC, at the cost of more NPCs to fully simulate.
-    activePadTiles: 8,
-    // Extra tiles past activePadTiles that an Active NPC must exit before
+    // Square half-extent (in tiles) around the player's Position that still
+    // counts as Active. Sim-domain — independent of the camera viewport, so
+    // the sim can run headless. Bigger = more NPCs to fully simulate but
+    // less risk of edge NPCs (combat, chat partners) freezing just past the
+    // visible area.
+    activeRadiusTiles: 24,
+    // Extra tiles past activeRadiusTiles that an Active NPC must exit before
     // being demoted to Inactive. Hysteresis — prevents render/cadence flap
     // for NPCs walking the boundary.
     hysteresisTiles: 2,

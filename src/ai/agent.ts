@@ -165,7 +165,7 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
     // handled by the membership tick.
     if (!entity.has(Active)) {
       const pos = entity.get(Position)
-      if (pos && !isPointInActiveZone(pos.x, pos.y) && !isPointInActiveZone(x, y)) {
+      if (pos && !isPointInActiveZone(world, pos.x, pos.y) && !isPointInActiveZone(world, x, y)) {
         entity.set(Position, { x, y })
         if (entity.has(MoveTarget)) entity.remove(MoveTarget)
         if (entity.has(Path)) entity.remove(Path)

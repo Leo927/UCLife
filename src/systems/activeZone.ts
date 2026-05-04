@@ -1,19 +1,22 @@
-// Active = inside (camera viewport + activePadTiles). Hysteresis: demotion
-// uses a wider box (activePadTiles + hysteresisTiles) so edge-walkers
-// don't flap. Demote-to-teleport: an NPC with an outside MoveTarget jumps
-// straight to it on demote rather than paying per-frame A* across I.
-// Inactive→teleport on BT-set MoveTarget is in agent.setMoveTarget.
+// Active = within activeRadiusTiles of the player's Position. Hysteresis:
+// demotion uses a wider square (activeRadiusTiles + hysteresisTiles) so
+// edge-walkers don't flap. Demote-to-teleport: an NPC with an outside
+// MoveTarget jumps straight to it on demote rather than paying per-frame A*
+// across I. Inactive→teleport on BT-set MoveTarget is in agent.setMoveTarget.
+//
+// "Active" is a sim-domain question — NPCs alive near the player. The
+// partitioner reads the player's Position from the world, not the camera
+// viewport, so the sim runs identically headless and on the renderer.
 
 import type { World } from 'koota'
 import {
   Active, Action, Character, ChatTarget, ChatLine, Health, IsPlayer,
   MoveTarget, Path, Position,
 } from '../ecs/traits'
-import { useCamera } from '../render/cameraStore'
 import { worldConfig } from '../config'
 
 const TILE = worldConfig.tilePx
-const PAD_PX = worldConfig.activeZone.activePadTiles * TILE
+const RADIUS_PX = worldConfig.activeZone.activeRadiusTiles * TILE
 const HYST_PX = worldConfig.activeZone.hysteresisTiles * TILE
 const TICK_MS = worldConfig.activeZone.membershipTickMin * 60 * 1000
 
@@ -25,26 +28,28 @@ export function resetActiveZone(): void {
   lastTickGameMs = -Infinity
 }
 
-// Returns null when the camera viewport hasn't been measured yet —
-// callers treat that as "be permissive".
-function bounds(padPx: number): Bounds | null {
-  const { camX, camY, canvasW, canvasH } = useCamera.getState()
-  if (canvasW <= 0 || canvasH <= 0) return null
+// Returns null when the world has no player entity yet — callers treat that
+// as "be permissive" (e.g. headless boot, between scene swaps).
+function bounds(world: World, halfExtentPx: number): Bounds | null {
+  const player = world.queryFirst(IsPlayer, Position)
+  if (!player) return null
+  const pos = player.get(Position)
+  if (!pos) return null
   return {
-    x0: camX - padPx,
-    y0: camY - padPx,
-    x1: camX + canvasW + padPx,
-    y1: camY + canvasH + padPx,
+    x0: pos.x - halfExtentPx,
+    y0: pos.y - halfExtentPx,
+    x1: pos.x + halfExtentPx,
+    y1: pos.y + halfExtentPx,
   }
 }
 
 const inside = (x: number, y: number, b: Bounds): boolean =>
   x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1
 
-// Permissive (returns true) when viewport unmeasured, so callers don't
-// teleport prematurely.
-export function isPointInActiveZone(x: number, y: number): boolean {
-  const b = bounds(PAD_PX)
+// Permissive (returns true) when no player entity exists, so callers don't
+// teleport prematurely during headless boot or scene transitions.
+export function isPointInActiveZone(world: World, x: number, y: number): boolean {
+  const b = bounds(world, RADIUS_PX)
   if (!b) return true
   return inside(x, y, b)
 }
@@ -75,20 +80,20 @@ export function activeZoneSystem(world: World, gameMs: number): void {
   if (gameMs - lastTickGameMs < TICK_MS) return
   lastTickGameMs = gameMs
 
-  const promoteBox = bounds(PAD_PX)
+  const promoteBox = bounds(world, RADIUS_PX)
   if (!promoteBox) {
-    // Headless / pre-first-render: mark every Character Active so BT and
-    // render filters behave like the pre-active-zone version.
+    // Headless / no-player: mark every Character Active so BT and render
+    // filters behave like the pre-active-zone version.
     for (const entity of world.query(Character, Position)) {
       if (!entity.has(Active)) entity.add(Active)
     }
     return
   }
-  const demoteBox = bounds(PAD_PX + HYST_PX)!
+  const demoteBox = bounds(world, RADIUS_PX + HYST_PX)!
 
   for (const entity of world.query(Character, Position)) {
     if (entity.has(IsPlayer)) {
-      // Player is the camera anchor.
+      // Player is the radius anchor — always Active.
       if (!entity.has(Active)) entity.add(Active)
       continue
     }
