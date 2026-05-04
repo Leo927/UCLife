@@ -13,3 +13,4 @@ import './combat'       // phase: 'post' — transient (reset only)
 import './engagement'   // phase: 'post' — transient (reset only)
 import './ship'         // phase: 'post' — long-arc ship state
 import './space'        // phase: 'post' — spaceCampaign physics state
+import './relations'    // phase: 'post' — Knows graph (needs entities)

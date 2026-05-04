@@ -29,7 +29,6 @@ import { world } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { resetWorld, spawnNPC } from '../ecs/spawn'
-import { snapshotRelations, restoreRelations, type RelationSnap } from '../systems/relations'
 import { logEvent } from '../ui/EventLog'
 import { WORLD_SEED } from '../procgen'
 import { snapshotAll, restoreAll } from './registry'
@@ -55,7 +54,10 @@ const LEGACY_KEY = 'uclife:autosave'
 //       `subsystems` bag. Top-level fields (gameDate, activeSceneId,
 //       population, ship, space) become legacy and are migrated by
 //       migrateLegacyBundle at load.
-const SAVE_VERSION = 5
+//   v6: subsystems.relations replaces top-level bundle.relations — the
+//       Knows graph now registers itself as a SaveHandler instead of
+//       being hard-coded in saveGame/loadGame.
+const SAVE_VERSION = 6
 
 // Per-entity snapshot. `key` matches an EntityKey already in the world (or,
 // for immigrants, identifies the NPC to re-spawn). All trait fields are
@@ -119,7 +121,6 @@ interface SaveBundle {
   seed: string
   meta: SaveMeta
   entities: EntitySnap[]
-  relations: RelationSnap[]
   // v5+: handler-keyed subsystem state. Optional only for legacy bundles
   // (migrateLegacyBundle synthesizes it from top-level fields below).
   subsystems?: Record<string, unknown>
@@ -130,6 +131,8 @@ interface SaveBundle {
   population?: unknown
   ship?: unknown
   space?: unknown
+  // Pre-v6 legacy top-level field. Migrated into subsystems.relations.
+  relations?: unknown
 }
 
 // Returns null for entities without an EntityKey trait (walls, doors,
@@ -278,12 +281,19 @@ function migrateLegacyBundle(bundle: SaveBundle): {
   subsystems: Record<string, unknown>
   notices: string[]
 } {
+  const notices: string[] = []
+  // v5 bundles already have a subsystems bag; v6 migration only needs
+  // to lift the still-top-level `relations` into it. Pre-v5 bundles
+  // synthesize the bag from scratch below.
   if (bundle.version >= 5 && bundle.subsystems) {
-    return { subsystems: bundle.subsystems, notices: [] }
+    const subsystems = { ...bundle.subsystems }
+    if (bundle.relations !== undefined && subsystems.relations === undefined) {
+      subsystems.relations = bundle.relations
+    }
+    return { subsystems, notices }
   }
 
   const subsystems: Record<string, unknown> = {}
-  const notices: string[] = []
 
   if (bundle.gameDate) {
     subsystems.clock = { gameDate: bundle.gameDate }
@@ -308,6 +318,9 @@ function migrateLegacyBundle(bundle: SaveBundle): {
     subsystems.space = bundle.space
   } else if (bundle.version === 3) {
     notices.push('存档先于太空世界持久化 — 飞船与敌舰位置已重置')
+  }
+  if (bundle.relations !== undefined) {
+    subsystems.relations = bundle.relations
   }
 
   return { subsystems, notices }
@@ -338,7 +351,6 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
     seed: WORLD_SEED,
     meta,
     entities,
-    relations: snapshotRelations(world),
     subsystems: snapshotAll(),
   }
   const payload = superjson.stringify(bundle)
@@ -614,10 +626,6 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
       entity.remove(Flags)
     }
   }
-
-  // After entity overlay so newly-spawned immigrants are already in byKey.
-  // Edges to unkeyed or destroyed characters are silently dropped.
-  if (bundle.relations) restoreRelations(world, byKey, bundle.relations)
 
   // setupWorld spawns NPCs without Active — that's normally added on the
   // first activeZoneSystem tick. But loadGame auto-pauses, so no tick fires
