@@ -1,42 +1,38 @@
 // The world is fully reproducible from `WORLD_SEED + setupWorld()`, so saves
-// only capture *dynamic* state (vitals, money, action, entity refs) plus the
-// clock and population counters. Reload = `resetWorld()` (rebuilds map +
-// spec NPCs from seed) → patch dynamic traits onto entities matched by
-// stable EntityKey → spawn missing immigrants → destroy entities the save
-// no longer expects.
+// only capture *dynamic* state (vitals, money, action, entity refs) plus
+// per-subsystem singleton state (clock, population, ship, space, ...).
+// Reload = `resetWorld()` (rebuilds map + spec NPCs from seed) → patch
+// dynamic traits onto entities matched by stable EntityKey → spawn missing
+// immigrants → destroy entities the save no longer expects → restore
+// per-subsystem state via the handler registry.
 //
-// Entity references survive the round-trip via key indirection: every saved
-// entity carries an EntityKey trait, and refs are serialized as keys, not
-// raw entity ids.
+// Entity references survive the round-trip via key indirection: every
+// saved entity carries an EntityKey trait, and refs are serialized as
+// keys, not raw entity ids.
+//
+// Per-subsystem state lives in `bundle.subsystems` and is opaque to this
+// module — see src/save/registry.ts and src/boot/saveHandlers/. Adding a
+// new persisted subsystem == one file in src/boot/saveHandlers/, no edit
+// here.
 
 import { get, set, del } from 'idb-keyval'
 import superjson from 'superjson'
-import type { Entity } from 'koota'
+import type { Entity, TraitInstance } from 'koota'
 import {
   Position, MoveTarget, Vitals, Health, Action, Money, Skills, Inventory,
   Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
   Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
-  Ship, WeaponMount,
-  ShipBody, Velocity, Course, AtHelm, EnemyAI,
   type AmbitionSlot, type AmbitionHistoryEntry,
 } from '../ecs/traits'
-import type { TraitInstance } from 'koota'
-import { world, getActiveSceneId, getWorld, type SceneId } from '../ecs/world'
-import { initialSceneId, sceneIds } from '../data/scenes'
-import { useScene, migratePlayerToScene } from '../sim/scene'
+import { world } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { resetWorld, spawnNPC } from '../ecs/spawn'
-import { getPopulationState, setPopulationState } from '../systems/population'
 import { snapshotRelations, restoreRelations, type RelationSnap } from '../systems/relations'
-import { useCombatStore } from '../systems/combat'
-import { resetEngagementCooldowns } from '../sim/engagement'
 import { logEvent } from '../ui/EventLog'
 import { WORLD_SEED } from '../procgen'
-
-const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
-const SPACE_SCENE_ID: SceneId = 'spaceCampaign'
+import { snapshotAll, restoreAll } from './registry'
 
 export type SlotId = 'auto' | 1 | 2 | 3
 export const MANUAL_SLOTS: ReadonlyArray<1 | 2 | 3> = [1, 2, 3]
@@ -49,16 +45,17 @@ function metaKey(slot: SlotId): string { return `uclife:save:${slot}:meta` }
 // migration that rewrites this into the autosave slot.
 const LEGACY_KEY = 'uclife:autosave'
 
-// v3 (Starsector pivot): replaces the FTL-era room/system block with a
-// flat Starsector stat snapshot. v1 + v2 saves load with ship state at
-// deterministic defaults (player still owns the ship if Flags.shipOwned
-// is set); a one-line event-log notice flags the migration.
-// v4 (Phase 6.0 slice 8): adds spaceCampaign world snapshot — player ship
-// continuous-physics state (Position/Velocity/Course/AtHelm) plus enemy
-// positions, velocities, and EnemyAI mode/patrolIdx. v3 saves load with
-// the spaceCampaign world at fresh-bootstrap state (player at docked POI,
-// enemies at spawn coords).
-const SAVE_VERSION = 4
+// Version history:
+//   v1: pre-Starsector (FTL-era ship rooms/systems block).
+//   v2: pre-Starsector pivot.
+//   v3: Starsector pivot — flat ship stat block.
+//   v4: spaceCampaign world snapshot (ship continuous-physics + enemy AI).
+//   v5: subsystem handler registry — subsystem state moved out of
+//       hard-coded top-level bundle fields into a handler-keyed
+//       `subsystems` bag. Top-level fields (gameDate, activeSceneId,
+//       population, ship, space) become legacy and are migrated by
+//       migrateLegacyBundle at load.
+const SAVE_VERSION = 5
 
 // Per-entity snapshot. `key` matches an EntityKey already in the world (or,
 // for immigrants, identifies the NPC to re-spawn). All trait fields are
@@ -117,58 +114,22 @@ export interface SaveMeta {
   alive: number
 }
 
-// Long-arc ship state — Starsector-shape stat block + hardpoint loadout.
-// Transient combat state (charge, projectiles, EnemyShipState) is never
-// persisted; combat-time saves are refused.
-interface ShipSaveBlock {
-  hullCurrent: number
-  armorCurrent: number
-  fluxCurrent: number
-  fuelCurrent: number
-  suppliesCurrent: number
-  dockedAtPoiId: string
-  fleetPos: { x: number; y: number }
-  weapons: { mountIdx: number; weaponId: string }[]
-}
-
-// Continuous-space snapshot for the spaceCampaign world. Bodies and POIs
-// are derived from data + the game-clock so they're never persisted; only
-// the player ship's physics state and each enemy's mutable AI state are.
-// Patrol paths are data-driven (space-entities.json5) — only the index and
-// mode need to round-trip.
-interface SpaceSaveBlock {
-  player: {
-    pos: { x: number; y: number }
-    vel: { vx: number; vy: number }
-    course: { tx: number; ty: number; destPoiId: string | null; active: boolean }
-    atHelm: boolean
-  }
-  enemies: {
-    key: string
-    pos: { x: number; y: number }
-    vel: { vx: number; vy: number }
-    mode: 'patrol' | 'idle' | 'chase' | 'flee'
-    patrolIdx: number
-  }[]
-}
-
 interface SaveBundle {
   version: number
   seed: string
-  // Optional for back-compat with bundles written before the active-scene
-  // fix. Older bundles loaded by migrating to initialSceneId.
-  activeSceneId?: SceneId
-  gameDate: Date
   meta: SaveMeta
-  population: ReturnType<typeof getPopulationState>
   entities: EntitySnap[]
   relations: RelationSnap[]
-  // Optional so v1 bundles parse cleanly. Absence ⇒ leave the default ship
-  // state that bootstrapShipScene seeds.
-  ship?: ShipSaveBlock
-  // Optional so pre-v4 bundles parse cleanly. Absence ⇒ leave the
-  // spaceCampaign world at fresh-bootstrap state.
-  space?: SpaceSaveBlock
+  // v5+: handler-keyed subsystem state. Optional only for legacy bundles
+  // (migrateLegacyBundle synthesizes it from top-level fields below).
+  subsystems?: Record<string, unknown>
+  // Pre-v5 legacy top-level fields. Migrated by migrateLegacyBundle at
+  // load time. Newly-written bundles never set these.
+  gameDate?: Date
+  activeSceneId?: string
+  population?: unknown
+  ship?: unknown
+  space?: unknown
 }
 
 // Returns null for entities without an EntityKey trait (walls, doors,
@@ -307,151 +268,49 @@ function buildMeta(slot: SlotId, gameDate: Date): SaveMeta {
   }
 }
 
-// Reads ship-scene world directly (not via the active-scene `world` proxy),
-// so the snapshot captures the ship even when the player is currently in a
-// city scene. Returns undefined when the bootstrap hasn't run yet (e.g.
-// initial load before resetWorld) or when no Ship singleton is present.
-function snapshotShip(): ShipSaveBlock | undefined {
-  const w = getWorld(SHIP_SCENE_ID)
-  const shipEnt = w.queryFirst(Ship)
-  if (!shipEnt) return undefined
-  const s = shipEnt.get(Ship)!
-
-  const weapons: ShipSaveBlock['weapons'] = []
-  for (const e of w.query(WeaponMount, EntityKey)) {
-    const key = e.get(EntityKey)!.key
-    if (!key.startsWith('ship-weapon-')) continue
-    const m = e.get(WeaponMount)!
-    weapons.push({ mountIdx: m.mountIdx, weaponId: m.weaponId })
+// Translates a pre-v5 bundle's top-level fields into the v5 subsystems
+// bag. Returns the bag plus any user-facing notices to surface via the
+// event log (legacy ship/space migrations that drop state).
+//
+// New v5 bundles fall through unchanged — `bundle.subsystems` is already
+// the truth.
+function migrateLegacyBundle(bundle: SaveBundle): {
+  subsystems: Record<string, unknown>
+  notices: string[]
+} {
+  if (bundle.version >= 5 && bundle.subsystems) {
+    return { subsystems: bundle.subsystems, notices: [] }
   }
 
-  return {
-    hullCurrent: s.hullCurrent,
-    armorCurrent: s.armorCurrent,
-    fluxCurrent: s.fluxCurrent,
-    fuelCurrent: s.fuelCurrent,
-    suppliesCurrent: s.suppliesCurrent,
-    dockedAtPoiId: s.dockedAtPoiId,
-    fleetPos: { x: s.fleetPos.x, y: s.fleetPos.y },
-    weapons,
+  const subsystems: Record<string, unknown> = {}
+  const notices: string[] = []
+
+  if (bundle.gameDate) {
+    subsystems.clock = { gameDate: bundle.gameDate }
   }
-}
-
-// Patches a ShipSaveBlock onto entities the freshly-bootstrapped ship scene
-// already spawned. Matches by EntityKey; missing entries leave defaults.
-function restoreShip(block: ShipSaveBlock): void {
-  const w = getWorld(SHIP_SCENE_ID)
-  const byKey = new Map<string, ReturnType<typeof w.queryFirst>>()
-  for (const e of w.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
-
-  const shipEnt = byKey.get('ship')
-  if (shipEnt) {
-    const cur = shipEnt.get(Ship)!
-    shipEnt.set(Ship, {
-      ...cur,
-      hullCurrent: block.hullCurrent,
-      armorCurrent: block.armorCurrent,
-      fluxCurrent: block.fluxCurrent,
-      fuelCurrent: block.fuelCurrent,
-      suppliesCurrent: block.suppliesCurrent,
-      dockedAtPoiId: block.dockedAtPoiId,
-      fleetPos: { x: block.fleetPos.x, y: block.fleetPos.y },
-      // Combat is transient — saves never write inCombat:true (manual blocks,
-      // autosave skips), but force false here for defense.
-      inCombat: false,
-    })
+  if (bundle.activeSceneId) {
+    subsystems.scene = { activeId: bundle.activeSceneId }
+  }
+  if (bundle.population !== undefined) {
+    subsystems.population = bundle.population
+  }
+  // Ship: only v3+ saves carry the new Starsector block. v1/v2 saves drop
+  // ship state to defaults.
+  if (bundle.ship !== undefined && bundle.version >= 3) {
+    subsystems.ship = bundle.ship
+  } else if (bundle.version === 1) {
+    notices.push('存档先于 Phase 6 — 飞船状态已重置为默认')
+  } else if (bundle.version === 2) {
+    notices.push('存档为 Phase 6 旧版 — 飞船重置为新结构默认')
+  }
+  // Space: only v4+ saves. v3 and earlier drop to defaults.
+  if (bundle.space !== undefined && bundle.version >= 4) {
+    subsystems.space = bundle.space
+  } else if (bundle.version === 3) {
+    notices.push('存档先于太空世界持久化 — 飞船与敌舰位置已重置')
   }
 
-  for (const wpn of block.weapons) {
-    const e = byKey.get(`ship-weapon-${wpn.mountIdx}`)
-    if (!e) continue
-    const cur = e.get(WeaponMount)!
-    e.set(WeaponMount, {
-      ...cur,
-      weaponId: wpn.weaponId,
-      chargeSec: 0,
-      ready: false,
-      targetIdx: 0,
-    })
-  }
-}
-
-// Reads the spaceCampaign world directly. Returns undefined when bootstrap
-// hasn't run yet or when no player ShipBody is present (defensive — should
-// never happen post-setupWorld since bootstrapSpaceCampaign always spawns
-// the player ship).
-function snapshotSpace(): SpaceSaveBlock | undefined {
-  const w = getWorld(SPACE_SCENE_ID)
-  const player = w.queryFirst(IsPlayer, ShipBody)
-  if (!player) return undefined
-
-  const pos = player.get(Position)!
-  const vel = player.get(Velocity)!
-  const course = player.get(Course)!
-  const atHelm = player.has(AtHelm)
-
-  const enemies: SpaceSaveBlock['enemies'] = []
-  for (const e of w.query(EnemyAI, Position, Velocity, EntityKey)) {
-    const k = e.get(EntityKey)!.key
-    if (!k.startsWith('enemy-')) continue
-    const ai = e.get(EnemyAI)!
-    const ep = e.get(Position)!
-    const ev = e.get(Velocity)!
-    enemies.push({
-      key: k,
-      pos: { x: ep.x, y: ep.y },
-      vel: { vx: ev.vx, vy: ev.vy },
-      mode: ai.mode,
-      patrolIdx: ai.patrolIdx,
-    })
-  }
-
-  return {
-    player: {
-      pos: { x: pos.x, y: pos.y },
-      vel: { vx: vel.vx, vy: vel.vy },
-      course: { tx: course.tx, ty: course.ty, destPoiId: course.destPoiId, active: course.active },
-      atHelm,
-    },
-    enemies,
-  }
-}
-
-// Patches a SpaceSaveBlock onto the freshly-bootstrapped spaceCampaign world.
-// bootstrapSpaceCampaign always runs in resetWorld → setupWorld, so the
-// player ship and all data-driven enemies already exist; we only overlay
-// dynamic state. Patrol paths come from data and are not persisted — only
-// the index round-trips.
-function restoreSpace(block: SpaceSaveBlock): void {
-  const w = getWorld(SPACE_SCENE_ID)
-
-  const player = w.queryFirst(IsPlayer, ShipBody)
-  if (player) {
-    player.set(Position, { x: block.player.pos.x, y: block.player.pos.y })
-    player.set(Velocity, { vx: block.player.vel.vx, vy: block.player.vel.vy })
-    player.set(Course, {
-      tx: block.player.course.tx,
-      ty: block.player.course.ty,
-      destPoiId: block.player.course.destPoiId,
-      active: block.player.course.active,
-    })
-    if (block.player.atHelm && !player.has(AtHelm)) player.add(AtHelm)
-    else if (!block.player.atHelm && player.has(AtHelm)) player.remove(AtHelm)
-  }
-
-  const byKey = new Map<string, ReturnType<typeof w.queryFirst>>()
-  for (const e of w.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
-
-  for (const snap of block.enemies) {
-    const e = byKey.get(snap.key)
-    if (!e) continue
-    e.set(Position, { x: snap.pos.x, y: snap.pos.y })
-    e.set(Velocity, { vx: snap.vel.vx, vy: snap.vel.vy })
-    const ai = e.get(EnemyAI)
-    if (ai) {
-      e.set(EnemyAI, { ...ai, mode: snap.mode, patrolIdx: snap.patrolIdx })
-    }
-  }
+  return { subsystems, notices }
 }
 
 export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
@@ -477,14 +336,10 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
   const bundle: SaveBundle = {
     version: SAVE_VERSION,
     seed: WORLD_SEED,
-    activeSceneId: getActiveSceneId(),
-    gameDate,
     meta,
-    population: getPopulationState(),
     entities,
     relations: snapshotRelations(world),
-    ship: snapshotShip(),
-    space: snapshotSpace(),
+    subsystems: snapshotAll(),
   }
   const payload = superjson.stringify(bundle)
   await set(bundleKey(slot), payload)
@@ -523,12 +378,18 @@ async function migrateLegacySlot(): Promise<void> {
     // Older bundles don't carry meta — fabricate it from visible fields.
     try {
       const bundle = superjson.parse<SaveBundle>(legacy)
+      // Pre-v5 legacy bundles have gameDate at top level; v5+ have it
+      // in subsystems.clock. Either is fine for fabricating fallback
+      // metadata.
+      const fallbackGameDate = bundle.gameDate
+        ?? (bundle.subsystems?.clock as { gameDate?: Date } | undefined)?.gameDate
+        ?? new Date()
       const meta: SaveMeta = bundle.meta ?? {
         slot: 'auto',
         version: bundle.version,
         savedAtRealMs: Date.now(),
-        gameDate: bundle.gameDate,
-        dayInGame: gameDayNumber(bundle.gameDate),
+        gameDate: fallbackGameDate,
+        dayInGame: gameDayNumber(fallbackGameDate),
         playerMoney: 0,
         playerHp: 100,
         alive: bundle.entities.filter((s) => s.character && (!s.health || !s.health.dead)).length,
@@ -551,24 +412,18 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   } catch (e) {
     return { ok: false, reason: `parse: ${(e as Error).message}` }
   }
-  // v1 / v2 saves predate the Starsector pivot. Load anyway — ship lands
-  // at bootstrap defaults (hull/fuel/supplies max, docked at vonBraun);
-  // the player keeps shipOwned via Flags so they can still board their
-  // vessel. The old `ship` block (rooms/systems/reactor) is silently
-  // dropped — the new Starsector stat block doesn't share its shape.
-  // v3 saves carry the new ship block but no spaceCampaign snapshot —
-  // the space world re-bootstraps to fresh defaults.
-  if (bundle.version !== SAVE_VERSION && bundle.version !== 1 && bundle.version !== 2 && bundle.version !== 3) {
+  // Accept any version 1..SAVE_VERSION; migrateLegacyBundle handles the
+  // shape differences.
+  if (bundle.version < 1 || bundle.version > SAVE_VERSION) {
     return { ok: false, reason: `version mismatch: save=${bundle.version} app=${SAVE_VERSION}` }
   }
-  const isLegacyShipless = bundle.version === 1
-  const isLegacyFTL = bundle.version === 2
-  const isLegacyPreSpace = bundle.version === 3
   if (bundle.seed !== WORLD_SEED) {
     // Refuse rather than silently mis-overlay: different seeds generate
     // different sector slots, so EntityKeys won't line up.
     return { ok: false, reason: `seed mismatch: save=${bundle.seed} app=${WORLD_SEED}` }
   }
+
+  const { subsystems, notices } = migrateLegacyBundle(bundle)
 
   // Stop systems so traits aren't mutated mid-patch. The loop subscribes
   // to 'load:start' to call stopLoop; this inversion keeps save/ free of
@@ -577,40 +432,21 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
 
   resetWorld()
 
-  // Restore active scene + bump the React-tree remount key BEFORE the byKey
-  // lookup. Three reasons:
+  // 'pre' phase: handlers that must run before the entity overlay.
+  // Currently just the active-scene handler — `world` proxy resolves to
+  // the active scene, so byKey lookup needs the right world set first.
+  // Three reasons the React tree must remount before we touch entities:
   // (a) world proxy resolves to `getActiveSceneId()`; resetWorld left it at
   //     initialSceneId, so a save taken in any other scene would overlay onto
   //     the wrong world without this.
   // (b) world.reset() clears koota's queriesHashMap. The existing useQuery
   //     instances become orphaned: the new entities spawned by setupWorld
-  //     don't appear in their state, leaving the rendered scene empty (only
-  //     the player rendered). Bumping swapNonce forces App to remount via
-  //     the keyed ScopedRoot, giving fresh useQuery instances that re-scan
-  //     entityIndex via cacheQuery.
+  //     don't appear in their state, leaving the rendered scene empty.
+  //     Bumping swapNonce forces App to remount via the keyed ScopedRoot.
   // (c) setupWorld only spawns the player in initialSceneId. A save taken in
   //     any other scene snapshots the player there, so we have to migrate the
-  //     fresh player into the target scene before byKey lookup — otherwise the
-  //     overlay drops the 'player' snap and the user lands in an empty scene
-  //     (no player → can't move → looks like "pathfinding broken").
-  const targetSceneId: SceneId = (bundle.activeSceneId && sceneIds.includes(bundle.activeSceneId))
-    ? bundle.activeSceneId
-    : initialSceneId
-  if (targetSceneId === SPACE_SCENE_ID) {
-    // At-helm save: spaceCampaign's IsPlayer is the ship-as-entity, NOT a
-    // humanoid. The humanoid 'player' is still parked at initialSceneId
-    // post-resetWorld (setupWorld doesn't auto-board). Flip the active
-    // scene so restoreSpace below can overlay the ship's continuous-physics
-    // state and the ScopedRoot remount picks up spaceCampaign for render.
-    // Humanoid restoration on disembark is out of slice 8's scope.
-    useScene.getState().setActive(SPACE_SCENE_ID)
-  } else if (targetSceneId !== initialSceneId) {
-    // Position is overlaid from the snapshot below; the arrival arg is just
-    // a placeholder. migratePlayerToScene calls useScene.setActive internally.
-    migratePlayerToScene(targetSceneId, { x: 0, y: 0 })
-  } else {
-    useScene.getState().setActive(targetSceneId)
-  }
+  //     fresh player into the target scene before byKey lookup.
+  restoreAll(subsystems, 'pre')
 
   const byKey = new Map<string, Entity>()
   for (const e of world.query(EntityKey)) {
@@ -783,34 +619,6 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   // Edges to unkeyed or destroyed characters are silently dropped.
   if (bundle.relations) restoreRelations(world, byKey, bundle.relations)
 
-  // Ship state lives in a separate scene world; bootstrap already seeded
-  // deterministic defaults during resetWorld(). v3+ saves overlay the
-  // long-arc deltas; v1/v2 saves leave the defaults and notify the player.
-  if (bundle.ship && (bundle.version === SAVE_VERSION || bundle.version === 3)) {
-    restoreShip(bundle.ship)
-  } else if (isLegacyShipless) {
-    logEvent('存档先于 Phase 6 — 飞船状态已重置为默认')
-  } else if (isLegacyFTL) {
-    logEvent('存档为 Phase 6 旧版 — 飞船重置为新结构默认')
-  }
-
-  // spaceCampaign world: only v4+ carries a snapshot. Pre-v4 saves leave
-  // the freshly-bootstrapped state — player ship at the docked POI's t=0
-  // position, enemies at their data-driven spawns. Patrol paths come from
-  // data; only the index/mode round-trip.
-  if (bundle.space && bundle.version === SAVE_VERSION) {
-    restoreSpace(bundle.space)
-  } else if (isLegacyPreSpace) {
-    logEvent('存档先于太空世界持久化 — 飞船与敌舰位置已重置')
-  }
-
-  // Combat + engagement-modal state is transient. Reset both stores so no
-  // stale pause / open modal survives a load. The contact-detection cooldown
-  // map in spaceSim is already cleared by resetSpaceSimFlags() (called from
-  // resetWorld above); resetEngagementCooldowns drops the modal store too.
-  useCombatStore.getState().reset()
-  resetEngagementCooldowns()
-
   // setupWorld spawns NPCs without Active — that's normally added on the
   // first activeZoneSystem tick. But loadGame auto-pauses, so no tick fires
   // and useQuery(Active, ...) in Game.tsx finds nothing → NPCs invisible
@@ -820,9 +628,12 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     if (!entity.has(Active)) entity.add(Active)
   }
 
-  // Auto-pause on load so the player can survey the restored state.
-  useClock.setState({ gameDate: bundle.gameDate, speed: 0, mode: 'normal', forceHyperspeed: false })
-  setPopulationState(bundle.population)
+  // 'post' phase: clock, population, ship, space, combat reset, engagement
+  // reset, and any other registered subsystem. Order among these is
+  // irrelevant — handlers are independent of each other.
+  restoreAll(subsystems, 'post')
+
+  for (const notice of notices) logEvent(notice)
 
   let playerCount = 0
   for (const _ of world.query(IsPlayer)) playerCount += 1

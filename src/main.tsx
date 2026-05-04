@@ -31,6 +31,10 @@ import { takeHelm } from './sim/helm'
 import { spaceSimSystem } from './systems/spaceSim'
 import { saveGame, loadGame } from './save'
 import { bindAutosave } from './boot/autosaveBinding'
+// Side-effect imports: register save handlers for every persisted
+// subsystem (clock, population, ship, space, ...). Adding a new
+// persisted subsystem == one new file under src/boot/saveHandlers/.
+import './boot/saveHandlers'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'

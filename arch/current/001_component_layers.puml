@@ -70,6 +70,13 @@ L_BOOT --> L_UI
 ' emits 'day:rollover'/'hyperspeed:start', and src/boot/autosaveBinding
 ' subscribes for autosave. save no longer imports from sim/loop; sim/loop
 ' no longer imports from save.
+'
+' Per-subsystem reach was inverted via src/save/registry.ts: each persisted
+' subsystem (clock, population, ship, space, combat, engagement, scene)
+' has a handler in src/boot/saveHandlers/ that registers itself. save/
+' iterates handlers blindly — it does not import from systems/, sim/scene,
+' sim/clock, sim/engagement. Adding a 16th persisted subsystem == one
+' new file in src/boot/saveHandlers/, no edit to save/index.ts.
 L_BOOT -[#red]-> L_SYS  : (V) __uclife__ DEV surface\nreaches ~10 subsystems
 
 note right of L_SYS
