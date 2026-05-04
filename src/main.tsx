@@ -31,6 +31,7 @@ import { takeHelm } from './sim/helm'
 import { spaceSimSystem } from './systems/spaceSim'
 import { saveGame, loadGame } from './save'
 import { bindAutosave } from './boot/autosaveBinding'
+import { bindUi } from './boot/uiBindings'
 import { bootstrapApp } from './boot/lifecycle'
 // Side-effect imports: register save handlers for every persisted
 // subsystem (clock, population, ship, space, ...). Adding a new
@@ -41,8 +42,9 @@ import './boot/saveHandlers'
 import './render/portrait/adapter/findClerk'
 import './render/portrait/__debug__/portraitFixtures'
 
-// Wire sim events to autosave before any frame runs.
+// Wire sim events to autosave + ui-store calls before any frame runs.
 bindAutosave()
+bindUi()
 // Bring the sim world up + start the per-frame loop. Must precede
 // createRoot().render so the first React commit reads a populated world.
 bootstrapApp()

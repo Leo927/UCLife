@@ -28,7 +28,11 @@ import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
 import { setInCombat, damageHull } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { logEvent } from '../ui/EventLog'
+import { emitSim } from '../sim/events'
+
+function logEvent(textZh: string): void {
+  emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
+}
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 

@@ -440,7 +440,7 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   // Stop systems so traits aren't mutated mid-patch. The loop subscribes
   // to 'load:start' to call stopLoop; this inversion keeps save/ free of
   // any import on sim/loop (see arch/current/001_component_layers).
-  emitSim('load:start', 'save:load')
+  emitSim('load:start', { reason: 'save:load' })
 
   resetWorld()
 
@@ -649,7 +649,7 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     console.warn(`[save/load] expected 1 player after load, found ${playerCount}`)
   }
 
-  emitSim('load:end', 'save:load')
+  emitSim('load:end', { reason: 'save:load' })
   return { ok: true }
 }
 

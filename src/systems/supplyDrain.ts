@@ -7,7 +7,7 @@ import { spendSupplies, getShipState, getPlayerShipEntity } from '../sim/ship'
 import { useCombatStore } from './combat'
 import { spaceConfig } from '../config'
 import { MaintenanceLoad } from '../ecs/traits'
-import { logEvent } from '../ui/EventLog'
+import { emitSim } from '../sim/events'
 
 let lastTickMs: number | null = null
 let suppliesOutLogged = false
@@ -46,7 +46,7 @@ export function supplyDrainSystem(now: Date): void {
   if (after) {
     if (after.suppliesCurrent <= 0 && !suppliesOutLogged) {
       suppliesOutLogged = true
-      logEvent('补给耗尽 · 士气崩溃风险')
+      emitSim('log', { textZh: '补给耗尽 · 士气崩溃风险', atMs: now.getTime() })
     } else if (after.suppliesCurrent > 0 && suppliesOutLogged) {
       suppliesOutLogged = false
     }

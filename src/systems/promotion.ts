@@ -6,7 +6,7 @@ import { Job, Workstation } from '../ecs/traits'
 import { getJobSpec } from '../data/jobs'
 import { jobsConfig } from '../config'
 import { meetsRequirements } from './market'
-import { useUI } from '../ui/uiStore'
+import { emitSim } from '../sim/events'
 
 const noticedRankByFamily = new Map<string, number>()
 
@@ -70,10 +70,10 @@ export function checkPromotionEligibility(world: World, player: Entity): void {
   noticedRankByFamily.set(spec.family, next.rank)
   const nextSpec = getJobSpec(next.specId)
   if (!nextSpec) return
-  useUI.getState().showToast(
-    `亚纳海姆电子 · 已达到 ${nextSpec.jobTitle} 晋升条件 — 前往工坊前台申请`,
-    8000,
-  )
+  emitSim('toast', {
+    textZh: `亚纳海姆电子 · 已达到 ${nextSpec.jobTitle} 晋升条件 — 前往工坊前台申请`,
+    durationMs: 8000,
+  })
 }
 
 export function clearPromotionNoticeForFamily(family: string): void {

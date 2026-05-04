@@ -9,8 +9,7 @@
 
 import { create } from 'zustand'
 import { startCombat } from '../systems/combat'
-import { useEventLog } from '../ui/EventLog'
-import { useUI } from '../ui/uiStore'
+import { emitSim } from './events'
 import { isEnemyShipId } from '../data/enemyShips'
 
 export type EngagementChoice = 'engage' | 'flee' | 'negotiate'
@@ -57,10 +56,9 @@ export const useEngagement = create<EngagementState>((set, get) => ({
     if (choice === 'engage') {
       if (classId) startCombat(resolveCombatClassId(classId))
     } else if (choice === 'flee') {
-      const ms = Date.now()
-      useEventLog.getState().push('脱离接触', ms)
+      emitSim('log', { textZh: '脱离接触', atMs: Date.now() })
     } else if (choice === 'negotiate') {
-      useUI.getState().showToast('谈判尚未实装')
+      emitSim('toast', { textZh: '谈判尚未实装' })
     }
   },
   dismiss() {

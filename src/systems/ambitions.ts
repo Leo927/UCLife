@@ -20,7 +20,7 @@ import {
 } from '../data/ambitions'
 import type { FactionId } from '../data/factions'
 import type { SkillId } from '../data/skills'
-import { useEventLog } from '../ui/EventLog'
+import { emitSim } from '../sim/events'
 
 const ATTRIBUTE_KEYS = new Set(['strength', 'endurance', 'charisma', 'intelligence', 'reflex', 'resolve'])
 const SKILL_KEYS = new Set<string>([
@@ -172,7 +172,7 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
     dirty = true
 
     titleOverride = stage.payoff.titleZh
-    useEventLog.getState().push(stage.payoff.logZh, currentMs)
+    emitSim('log', { textZh: stage.payoff.logZh, atMs: currentMs })
     if (stage.payoff.unlocks && stage.payoff.unlocks.length > 0) {
       const flagsTrait = player.get(Flags)
       if (flagsTrait) {
@@ -184,7 +184,7 @@ export function ambitionsSystem(world: World, gameDate: Date): void {
     const ap = stage.payoff.ap ?? 1
     apGained += ap
     if (ap > 0) {
-      useEventLog.getState().push(`获得志向点 +${ap}`, currentMs)
+      emitSim('log', { textZh: `获得志向点 +${ap}`, atMs: currentMs })
     }
   }
 

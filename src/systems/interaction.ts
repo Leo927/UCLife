@@ -12,7 +12,7 @@ import { isInWorkWindowWS, isWorkDayWS, getJobSpec } from '../data/jobs'
 import { BED_MULTIPLIERS, bedActiveOccupant } from './bed'
 import { isBarOpen } from './shop'
 import { useClock } from '../sim/clock'
-import { useUI } from '../ui/uiStore'
+import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
 import { Flags, Ship } from '../ecs/traits'
 import { boardShip, disembarkShip } from '../sim/scene'
@@ -104,50 +104,50 @@ export function interactionSystem(world: World) {
     }
     if (nearestKind === 'shop') {
       if (!occupant) {
-        useUI.getState().showToast('店员不在 · 商店已关门')
+        emitSim('toast', { textZh: '店员不在 · 商店已关门' })
         continue
       }
-      useUI.getState().setShop(true)
+      emitSim('ui:open-shop', {})
       continue
     }
     if (nearestKind === 'hr') {
       if (!occupant) {
-        useUI.getState().showToast('人事不在 · 招聘窗口暂停办公')
+        emitSim('toast', { textZh: '人事不在 · 招聘窗口暂停办公' })
         continue
       }
-      useUI.getState().setDialogNPC(occupant)
+      emitSim('ui:open-dialog-npc', { entity: occupant })
       continue
     }
     if (nearestKind === 'transit') {
       if (nearestEnt) {
         const t = nearestEnt.get(Transit)
-        if (t) useUI.getState().openTransit(t.terminalId)
+        if (t) emitSim('ui:open-transit', { terminalId: t.terminalId })
       }
       continue
     }
     if (nearestKind === 'ticketCounter') {
       if (nearestEnt) {
         const fh = nearestEnt.get(FlightHub)
-        if (fh) useUI.getState().openFlight(fh.hubId)
+        if (fh) emitSim('ui:open-flight', { hubId: fh.hubId })
       }
       continue
     }
     if (nearestKind === 'aeReception') {
       if (!occupant) {
-        useUI.getState().showToast('AE 主管不在 · 工坊暂停办公')
+        emitSim('toast', { textZh: 'AE 主管不在 · 工坊暂停办公' })
         continue
       }
-      useUI.getState().setDialogNPC(occupant)
+      emitSim('ui:open-dialog-npc', { entity: occupant })
       continue
     }
     if (nearestKind === 'buyShip') {
-      useUI.getState().setShipDealer(true)
+      emitSim('ui:open-ship-dealer', {})
       continue
     }
     if (nearestKind === 'boardShip') {
       const flags = player.get(Flags)
       if (!flags?.flags.shipOwned) {
-        useUI.getState().showToast('你尚未拥有飞船 · 请先到 AE 大厅购买')
+        emitSim('toast', { textZh: '你尚未拥有飞船 · 请先到 AE 大厅购买' })
         continue
       }
       if (getActiveSceneId() === 'playerShipInterior') continue
@@ -161,7 +161,7 @@ export function interactionSystem(world: World) {
       const poi = dockedAt ? getPoi(dockedAt) : undefined
       const targetSceneId = poi?.sceneId
       if (!targetSceneId || !isSceneId(targetSceneId)) {
-        useUI.getState().showToast('该坐标不可登陆')
+        emitSim('toast', { textZh: '该坐标不可登陆' })
         continue
       }
       const hubId = `${targetSceneId}Airport`
@@ -177,7 +177,7 @@ export function interactionSystem(world: World) {
         }
       }
       if (!arrivalPx) {
-        useUI.getState().showToast('该坐标不可登陆')
+        emitSim('toast', { textZh: '该坐标不可登陆' })
         continue
       }
       const target = arrivalPx
@@ -186,18 +186,18 @@ export function interactionSystem(world: World) {
     }
     if (nearestKind === 'helm') {
       if (getActiveSceneId() !== 'playerShipInterior') {
-        useUI.getState().showToast('操舵台仅在飞船舰桥内可用')
+        emitSim('toast', { textZh: '操舵台仅在飞船舰桥内可用' })
         continue
       }
       const result = takeHelm()
-      if (!result.ok) useUI.getState().showToast(result.message ?? '无法操舵')
+      if (!result.ok) emitSim('toast', { textZh: result.message ?? '无法操舵' })
       continue
     }
     if (nearestKind === 'work') {
       const j = player.get(Job)
       const ws = j?.workstation ?? null
       if (!ws) {
-        useUI.getState().showToast('你尚未受雇 · 请先到人事处签订工作')
+        emitSim('toast', { textZh: '你尚未受雇 · 请先到人事处签订工作' })
         continue
       }
       const wsTrait = ws.get(Workstation)
@@ -205,24 +205,24 @@ export function interactionSystem(world: World) {
       const now = useClock.getState().gameDate
       if (spec) {
         if (!isWorkDayWS(now, spec)) {
-          useUI.getState().showToast('今天是休息日 · 无需上班')
+          emitSim('toast', { textZh: '今天是休息日 · 无需上班' })
           continue
         }
         if (!isInWorkWindowWS(now, spec)) {
-          useUI.getState().showToast(`不在上班时间 · ${spec.shiftStart}:00 – ${spec.shiftEnd}:00`)
+          emitSim('toast', { textZh: `不在上班时间 · ${spec.shiftStart}:00 – ${spec.shiftEnd}:00` })
           continue
         }
       }
       if (occupant && occupant !== player) {
         const occName = occupant.get(Character)?.name ?? '别人'
-        useUI.getState().showToast(`${occName} 正在使用此工位`)
+        emitSim('toast', { textZh: `${occName} 正在使用此工位` })
         continue
       }
     }
     if (nearestKind === 'wash') {
       const now = useClock.getState().gameDate.getTime()
       if (!playerHasApartmentClaim(world, player, now)) {
-        useUI.getState().showToast('这是公寓住户的洗手台 · 请先租下一张公寓床')
+        emitSim('toast', { textZh: '这是公寓住户的洗手台 · 请先租下一张公寓床' })
         continue
       }
     }
@@ -234,7 +234,7 @@ export function interactionSystem(world: World) {
         const now = useClock.getState().gameDate.getTime()
         if (bed.tier === 'lounge') {
           if (bed.occupant !== null && bed.occupant !== player) {
-            useUI.getState().showToast('这张沙发已被人占用')
+            emitSim('toast', { textZh: '这张沙发已被人占用' })
             continue
           }
           nearestEnt.set(Bed, {
@@ -245,11 +245,11 @@ export function interactionSystem(world: World) {
         } else {
           const active = bedActiveOccupant(bed, now)
           if (active === null) {
-            useUI.getState().showToast('请前往房产中介签订租约')
+            emitSim('toast', { textZh: '请前往房产中介签订租约' })
             continue
           }
           if (active !== player) {
-            useUI.getState().showToast('这张床已被人租下')
+            emitSim('toast', { textZh: '这张床已被人租下' })
             continue
           }
         }
@@ -260,7 +260,7 @@ export function interactionSystem(world: World) {
       const spot = nearestEnt.get(RoughSpot)
       if (spot) {
         if (spot.occupant !== null && spot.occupant !== player) {
-          useUI.getState().showToast('长椅已被占用')
+          emitSim('toast', { textZh: '长椅已被占用' })
           continue
         }
         nearestEnt.set(RoughSpot, { occupant: player })
@@ -268,13 +268,13 @@ export function interactionSystem(world: World) {
     }
     if (nearestEnt && nearestKind === 'bar') {
       if (!isBarOpen(world)) {
-        useUI.getState().showToast('调酒师不在 · 酒吧未开门')
+        emitSim('toast', { textZh: '调酒师不在 · 酒吧未开门' })
         continue
       }
       const seat = nearestEnt.get(BarSeat)
       if (seat) {
         if (seat.occupant !== null && seat.occupant !== player) {
-          useUI.getState().showToast('座位已被占用')
+          emitSim('toast', { textZh: '座位已被占用' })
           continue
         }
         nearestEnt.set(BarSeat, { occupant: player })
@@ -283,7 +283,7 @@ export function interactionSystem(world: World) {
     if (nearestFee > 0) {
       const m = player.get(Money)
       if (!m || m.amount < nearestFee) {
-        useUI.getState().showToast(`金钱不足 · 需 ¥${nearestFee}`)
+        emitSim('toast', { textZh: `金钱不足 · 需 ¥${nearestFee}` })
         continue
       }
       player.set(Money, { amount: m.amount - nearestFee })

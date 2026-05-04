@@ -2,7 +2,7 @@ import type { World, Entity } from 'koota'
 import { IsPlayer, Action, JobPerformance, Job, Money, Skills, Workstation, JobTenure } from '../ecs/traits'
 import { wageMultiplier, getJobSpec } from '../data/jobs'
 import { isWorkstationOpen } from './market'
-import { useUI } from '../ui/uiStore'
+import { emitSim } from '../sim/events'
 import type { SkillId } from '../data/skills'
 import { feedUse, statValue } from './attributes'
 import { FEED, statMult } from '../data/stats'
@@ -93,9 +93,9 @@ function processMinute(
       if (isPlayer) {
         const perfStr = `${Math.round(todayPerf)}%`
         if (wage > 0) {
-          useUI.getState().showToast(`下班 · ¥${wage} (绩效 ${perfStr})`)
+          emitSim('toast', { textZh: `下班 · ¥${wage} (绩效 ${perfStr})` })
         } else {
-          useUI.getState().showToast(`下班 · 绩效 ${perfStr} 过低 · 无工资`)
+          emitSim('toast', { textZh: `下班 · 绩效 ${perfStr} 过低 · 无工资` })
         }
       }
 

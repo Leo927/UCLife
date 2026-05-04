@@ -1,6 +1,6 @@
 import type { World } from 'koota'
 import { Bed, Position, Action, Home, IsPlayer, PendingEviction } from '../ecs/traits'
-import { useUI } from '../ui/uiStore'
+import { emitSim } from '../sim/events'
 
 // Tenants napping at expiry get a grace pass — otherwise their bed
 // multiplier would snap to 'none' mid-sleep.
@@ -39,7 +39,7 @@ export function rentSystem(world: World, currentMs: number) {
     else tenant.add(PendingEviction(passData))
     if (tenant.has(IsPlayer)) {
       const tierLabel = b.tier === 'flop' ? '投币床' : b.tier === 'dorm' ? '宿舍床' : b.tier === 'apartment' ? '公寓' : '高级公寓'
-      useUI.getState().showToast(`${tierLabel}租期已到 · 已退房`)
+      emitSim('toast', { textZh: `${tierLabel}租期已到 · 已退房` })
     }
   }
 }

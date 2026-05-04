@@ -18,7 +18,7 @@ import { derivedPos } from '../engine/space/orbits'
 import type { ParentResolver, OrbitalParams } from '../engine/space/types'
 import { useClock } from './clock'
 import { spaceConfig } from '../config'
-import { logEvent } from '../ui/EventLog'
+import { emitSim } from './events'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -99,7 +99,7 @@ export function takeHelm(): { ok: boolean; message?: string } {
   }
 
   useScene.getState().setActive('spaceCampaign')
-  logEvent(`起航 · 自 ${poi.nameZh}`)
+  emitSim('log', { textZh: `起航 · 自 ${poi.nameZh}`, atMs: useClock.getState().gameDate.getTime() })
   return { ok: true }
 }
 
@@ -109,5 +109,7 @@ export function leaveHelm(): void {
   const wasAtHelm = !!(player && player.has(AtHelm))
   if (player && wasAtHelm) player.remove(AtHelm)
   useScene.getState().setActive('playerShipInterior')
-  if (wasAtHelm) logEvent('离开操舵台')
+  if (wasAtHelm) {
+    emitSim('log', { textZh: '离开操舵台', atMs: useClock.getState().gameDate.getTime() })
+  }
 }

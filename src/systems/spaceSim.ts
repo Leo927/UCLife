@@ -15,7 +15,7 @@ import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
 import { useEngagement } from '../sim/engagement'
 import { spendFuel, getShipState } from '../sim/ship'
-import { logEvent } from '../ui/EventLog'
+import { emitSim } from '../sim/events'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -144,7 +144,7 @@ export function spaceSimSystem(world: World, dtSec: number): void {
         appliedAy = 0
         if (!fuelOutLogged) {
           fuelOutLogged = true
-          logEvent('燃料耗尽')
+          emitSim('log', { textZh: '燃料耗尽', atMs: useClock.getState().gameDate.getTime() })
         }
       } else if (ship && ship.fuelCurrent > 0) {
         fuelOutLogged = false

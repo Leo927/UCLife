@@ -1,6 +1,5 @@
 import { world, getWorld } from '../ecs/world'
 import { useClock, gameDayNumber } from './clock'
-import { useUI } from '../ui/uiStore'
 import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
 import { interactionSystem } from '../systems/interaction'
@@ -56,6 +55,11 @@ let running = false
 let lastFrame = 0
 let tickAccum = 0
 let prevDayInGame = 0
+// Edge-trigger guard for the first-run ambition picker. The check is per-
+// frame but we only want to *fire* the open-event when the player's active
+// slot count transitions to 0 — boot/uiBindings.ts owns the modal-open
+// decision (and dedupes against ambitionsOpen).
+let prevAmbitionActiveCount = -1
 
 function effectiveSpeed(): number {
   const { speed, mode } = useClock.getState()
@@ -117,7 +121,7 @@ function frame(now: number) {
       const newDay = gameDayNumber(useClock.getState().gameDate)
       if (newDay !== prevDayInGame) {
         prevDayInGame = newDay
-        emitSim('day:rollover', '日翻页')
+        emitSim('day:rollover', { reason: '日翻页' })
       }
       // Supply drain runs after clock.advance so it sees the post-tick game
       // date. Reads its own elapsed-min delta internally.
@@ -137,16 +141,20 @@ function frame(now: number) {
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
     }
 
-    // First-run forced picker: open the panel if the player has no active
-    // ambitions. Cheap single-entity probe that re-fires only until the
-    // picker is dismissed by selecting two ambitions.
+    // First-run forced picker: emit `ambitions:slot-empty` only on the
+    // edge — when the active slot count transitions from non-zero (or its
+    // unknown initial sentinel) to 0. boot/uiBindings.ts owns the modal-
+    // open decision and dedupes against the current `ambitionsOpen` flag,
+    // so sim no longer reads ui state.
     {
       const p = world.queryFirst(IsPlayer, Ambitions)
       if (p) {
         const a = p.get(Ambitions)!
-        if (a.active.length === 0 && !useUI.getState().ambitionsOpen) {
-          useUI.getState().setAmbitions(true)
+        const count = a.active.length
+        if (count === 0 && prevAmbitionActiveCount !== 0) {
+          emitSim('ambitions:slot-empty', {})
         }
+        prevAmbitionActiveCount = count
       }
     }
 
@@ -189,18 +197,18 @@ function frame(now: number) {
       // skip doesn't cost the player the action's setup. Subscriber lives
       // in src/boot/autosaveBinding.ts (throttle + in-flight guard).
       if (!prevHyperspeed && isHyperspeed && isCommitted) {
-        emitSim('hyperspeed:start', '快进开始')
+        emitSim('hyperspeed:start', { reason: '快进开始' })
       }
 
       if (prevHyperspeed && !isHyperspeed && isCommitted && inDanger && !force && !debugAlways) {
-        useUI.getState().showToast(
-          `快进暂停 · ${reasons.join('、')}严重`,
-          8000,
-          {
+        emitSim('toast', {
+          textZh: `快进暂停 · ${reasons.join('、')}严重`,
+          durationMs: 8000,
+          action: {
             label: '强制快进',
             onClick: () => useClock.getState().setForceHyperspeed(true),
           },
-        )
+        })
       }
       // Clear force flag when the committed action ends so the next one
       // requires its own opt-in.
@@ -228,6 +236,9 @@ export function startLoop() {
   // Anchor day tracking to the current game date so the first tick after a
   // load doesn't fire a spurious autosave.
   prevDayInGame = gameDayNumber(useClock.getState().gameDate)
+  // Sentinel so the first frame post-start fires `ambitions:slot-empty` if
+  // the player has no slots, without depending on the previous run.
+  prevAmbitionActiveCount = -1
   raf = requestAnimationFrame(frame)
 }
 

@@ -4,7 +4,7 @@ import { findPath } from './pathfinding'
 import { feedUse, statValue } from './attributes'
 import { FEED, statMult } from '../data/stats'
 import { worldConfig } from '../config'
-import { useUI } from '../ui/uiStore'
+import { emitSim } from '../sim/events'
 
 const PX_PER_GAME_MIN = worldConfig.movePxPerGameMin
 const ARRIVE_EPS = worldConfig.arriveEpsPx
@@ -47,7 +47,7 @@ export function movementSystem(world: World, gameMinutes: number) {
       if (wps.length === 0 && entity.has(IsPlayer)) {
         const wpsNoFaction = findPath(world, null, pos, target)
         if (wpsNoFaction.length > 0) {
-          useUI.getState().showToast('需要亚纳海姆电子员工身份')
+          emitSim('toast', { textZh: '需要亚纳海姆电子员工身份' })
         }
       }
     }
