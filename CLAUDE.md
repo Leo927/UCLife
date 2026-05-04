@@ -112,6 +112,22 @@ Never spawn NPCs inside luxury/apartment cells — locked cell doors will trap t
 
 In dev, `globalThis.__uclife__` is exposed with `{ world, useClock, useScene, movePlayerTo(tx, ty), countByKind() }`. Playwright smoke tests should drive scenarios through this handle. **Do not** dynamically `await import('/src/ecs/traits.ts')` from a test — it returns a different module instance and the imported traits won't match what the running app uses. Expose helper functions on `__uclife__` instead (see `src/main.tsx`).
 
+### Smoke-test reliability — non-negotiable
+
+A flaky smoke test is worse than no smoke test: it teaches the team to ignore CI red, and the next real regression slips through. **Reliability is the primary acceptance criterion for any new check-*.mjs / playwright scenario, ranked above coverage breadth.**
+
+Required before a new smoke test can be marked done:
+
+1. **Drive through `__uclife__`, not the DOM.** Read state from the deterministic debug handle. Don't assert on rendered text, sprite positions, or konva canvas pixels unless the test is explicitly *about* the renderer — DOM/canvas timing is the #1 source of flakes here.
+2. **No fixed `sleep`/`waitForTimeout`.** Wait on a *condition* (`page.waitForFunction(() => __uclife__.something)`), not on wall-clock ms. If you find yourself reaching for `setTimeout(2000)`, expose a deterministic signal on `__uclife__` instead.
+3. **Drive sim time, not real time.** Advance the clock via the debug handle (or `superSpeed`/`alwaysHyperspeed` overrides). A test that sits through real seconds of game time is a flake waiting to happen on a slow CI runner.
+4. **Seeded determinism only.** Same `WORLD_SEED` → same world. Tests must not depend on procgen RNG drift or tick-order races. If a scenario depends on a specific spawn, pin it via `special-npcs.json5` / `scenes.json5` rather than fishing for a procedural NPC.
+5. **Soak before merging.** Run the new check 20× back-to-back via `npm run ci:local -- --workers 4` (or a tight loop) before declaring it stable. **20/20 green is the bar.** A test that passes 19/20 will fail every weekday in CI — delete it or fix the root cause; do not merge it with a retry wrapper.
+6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** If a check needs retries to stay green, the underlying signal is wrong — fix the signal.
+7. **Fail loud, fail fast.** Every assertion must produce a message that points at the broken invariant, not "expected true to be true". On failure, dump relevant `__uclife__` state to the log so the post-mortem doesn't require a repro.
+
+If you can't meet these bars for a scenario, **don't add the test** — file the gap as a TODO in the scenario doc and move on. Coverage gaps are visible; flaky CI is corrosive.
+
 ## Perf budgets — non-negotiable
 
 Any new (or materially changed) system that touches all entities of a class — NPCs, projectiles, interactables, ships, tiles — per click, per tick, or per frame **requires the following before it can be marked done:**
