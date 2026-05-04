@@ -1,5 +1,5 @@
 @startuml current_004_save_load_roundtrip
-title UC Life Sim — save/load round-trip (HEAD, SAVE_VERSION=4)
+title UC Life Sim — save / load round-trip (SAVE_VERSION = 4)
 
 skinparam shadowing false
 skinparam sequenceMessageAlign center
@@ -7,70 +7,58 @@ skinparam defaultFontName "Inter, sans-serif"
 
 actor "caller\n(autosave / SystemMenu)" as C
 participant "save/index.ts" as SV
-participant "world Proxy\n(active scene)" as WA
-participant "getWorld('playerShipInterior')" as WSHIP
-participant "getWorld('spaceCampaign')" as WSPACE
-participant "useScene + migratePlayerToScene" as SCN
-participant "ecs/spawn :: resetWorld + spawnNPC" as SPAWN
-participant "sim/loop :: stop/startLoop" as LOOP
-participant "idb-keyval (superjson)" as IDB
+participant "active world\n(via Proxy)" as W
+participant "ship + space worlds\n(via getWorld)" as WX
+participant "sim/scene + clock + loop" as SIM
+participant "ecs/spawn\nresetWorld + spawnNPC" as SPAWN
+participant "idb-keyval\n(superjson)" as IDB
 
 == saveGame(slot) ==
 
 C -> SV : saveGame('auto' | 1..3)
-SV -> SV : refuse if clock.mode === 'combat'\n(transient state)
-SV -> WA : query(EntityKey) →\n  snapshotEntity(e) per entity
-SV -> SV : buildMeta(slot, gameDate)
-SV -> WSHIP : snapshotShip()\n(Ship singleton + WeaponMounts)
-SV -> WSPACE : snapshotSpace()\n(player ShipBody + EnemyAI)
-SV -> SV : snapshotRelations(world)
-SV -> IDB : set(bundleKey, superjson.stringify)\n+ set(metaKey, …)
+SV -> SV : refuse if clock.mode === 'combat'
+SV -> W  : query(EntityKey) → snapshotEntity
+SV -> WX : snapshotShip() + snapshotSpace()
+SV -> W  : snapshotRelations
+SV -> IDB : set(bundleKey + metaKey)
 
 == loadGame(slot) ==
 
 C -> SV : loadGame(slot)
-SV -> IDB : get(bundleKey)
-SV -> SV : refuse if version unknown or seed mismatch
-SV -> LOOP : stopLoop()
-SV -> SPAWN : resetWorld()  // rebuilds every scene\n  // from data + seed
-SV -> SCN : useScene.setActive(targetSceneId)\n  or migratePlayerToScene(target, …)
-note right of SCN
+SV -> IDB : read bundle
+SV -> SV : reject on version / seed mismatch
+SV -> SIM : stopLoop()
+SV -> SPAWN : resetWorld()  (rebuilds *every* scene from data + seed)
+SV -> SIM : useScene.setActive(target)\nor migratePlayerToScene(target)
+note right
   Bumps swapNonce → ScopedRoot
-  remounts <App> with fresh
-  WorldProvider, killing orphaned
-  useQuery hooks left over from
-  the pre-reset world.
+  remounts <App>, killing useQuery
+  hooks that were orphaned by
+  world.reset().
 end note
-SV -> WA : index byKey via query(EntityKey)
-SV -> SPAWN : spawnNPC(…) for missing immigrants\n(keys starting 'npc-imm-')
-SV -> WA : destroy entities not in saved keys
-SV -> WA : overlay each EntitySnap →\n  Character / Position / Vitals /\n  Health / Action / Money / Skills /\n  Inventory / Attributes / Bed /\n  Workstation / Job / Home /\n  PendingEviction / Reputation /\n  JobTenure / FactionRole /\n  Ambitions / Flags / …
-SV -> WA : restoreRelations(byKey, relations)
-alt v3+ bundle
-  SV -> WSHIP : restoreShip(block)
-end
-alt v4+ bundle
-  SV -> WSPACE : restoreSpace(block)
-end
-SV -> WA : mark every Character Active\n(loadGame auto-pauses, no\n activeZone tick to do it)
-SV -> SV : useClock.setState(speed:0, mode:'normal')
-SV -> LOOP : startLoop()
-SV --> C : { ok: true }
+SV -> W  : index byKey via query(EntityKey)
+SV -> SPAWN : spawnNPC(...) for missing immigrants\n(keys 'npc-imm-*')
+SV -> W  : destroy entities not in saved keys
+SV -> W  : overlay each EntitySnap → 18 traits
+SV -> W  : restoreRelations(byKey, relations)
+SV -> WX : restoreShip / restoreSpace (v3+ / v4+)
+SV -> W  : mark every Character Active\n(load auto-pauses, no activeZone tick yet)
+SV -> SIM : clock.setState(speed:0, mode:'normal')
+SV -> SIM : startLoop()
+SV --> C  : { ok: true }
 
-note over SV,LOOP
-  (CONCERN) save/index.ts couples to:
-   - sim/loop  (stop/startLoop)
-   - sim/scene (useScene, migratePlayerToScene)
-   - sim/clock (setState)
-   - ecs/spawn (resetWorld + spawnNPC)
-   - getWorld('playerShipInterior'),
-     getWorld('spaceCampaign')
+note over SV
+  (CONCERN) save/ couples to:
+   - sim/loop, sim/scene, sim/clock
+   - ecs/spawn, ecs/world
+   - getWorld('playerShipInterior')
+   - getWorld('spaceCampaign')
    - systems/{combat, population,
-     relations, engagement}
-  Save knows every subsystem that holds
-  module-level state. Each new such system
-  costs save/load coverage. A "world reset
-  lifecycle" event would invert this.
+     relations, engagement} reset hooks
+  Every new system with module-level
+  state costs save/load coverage. A
+  "world reset lifecycle" event would
+  invert this.
 end note
 
 @enduml
