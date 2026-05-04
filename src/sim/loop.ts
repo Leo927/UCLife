@@ -1,7 +1,7 @@
 import { world, getWorld } from '../ecs/world'
 import { useClock, gameDayNumber } from './clock'
 import { useUI } from '../ui/uiStore'
-import { saveGame } from '../save'
+import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
 import { interactionSystem } from '../systems/interaction'
 import { vitalsSystem } from '../systems/vitals'
@@ -50,30 +50,12 @@ let prevHyperspeed = false
 const COMMITTED_SPEED = timeConfig.committedSpeed
 const MIN_HYPERSPEED_REAL_SEC = timeConfig.minHyperspeedRealSec
 const MAX_TICKS_PER_FRAME = 200
-const AUTOSAVE_COOLDOWN_MS = timeConfig.autosaveCooldownRealSec * 1000
 
 let raf = 0
 let running = false
 let lastFrame = 0
 let tickAccum = 0
 let prevDayInGame = 0
-let lastAutosaveAtMs = 0
-let autosaveInFlight = false
-
-// Throttled by AUTOSAVE_COOLDOWN_MS so back-to-back triggers (e.g. day
-// rollover landing inside a hyperspeed sleep) don't queue up.
-function tryAutosave(reason: string): void {
-  const now = performance.now()
-  if (autosaveInFlight) return
-  if (now - lastAutosaveAtMs < AUTOSAVE_COOLDOWN_MS) return
-  autosaveInFlight = true
-  lastAutosaveAtMs = now
-  saveGame('auto')
-    .catch((e: unknown) => {
-      useUI.getState().showToast(`自动保存失败 (${reason}): ${(e as Error).message}`, 6000)
-    })
-    .finally(() => { autosaveInFlight = false })
-}
 
 function effectiveSpeed(): number {
   const { speed, mode } = useClock.getState()
@@ -135,7 +117,7 @@ function frame(now: number) {
       const newDay = gameDayNumber(useClock.getState().gameDate)
       if (newDay !== prevDayInGame) {
         prevDayInGame = newDay
-        tryAutosave('日翻页')
+        emitSim('day:rollover', '日翻页')
       }
       // Supply drain runs after clock.advance so it sees the post-tick game
       // date. Reads its own elapsed-min delta internally.
@@ -204,9 +186,10 @@ function frame(now: number) {
         || (isCommitted && (!inDanger || force) && (!tooShortForHyperspeed || force))
 
       // Autosave on the leading edge of a hyperspeed action so a crash mid-
-      // skip doesn't cost the player the action's setup.
+      // skip doesn't cost the player the action's setup. Subscriber lives
+      // in src/boot/autosaveBinding.ts (throttle + in-flight guard).
       if (!prevHyperspeed && isHyperspeed && isCommitted) {
-        tryAutosave('快进开始')
+        emitSim('hyperspeed:start', '快进开始')
       }
 
       if (prevHyperspeed && !isHyperspeed && isCommitted && inDanger && !force && !debugAlways) {
@@ -252,3 +235,9 @@ export function stopLoop() {
   running = false
   cancelAnimationFrame(raf)
 }
+
+// Wire load events to loop control. save/loadGame emits these instead of
+// importing stopLoop/startLoop directly — that's the inversion that
+// breaks the historical save <-> sim/loop import cycle.
+onSim('load:start', () => stopLoop())
+onSim('load:end', () => startLoop())

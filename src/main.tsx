@@ -30,10 +30,14 @@ import { useTransition } from './sim/transition'
 import { takeHelm } from './sim/helm'
 import { spaceSimSystem } from './systems/spaceSim'
 import { saveGame, loadGame } from './save'
+import { bindAutosave } from './boot/autosaveBinding'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'
 import './render/portrait/__debug__/portraitFixtures'
+
+// Wire sim events to autosave before any frame runs.
+bindAutosave()
 
 if (import.meta.env.DEV) {
   // Smoke-test handles. CLAUDE.md: expose helpers here, do NOT

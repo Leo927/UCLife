@@ -65,8 +65,11 @@ L_BOOT --> L_REND
 L_BOOT --> L_UI
 
 ' --- violations / concerns (red) ---
-L_SAVE -[#red]-> L_SIM : (V) save calls stop/startLoop\n+ per-system reset hooks
-L_SIM  -[#red]-> L_SAVE : (V) loop calls tryAutosave\non day-rollover / hyperspeed-start
+' Former save <-> sim/loop import cycle (autosave + stopLoop/startLoop)
+' was severed via sim/events.ts: save emits 'load:start'/'load:end', loop
+' emits 'day:rollover'/'hyperspeed:start', and src/boot/autosaveBinding
+' subscribes for autosave. save no longer imports from sim/loop; sim/loop
+' no longer imports from save.
 L_BOOT -[#red]-> L_SYS  : (V) __uclife__ DEV surface\nreaches ~10 subsystems
 
 note right of L_SYS

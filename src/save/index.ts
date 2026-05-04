@@ -26,7 +26,7 @@ import { world, getActiveSceneId, getWorld, type SceneId } from '../ecs/world'
 import { initialSceneId, sceneIds } from '../data/scenes'
 import { useScene, migratePlayerToScene } from '../sim/scene'
 import { useClock, gameDayNumber } from '../sim/clock'
-import { stopLoop, startLoop } from '../sim/loop'
+import { emitSim } from '../sim/events'
 import { resetWorld, spawnNPC } from '../ecs/spawn'
 import { getPopulationState, setPopulationState } from '../systems/population'
 import { snapshotRelations, restoreRelations, type RelationSnap } from '../systems/relations'
@@ -570,8 +570,10 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     return { ok: false, reason: `seed mismatch: save=${bundle.seed} app=${WORLD_SEED}` }
   }
 
-  // Stop systems so traits aren't mutated mid-patch.
-  stopLoop()
+  // Stop systems so traits aren't mutated mid-patch. The loop subscribes
+  // to 'load:start' to call stopLoop; this inversion keeps save/ free of
+  // any import on sim/loop (see arch/current/001_component_layers).
+  emitSim('load:start', 'save:load')
 
   resetWorld()
 
@@ -828,7 +830,7 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     console.warn(`[save/load] expected 1 player after load, found ${playerCount}`)
   }
 
-  startLoop()
+  emitSim('load:end', 'save:load')
   return { ok: true }
 }
 
