@@ -2,6 +2,7 @@ import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const outDir = join(here, 'out')
@@ -20,6 +21,7 @@ page.on('console', (m) => {
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(800)
+await dismissAmbitionPicker(page)
 
 await page.evaluate(() => window.uclifeUI.getState().setStatus(true))
 await page.waitForTimeout(1500)  // first portrait cache load

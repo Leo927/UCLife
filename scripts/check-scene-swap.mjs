@@ -1,5 +1,6 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
+import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const url = process.argv[2] ?? 'http://localhost:5173/'
 await mkdir('scripts/out', { recursive: true })
@@ -16,6 +17,7 @@ page.on('console', (m) => {
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(1500)
+await dismissAmbitionPicker(page)
 
 await page.evaluate(() => {
   // eslint-disable-next-line no-undef

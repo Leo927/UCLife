@@ -1,4 +1,5 @@
 import { chromium } from 'playwright'
+import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const url = process.argv[2] ?? 'http://localhost:5173/'
 
@@ -14,6 +15,7 @@ page.on('console', (m) => {
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(800)
+await dismissAmbitionPicker(page)
 
 // Pause first so save captures a stable clock.
 await page.locator('.hud-controls button', { hasText: '暂停' }).click()

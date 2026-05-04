@@ -1,5 +1,6 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
+import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const url = process.argv[2] ?? 'http://localhost:5173/'
 
@@ -132,7 +133,9 @@ await page.reload({ waitUntil: 'networkidle' })
 await page.waitForTimeout(1000)
 
 // On reload, the player has 0 ambitions (fresh world) so the forced picker
-// will reappear briefly. Load slot 1 to overwrite it.
+// reappears and intercepts every click. Dismiss it so the system menu can
+// open, then load slot 1 to restore the saved ambitions.
+await dismissAmbitionPicker(page)
 await openSystem()
 await slotRow('存档 1').locator('button.debug-action', { hasText: '读档' }).click()
 await page.waitForTimeout(1500)

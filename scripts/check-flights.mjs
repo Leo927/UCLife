@@ -4,6 +4,7 @@
 
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
+import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const url = process.argv[2] ?? 'http://localhost:5173/'
 await mkdir('scripts/out', { recursive: true })
@@ -18,6 +19,7 @@ page.on('pageerror', (err) => errors.push(`${err.name}: ${err.message}`))
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(1500)
+await dismissAmbitionPicker(page)
 
 await page.evaluate(() => window.uclifeUI.getState().setMap(true))
 await page.waitForTimeout(300)
