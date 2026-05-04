@@ -1,0 +1,205 @@
+@startuml current_001_component_layers
+title UC Life Sim — current component layering (HEAD)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName "Inter, sans-serif"
+
+' Layers, top to bottom = "data flows down". Upward arrows are violations.
+
+package "config (read once at boot)" as L_CONFIG #f3f6fa {
+  [config/*.json5] as CFG_JSON
+  [config/*.ts (loaders)] as CFG_TS
+  CFG_JSON --> CFG_TS : ?raw + json5.parse()
+}
+
+package "data (static content)" as L_DATA #f3f6fa {
+  [scenes.json5]      as D_SCENES
+  [flights.json5]     as D_FLIGHTS
+  [transit.json5]     as D_TRANSIT
+  [building-types]    as D_BTYPES
+  [special-npcs]      as D_NPCS
+  [factions / jobs]   as D_FAC
+  [ships / weapons]   as D_SHIPS
+  [pois / celestial / space-entities] as D_SPACE
+}
+
+package "procgen (pure)" as L_PROC #eef5ee {
+  [procgen/seed.ts]    as P_SEED
+  [procgen/rng.ts]     as P_RNG
+  [procgen/roads.ts]   as P_ROADS
+  [procgen/blocks.ts]  as P_BLOCKS
+  [procgen/cells.ts]   as P_CELLS
+  [procgen/slots.ts]   as P_SLOTS
+  [procgen/itemLayout] as P_ITEM
+  [procgen/ship.ts]    as P_SHIP
+  P_RNG --> P_SEED
+  P_ROADS --> P_RNG
+  P_BLOCKS --> P_RNG
+  P_CELLS --> P_RNG
+}
+
+package "ecs (koota)" as L_ECS #fff8ec {
+  [ecs/traits.ts]   as E_TRAITS
+  [ecs/world.ts]    as E_WORLD
+  [ecs/spawn.ts]    as E_SPAWN
+  E_SPAWN --> E_TRAITS
+  E_SPAWN --> E_WORLD
+}
+
+package "sim (clock, scene, ship, loop)" as L_SIM #fff3e6 {
+  [sim/clock.ts]            as S_CLOCK
+  [sim/scene.ts]            as S_SCENE
+  [sim/loop.ts]             as S_LOOP
+  [sim/ship.ts]             as S_SHIP
+  [sim/spaceBootstrap.ts]   as S_SPACEBOOT
+  [sim/airportPlacements]   as S_AIR
+  [sim/transitPlacements]   as S_TRA
+  [sim/transition.ts]       as S_TRAN
+  [sim/engagement.ts]       as S_ENG
+  [sim/helm.ts]             as S_HELM
+}
+
+package "ai (BT)" as L_AI #fff3e6 {
+  [ai/trees.ts]   as A_TREES
+  [ai/agent.ts]   as A_AGENT
+  A_AGENT --> A_TREES
+}
+
+package "systems (per-tick + per-frame)" as L_SYS #fff3e6 {
+  [movement / interaction]                as SYS_MOVE
+  [npc (BT driver)]                       as SYS_NPC
+  [vitals / action / stress / supplyDrain] as SYS_VIT
+  [rent / work / market / shop / bed]     as SYS_ECON
+  [attributes / population / relations]   as SYS_SOC
+  [ambitions / promotion / reputation / factionAccess] as SYS_PROG
+  [activeZone]                             as SYS_ACT
+  [pathfinding / hpa]                      as SYS_PATH
+  [combat / spaceSim / enemyAI]           as SYS_SPACE
+  [barSeats / roughSpots]                  as SYS_LEASE
+}
+
+package "save (idb-keyval + superjson)" as L_SAVE #f0e6ff {
+  [save/index.ts] as SV
+}
+
+package "render (pixi)" as L_REND #e9f3ff {
+  [render/Game.tsx]                  as R_GAME
+  [render/pixi (PixiCanvas)]         as R_PIXI
+  [render/ground/PixiGroundRenderer] as R_GROUND
+  [render/space/Pixi*Renderer]       as R_SPACE
+  [render/sprite (LPC)]              as R_SPRITE
+  [render/portrait (FC pregmod)]     as R_PORT
+  [render/cameraStore]               as R_CAM
+  R_GAME --> R_PIXI
+  R_GAME --> R_GROUND
+  R_GROUND --> R_SPRITE
+}
+
+package "ui (React + zustand)" as L_UI #e9f3ff {
+  [App.tsx]                   as U_APP
+  [ui/Hud + StatusPanel + …]  as U_HUD
+  [ui/uiStore (zustand)]      as U_STORE
+  [ui/EventLog]               as U_LOG
+  [ui/SpaceView / Tactical / Engagement] as U_SPACE
+  [ui/SystemMenu / Modals]    as U_MENU
+}
+
+package "boot" as L_BOOT #ffffff {
+  [main.tsx :: ScopedRoot] as M_BOOT
+}
+
+' --- intended dependency direction: down only ---
+L_CONFIG ..> L_DATA
+L_DATA   ..> L_PROC
+L_DATA   ..> L_ECS
+L_DATA   ..> L_SIM
+L_PROC   ..> L_ECS
+L_ECS    ..> L_SIM
+L_SIM    ..> L_SYS
+L_AI     ..> L_SYS
+L_SYS    ..> L_SAVE
+L_SYS    ..> L_REND
+L_REND   ..> L_UI
+L_SAVE   ..> L_UI
+L_BOOT   --> L_REND
+L_BOOT   --> L_SIM
+L_BOOT   --> L_ECS
+
+' --- concrete edges worth showing ---
+S_LOOP --> SYS_MOVE
+S_LOOP --> SYS_NPC
+S_LOOP --> SYS_VIT
+S_LOOP --> SYS_ECON
+S_LOOP --> SYS_SOC
+S_LOOP --> SYS_PROG
+S_LOOP --> SYS_ACT
+S_LOOP --> SYS_SPACE
+S_LOOP --> SYS_LEASE
+S_LOOP --> SV : tryAutosave('日翻页' / '快进开始')
+
+SYS_NPC  --> A_AGENT
+SYS_NPC  --> SYS_PATH
+SYS_MOVE --> SYS_PATH
+
+E_SPAWN --> P_ROADS
+E_SPAWN --> P_BLOCKS
+E_SPAWN --> P_CELLS
+E_SPAWN --> P_SLOTS
+E_SPAWN --> P_SHIP
+E_SPAWN --> S_SPACEBOOT
+
+SV --> E_WORLD
+SV --> E_SPAWN
+SV --> S_LOOP
+SV --> S_SCENE
+
+R_GAME --> E_WORLD : world.query() each frame
+R_GAME --> S_LOOP  : startLoop / stopLoop
+U_HUD  --> E_WORLD : useQuery / useTrait via koota/react
+
+M_BOOT --> E_WORLD
+M_BOOT --> S_SCENE
+M_BOOT --> R_GAME
+M_BOOT --> U_APP
+
+' --- known violations / drift ---
+note right of M_BOOT
+  (VIOLATION-ish) main.tsx installs a fat
+  globalThis.__uclife__ debug surface that
+  reaches into ECS, save, sim, helm, combat,
+  space — couples the boot module to
+  ~10 subsystems for Playwright fixtures.
+  Acceptable today (DEV-only) but should
+  be moved behind a single debug façade.
+end note
+
+note right of R_GAME
+  Game.tsx pulls per-frame snapshots from
+  world.query() instead of useQuery, on
+  purpose (Pixi perf). Design/architecture.md
+  still claims "useQuery for renderables"
+  (DRIFT — doc is stale).
+end note
+
+note right of SV
+  save/index.ts directly drives stopLoop()
+  and startLoop() and reaches into many
+  systems' reset hooks — coupling save → sim
+  loop and save → most systems. Migrating to
+  a "world reset event" bus would invert
+  this.
+end note
+
+note bottom of L_SYS
+  Several systems hold module-level state
+  (zustand stores, accumulator maps): combat,
+  population, relations, npc, activeZone,
+  vitals, stress, supplyDrain, spaceSim.
+  These are *singletons*, not per-world —
+  works today because only one city + one
+  ship + one space world exist.
+end note
+
+@enduml

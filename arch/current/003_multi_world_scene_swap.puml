@@ -1,0 +1,98 @@
+@startuml current_003_multi_world_scene_swap
+title UC Life Sim — multi-world ECS + scene swap (HEAD)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Inter, sans-serif"
+
+package "ecs/world.ts" as P_WORLD #fff8ec {
+  [worlds: Map<SceneId, koota.World>] as WMAP
+  [world (Proxy)] as WPROXY
+  [getWorld(id)]  as GW
+  [setActiveSceneId(id)] as SAS
+  [activeId : SceneId] as ACTIVE
+
+  WPROXY -> ACTIVE : reads
+  WPROXY --> WMAP : forwards every method to worlds.get(activeId)
+  GW --> WMAP
+  SAS --> ACTIVE
+}
+
+package "data/scenes.json5" as P_SCN #f3f6fa {
+  [scenes[]] as SCENES
+  [initialSceneId] as INIT
+  [sceneIds] as IDS
+}
+SCENES --> WMAP : 1 World per scene id\n(createWorld() at module init)
+
+package "sim/scene.ts (zustand)" as P_SCENE #fff3e6 {
+  [useScene\nactiveId, swapNonce] as USESC
+  [setActive(id)] as SETACT
+  [migratePlayerToScene] as MIG
+  [boardShip / disembarkShip] as BSHIP
+
+  SETACT --> SAS
+  SETACT --> USESC : activeId, ++swapNonce
+  MIG --> SETACT
+  BSHIP --> MIG
+}
+
+package "boot (main.tsx :: ScopedRoot)" as P_BOOT #ffffff {
+  [WorldProvider world={getWorld(activeId)}] as WP
+  [<App key={`${activeId}-${swapNonce}`} />] as APPK
+  WP -> GW
+  APPK -> USESC
+}
+
+package "render + ui" as P_R #e9f3ff {
+  [Game.tsx]    as RG
+  [HUD (useQuery / useTrait)] as HUD
+}
+RG --> WPROXY : world.query()
+HUD --> WP    : koota/react context
+
+note right of WPROXY
+  Methods are bound to the *real* World
+  before being returned, so koota's
+  private class fields (#id, #isInitialized)
+  resolve. A naked Proxy without bind
+  breaks reset() / id getters.
+end note
+
+note right of APPK
+  Composite key forces full App remount
+  on every setActive() — even same-scene
+  swaps. Reasons:
+  (a) WorldProvider ref'd to the actual
+      World, not the proxy, so subscriptions
+      bind correctly;
+  (b) world.reset() (during loadGame)
+      orphans existing useQuery hooks; the
+      remount gives them a fresh re-scan.
+end note
+
+note right of MIG
+  Cross-scene = destroy + respawn.
+  koota entity ids are world-stamped, so
+  refs (Bed.occupant, Workstation.occupant)
+  are explicitly nulled in source world,
+  then portable traits (Vitals, Money,
+  Skills, Inventory, Attributes,
+  Reputation, JobTenure, Appearance,
+  FactionRole, Flags, Ambitions) are
+  carried over.
+  Job / Home / PendingEviction reference
+  origin-scene entities and are dropped
+  on purpose.
+end note
+
+note bottom of WMAP
+  As of HEAD, scene worlds in play:
+    vonBraun           (city, default)
+    playerShipInterior (FTL-shape ship hull)
+    spaceCampaign      (continuous-physics fleet)
+  All three are constructed eagerly at
+  module-init from data/scenes.json5.
+end note
+
+@enduml

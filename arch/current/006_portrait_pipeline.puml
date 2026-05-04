@@ -1,0 +1,104 @@
+@startuml current_006_portrait_pipeline
+title UC Life Sim — portrait pipeline (FC pregmod port, GPL-3.0)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Inter, sans-serif"
+
+' GPL-3.0 byte-identical core — this whole package must NOT be edited
+' except via upstream sync. Any architectural intervention must happen
+' at the seams (bridge.ts, infrastructure/cacheLoader.ts, adapter/).
+
+package "src/render/portrait/" as P #f3e6ff {
+
+  package "infrastructure (verbatim FC)" as INF #ffffff {
+    [artInfrastructure.js]         as INF_JS
+    [cacheLoader.ts (UC seam)]     as CACHE
+  }
+
+  package "dispatcher (verbatim FC)" as DISP #ffffff {
+    [artDispatcher.ts (TS-typed shell)] as DISP_TS
+    [artJS.js]                          as DISP_JS
+    [helpers/*.js (eye/limb/preg/…)]    as DISP_HELP
+  }
+
+  package "vector (verbatim FC)" as VEC #ffffff {
+    [VectorArtJS.js] as VEC_JS
+  }
+
+  package "revamp (verbatim FC)" as REV #ffffff {
+    [vectorRevampedArtControl.js] as REV_JS
+  }
+
+  [bridge.ts\n(Twine→ESM shim — sets globalThis.App / V / _)] as BRIDGE
+
+  package "adapter (UC-side)" as ADAPT #ffffff {
+    [SlaveLike.ts]              as SLAVE
+    [characterToSlave.ts]       as CHAR2SLAVE
+    [defaults.ts]               as DEF
+    [findClerk.ts (DEV helper)] as CLERK
+  }
+
+  package "react (UC-side)" as REACT #ffffff {
+    [Portrait.tsx] as RP
+  }
+
+  package "assets/cache (build artifact)" as ASSETS #f8f0ff {
+    [SVG → JSON sprite map\n(scripts/buildPortraitCache.ts)] as JSON_MAP
+  }
+
+  package "__debug__" as DBG #ffffff {
+    [PortraitTester.tsx]   as TESTER
+    [portraitFixtures.ts]  as FIXT
+  }
+}
+
+package "outside the seam" as OUT {
+  [UC ECS Character / Appearance / …] as UC_ECS
+  [ui/PortraitModal.tsx]               as UI_MODAL
+}
+
+' --- wire-up ---
+
+BRIDGE --> INF_JS    : globalThis.App = …
+BRIDGE --> DISP_JS
+BRIDGE --> VEC_JS
+BRIDGE --> REV_JS
+CACHE  --> JSON_MAP  : load at boot
+CACHE  --> INF_JS    : replaces FC's Twine-passage cache
+
+DISP_TS --> DISP_JS
+DISP_JS --> DISP_HELP
+DISP_JS --> VEC_JS
+DISP_JS --> REV_JS
+
+CHAR2SLAVE --> SLAVE
+CHAR2SLAVE --> DEF
+RP         --> CHAR2SLAVE
+RP         --> DISP_TS
+
+UC_ECS     --> CHAR2SLAVE : Character + Appearance
+UI_MODAL   --> RP
+
+CLERK --> UC_ECS : DEV-only window.uclifePinClerk\n(installed from main.tsx)
+
+note right of P
+  The seams that UC owns:
+   - bridge.ts          : Twine globals → ESM
+   - infrastructure/cacheLoader.ts : asset cache shape
+   - adapter/*          : UC traits → SlaveLike
+   - react/Portrait.tsx : DOM/React wrapper
+
+  Everything else in this package is
+  byte-identical FC pregmod (GPL-3.0).
+  Architectural changes must NOT touch
+  it; refactor through the seams.
+end note
+
+note bottom of CHAR2SLAVE
+  Hosts the content guardrail
+  required by the GPL upstream.
+  CLAUDE.md: do not strip.
+end note
+
+@enduml

@@ -1,0 +1,108 @@
+@startuml current_005_render_flow
+title UC Life Sim — render flow (Pixi ground + DOM HUD, HEAD)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Inter, sans-serif"
+
+package "ECS (active scene world)" as P_W #fff8ec {
+  [world.query(...)] as Q
+}
+
+package "render/Game.tsx (React shell)" as P_GAME #e9f3ff {
+  [useEffect: snapshot RAF] as RAF
+  [PixiGroundRenderer ref] as REND_REF
+  [host pointerdown\n→ MoveTarget on player] as CLICK_HOST
+  [<PixiCanvas onReady={...}/>] as CANVAS
+}
+
+package "render/pixi" as P_PIXI #e9f3ff {
+  [PixiCanvas (Application)] as PIXI_APP
+}
+
+package "render/ground" as P_GR #e9f3ff {
+  [PixiGroundRenderer.ts] as GROUND
+  [GroundSnapshot {\n roads, buildings, walls,\n doors, beds, barSeats,\n interactables, npcs, player }] as SNAP
+}
+
+package "render/sprite" as P_SP #e9f3ff {
+  [appearanceToLpc.ts] as A2L
+  [compose.ts (URLs under /lpc/)] as COMP
+  [animTick.ts (RAF, decoupled\n from sim clock)] as ANIM
+  [recolor.ts / palettes.ts] as REC
+}
+
+package "render/space" as P_SPC #e9f3ff {
+  [PixiSpaceRenderer.ts]    as SPACE_R
+  [PixiTacticalRenderer.ts] as TAC_R
+  [particles.ts]            as PART
+}
+
+package "render/portrait (FC pregmod port)" as P_PT #f3e6ff {
+  [react/Portrait.tsx] as P_REACT
+}
+
+package "ui/* (DOM HUD, React + zustand)" as P_UI #e9f3ff {
+  [Hud / StatusPanel / ActionStatus] as HUD
+  [ShopModal / FlightModal / NPCDialog\n / PortraitModal / SystemMenu / …] as MODALS
+  [SpaceView / TacticalView /\n EngagementModal] as SPACE_UI
+  [useUI / useEventLog / cameraStore\n (zustand)] as STORES
+}
+
+CANVAS --> PIXI_APP : onReady(app, root)
+RAF --> Q          : per-frame world.query() →\nbuild GroundSnapshot
+RAF --> REND_REF   : renderer.update(snap, cam)
+REND_REF --> GROUND
+GROUND --> SNAP
+GROUND --> A2L : NPC sprite layer
+A2L --> COMP
+COMP --> ANIM
+GROUND --> REC
+
+SPACE_R --> PIXI_APP
+TAC_R   --> PIXI_APP
+SPACE_UI --> SPACE_R
+SPACE_UI --> TAC_R
+
+HUD     --> Q : useQuery / useTrait\n(via koota/react)
+MODALS  --> Q : useQuery / useTrait
+MODALS  --> P_REACT : portraits
+HUD     --> STORES
+MODALS  --> STORES
+
+CLICK_HOST --> Q : (background click only)\n→ set MoveTarget on IsPlayer
+
+note right of GROUND
+  NPC + interactable Pixi nodes carry
+  their own pointerdown handlers
+  (eventMode='static'). Background
+  clicks bubble to CLICK_HOST. This
+  killed the legacy O(N) Konva linear
+  scan on every click.
+end note
+
+note right of RAF
+  (DRIFT) Design/architecture.md says
+  "useQuery to subscribe to renderable
+  entities". Reality: HUD does that;
+  Game.tsx (visual marks) deliberately
+  uses per-frame snapshots instead, for
+  Pixi perf. Diagram is canonical.
+end note
+
+note bottom of A2L
+  appearanceToLpc.ts is the LPC seam.
+  It reads the UC Appearance trait —
+  i.e. ECS state — and emits LPC layer
+  keys. Today this is a pure function
+  living in render/, called from inside
+  the snapshot loop.
+end note
+
+note bottom of P_PT
+  Portrait pipeline detail is in
+  006_portrait_pipeline.puml.
+  React-side it's just a component.
+end note
+
+@enduml

@@ -1,0 +1,89 @@
+@startuml current_002_tick_pipeline
+title UC Life Sim — current per-frame tick pipeline (sim/loop.ts :: frame())
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam defaultFontName "Inter, sans-serif"
+
+actor RAF as raf
+participant "sim/loop\nframe(now)" as L
+participant "sim/clock" as CLK
+participant "debug/store" as DBG
+participant "systems/combat" as COMBAT
+participant "systems/spaceSim" as SPACE
+participant "movement / npc / interaction" as REAL
+participant "per-tick chain" as TICK
+participant "save (autosave)" as SAVE
+participant "ui/uiStore + clock setMode" as UI
+
+raf -> L : requestAnimationFrame(frame)
+L -> CLK : getState() — speed, mode
+L -> DBG : alwaysHyperspeed / superSpeed
+
+alt mode === 'combat'
+  L -> COMBAT : combatSystem(world, dt)
+  note right
+    Frame-rate clock; bails internally
+    when paused. Independent of sim
+    speed scaling.
+  end note
+end
+
+L -> SPACE : spaceSimSystem(getWorld('spaceCampaign'), dt/1000)
+note right
+  Runs every frame regardless of
+  active scene — keeps off-helm
+  autopilot integrating while the
+  player is in playerShipInterior.
+end note
+
+alt effectiveSpeed > 0
+  L -> REAL : movementSystem(world, minutes)
+  L -> REAL : npcSystem(world, dt, sp)
+  L -> REAL : interactionSystem(world)
+
+  loop while tickAccum >= 1 (capped MAX_TICKS_PER_FRAME=200)
+    L -> CLK : advance(ticks)
+    L -> SAVE : tryAutosave('日翻页')\n if day rollover
+    L -> TICK : supplyDrainSystem(gameDate)
+    L -> TICK : vitalsSystem(world, ticks)
+    L -> TICK : actionSystem(world, ticks)
+    L -> TICK : rentSystem(world, msNow)
+    L -> TICK : workSystem(world, gameDate, ticks)
+    L -> TICK : stressSystem(world, ticks, gameDate)
+    note right of TICK
+      stressSystem runs *after* vitals
+      so saturation triggers see fresh
+      values (CLAUDE.md invariant).
+    end note
+    L -> TICK : releaseStaleBarSeats / releaseStaleRoughSpots
+    L -> TICK : attributesSystem(world, gameDate)
+    L -> TICK : populationSystem(world, gameDate)
+    L -> TICK : relationsSystem(world, gameDate, ticks)
+    L -> TICK : ambitionsSystem(world, gameDate)
+    L -> TICK : activeZoneSystem(world, msNow)
+  end
+
+  L -> UI : forced ambition picker open\n if Ambitions.active.length === 0
+
+  L -> CLK : evaluate hyperspeed gate
+  alt entering hyperspeed
+    L -> SAVE : tryAutosave('快进开始')
+  end
+  alt leaving hyperspeed in danger (no force, no debug)
+    L -> UI : showToast('快进暂停 · …', '强制快进' button)
+  end
+  L -> CLK : setMode('committed' | 'normal')
+end
+
+L -> raf : requestAnimationFrame(frame)\n if running
+
+note over L,SAVE
+  (VIOLATION-ish) sim/loop directly
+  imports save/index — the loop "knows"
+  about persistence. An event-bus seam
+  ('day:rollover', 'hyperspeed:start')
+  would let save/ subscribe instead.
+end note
+
+@enduml
