@@ -7,6 +7,7 @@ on:
       - 'Design/**'
       - '.claude/**'
       - '**/*.md'
+      - 'arch/**'
       - 'LICENSE'
   pull_request:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - 'Design/**'
       - '.claude/**'
       - '**/*.md'
+      - 'arch/**'
       - 'LICENSE'
 
 permissions:
