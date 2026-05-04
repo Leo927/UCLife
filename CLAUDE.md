@@ -139,3 +139,4 @@ When in doubt: prefer a battle-tested narrow library (`rbush` for spatial broad-
 - Don't rush to implementation. Always refine the design with the user first. 
 - Always prefer MCP server over raw API call
 - Always commit on every iteration
+- Use the plantuml skill to generate plantuml for diagram. 
