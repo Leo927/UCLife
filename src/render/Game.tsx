@@ -42,8 +42,6 @@ import {
 } from '../ecs/traits'
 import { useCamera } from './cameraStore'
 import { BED_MULTIPLIERS, bedActiveOccupant } from '../systems/bed'
-import { startLoop, stopLoop } from '../sim/loop'
-import { setupWorld } from '../ecs/spawn'
 import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
 import { useUI } from '../ui/uiStore'
@@ -86,10 +84,7 @@ export function Game() {
   const facingRef = useRef(new Map<Entity, LpcDirection>())
 
   useEffect(() => {
-    setupWorld()
-    startLoop()
     startAnimTicker()
-    return () => stopLoop()
   }, [])
 
   useEffect(() => {
