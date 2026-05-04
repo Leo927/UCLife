@@ -109,6 +109,7 @@ export function resetNpcBuckets(): void {
   lastActionKind.clear()
   wakePending.clear()
   lastBTStepGameMs.clear()
+  trees.clear()
   bucketCursor = 0
   bucketAccumMs = 0
 }
@@ -164,6 +165,15 @@ function getOrCreateTree(world: World, entity: Entity): CachedTree {
 
 export function resetNpcTrees(): void {
   trees.clear()
+}
+
+// Test-only accessors. Vitest runs in node with no koota world available, so
+// we inject directly into the cache to assert reset semantics in isolation.
+export function __primeTreeCacheForTest(entity: Entity): void {
+  trees.set(entity, { tree: null as unknown as BehaviourTree, agent: null as unknown as NPCAgent })
+}
+export function __getCachedTreeSizeForTest(): number {
+  return trees.size
 }
 
 export function npcSystem(world: World, dtMs: number, gameSpeed: number): void {
