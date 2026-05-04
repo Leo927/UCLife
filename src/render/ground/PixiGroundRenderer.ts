@@ -848,8 +848,13 @@ export class PixiGroundRenderer {
     root.addChild(rect)
     root.addChild(label)
     root.on('pointerdown', (e: FederatedPointerEvent) => {
-      // Stop bubbling so the host-level background handler doesn't also fire.
+      // Stop both Pixi's federated chain AND the underlying native DOM
+      // bubble. The host <div>'s React onPointerDown also receives the
+      // native event after Pixi's listener returns; without nativeEvent
+      // stopPropagation, that handler would clear the QueuedInteract we
+      // just added and snap MoveTarget to the raw click point.
       e.stopPropagation()
+      if ('stopPropagation' in e.nativeEvent) e.nativeEvent.stopPropagation()
       const node = this.interactableNodes.get(ent)
       if (!node) return
       // Pass pointer-relative click position so caller can confirm proximity
@@ -1020,6 +1025,7 @@ export class PixiGroundRenderer {
 
     root.on('pointerdown', (e: FederatedPointerEvent) => {
       e.stopPropagation()
+      if ('stopPropagation' in e.nativeEvent) e.nativeEvent.stopPropagation()
       this.latestOnNpcClick(ent)
     })
 

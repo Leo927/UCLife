@@ -12,9 +12,11 @@
 //
 // Click flow:
 // - NPCs and interactables register per-DisplayObject 'pointerdown' on
-//   their Pixi nodes (eventMode='static'). Background clicks bubble up
-//   to a host-level pointerdown that walks the player to the world-space
-//   click position.
+//   their Pixi nodes (eventMode='static'). Those handlers stop both the
+//   Pixi federated chain AND the underlying nativeEvent so the host-div
+//   pointerdown below only fires for empty-space clicks.
+// - Background clicks reach a host-level pointerdown that walks the
+//   player to the world-space click position.
 // - This kills the O(N) linear scan in the legacy Konva implementation.
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
