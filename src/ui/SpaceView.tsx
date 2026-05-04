@@ -13,6 +13,8 @@ import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
 import { leaveHelm } from '../sim/helm'
+import { getShipState } from '../sim/ship'
+import { emitSim } from '../sim/events'
 
 const SPACE_SCENE_ID = 'spaceCampaign'
 
@@ -99,10 +101,19 @@ function findNearbyPoi(pois: PoiSnapshot[], wx: number, wy: number): Poi | null 
 
 interface PanelState { poiId: string }
 
+interface FuelHud { current: number; max: number }
+
+// Fuel below this is treated as empty: spaceSim drops thrust as soon as
+// the per-frame fuel demand exceeds fuelCurrent, which happens long
+// before fuelCurrent reaches strict zero. 0.05 is a few frames of full
+// thrust — effectively unusable for actual maneuver.
+const FUEL_EMPTY_THRESHOLD = 0.05
+
 export function SpaceView() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [fitMode, setFitMode] = useState(false)
   const [panel, setPanel] = useState<PanelState | null>(null)
+  const [fuelHud, setFuelHud] = useState<FuelHud | null>(null)
 
   // Latest panel/fitMode in refs so the render loop can read them without
   // restarting the loop on every state change.
@@ -137,11 +148,18 @@ export function SpaceView() {
   useEffect(() => {
     let raf = 0
     let last = 0
+    let lastFuelPoll = 0
     const FRAME_MS = 33
+    const FUEL_POLL_MS = 250
     const loop = (now: number) => {
       if (now - last >= FRAME_MS) {
         const dtSec = last === 0 ? FRAME_MS / 1000 : (now - last) / 1000
         last = now
+        if (now - lastFuelPoll >= FUEL_POLL_MS) {
+          lastFuelPoll = now
+          const s = getShipState()
+          if (s) setFuelHud({ current: s.fuelCurrent, max: s.fuelMax })
+        }
         const r = rendererRef.current
         if (r) {
           const bodies = readBodies()
@@ -215,6 +233,16 @@ export function SpaceView() {
       const w = getWorld(SPACE_SCENE_ID)
       const player = w.queryFirst(IsPlayer, Course)
       if (!player) return
+      // Without this guard, the click silently sets a Course the
+      // autopilot can't act on (spaceSim drops thrust whenever a frame's
+      // fuel demand exceeds Ship.fuelCurrent, which fires well before the
+      // value reaches strict zero), which the player perceives as
+      // "navigation ignored."
+      const ship = getShipState()
+      if (ship && ship.fuelCurrent < FUEL_EMPTY_THRESHOLD) {
+        emitSim('toast', { textZh: '燃料耗尽 · 需返回补给站' })
+        return
+      }
       const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
       if (near) {
         let targetX = wp.x
@@ -252,6 +280,30 @@ export function SpaceView() {
       onContextMenu={onContextMenu}
     >
       <PixiCanvas width={size.w} height={size.h} background={0x020617} onReady={onReady} />
+      {fuelHud && (() => {
+        const empty = fuelHud.current < FUEL_EMPTY_THRESHOLD
+        return (
+          <div
+            style={{
+              position: 'absolute', bottom: 12, left: 12,
+              background: 'rgba(15, 23, 42, 0.92)',
+              border: `1px solid ${empty ? '#dc2626' : '#475569'}`,
+              color: empty ? '#fca5a5' : '#e2e8f0',
+              padding: '8px 14px',
+              fontFamily: 'system-ui, sans-serif', fontSize: 13,
+              borderRadius: 4, minWidth: 140,
+            }}
+          >
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>燃料</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>
+              {fuelHud.current.toFixed(1)} / {fuelHud.max}
+            </div>
+            {empty && (
+              <div style={{ fontSize: 11, marginTop: 4 }}>耗尽 · 无法机动</div>
+            )}
+          </div>
+        )
+      })()}
       <button
         onClick={() => leaveHelm()}
         style={{
