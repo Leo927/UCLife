@@ -37,4 +37,6 @@ if (errors.length) {
 }
 console.log(`screenshots written, errors=${errors.length}, completed=${foundBubble}`)
 
+if (errors.length || !foundBubble) process.exitCode = 1
+
 await browser.close()

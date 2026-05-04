@@ -17,11 +17,12 @@
 // Concurrency note: each `ci:local` invocation binds its own ephemeral port,
 // so multiple invocations (e.g. parallel subagent runs) coexist fine.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createServer as createNetServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createServer as createViteServer } from 'vite';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -97,11 +98,39 @@ function findFreePort() {
   });
 }
 
+// Force Vite to finish pre-bundling deps before the first child check runs.
+// Each ci:local invocation gets its own (empty) cacheDir, so Vite would
+// otherwise pre-bundle on the first request — which Playwright's default
+// 30s timeout often beats under multi-Vite CPU load (this manifests as
+// `page.goto: Timeout 30000ms exceeded` on the first 1-3 checks).
+//
+// We use Vite's in-process transformRequest() instead of spawning a warmup
+// browser: it walks the same transform pipeline (which discovers deps and
+// triggers the optimizer), but runs in-proc without adding a chromium to
+// the process count. Spawning warmup browsers concurrently with a live
+// `npm run dev` saturates Windows scheduling and stalls navigation.
+async function warmup(server) {
+  try {
+    await server.transformRequest('/src/main.tsx');
+  } catch {
+    // Pre-bundle errors here are non-fatal — child checks will surface
+    // them with proper context. Warmup is best-effort.
+  }
+}
+
 async function startVite() {
   const port = await findFreePort();
+  // Per-invocation cacheDir so concurrent Vite servers (e.g. an active
+  // `npm run dev`, or a parallel ci:local run from a sibling worktree)
+  // don't thrash the shared `node_modules/.vite/deps/` pre-bundle. Without
+  // this, two Vite processes invalidate each other's optimized chunks
+  // mid-flight, the dev pages 404 on module fetches, and downstream
+  // Playwright checks crash on corrupted module loads.
+  const cacheDir = mkdtempSync(join(tmpdir(), 'uclife-vite-'));
   const server = await createViteServer({
     root: repoRoot,
     configFile: join(repoRoot, 'vite.config.ts'),
+    cacheDir,
     server: { port, strictPort: false, host: '127.0.0.1' },
     logLevel: 'warn',
   });
@@ -109,9 +138,10 @@ async function startVite() {
   const addr = server.httpServer?.address();
   if (!addr || typeof addr !== 'object') {
     await server.close();
+    rmSync(cacheDir, { recursive: true, force: true });
     throw new Error('failed to determine bound port');
   }
-  return { server, port: addr.port };
+  return { server, port: addr.port, cacheDir };
 }
 
 async function main() {
@@ -130,9 +160,11 @@ async function main() {
   }
 
   console.log('[ci-local] starting Vite dev server on ephemeral port…');
-  const { server, port } = await startVite();
+  const { server, port, cacheDir } = await startVite();
   const baseUrl = `http://127.0.0.1:${port}/`;
-  console.log(`[ci-local] dev server ready at ${baseUrl}`);
+  console.log(`[ci-local] dev server up at ${baseUrl}, warming pre-bundle…`);
+  await warmup(server);
+  console.log('[ci-local] dev server ready');
 
   let signalCleanup = false;
   const onSignal = async (sig) => {
@@ -140,6 +172,7 @@ async function main() {
     signalCleanup = true;
     console.log(`\n[ci-local] received ${sig}, shutting down…`);
     try { await server.close(); } catch {}
+    rmSync(cacheDir, { recursive: true, force: true });
     process.exit(sig === 'SIGINT' ? 130 : 143);
   };
   process.on('SIGINT', () => onSignal('SIGINT'));
@@ -183,6 +216,7 @@ async function main() {
     exitCode = failed === 0 ? 0 : 1;
   } finally {
     try { await server.close(); } catch {}
+    rmSync(cacheDir, { recursive: true, force: true });
   }
   process.exit(exitCode);
 }
