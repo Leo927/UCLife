@@ -16,18 +16,26 @@ npm run build                # tsc -b && vite build (auto-runs build:portrait-ca
 npm run preview              # serve dist/
 npm run build:portrait-cache # rebuild SVG → JSON sprite maps under src/render/portrait/assets/cache/
 
-# Regression suite — standalone. Spawns its own Vite dev server on an
+# Unit tests — vitest, pure logic only, no dev server. Co-located *.test.ts
+# files next to source. Runs as the `unit` CI job.
+npm run test:unit
+
+# Smoke / regression suite — standalone. Spawns its own Vite dev server on an
 # ephemeral port (no need to `npm run dev` first); each invocation gets a
 # fresh port so concurrent runs (subagents, worktrees) don't collide.
-# Sources its step list from .github/workflows/ci.yml so local and CI stay
-# in lockstep. Outputs land in scripts/out/.
+# Sources its step list from the `test` job in .github/workflows/ci.yml so
+# local and CI stay in lockstep. Outputs land in scripts/out/.
 npm run ci:local                # serial (default)
 npm run ci:local -- --workers 4 # parallel against the same dev server
 ```
 
 **TDD is mandatory.** Write the failing test before the production code, watch it fail, then make it pass. Follow *Clean Code* (Robert C. Martin) for naming, function size, single responsibility, and dependency direction.
 
-The single source of truth for the regression suite is `npm run ci:local`. Add new coverage by extending `.github/workflows/ci.yml` (which `scripts/ci-local.mjs` parses); do **not** introduce parallel one-off check scripts that live outside the suite. New `check-*.mjs` scripts must read their target URL as `process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'` so the runner can inject the ephemeral port. Type-checking is `tsc -b` (run as part of `npm run build`).
+Two test layers, two CI jobs:
+- **Unit tests** (`npm run test:unit`, CI job `unit`) cover pure logic — `*.test.ts` co-located with source; no dev server, no Playwright. Don't put smoke tests here.
+- **Smoke tests** (`npm run ci:local`, CI job `test`) drive the running app via the `__uclife__` debug handle. The single source of truth for this suite is the `test` job in `.github/workflows/ci.yml` (which `scripts/ci-local.mjs` parses); do **not** introduce parallel one-off check scripts that live outside it, and do **not** add unit-test runners to the smoke `test` job. New `check-*.mjs` scripts must read their target URL as `process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'` so the runner can inject the ephemeral port.
+
+Type-checking is `tsc -b` (run as part of `npm run build`).
 
 ## LPC sprites in dev
 
@@ -153,7 +161,7 @@ When in doubt: prefer a battle-tested narrow library (`rbush` for spatial broad-
 - Always use git for version control on each iteration.
 - Strong separation of logic, data and config. At the end of project we should have a reusable engine that can be used on other projects.
 - Prefer delegate to subagents to maintain context integrity.
-- TDD is non-negotiable. Failing test first, then code. The regression suite is centralized as `npm run ci:local` — extend it, don't fork it.
+- TDD is non-negotiable. Failing test first, then code. Pure logic goes under unit tests (`npm run test:unit`); end-to-end behavior goes under the smoke regression suite (`npm run ci:local`) — extend the existing layer, don't fork it.
 - Follow *Clean Code* discipline: small intention-revealing names, small focused functions, single responsibility, prefer composition and injection over globals.
 - Don't rush to implementation. Always refine the design with the user first. 
 - Always prefer MCP server over raw API call
