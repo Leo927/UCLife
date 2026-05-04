@@ -16,28 +16,15 @@ npm run build                # tsc -b && vite build (auto-runs build:portrait-ca
 npm run preview              # serve dist/
 npm run build:portrait-cache # rebuild SVG → JSON sprite maps under src/render/portrait/assets/cache/
 
-# Playwright smoke tests — REQUIRE a dev server already running on :5173.
-# Outputs land in scripts/out/.
-npm run check:portrait
-npm run check:portrait-modals
-npm run check:portrait-enlarge
-npm run check:sprite
-node scripts/check.mjs                # baseline HUD/canvas probe
-node scripts/check-saveload.mjs       # save/load roundtrip
-node scripts/check-scene-swap.mjs     # flight + scene swap
-node scripts/check-flights.mjs
-node scripts/check-systemmenu.mjs
-node scripts/check-sprite-ingame.mjs
-node scripts/check-chatbubble.mjs
-node scripts/check-map.mjs
-node scripts/ai-soak.mjs              # AI behavior soak; uses window.__uclife__
-
-# Headless NPC soak — runs the sim without a browser.
-npx tsx scripts/survive.ts [days]     # default ~survives N game-days, logs deaths
-npx tsx scripts/perf-survive.ts       # perf profiling variant
+# Regression suite — REQUIRES `npm run dev` already running on :5173.
+# Centralized entrypoint; sources its step list from .github/workflows/ci.yml so
+# local and CI runs stay in lockstep. Outputs land in scripts/out/.
+npm run ci:local
 ```
 
-There is no test framework — verification is the smoke-test scripts plus the headless `survive.ts` harness. Type-checking is `tsc -b` (run as part of `npm run build`).
+**TDD is mandatory.** Write the failing test before the production code, watch it fail, then make it pass. Follow *Clean Code* (Robert C. Martin) for naming, function size, single responsibility, and dependency direction.
+
+The single source of truth for the regression suite is `npm run ci:local`. Add new coverage by extending `.github/workflows/ci.yml` (which `scripts/ci-local.mjs` parses); do **not** introduce parallel one-off check scripts that live outside the suite. Type-checking is `tsc -b` (run as part of `npm run build`).
 
 ## LPC sprites in dev
 
@@ -147,7 +134,8 @@ When in doubt: prefer a battle-tested narrow library (`rbush` for spatial broad-
 - Always use git for version control on each iteration.
 - Strong separation of logic, data and config. At the end of project we should have a reusable engine that can be used on other projects.
 - Prefer delegate to subagents to maintain context integrity.
-- Strong emphasis on automated testing harness. Maintain a single suite of regression test. 
+- TDD is non-negotiable. Failing test first, then code. The regression suite is centralized as `npm run ci:local` — extend it, don't fork it.
+- Follow *Clean Code* discipline: small intention-revealing names, small focused functions, single responsibility, prefer composition and injection over globals.
 - Don't rush to implementation. Always refine the design with the user first. 
 - Always prefer MCP server over raw API call
 - Always commit on every iteration
