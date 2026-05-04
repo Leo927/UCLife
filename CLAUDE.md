@@ -149,6 +149,26 @@ The agent default is "ship the simplest data structure that compiles" — linear
 
 When in doubt: prefer a battle-tested narrow library (`rbush` for spatial broad-phase, scene-graph hit-testing in the renderer, etc.) over a hand-rolled linear scan. Pull in the library *first*, not after the wall.
 
+## Parallel agent isolation — mandatory
+
+Every `Agent` call that may modify the working tree (any tool that writes — Edit, Write, NotebookEdit, or Bash with mutating commands like `npm install`, `git commit`, build/codegen scripts) **MUST** be spawned with `isolation: "worktree"`. This is non-negotiable: parallel agents writing into the same checkout corrupts each other's work and produces lost edits that are very hard to diagnose after the fact.
+
+Read-only agents (Explore, claude-code-guide, Plan, research/audit prompts that don't write) MAY run without isolation.
+
+When an isolated agent finishes:
+
+1. The harness returns `{ worktreePath, branch }` (auto-cleaned only if zero changes were made).
+2. Inspect with `git -C <worktreePath> log main..HEAD` and `git -C <worktreePath> diff main...HEAD` before doing anything else.
+3. To merge back: `git -C <worktreePath> push -u origin <branch>` then `gh pr create` from that worktree. **Do not merge into `main` without explicit user approval** — surface the PR URL and wait.
+4. After merge: `git worktree remove <worktreePath>` and `git branch -d <branch>`. Do not leave stale worktrees in `.claude/worktrees/`.
+
+When parallelizing N independent tasks, send the N `Agent` calls in a single message (concurrent tool uses) — each gets its own worktree off the current commit, and conflicts surface at PR-merge time, which is the point.
+
+Caveats to respect:
+- Worktrees do **not** isolate shared external state (running dev server ports, browser localStorage, files outside the repo). Don't run `npm run dev` in two worktrees against the same port; `ci:local` already picks ephemeral ports and is safe.
+- Worktrees share `.git` but each gets its own `node_modules`. Agents that need a fresh `npm install` will pay that cost — factor it into whether parallelization is actually a win for short tasks.
+- If agent B depends on agent A's output, **sequence them** — don't parallelize and hope. A finishes → merges to `main` → B spawns off the new `main`.
+
 ## Conventions
 
 - Comments are reserved for intention that cannot be inferred from the code directly. 
