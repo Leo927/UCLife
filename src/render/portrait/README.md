@@ -43,7 +43,7 @@ new TypeScript code in this module is:
   passages) with an async loader that consumes the build-time JSON sprite map
   produced by `scripts/buildPortraitCache.ts`.
 - `adapter/` — UC `Character` + `Appearance` traits → FC `SlaveLike` shape.
-- `react/` — `Portrait` + `PortraitKonva` React wrappers.
+- `react/Portrait.tsx` — React wrapper that renders the FC vector portrait into a DOM `<svg>`.
 - `__debug__/PortraitTester.tsx` — dev visual smoke-test page.
 
 Underscore.js's `_.intersection` (used once at `artInfrastructure.js:192`) is
