@@ -11,7 +11,7 @@ import { getBody } from '../data/celestialBodies'
 import { getWorld } from '../ecs/world'
 import { useScene } from './scene'
 import {
-  IsPlayer, AtHelm, Course, ShipBody,
+  IsPlayer, AtHelm, Course, ShipBody, Position, Velocity,
 } from '../ecs/traits'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { derivedPos } from '../engine/space/orbits'
@@ -88,6 +88,12 @@ export function takeHelm(): { ok: boolean; message?: string } {
   const space = getWorld('spaceCampaign')
   const player = space.queryFirst(IsPlayer, ShipBody)
   if (player) {
+    // Snap the campaign-world Position to the live POI; the bootstrap
+    // value is t=0 and would leave the ship floating thousands of px
+    // from any body once orbits have rotated. Velocity reset prevents
+    // a leftover course from a prior launch carrying momentum forward.
+    player.set(Position, { x: launchPos.x, y: launchPos.y })
+    player.set(Velocity, { vx: 0, vy: 0 })
     player.set(Course, { tx: 0, ty: 0, destPoiId: null, active: false })
     if (!player.has(AtHelm)) player.add(AtHelm)
   }
