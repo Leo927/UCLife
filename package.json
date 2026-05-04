@@ -14,6 +14,7 @@
     "check:portrait-modals": "node scripts/check-portrait-modals.mjs",
     "check:portrait-enlarge": "node scripts/check-portrait-enlarge.mjs",
     "check:sprite": "node scripts/check-sprite.mjs",
+    "test:unit": "vitest run",
     "ci:local": "node scripts/ci-local.mjs"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "playwright": "^1.59.1",
     "tsx": "^4.21.0",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
   }
 }
