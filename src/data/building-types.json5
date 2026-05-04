@@ -79,11 +79,25 @@
   // ── AIRPORT ─────────────────────────────────────────────────────────────
 
   // Open interior, single ticket counter; FlightHub binding done at spawn
-  // (scene.id → flights.json5 hub.sceneId).
+  // (scene.id → flights.json5 hub.sceneId). Also embeds the scene's
+  // `placement: 'airport'` transit terminal as a kiosk near the entrance.
   airport: {
     labelZh: '航天港',
     size: { minW: 12, maxW: 20, minH: 8, maxH: 14 },
     layout: { algorithm: 'airport' },
+  },
+
+  // ── TRANSIT TERMINAL ────────────────────────────────────────────────────
+
+  // Procgen building for the city's main bus stop. Bound 1:1 by sceneId to
+  // the `placement: 'building'` terminal in transit.json5, same way airport
+  // binds to a flight hub. Open interior with a single transit kiosk.
+  // Kept small (3×3 minimum) so it fits the leftover sub-blocks after the
+  // airport (12×8 minimum) and shop claim the bigger ones.
+  transitTerminal: {
+    labelZh: '换乘站',
+    size: { minW: 3, maxW: 5, minH: 3, maxH: 4 },
+    layout: { algorithm: 'transit' },
   },
 
   // ── PARK ────────────────────────────────────────────────────────────────

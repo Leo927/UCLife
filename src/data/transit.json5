@@ -1,69 +1,71 @@
 // Public-transport terminals — drives the fast-travel system. Each terminal
-// is a Transit entity in the world (spawned in ecs/spawn.ts spawnTransit) and
-// a destination shown on the transit map overlay (ui/TransitMap.tsx).
+// is a Transit entity in the world (spawned in ecs/spawn.ts) and a
+// destination shown on the transit map overlay (ui/TransitMap.tsx).
 //
-// `placeId` references data/world-map.json5 so the terminal inherits the
-// place's tile rect for the map marker without duplicating coordinates.
+// `placement` decides where the terminal is built:
+//   'building' — procgen places a `transitTerminal` building (one per
+//                scene's central/commercial district, min=max=1) and
+//                spawns the kiosk inside. Bound 1:1 to this entry by
+//                sceneId at spawn time. No coords here.
+//   'airport'  — the airport spawn embeds this terminal as a kiosk near
+//                its entrance. Bound 1:1 to this entry by sceneId at
+//                spawn time. No coords here.
+//   'fixed'    — coords are hard-coded below (terminalTile + arrivalTile).
+//                Used for hand-placed buildings like aeComplex.
 //
-// `terminalTile` is the tile-space position of the terminal entity itself —
-// what the player walks to when clicking the terminal in-world. Spawned in
-// pixel space as terminalTile * worldConfig.tilePx.
-//
-// `arrivalTile` is where the player is teleported when this terminal is
-// chosen as a destination. It's typically a tile just outside the terminal
-// so the player lands on a walkable street/lobby tile rather than on top of
-// the terminal sprite (which would re-trigger the click on the next pointer
-// event). For now this equals terminalTile + 1 row south, but it's broken
-// out so future bus-stop animations can use a separate "drop-off" point.
-//
-// Adding a new terminal: append an entry, give it a unique id, and spawn the
-// matching Transit entity in ecs/spawn.ts. The ui+systems read this file
-// directly — no other plumbing required.
+// All runtime positions live in sim/transitPlacements.ts; the spawn code
+// registers them as it places each terminal. UI/migration read the
+// registry, not these JSON5 fields.
 
 {
   terminals: [
+    // ── startTown ────────────────────────────────────────────────────────
     {
       id: 'startTownPlaza',
       sceneId: 'startTown',
+      placement: 'building',
       nameZh: '市中心广场站',
       shortZh: '中心区站',
-      placeId: 'startTown',
-      // Just south of the apartment building, on the open street strip
-      // between apartment and flop — a stable street tile that won't get
-      // boxed in by future buildings. Coordinates in tile units.
-      terminalTile: { x: 23, y: 16 },
-      arrivalTile:  { x: 23, y: 17 },
       description: '通往各地的公共交通站点。冯·布劳恩中心区的主要换乘点。',
-    },
-    {
-      id: 'aeReceptionStop',
-      sceneId: 'startTown',
-      nameZh: '安那海姆电子前台站',
-      shortZh: 'AE 前台站',
-      placeId: 'aeComplex',
-      // West of the AE complex, on the open space outside the reception
-      // door (the complex sits at tileX=400, doorSide='w'). This stays on
-      // public ground so the terminal isn't gated by the AE faction door.
-      terminalTile: { x: 398, y: 213 },
-      arrivalTile:  { x: 398, y: 214 },
-      description: 'AE 总部门外的换乘站。员工和访客都可使用。',
     },
     {
       id: 'startTownAirportStop',
       sceneId: 'startTown',
+      placement: 'airport',
       nameZh: '冯·布劳恩航天港站',
       shortZh: '航天港站',
-      placeId: 'startTownAirport',
-      // On the open street just north of the airport's north wall (airport
-      // rect runs y=32..46, north door cutout centered at tileX=20). Sits in
-      // the open margin between city (envelope ends y=25) and airport, so it
-      // stays on public ground regardless of future procgen tweaks.
-      // arrivalTile lines up with the airport's north door, matching the
-      // flight-arrival tile in flights.json5 — same doorstep no matter how
-      // you got there.
-      terminalTile: { x: 20, y: 30 },
-      arrivalTile:  { x: 20, y: 31 },
-      description: '冯·布劳恩航天港门外的换乘站。乘公交直达售票处。',
+      description: '冯·布劳恩航天港大厅内的换乘站。乘公交直达售票处。',
+    },
+    {
+      id: 'aeReceptionStop',
+      sceneId: 'startTown',
+      placement: 'fixed',
+      nameZh: '安那海姆电子前台站',
+      shortZh: 'AE 前台站',
+      // West of the AE complex (rect 400,200 + 28×26), on open ground
+      // outside the reception door. Stays on public ground regardless of
+      // future AE faction-gate tweaks.
+      terminalTile: { x: 398, y: 213 },
+      arrivalTile:  { x: 398, y: 214 },
+      description: 'AE 总部门外的换乘站。员工和访客都可使用。',
+    },
+
+    // ── zumCity ──────────────────────────────────────────────────────────
+    {
+      id: 'zumCityPlaza',
+      sceneId: 'zumCity',
+      placement: 'building',
+      nameZh: '祖姆中央广场站',
+      shortZh: '中央站',
+      description: '祖姆市的主要换乘点。',
+    },
+    {
+      id: 'zumCityAirportStop',
+      sceneId: 'zumCity',
+      placement: 'airport',
+      nameZh: '祖姆市航天港站',
+      shortZh: '祖姆航天港站',
+      description: '祖姆市航天港大厅内的换乘站。',
     },
   ],
 }

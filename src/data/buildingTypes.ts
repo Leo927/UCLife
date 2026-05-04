@@ -135,6 +135,13 @@ export type AirportLayout = {
   algorithm: 'airport'
 }
 
+// Procgen transit terminal: open interior with a single transit kiosk
+// centered against the wall opposite the primary door. Bound 1:1 by
+// scene id to the matching `placement: 'building'` entry in transit.json5.
+export type TransitLayout = {
+  algorithm: 'transit'
+}
+
 // Park: an outdoor area with no exterior walls and no door. Random
 // fixtures (taps, scavenge points, benches) scatter inside the rect.
 // Spawn-time fixture counts are drawn uniformly from the per-kind ranges.
@@ -176,6 +183,7 @@ export type BuildingLayout =
   | OpenFloorLayout
   | CellsLayout
   | AirportLayout
+  | TransitLayout
   | ParkLayout
   | CraftedLayout
 

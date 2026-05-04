@@ -17,13 +17,16 @@ import type { SkillId } from './data/skills'
 import { useEventLog } from './ui/EventLog'
 import { ambitionsSystem } from './systems/ambitions'
 import { getAirportPlacement } from './sim/airportPlacements'
+import { getTransitPlacement } from './sim/transitPlacements'
 import { flightHubs } from './data/flights'
+import { transitTerminals } from './data/transit'
+import { Transit } from './ecs/traits'
 import { findPath } from './systems/pathfinding'
 import { boardShip, disembarkShip } from './sim/scene'
 import { getShipState } from './sim/ship'
 import { useCombatStore } from './systems/combat'
-import { useTransition } from './sim/transition'
 import { useEngagement } from './sim/engagement'
+import { useTransition } from './sim/transition'
 import { takeHelm } from './sim/helm'
 import { spaceSimSystem } from './systems/spaceSim'
 import { saveGame, loadGame } from './save'
@@ -61,6 +64,24 @@ if (import.meta.env.DEV) {
         nameZh: h.nameZh,
         placement: getAirportPlacement(h.id),
       }))
+    },
+    listTransitTerminals() {
+      return transitTerminals.map((t) => {
+        const w = getWorld(t.sceneId)
+        let live = false
+        for (const e of w.query(Transit)) {
+          const tr = e.get(Transit)
+          if (tr && tr.terminalId === t.id) { live = true; break }
+        }
+        return {
+          id: t.id,
+          sceneId: t.sceneId,
+          placement: t.placement,
+          nameZh: t.nameZh,
+          live,
+          registered: !!getTransitPlacement(t.id),
+        }
+      })
     },
     movePlayerToAirport(hubId: string) {
       const p = getAirportPlacement(hubId)
@@ -251,36 +272,6 @@ if (import.meta.env.DEV) {
       if (!e) return null
       return { ...e.get(Position)! }
     },
-    listEnemies() {
-      const w = getWorld('spaceCampaign')
-      const out: { key: string; pos: { x: number; y: number }; mode: string }[] = []
-      for (const e of w.query(EnemyAI, Position, EntityKey)) {
-        out.push({
-          key: e.get(EntityKey)!.key,
-          pos: { ...e.get(Position)! },
-          mode: e.get(EnemyAI)!.mode,
-        })
-      }
-      return out
-    },
-    useEngagement,
-    takeHelmCheat() {
-      return takeHelm()
-    },
-    tickSpace(dtSec: number) {
-      const w = getWorld('spaceCampaign')
-      spaceSimSystem(w, dtSec)
-      return true
-    },
-    moveShipTo(x: number, y: number) {
-      const w = getWorld('spaceCampaign')
-      const e = w.queryFirst(IsPlayer, Position)
-      if (!e) return false
-      e.set(Position, { x, y })
-      return true
-    },
-    saveGame,
-    loadGame,
     setShipOwned() {
       const p = world.queryFirst(IsPlayer)
       if (!p) return false
@@ -314,6 +305,38 @@ if (import.meta.env.DEV) {
       enemy.set(EnemyShipState, { ...cur, hullCurrent: 0 })
       return true
     },
+    listEnemies() {
+      const w = getWorld('spaceCampaign')
+      const out: { key: string; pos: { x: number; y: number }; mode: string }[] = []
+      for (const e of w.query(EnemyAI, Position, EntityKey)) {
+        out.push({
+          key: e.get(EntityKey)!.key,
+          pos: e.get(Position)!,
+          mode: e.get(EnemyAI)!.mode,
+        })
+      }
+      return out
+    },
+    useEngagement,
+    // Smoke-test helpers — drive helm/space deterministically without going
+    // through the helm Interactable tile or the React tick loop.
+    takeHelmCheat() {
+      return takeHelm()
+    },
+    tickSpace(dtSec: number) {
+      const w = getWorld('spaceCampaign')
+      spaceSimSystem(w, dtSec)
+      return true
+    },
+    moveShipTo(x: number, y: number) {
+      const w = getWorld('spaceCampaign')
+      const e = w.queryFirst(IsPlayer, Position)
+      if (!e) return false
+      e.set(Position, { x, y })
+      return true
+    },
+    saveGame,
+    loadGame,
   }
 }
 

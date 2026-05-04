@@ -17,6 +17,7 @@ import { getWeapon } from '../data/weapons'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
+import { setTransitPlacement, clearTransitPlacements } from '../sim/transitPlacements'
 import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
 import { getAppearanceOverride } from '../data/appearance'
 import { generateAppearanceForName } from '../data/appearanceGen'
@@ -39,6 +40,7 @@ import {
   type CellsLayout, type CraftedLayout, type ParkLayout,
   type ProcgenWorkstationItem,
 } from '../data/buildingTypes'
+import type { TransitTerminal } from '../data/transit'
 import { setLandmark, clearLandmarks, addRoughSource, setShopRect } from '../data/landmarks'
 import { resetPopulationClock } from '../systems/population'
 import { resetRelationsClock } from '../systems/relations'
@@ -116,6 +118,7 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
     case 'open_floor':  spawnOpenFloor(layout, slot); break
     case 'cells':       spawnCells(typeId, layout, slot, rng); break
     case 'airport':     spawnAirport(slot, sceneId); break
+    case 'transit':     spawnTransitBuilding(slot, sceneId); break
     case 'park':        spawnPark(layout, slot, rng); break
     case 'crafted':     spawnCrafted(layout, slot, rng); break
   }
@@ -448,10 +451,12 @@ function spawnCraftedItem(
 
 // ── AIRPORT + PARK SPAWNERS ─────────────────────────────────────────────────
 
-// Tracks which hubs have been bound this bootstrap pass, so a runaway
-// district config asking for two airports in one scene doesn't silently
-// claim both ends of an inter-city flight pair.
+// Tracks which hubs / terminals have been bound this bootstrap pass, so a
+// runaway district config asking for two airports in one scene doesn't
+// silently claim both ends of an inter-city flight pair (and similarly for
+// transit terminals — one per scene per placement kind).
 const airportHubsBound = new Set<string>()
+const transitTerminalsBound = new Set<string>()
 
 function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   const { rect, primaryDoor } = slot
@@ -498,6 +503,12 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
     },
   })
 
+  // Embedded transit kiosk: this scene's `placement: 'airport'` terminal.
+  // Sits 1.5 tiles in from the door wall, offset 2-3 tiles laterally from
+  // the door so it doesn't block the entrance. Bus arrivals teleport the
+  // player to a tile next to the kiosk (still inside the airport lobby).
+  spawnAirportTransit(rect, primaryDoor, sceneId)
+
   // Boarding kiosk one tile away from the counter, perpendicular to the
   // door axis. Slice H gates the actual board on the player's shipOwned
   // flag at click time.
@@ -511,6 +522,93 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
       EntityKey({ key: `boardship-${hub.id}` }),
     )
   }
+}
+
+function pickTransitTerminal(sceneId: SceneId, placement: 'building' | 'airport'): TransitTerminal | null {
+  for (const t of transitTerminals) {
+    if (t.sceneId !== sceneId) continue
+    if (t.placement !== placement) continue
+    if (transitTerminalsBound.has(t.id)) continue
+    return t
+  }
+  return null
+}
+
+function spawnTransitEntity(term: TransitTerminal, terminalPx: { x: number; y: number }, arrivalPx: { x: number; y: number }): void {
+  transitTerminalsBound.add(term.id)
+  world.spawn(
+    Position({ x: terminalPx.x, y: terminalPx.y }),
+    Interactable({ kind: 'transit', label: term.shortZh }),
+    Transit({ terminalId: term.id }),
+    EntityKey({ key: `transit-${term.id}` }),
+  )
+  setTransitPlacement(term.id, { terminalPx, arrivalPx })
+}
+
+function spawnAirportTransit(
+  rect: { x: number; y: number; w: number; h: number },
+  primaryDoor: DoorPlacement,
+  sceneId: SceneId,
+): void {
+  const term = pickTransitTerminal(sceneId, 'airport')
+  if (!term) return  // No airport-bound terminal declared for this scene.
+
+  const inset = TILE * 1.5
+  // Lateral offset from the door axis — clamp to keep the kiosk fully
+  // inside the building (1.5 tiles from each side wall).
+  const lateralOffset = TILE * 3
+  let kx: number, ky: number
+  if (primaryDoor.side === 'n' || primaryDoor.side === 's') {
+    const minX = rect.x + inset
+    const maxX = rect.x + rect.w - inset
+    kx = clamp(rect.x + primaryDoor.offsetPx + lateralOffset, minX, maxX)
+    ky = primaryDoor.side === 'n' ? rect.y + inset : rect.y + rect.h - inset
+  } else {
+    const minY = rect.y + inset
+    const maxY = rect.y + rect.h - inset
+    ky = clamp(rect.y + primaryDoor.offsetPx + lateralOffset, minY, maxY)
+    kx = primaryDoor.side === 'w' ? rect.x + inset : rect.x + rect.w - inset
+  }
+
+  // Arrival sits at the door axis, one tile inside — keeps the player
+  // off the kiosk sprite so the click doesn't re-trigger.
+  let ax: number, ay: number
+  if (primaryDoor.side === 'n' || primaryDoor.side === 's') {
+    ax = rect.x + primaryDoor.offsetPx + primaryDoor.widthPx / 2
+    ay = primaryDoor.side === 'n' ? rect.y + inset : rect.y + rect.h - inset
+  } else {
+    ay = rect.y + primaryDoor.offsetPx + primaryDoor.widthPx / 2
+    ax = primaryDoor.side === 'w' ? rect.x + inset : rect.x + rect.w - inset
+  }
+
+  spawnTransitEntity(term, { x: kx, y: ky }, { x: ax, y: ay })
+}
+
+function spawnTransitBuilding(slot: PlacedSlot, sceneId: SceneId): void {
+  const { rect, primaryDoor } = slot
+  const term = pickTransitTerminal(sceneId, 'building')
+  if (!term) return  // No building-placement terminal declared for this scene.
+
+  // Kiosk centered against the wall opposite the primary door — same
+  // geometry as the airport's ticket counter.
+  const cx = rect.x + rect.w / 2
+  const cy = rect.y + rect.h / 2
+  let kx = cx, ky = cy
+  const inset = TILE * 1.5
+  if (primaryDoor.side === 'n')      ky = rect.y + rect.h - inset
+  else if (primaryDoor.side === 's') ky = rect.y + inset
+  else if (primaryDoor.side === 'w') kx = rect.x + rect.w - inset
+  else                               kx = rect.x + inset
+
+  // Arrival just outside the door — clean walkable street tile, no
+  // re-trigger risk and no door-collision flicker.
+  const doorOutside = outsideDoorPoint(rect, primaryDoor)
+
+  spawnTransitEntity(term, { x: kx, y: ky }, doorOutside)
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : (v > hi ? hi : v)
 }
 
 function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
@@ -570,15 +668,19 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
 
 // ── TRANSIT ──────────────────────────────────────────────────────────────────
 
-function spawnTransitForScene(sceneId: string): void {
+// Fixed-coord terminals (e.g. the AE-complex stop). Procgen building +
+// airport-embedded terminals spawn from spawnTransitBuilding /
+// spawnAirportTransit instead.
+function spawnFixedTransitForScene(sceneId: string): void {
   for (const t of transitTerminals) {
     if (t.sceneId !== sceneId) continue
-    world.spawn(
-      Position({ x: t.terminalTile.x * TILE, y: t.terminalTile.y * TILE }),
-      Interactable({ kind: 'transit', label: t.shortZh }),
-      Transit({ terminalId: t.id }),
-      EntityKey({ key: `transit-${t.id}` }),
-    )
+    if (t.placement !== 'fixed') continue
+    if (!t.terminalTile || !t.arrivalTile) continue
+    const tx = t.terminalTile.x * TILE
+    const ty = t.terminalTile.y * TILE
+    const ax = t.arrivalTile.x * TILE
+    const ay = t.arrivalTile.y * TILE
+    spawnTransitEntity(t, { x: tx, y: ty }, { x: ax, y: ay })
   }
 }
 
@@ -739,7 +841,7 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
     spawnBuilding(pb.typeId, pb.slot, rng, scene.id)
   }
 
-  spawnTransitForScene(scene.id)
+  spawnFixedTransitForScene(scene.id)
 
   // Special NPCs (AE board/managers/reception) and the AE workforce only
   // make sense in the scene that hosts aeComplex. Founding civilians spawn
@@ -886,7 +988,9 @@ export function setupWorld() {
 
   roughSpotCounter = 0
   airportHubsBound.clear()
+  transitTerminalsBound.clear()
   clearAirportPlacements()
+  clearTransitPlacements()
 
   for (const scene of scenes) {
     setActiveSceneId(scene.id)

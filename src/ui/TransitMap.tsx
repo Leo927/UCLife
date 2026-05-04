@@ -5,6 +5,7 @@ import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
 import { getTransitTerminal, getTransitDestinationsFor, type TransitTerminal } from '../data/transit'
+import { getTransitPlacement } from '../sim/transitPlacements'
 import { useUI } from './uiStore'
 import { runTransition, useTransition } from '../sim/transition'
 
@@ -57,14 +58,13 @@ function PlaceMarker({ place, labelAbove }: PlaceMarkerProps) {
 }
 
 interface TerminalMarkerProps {
-  terminal: TransitTerminal
+  cxTile: number
+  cyTile: number
   isSource: boolean
   onClick: () => void
 }
 
-function TerminalMarker({ terminal, isSource, onClick }: TerminalMarkerProps) {
-  const cx = terminal.terminalTile.x
-  const cy = terminal.terminalTile.y
+function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, onClick }: TerminalMarkerProps) {
   const r = 7
   return (
     <g
@@ -128,11 +128,12 @@ export function TransitMap() {
   const travel = (dest: TransitTerminal) => {
     if (!player) return
     if (inTransition) return
+    const destPlacement = getTransitPlacement(dest.id)
+    if (!destPlacement) return
     close()
     runTransition({
       midpoint: () => {
-        const px = dest.arrivalTile.x * TILE
-        const py = dest.arrivalTile.y * TILE
+        const { x: px, y: py } = destPlacement.arrivalPx
         player.set(Position, { x: px, y: py })
         // Clear in-flight target / cached path so the player doesn't turn
         // around and walk back toward where they were going.
@@ -172,14 +173,19 @@ export function TransitMap() {
                 labelAbove={p.tileY + p.tileH > MAP_TILES_Y - 30}
               />
             ))}
-            {terminals.map((t) => (
-              <TerminalMarker
-                key={t.id}
-                terminal={t}
-                isSource={t.id === source.id}
-                onClick={() => travel(t)}
-              />
-            ))}
+            {terminals.map((t) => {
+              const placement = getTransitPlacement(t.id)
+              if (!placement) return null
+              return (
+                <TerminalMarker
+                  key={t.id}
+                  cxTile={placement.terminalPx.x / TILE}
+                  cyTile={placement.terminalPx.y / TILE}
+                  isSource={t.id === source.id}
+                  onClick={() => travel(t)}
+                />
+              )
+            })}
             {playerTileX !== null && playerTileY !== null && (
               <g>
                 <circle
