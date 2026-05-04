@@ -87,3 +87,10 @@ export function restoreAll(
     else h.reset?.()
   }
 }
+
+// Calls reset() on every registered handler. Used by the world-reset
+// lifecycle (ecs/spawn.ts :: resetWorld), not by load. Order is
+// registration order; handler reset() functions must be independent.
+export function resetAll(): void {
+  for (const [, h] of handlers) h.reset?.()
+}

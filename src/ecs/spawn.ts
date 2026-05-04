@@ -42,15 +42,7 @@ import {
 } from '../data/buildingTypes'
 import type { TransitTerminal } from '../data/transit'
 import { setLandmark, clearLandmarks, addRoughSource, setShopRect } from '../data/landmarks'
-import { resetPopulationClock } from '../systems/population'
-import { resetRelationsClock } from '../systems/relations'
-import { resetPromotionNotices } from '../systems/promotion'
-import { resetNpcBuckets } from '../systems/npc'
-import { resetActiveZone } from '../systems/activeZone'
-import { resetVitalsAccum } from '../systems/vitals'
-import { resetStressAccum } from '../systems/stress'
-import { resetSupplyDrain } from '../systems/supplyDrain'
-import { resetSpaceSimFlags } from '../systems/spaceSim'
+import { resetAll } from '../save/registry'
 
 const TILE = worldConfig.tilePx
 const WALL_T = worldConfig.wallThicknessPx
@@ -1048,18 +1040,13 @@ export function spawnNPC(spec: NPCSpec) {
   return ent
 }
 
+// World-reset fans out to every registered SaveHandler via the
+// registry; subsystems own their own reset(). Adding a tenth
+// reset-needing subsystem == one new file under boot/saveHandlers/.
 export function resetWorld() {
   for (const id of SCENE_IDS) getWorld(id).reset()
   clearLandmarks()
-  resetPopulationClock()
-  resetRelationsClock()
-  resetPromotionNotices()
-  resetNpcBuckets()
-  resetActiveZone()
-  resetVitalsAccum()
-  resetStressAccum()
-  resetSupplyDrain()
-  resetSpaceSimFlags()
+  resetAll()
   initialized = false
   setupWorld()
 }
