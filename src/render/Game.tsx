@@ -167,6 +167,7 @@ export function Game() {
     let bestNpc: Entity | null = null
     let bestNpcDist = Infinity
     for (const npcEnt of npcs) {
+      if (npcEnt === player) continue
       const np = npcEnt.get(Position)
       if (!np) continue
       const d = Math.hypot(lx - np.x, ly - np.y)
