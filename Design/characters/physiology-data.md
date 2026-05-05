@@ -88,22 +88,28 @@ never mutated at runtime.
 | `eventLogTemplates` | `{ onset, diagnosis, recoveryClean, recoveryScar, complication, stalled }` | zh-CN line templates with `{source}` `{day}` `{name}` placeholders |
 | `glyphRef` | string | HUD strip icon key |
 
-### `EffectModifier`
+### `BandedEffect`
 
-The fold cache rebuilds on condition-list mutation or severity-band
-crossing. Each entry:
+> Superseded shape. Earlier drafts of this file authored a flat
+> `EffectModifier[]` with per-row `channel` / `minSeverity` /
+> `maxSeverity` fields. That has been collapsed into the unified
+> [Effects](effects.md) data model: there are no "channels," only
+> `Modifier`s on `Stat`s, and the severity band lives **on the band
+> entry**, not on the modifier.
+
+`ConditionTemplate.effects` is a list of `BandedEffect` rows. Each row
+declares: "while severity is within this range, apply this Effect to
+the character."
 
 | Field | Type | Notes |
 |---|---|---|
-| `channel` | enum | `vitalDrainMul` / `attributeFloor` / `attributeCap` / `skillMalus` / `actionLockout` / `workPerfMul` / `moodDebit` |
-| `target` | string | Channel-typed: vital id (`fatigue`), attribute id (`strength`), action id (`working_at_labor`), skill id (`mental`), `null` for `workPerfMul` / `moodDebit` |
-| `value` | number | Multiplier / delta / cap value (channel-typed) |
-| `minSeverity` | number | Default 0 — modifier active when `severity ≥ minSeverity` |
-| `maxSeverity` | number | Default 100 — modifier active when `severity ≤ maxSeverity` |
+| `severityRange` | `[min, max]` | Inclusive on both ends. Ranges may overlap any other band — at severity 70 both a `[20, 100]` and a `[60, 100]` band can be simultaneously active. |
+| `effect` | `EffectSpec` | An [Effect](effects.md#effect) template (same shape minus runtime fields like `id` / `startedDay`). Carries `modifiers: Modifier[]` plus `nameZh` / `flavorZh` / `glyphRef` for the player's status panel. |
 
-The severity band on a modifier is what lets one row carry a "mild
-fatigue 1.2× drain" entry and a "severe fatigue 1.5× drain" entry
-without needing two templates.
+The reconciler runs on severity change, computes the active band set,
+and adds / removes the matching Effect on the character's `Effects`
+trait. See [effects.md § Banded condition effects](effects.md#banded-condition-effects)
+for the full algorithm and lookup-data-structure note.
 
 ### Treatment tier scale
 
@@ -178,9 +184,29 @@ Authored entries on the template. Running one populates
   selfTreatVerbs: [],
 
   effects: [
-    { channel: 'vitalDrainMul', target: 'fatigue', value: 1.3, minSeverity: 20 },
-    { channel: 'workPerfMul',   target: null,     value: 0.8, minSeverity: 30 },
-    { channel: 'workPerfMul',   target: null,     value: 0.6, minSeverity: 60 },
+    {
+      severityRange: [20, 100],
+      effect: {
+        family: 'condition',
+        nameZh: '感冒(轻症)',
+        flavorZh: '你有些鼻塞,喉咙发痒。',
+        modifiers: [
+          { statId: 'fatigueDrainMul', type: 'percentMult', value: 0.3 },
+          { statId: 'workPerfMul',     type: 'percentMult', value: -0.2 },
+        ],
+      },
+    },
+    {
+      severityRange: [60, 100],
+      effect: {
+        family: 'condition',
+        nameZh: '感冒(高烧)',
+        flavorZh: '你高烧不退,几乎下不了床。',
+        modifiers: [
+          { statId: 'workPerfMul', type: 'percentMult', value: -0.4 },
+        ],
+      },
+    },
   ],
 
   symptomBlurbs: {
@@ -285,7 +311,7 @@ One per treatment action taken on this instance:
 |---|---|---|
 | Onset | template bands, `bodyPartScope`, `onsetPaths` | new instance with rolled durations, `phase = incubating` |
 | Day-rollover phase tick | template `recoveryMode`, `peakSeverityFloor`, `baseRecoveryRate`, `requiredTreatmentTier`, `complicationRisk`, `severityFloors` | instance `phase`, `severity`, `peakDayCounter`, `peakTracking`, optional spawn of complication instance |
-| Effects fold rebuild | template `effects[]` × instance `severity` band | character-level fold cache (not on the instance itself) |
+| Effects reconcile | template `effects[]` × instance `severity` | add/remove Effects on the character's [`Effects`](effects.md#effects-trait--save-shape) trait — keyed `cond:<instanceId>:b<bandIndex>` |
 | Diagnosis (clinic step 1) | template `displayName`, `requiredTreatmentTier`, base recovery params | instance `diagnosed = true`, `diagnosedDay`, append `TreatmentEvent` |
 | Treatment commit (clinic step 2 / pharmacy / AE) | template `requiredTreatmentTier` | instance `currentTreatmentTier`, `treatmentExpiresDay`, append `TreatmentEvent` |
 | Self-treat verb run | template `selfTreatVerbs[verb]`, character First Aid + inventory | instance `selfTreatActive`, append `TreatmentEvent`; consume item; award XP |
@@ -320,21 +346,22 @@ Implications:
   per instance (8 is plenty — the diagnosed card never shows more than
   the last 3) to bound save size on multi-week chronic cases.
 
-## Fold cache placement
+## Effects placement
 
-The effects fold is **not** stored on the instance — it's a per-character
-cache keyed off the full condition list. Storing it per-instance would
-miss the cross-condition stacking work the fold exists to do. Cache
-invalidation triggers:
+Conditions emit Effects into the character's [`Effects`](effects.md)
+trait, identified by `cond:<instanceId>:b<bandIndex>`. There is no
+per-condition fold cache — the StatSheet itself is the fold of every
+active Effect's modifiers, memoized on its `version` field. Reconcile
+triggers:
 
-- onset / resolve / complication-spawn (list mutation)
-- severity crossing any modifier's `minSeverity` / `maxSeverity` boundary
-  (band crossing)
-- treatment commit / lapse (only when it crosses an effect threshold)
+- onset / resolve / complication-spawn (instance list mutation → add /
+  remove every band's Effect)
+- severity crossing a band edge (one band's Effect goes on or off)
+- treatment commit / lapse (only when it changes severity)
 
-Per-tick reads are O(1) cache hits. Recompute is O(conditions ×
-modifiers), which is small (a handful of conditions × <10 modifiers
-each).
+Per-tick reads are O(1) cache hits on the StatSheet. Reconcile is
+O(bands per template), which is small (<10 per template). See
+[effects.md § Reconcile / fold cadence](effects.md#reconcile--fold-cadence).
 
 ## What this enables
 
@@ -355,5 +382,6 @@ each).
 
 - [physiology.md](physiology.md) — system spec (lifecycle, recovery, treatment, contagion); this file is the data-shape pass over it
 - [physiology-ux.md](physiology-ux.md) — the UI surfaces that read these shapes
+- [effects.md](effects.md) — the unified Effect / Modifier model `ConditionTemplate.effects` produces into; canonical place for `BandedEffect`, ModType extension, fold rules
 - [../saves.md](../saves.md) — save round-trip contract
-- [attributes.md](attributes.md) — Attribute / StatSheet effects-fold pattern this design borrows
+- [attributes.md](attributes.md) — Attribute / StatSheet engine the Effects fold over

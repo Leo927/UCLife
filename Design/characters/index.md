@@ -4,6 +4,7 @@ Sub-topics live in sibling files because they're large enough to read on their o
 
 - [skills.md](skills.md) — shipped 9-skill catalog, XP, book cap
 - [attributes.md](attributes.md) — six stats, modifier-based StatSheet engine, drift, talent
+- [effects.md](effects.md) — unified Effect data model (backgrounds, perks, conditions, gear) over the StatSheet
 - [physiology.md](physiology.md) — Phase 4 conditions (illness, injury, scars), diagnosis, contagion
 - [physiology-data.md](physiology-data.md) — Phase 4 data models (ConditionTemplate + ConditionInstance), template/instance split, save shape
 - [physiology-ux.md](physiology-ux.md) — Phase 4 player-facing surfaces (HUD strip, condition card, clinic modal, contagion cues)
