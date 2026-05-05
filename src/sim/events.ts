@@ -28,6 +28,7 @@ export interface SimEventPayloads {
   'ambitions:slot-empty': Record<string, never>
   // ── Semantic UI intents (no other way for sim to express these) ──────
   'ui:open-shop':              Record<string, never>
+  'ui:open-clinic':            Record<string, never>
   'ui:open-flight':            { hubId: string }
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }

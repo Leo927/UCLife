@@ -6,7 +6,7 @@ import { PERKS, getPerk } from '../character/perks'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { readStageProgress } from '../systems/ambitions'
-import { syncPerkModifiers } from '../stats/perkSync'
+import { syncPerkModifiers } from '../character/perkSync'
 import { useEventLog } from './EventLog'
 
 const REQUIREMENT_LABELS: Record<string, string> = {

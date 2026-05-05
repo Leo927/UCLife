@@ -3,7 +3,7 @@ import { Action, Inventory, IsPlayer, Job, Position, Workstation, Attributes } f
 import type { ActionKind } from '../ecs/traits'
 import { BOOK_CAP_XP, getSkillXp, addSkillXp, type SkillId } from '../character/skills'
 import { isInWorkWindowWS, getJobSpec } from '../data/jobs'
-import { useClock } from '../sim/clock'
+import { useClock, gameDayNumber } from '../sim/clock'
 import { releaseBarSeatFor } from './barSeats'
 import { releaseRoughSpotFor } from './roughSpots'
 import { feedUse, statValue } from './attributes'
@@ -12,6 +12,7 @@ import { actionsConfig, worldConfig } from '../config'
 import { RoughUse } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { skillXpMulStat, verbSpeedStat, type SkillStatId } from '../stats/schema'
+import { onsetCondition, rngFor, templatesForOnsetPath } from './physiology'
 
 const READ_XP = actionsConfig.reading.xpPerBook
 const READ_TARGET_SKILL: SkillId = actionsConfig.reading.targetSkill
@@ -31,9 +32,14 @@ const REWARDS: Partial<Record<ActionKind, (entity: Entity) => void>> = {
     }
   },
   eating: (entity) => {
-    // Scavenging draws from a dumpster, not inventory.
+    // Scavenging draws from a dumpster, not inventory — and rolls food
+    // poisoning per Phase 4.0 ingestion path. The roll runs before
+    // returning so the player feels the consequence of the choice.
     const rough = entity.get(RoughUse)
-    if (rough?.kind === 'scavenge') return
+    if (rough?.kind === 'scavenge') {
+      rollIngestionOnset(entity, 'scavenge', 0.20)
+      return
+    }
     const inv = entity.get(Inventory)
     if (!inv) return
     // Charisma feed only on premium — matches the NPC eat() path.
@@ -90,6 +96,20 @@ export function actionSystem(world: World, gameMinutes: number) {
       }
     }
     entity.set(Action, a)
+  }
+}
+
+// Ingestion onset — scavenge / spoiled food / drink-past-threshold.
+// Source string is a short zh-CN apophenia tag the player sees in the
+// condition card; per-source probabilities are passed in by the caller.
+function rollIngestionOnset(entity: Entity, sourceKind: 'scavenge', probability: number): void {
+  const day = gameDayNumber(useClock.getState().gameDate)
+  for (const template of templatesForOnsetPath('ingestion')) {
+    const rng = rngFor(entity, day, `onset:ingest:${template.id}:${sourceKind}`)
+    if (rng.uniform() >= probability) continue
+    const sourceZh = sourceKind === 'scavenge' ? '翻找垃圾桶' : '饮食不当'
+    onsetCondition(entity, template.id, sourceZh, day, rng)
+    return
   }
 }
 

@@ -1,0 +1,150 @@
+// Phase 4 condition catalog. See Design/characters/physiology.md and
+// physiology-data.md for the full schema and authoring guidance.
+//
+// Each row is a ConditionTemplate (frozen at module import). The phase
+// machine reads these and writes ConditionInstance entries onto the
+// character's Conditions trait. Banded effects are emitted onto the
+// character's Effects trait via id 'cond:<instanceId>:b<bandIndex>' so
+// the unified StatSheet fold drives every per-tick read.
+//
+// Modifier types: 'flat', 'percentAdd', 'percentMult', 'floor', 'cap'.
+// Vital drain conventions: a "+30% fatigue accumulation" condition is
+// `{ statId: 'fatigueDrainMul', type: 'percentMult', value: 0.3 }`.
+//
+// Phase 4.0 ships two acute illnesses: 感冒 (the easy ride-it-out demo)
+// and 食物中毒 (more punitive — meaningful work-perf hit, requires
+// pharmacy, deeper recovery cost).
+
+{
+  conditions: [
+    {
+      id: 'cold_common',
+      displayName: '感冒',
+      family: 'acute',
+      bodyPartScope: 'systemic',
+      recoveryMode: 'treatment',
+      onsetPaths: ['vitals_saturation'],
+
+      // Roughly 4–6 game-day arc with peak around day 3–4.
+      incubationDays: [1, 2],
+      riseDays: [1, 2],
+      peakSeverity: [35, 55],
+      peakDays: 1,
+      peakSeverityFloor: 20,
+      baseRecoveryRate: 12,
+
+      requiredTreatmentTier: 0,  // Untreated — colds resolve on self-care.
+
+      scarThreshold: 80,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '你有些鼻塞，喉咙发痒。',
+        moderate: '你浑身发冷，关节酸痛。',
+        severe:   '你高烧不退，几乎下不了床。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你感冒了。',
+        diagnosis:     '医生确诊：普通感冒。',
+        recoveryClean: '你的感冒好了。',
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       null,
+      },
+
+      glyphRef: 'illness_respiratory',
+
+      effects: [
+        {
+          severityRange: [20, 100],
+          nameZh:    '感冒（轻症）',
+          flavorZh:  '你有些鼻塞，喉咙发痒。',
+          glyphRef:  'illness_respiratory',
+          modifiers: [
+            { statId: 'fatigueDrainMul', type: 'percentMult', value: 0.30 },
+            { statId: 'workPerfMul',     type: 'percentMult', value: -0.20 },
+          ],
+        },
+        {
+          severityRange: [60, 100],
+          nameZh:    '感冒（高烧）',
+          flavorZh:  '你高烧不退，几乎下不了床。',
+          glyphRef:  'illness_respiratory',
+          modifiers: [
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.20 },  // Stacks on top of the [20,100] band's −20%.
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.30 },
+          ],
+        },
+      ],
+    },
+
+    {
+      id: 'food_poisoning',
+      displayName: '食物中毒',
+      family: 'acute',
+      bodyPartScope: 'systemic',
+      recoveryMode: 'treatment',
+      onsetPaths: ['ingestion'],
+
+      // Sharper arc than a cold — incubates fast, peaks hard, and
+      // requires a pharmacy visit to actually recover. Untreated, it
+      // stalls at peak.
+      incubationDays: [1, 1],
+      riseDays: [1, 1],
+      peakSeverity: [55, 75],
+      peakDays: [1, 2],
+      peakSeverityFloor: 30,
+      baseRecoveryRate: 15,
+
+      requiredTreatmentTier: 1,  // Pharmacy or clinic; untreated stalls.
+
+      scarThreshold: 90,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '你的胃部不太舒服，泛着酸水。',
+        moderate: '你恶心反胃，无法集中注意力。',
+        severe:   '你剧烈呕吐脱水，连站立都很吃力。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你食物中毒了。',
+        diagnosis:     '医生确诊：食物中毒。',
+        recoveryClean: '你的食物中毒症状已消退。',
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       '你的食物中毒未见好转，需要药店或诊所介入。',
+      },
+
+      glyphRef: 'illness_gastric',
+
+      effects: [
+        {
+          severityRange: [20, 100],
+          nameZh:    '食物中毒（恶心）',
+          flavorZh:  '你恶心反胃，无法集中注意力。',
+          glyphRef:  'illness_gastric',
+          modifiers: [
+            { statId: 'workPerfMul',     type: 'percentMult', value: -0.30 },
+            { statId: 'thirstDrainMul',  type: 'percentMult', value: 0.40 },
+            { statId: 'eatingSpeed',     type: 'percentMult', value: -0.50 },
+          ],
+        },
+        {
+          severityRange: [55, 100],
+          nameZh:    '食物中毒（脱水）',
+          flavorZh:  '你剧烈呕吐脱水，连站立都很吃力。',
+          glyphRef:  'illness_gastric',
+          modifiers: [
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.40 },
+            { statId: 'workingSpeed', type: 'percentMult', value: -0.40 },
+            { statId: 'strength',     type: 'cap',         value: 30 },
+          ],
+        },
+      ],
+    },
+  ],
+}

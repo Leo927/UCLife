@@ -21,7 +21,7 @@ import { spaceSimSystem } from '../systems/spaceSim'
 import { supplyDrainSystem } from '../systems/supplyDrain'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
-import { IsPlayer, Action, Vitals, Health, Ambitions, ShipBody, type ActionKind } from '../ecs/traits'
+import { IsPlayer, Action, Vitals, Health, Ambitions, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -175,6 +175,17 @@ function frame(now: number) {
         if (v.fatigue >= VITAL_DANGER && !addressed.has('fatigue')) reasons.push('疲劳')
       }
       if (h && h.hp <= HP_DANGER) reasons.push('健康危急')
+      // Phase 4 — wake hyperspeed on stalled / high-severity conditions
+      // so the player can't skip past a worsening illness in their sleep.
+      const cond = player.get(Conditions)
+      if (cond) {
+        for (const inst of cond.list) {
+          if (inst.phase === 'stalled') { reasons.push('病情停滞'); break }
+          if (inst.severity >= 70 && (inst.phase === 'rising' || inst.phase === 'peak')) {
+            reasons.push('病情加重'); break
+          }
+        }
+      }
 
       const inDanger = reasons.length > 0
       const force = useClock.getState().forceHyperspeed

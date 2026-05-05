@@ -7,6 +7,9 @@ import { DeathModal } from './ui/DeathModal'
 import { StatusPanel } from './ui/StatusPanel'
 import { StatusBarFooter } from './ui/StatusBarFooter'
 import { ShopModal } from './ui/ShopModal'
+import { ClinicModal } from './ui/ClinicModal'
+import { ConditionStrip } from './ui/ConditionStrip'
+import { EventLogPanel } from './ui/EventLogPanel'
 import { Toasts } from './ui/Toasts'
 import { DebugPanel } from './ui/DebugPanel'
 import { SystemMenu } from './ui/SystemMenu'
@@ -29,12 +32,15 @@ export function App() {
   return (
     <div className="app">
       <Hud />
+      <ConditionStrip />
       <Game />
       {inSpace && <SpaceView />}
       <ActionStatus />
       <StatusBarFooter />
       <StatusPanel />
       <ShopModal />
+      <ClinicModal />
+      <EventLogPanel />
       <DebugPanel />
       <SystemMenu />
       <AmbitionPanel />

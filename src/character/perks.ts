@@ -8,7 +8,7 @@ import type { ModType } from '../stats/sheet'
 // universal list. Permanent once purchased — no respec.
 //
 // Each perk lists a flat array of stat modifiers, identical in shape to
-// backgrounds.json5. Sync code (src/stats/perkSync.ts) folds them into
+// backgrounds.json5. Sync code (src/character/perkSync.ts) folds them into
 // the character's StatSheet under source `perk:<id>`. Perks whose
 // downstream consumer hasn't shipped yet (Phase 5.2 social, Phase 6.1
 // combat) carry an empty modifiers array — the sync still namespaces

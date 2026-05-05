@@ -19,6 +19,11 @@ function wageMul(entity: Entity): number {
   return a ? getStat(a.sheet, 'wageMul') : 1
 }
 
+function workPerfMul(entity: Entity): number {
+  const a = entity.get(Attributes)
+  return a ? getStat(a.sheet, 'workPerfMul') : 1
+}
+
 function skillXpMul(entity: Entity, skill: SkillStatId): number {
   const a = entity.get(Attributes)
   return a ? getStat(a.sheet, skillXpMulStat(skill)) : 1
@@ -137,7 +142,12 @@ function processMinute(
   }
 
   if (action.kind === 'working' && inWindow && totalWindowMin > 0) {
-    todayPerf = Math.min(100, todayPerf + 100 / totalWindowMin)
+    // Per-minute perf increment scaled by workPerfMul so a sick or injured
+    // worker produces less without workSystem needing to know about
+    // conditions. Clamped at 0 — a punitive Effect can stall progress
+    // entirely (no negative perf).
+    const inc = Math.max(0, (100 / totalWindowMin) * workPerfMul(entity))
+    todayPerf = Math.min(100, todayPerf + inc)
     feedUse(entity, jobAttr(spec), FEED.work, 1)
     feedUse(entity, 'endurance', FEED.work, 1)
   }

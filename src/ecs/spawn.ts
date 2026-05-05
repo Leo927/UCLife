@@ -658,6 +658,27 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
   }
 }
 
+// ── PHASE 4 PHYSIOLOGY — fixed civilian clinic kiosk ─────────────────────────
+//
+// Hand-placed outside procgen.rect (per CLAUDE.md procgen-gotcha — hand
+// tiles inside the rect risk colliding with generated roads/buildings).
+// One kiosk per micro-scene; the design's AE clinic is a separate
+// faction-gated building deferred to Phase 4.2.
+function spawnFixedClinicForScene(sceneId: string): void {
+  // Tile coords: outside the procgen rect on the west side, near the
+  // startTown player-spawn corridor (procgen.rect = {x:40,y:4,w:100,h:80}).
+  const FIXED_CLINIC_TILES: Record<string, { x: number; y: number }> = {
+    startTown: { x: 22, y: 60 },
+    zumCity:   { x: 78, y: 30 },
+  }
+  const t = FIXED_CLINIC_TILES[sceneId]
+  if (!t) return
+  world.spawn(
+    Position({ x: t.x * TILE + TILE / 2, y: t.y * TILE + TILE / 2 }),
+    Interactable({ kind: 'clinic', label: '公共诊所' }),
+  )
+}
+
 // ── TRANSIT ──────────────────────────────────────────────────────────────────
 
 // Fixed-coord terminals (e.g. the AE-complex stop). Procgen building +
@@ -815,6 +836,7 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   }
 
   spawnFixedTransitForScene(scene.id)
+  spawnFixedClinicForScene(scene.id)
 
   // Special NPCs (AE board/managers/reception) and the AE workforce only
   // make sense in the scene that hosts aeComplex. Founding civilians spawn
