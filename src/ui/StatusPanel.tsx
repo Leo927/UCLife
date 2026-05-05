@@ -8,6 +8,7 @@ import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP } from '../d
 import { READING_DURATION_MIN, EATING_DURATION_MIN, DRINKING_DURATION_MIN } from '../data/actions'
 import { dowLabel, getJobSpec } from '../data/jobs'
 import { STAT_ORDER, STATS } from '../data/stats'
+import { getStat } from '../stats/sheet'
 import { attributesConfig, jobsConfig } from '../config'
 import { tierOf as factionTierOf, factionMeta, type FactionId } from '../data/factions'
 import { getAmbition } from '../data/ambitions'
@@ -271,7 +272,7 @@ export function StatusPanel() {
         <section className="status-section">
           <h3>属性</h3>
           {attrs && STAT_ORDER.map((id) => (
-            <StatRow key={id} label={STATS[id].label} value={attrs[id].value} />
+            <StatRow key={id} label={STATS[id].label} value={getStat(attrs.sheet, id)} />
           ))}
         </section>
 

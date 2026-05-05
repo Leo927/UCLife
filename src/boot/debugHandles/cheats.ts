@@ -6,13 +6,20 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import {
   IsPlayer, Attributes, Skills, Money, Reputation, Flags,
+  type StatId,
 } from '../../ecs/traits'
+import { setBase } from '../../stats/sheet'
+import { STAT_IDS } from '../../stats/schema'
 import type { FactionId } from '../../data/factions'
 import type { SkillId } from '../../data/skills'
 
+const STAT_ID_SET = new Set<string>(STAT_IDS)
+
 // Path forms:
-//   'attributes.<key>'        — sets Attributes[key].value
-//   'attributes.<key>.value'  — same as above (explicit)
+//   'attributes.<key>'        — sets the base value of the named stat
+//                                (any StatId — attributes, vital max,
+//                                vital drain mul, hpMax, hpRegenMul).
+//                                Modifiers untouched.
 //   'skills.<key>'            — sets Skills[key]
 //   'money'                   — sets Money.amount
 //   'reputation.<faction>'    — sets Reputation.rep[faction]
@@ -22,12 +29,10 @@ registerDebugHandle('setPlayerStat', (path: string, value: number) => {
   const segs = path.split('.')
   if (segs[0] === 'attributes' && segs.length >= 2) {
     const key = segs[1]
+    if (!STAT_ID_SET.has(key)) return false
     const a = player.get(Attributes)
     if (!a) return false
-    const stat = a[key as 'strength']
-    if (!stat) return false
-    stat.value = value
-    player.set(Attributes, a)
+    player.set(Attributes, { ...a, sheet: setBase(a.sheet, key as StatId, value) })
     return true
   }
   if (segs[0] === 'skills' && segs.length === 2) {

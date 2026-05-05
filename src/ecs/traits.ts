@@ -1,6 +1,8 @@
 import { trait, relation } from 'koota'
 import type { Entity } from 'koota'
 import type { FactionId } from '../data/factions'
+import { createCharacterSheet, type StatId } from '../stats/schema'
+import type { StatSheet } from '../stats/sheet'
 
 export const Position = trait({ x: 0, y: 0 })
 export const MoveTarget = trait({ x: 0, y: 0 })
@@ -44,30 +46,39 @@ export const Vitals = trait({
   boredom: 0,
 })
 
-// `talent` (0.7–1.4) is the hidden cap multiplier; `recentUse` and
-// `recentStress` are 7-day rolling buffers the daily drift system reads.
-export type StatState = {
-  value: number
-  talent: number
+// Per-attribute drift parameters. `talent` (0.7–1.4) is the hidden cap
+// multiplier; `recentUse` and `recentStress` are 7-day rolling buffers the
+// daily drift system reads. Lives on the trait, not in the modifier
+// sheet — these aren't stats, they're inputs to the function that shifts a
+// stat's base value over time.
+export interface AttributeDrift {
   recentUse: number
   recentStress: number
+  talent: number
 }
 
-const newStat = (): StatState => ({
-  value: 50, talent: 1.0, recentUse: 50, recentStress: 0,
-})
+const newDrift = (): AttributeDrift => ({ recentUse: 50, recentStress: 0, talent: 1.0 })
 
+// One sheet per character holds every modifier-driven stat: the six
+// drifting attributes plus per-vital max + drain multipliers and HP
+// max + regen multiplier (see src/stats/schema.ts). The drift map below
+// is keyed by the six attribute IDs only — vital/HP stats don't drift.
 export const Attributes = trait(() => ({
-  strength: newStat(),
-  endurance: newStat(),
-  charisma: newStat(),
-  intelligence: newStat(),
-  reflex: newStat(),
-  resolve: newStat(),
+  sheet: createCharacterSheet(),
+  drift: {
+    strength: newDrift(),
+    endurance: newDrift(),
+    charisma: newDrift(),
+    intelligence: newDrift(),
+    reflex: newDrift(),
+    resolve: newDrift(),
+  } as Record<'strength' | 'endurance' | 'charisma' | 'intelligence' | 'reflex' | 'resolve', AttributeDrift>,
   // Used to apply drift exactly once per game-day and to skip newly-spawned
   // characters until their first rollover.
   lastDriftDay: 0,
 }))
+
+export type { StatId, StatSheet }
 
 export const Health = trait({ hp: 100, dead: false })
 

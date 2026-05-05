@@ -23,8 +23,14 @@ import {
   Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
   Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
   Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
-  type AmbitionSlot, type AmbitionHistoryEntry,
+  type AmbitionSlot, type AmbitionHistoryEntry, type AttributeDrift,
 } from '../ecs/traits'
+import {
+  serializeSheet, attachFormulas, setBase, type SerializedSheet,
+} from '../stats/sheet'
+import {
+  STAT_IDS, STAT_FORMULAS, ATTRIBUTE_IDS, createCharacterSheet, type StatId,
+} from '../stats/schema'
 import { world } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
@@ -57,7 +63,11 @@ const LEGACY_KEY = 'uclife:autosave'
 //   v6: subsystems.relations replaces top-level bundle.relations — the
 //       Knows graph now registers itself as a SaveHandler instead of
 //       being hard-coded in saveGame/loadGame.
-const SAVE_VERSION = 6
+//   v7: Attributes trait carries a serialized StatSheet (modifier-based
+//       stats) plus a per-attribute drift map. Pre-v7 saves are migrated
+//       on load by reading the legacy {value, talent, recentUse,
+//       recentStress} StatState shape into a fresh sheet.
+const SAVE_VERSION = 7
 
 // Per-entity snapshot. `key` matches an EntityKey already in the world (or,
 // for immigrants, identifies the NPC to re-spawn). All trait fields are
@@ -76,7 +86,11 @@ interface EntitySnap {
   skills?: TraitInstance<typeof Skills>
   inventory?: TraitInstance<typeof Inventory>
   jobPerformance?: TraitInstance<typeof JobPerformance>
-  attributes?: TraitInstance<typeof Attributes>
+  attributes?: {
+    sheet: SerializedSheet<StatId>
+    drift: Record<'strength' | 'endurance' | 'charisma' | 'intelligence' | 'reflex' | 'resolve', AttributeDrift>
+    lastDriftDay: number
+  }
   // Bed/BarSeat/RoughSpot/Workstation static data is rebuilt by setupWorld;
   // only mutable occupant + (for beds) rent state need persisting.
   bed?: { occupant: string | null; rentPaidUntilMs: number; owned: boolean }
@@ -158,16 +172,17 @@ function snapshotEntity(entity: Entity): EntitySnap {
   if (entity.has(Inventory)) snap.inventory = { ...entity.get(Inventory)! }
   if (entity.has(JobPerformance)) snap.jobPerformance = { ...entity.get(JobPerformance)! }
   if (entity.has(Attributes)) {
-    // Deep-clone the nested StatState objects so mutating the live trait
-    // later doesn't poison the snapshot.
     const a = entity.get(Attributes)!
     snap.attributes = {
-      strength: { ...a.strength },
-      endurance: { ...a.endurance },
-      charisma: { ...a.charisma },
-      intelligence: { ...a.intelligence },
-      reflex: { ...a.reflex },
-      resolve: { ...a.resolve },
+      sheet: serializeSheet(a.sheet),
+      drift: {
+        strength: { ...a.drift.strength },
+        endurance: { ...a.drift.endurance },
+        charisma: { ...a.drift.charisma },
+        intelligence: { ...a.drift.intelligence },
+        reflex: { ...a.drift.reflex },
+        resolve: { ...a.drift.resolve },
+      },
       lastDriftDay: a.lastDriftDay,
     }
   }
@@ -243,6 +258,66 @@ function snapshotEntity(entity: Entity): EntitySnap {
   }
 
   return snap
+}
+
+// Pre-v7 StatState shape, kept here so the loader can migrate older
+// bundles into the modifier-based sheet without dragging the type into
+// the rest of the codebase.
+interface LegacyStatState {
+  value: number
+  talent: number
+  recentUse: number
+  recentStress: number
+}
+type LegacyAttributes = {
+  strength: LegacyStatState
+  endurance: LegacyStatState
+  charisma: LegacyStatState
+  intelligence: LegacyStatState
+  reflex: LegacyStatState
+  resolve: LegacyStatState
+  lastDriftDay: number
+}
+
+function hydrateAttributes(
+  raw: NonNullable<EntitySnap['attributes']> | LegacyAttributes,
+  version: number,
+): TraitInstance<typeof Attributes> {
+  if (version >= 7 && 'sheet' in raw) {
+    const sheet = attachFormulas(STAT_IDS, STAT_FORMULAS, raw.sheet)
+    return {
+      sheet,
+      drift: {
+        strength: { ...raw.drift.strength },
+        endurance: { ...raw.drift.endurance },
+        charisma: { ...raw.drift.charisma },
+        intelligence: { ...raw.drift.intelligence },
+        reflex: { ...raw.drift.reflex },
+        resolve: { ...raw.drift.resolve },
+      },
+      lastDriftDay: raw.lastDriftDay,
+    }
+  }
+  // Pre-v7: lift the six {value, talent, recentUse, recentStress}
+  // entries into a fresh sheet (value → base) plus the new drift map.
+  const legacy = raw as LegacyAttributes
+  const fresh = createCharacterSheet()
+  let sheet = fresh
+  for (const id of ATTRIBUTE_IDS) {
+    sheet = setBase(sheet, id, legacy[id].value)
+  }
+  return {
+    sheet,
+    drift: {
+      strength: { recentUse: legacy.strength.recentUse, recentStress: legacy.strength.recentStress, talent: legacy.strength.talent },
+      endurance: { recentUse: legacy.endurance.recentUse, recentStress: legacy.endurance.recentStress, talent: legacy.endurance.talent },
+      charisma: { recentUse: legacy.charisma.recentUse, recentStress: legacy.charisma.recentStress, talent: legacy.charisma.talent },
+      intelligence: { recentUse: legacy.intelligence.recentUse, recentStress: legacy.intelligence.recentStress, talent: legacy.intelligence.talent },
+      reflex: { recentUse: legacy.reflex.recentUse, recentStress: legacy.reflex.recentStress, talent: legacy.reflex.talent },
+      resolve: { recentUse: legacy.resolve.recentUse, recentStress: legacy.resolve.recentStress, talent: legacy.resolve.talent },
+    },
+    lastDriftDay: legacy.lastDriftDay,
+  }
 }
 
 function buildMeta(slot: SlotId, gameDate: Date): SaveMeta {
@@ -523,7 +598,9 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     if (snap.skills) entity.set(Skills, snap.skills)
     if (snap.inventory) entity.set(Inventory, snap.inventory)
     if (snap.jobPerformance) entity.set(JobPerformance, snap.jobPerformance)
-    if (snap.attributes) entity.set(Attributes, snap.attributes)
+    if (snap.attributes) {
+      entity.set(Attributes, hydrateAttributes(snap.attributes, bundle.version))
+    }
 
     if (snap.bed) {
       const cur = entity.get(Bed)!

@@ -51,14 +51,10 @@ export interface StatSheet<StatId extends string> {
   cache: Partial<Record<StatId, { v: number; ver: number }>>
 }
 
-const IDENTITY_FORMULA: FormulaSpec<string> = {
-  deps: [],
-  formula: (_s, b) => b,
-}
-
 export function identityFormulas<StatId extends string>(ids: readonly StatId[]): FormulaTable<StatId> {
   const out = {} as FormulaTable<StatId>
-  for (const id of ids) out[id] = IDENTITY_FORMULA as FormulaSpec<StatId>
+  const spec: FormulaSpec<StatId> = { deps: [], formula: (_s, b) => b }
+  for (const id of ids) out[id] = spec
   return out
 }
 

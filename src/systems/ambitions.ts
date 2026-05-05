@@ -10,10 +10,11 @@
 
 import type { Entity, World } from 'koota'
 import {
-  Ambitions, Flags, IsPlayer, Character, Attributes, Skills, Money, Reputation,
+  Ambitions, Flags, IsPlayer, Character, Skills, Money, Reputation,
   FactionRole, Home, Bed, Job,
   type AmbitionSlot,
 } from '../ecs/traits'
+import { statValue } from './attributes'
 import {
   ambitions, getAmbition, requirementSatisfied,
   type RequirementValue,
@@ -81,9 +82,7 @@ export function readRequirementValue(
   currentMs: number,
 ): number {
   if (ATTRIBUTE_KEYS.has(key)) {
-    const a = entity.get(Attributes)
-    if (!a) return 0
-    return a[key as 'strength'].value
+    return statValue(entity, key as 'strength')
   }
   if (SKILL_KEYS.has(key)) {
     const s = entity.get(Skills)
