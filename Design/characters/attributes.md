@@ -13,30 +13,84 @@ Inspired by *Jack o' Nine Tails*: stats are bidirectional, gated by a hidden per
 | 反应 Reflex | Reaction time, fine motor, movement speed; gates piloting |
 | 意志 Resolve | Mood tolerance; gates Newtype-related skills and activity (Phase 7+) |
 
+## Modifier-based StatSheet
+
+The `Attributes` trait carries **one `StatSheet`** that holds far more than
+the six attributes — it's the single modifier-stacking surface every system
+reads when it needs an effective number. The schema, in
+`src/stats/schema.ts`, registers these stat ids on every character:
+
+| Group | Stat ids | Default base | Read by |
+|---|---|---|---|
+| Attributes | `strength`, `endurance`, `charisma`, `intelligence`, `reflex`, `resolve` | 50 | work / vitals / movement / skill XP / etc. |
+| Vital maxes | `hungerMax`, `thirstMax`, `fatigueMax`, `hygieneMax`, `boredomMax` | 100 | vital clamp |
+| Vital drain mults | `hungerDrainMul`, `thirstDrainMul`, `fatigueDrainMul`, `hygieneDrainMul`, `boredomDrainMul` | 1 | vitals system |
+| Health | `hpMax`, `hpRegenMul` | 100 / 1 | health system |
+
+Computation order (from the upstream C# CharacterStats reference, ported to
+TS in `src/stats/sheet.ts`):
+
+```
+final = (formula(base) + Σflat) × (1 + ΣpercentAdd) × Π(1 + percentMult)
+```
+
+Modifiers carry a string `source` key (e.g. `'bg:soldier'`,
+`'perk:long_distance'`) so `removeBySource()` cleanly unwinds whatever the
+source added — used when a background is re-rolled in the (deferred)
+character creator and when the perk-sync layer rebuilds drain-mult
+modifiers after a perk purchase.
+
+Modifier sources currently shipped:
+
+- **Backgrounds** (`character/backgrounds.json5`) — applied via `applyBackground()`; idempotent re-apply safely replaces the prior set
+- **Perks** (`character/perks.json5`) — `vitalDecay` perks fold into `<vital>DrainMul` via `stats/perkSync.ts` whenever the player's `Ambitions.perks` array changes
+- **(Phase 4) Conditions** — illness / injury / chronic stub will emit modifiers per the [physiology.md](physiology.md) effects-fold design
+
+This is what lets a Phase-4 flu emit a `fatigueDrainMul ×1.5` modifier
+without `vitalsSystem` having to know about flu — it just reads the
+effective `fatigueDrainMul` per tick.
+
 ## Per-stat state
 
 ```
-value         : 0–100              visible "level"
-talent        : 0.7–1.4            hidden, set once at character creation
+base          : 0–100             stored in StatSheet; what daily drift writes
+modifiers[]   : flat / pctAdd /   modifier list per stat id
+                pctMult, sourced
+value         = getStat(sheet, id) — folded read; what every system actually consumes
+
+talent        : 0.7–1.4            hidden, set once at character creation; lives in attr.drift[id]
 talentCap     = floor(talent × 100), clamped to 100
-recentUse     : 0–100               rolling 7-day intensity buffer
-recentStress  : 0–100               rolling 7-day stress buffer
+recentUse     : 0–100              rolling 7-day intensity buffer
+recentStress  : 0–100              rolling 7-day stress buffer
 ```
 
-**Floor = 5** (catatonic-but-alive baseline). Sustained neglect can drag a stat this low.
+**Floor = 5** (catatonic-but-alive baseline). Sustained neglect can drag a
+stat this low. Drift writes only `base`; modifiers stack on top, so a perk
+that grants `+5 Strength` shows up in `value` but doesn't change the drift
+target. This separation is intentional: drift tracks the character's lived
+capability, modifiers track the situational bonuses on top.
 
 ## Daily drift
 
-Once per game-day, per character, per stat:
+Once per game-day, per character, per drifting stat:
 
 ```
+recentUse    *= 0.87        (5-day half-life)
+recentStress *= 0.91        (7-day half-life)
 target = clamp(recentUse × talent − recentStress, FLOOR, talentCap)
-value += (target − value) × DRIFT
+base += (target − base) × DRIFT
 ```
 
-`DRIFT = 0.10` — a fully-grinding week (recentUse maxed, no stress) takes roughly **3 game-weeks** to land at the target value. Tuneable; revisit after playtesting.
+`DRIFT = 0.10` — a fully-grinding week (recentUse maxed, no stress) takes
+roughly **3 game-weeks** to land at the target base. Tuneable; revisit
+after playtesting.
 
-The 7-day rolling buffers smooth out single-day spikes — one heroic session doesn't move the needle, a lifestyle shift does.
+The 7-day rolling buffers smooth out single-day spikes — one heroic session
+doesn't move the needle, a lifestyle shift does.
+
+**Resolve is excluded from drift today** — its feed source is Newtype-tier
+activity (Phase 7+) and drifting it now would atrophy unstoppably. Resolve
+spawns at base 50 and stays there until its feed lands.
 
 ## Use sources (feed `recentUse`)
 
@@ -93,7 +147,7 @@ For the MVP wiring, all characters launch with **talent = 1.0** across every sta
 - The **character creator** (player) — sets talent from origin + background + traits.
 - The **NPC generator** (Phase 3 procgen) — sets NPC talent from a seeded RNG.
 
-Until both land, every character has the same ceiling, but differentiated stat *values* still emerge from differentiated activity and stress.
+Until both land, every character has the same ceiling, but differentiated stat *values* still emerge from differentiated activity, stress, backgrounds, and perks.
 
 ## Phasing within attributes
 
@@ -108,8 +162,8 @@ Until both land, every character has the same ceiling, but differentiated stat *
 
 ## Related
 
-- [index.md](index.md) — vitals feed stress
+- [index.md](index.md) — vitals feed stress; full character trait set
 - [skills.md](skills.md) — Intelligence multiplies XP, Reflex feeds piloting
-- [physiology.md](physiology.md) — Phase 4 conditions floor/cap stats; HP-based stress is anticipated here
-- [../social/ambitions.md](../social/ambitions.md) — many ambitions gate on stat thresholds
+- [physiology.md](physiology.md) — Phase 4 conditions emit modifiers into the StatSheet; HP-based stress is anticipated here
+- [../social/ambitions.md](../social/ambitions.md) — perks bought with AP fold into the StatSheet via `stats/perkSync.ts`; ambitions gate on stat thresholds
 - [../phasing.md](../phasing.md) — overall phase order

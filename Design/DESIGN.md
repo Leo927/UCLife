@@ -34,9 +34,9 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 |---|---|
 | Setting (where, when, factions, timeline) | [setting.md](setting.md) |
 | Time, control, commitment-skip | [time.md](time.md) |
-| Player character (creator, vitals, physiology) | [characters/index.md](characters/index.md) |
-| ↳ Skills (27 skills, 6 groups) | [characters/skills.md](characters/skills.md) |
-| ↳ Attributes (6 stats, drift model) | [characters/attributes.md](characters/attributes.md) |
+| Player character (trait set, vitals, appearance, creator status) | [characters/index.md](characters/index.md) |
+| ↳ Skills (9 shipped, 5 groups; 27-skill catalog reserved) | [characters/skills.md](characters/skills.md) |
+| ↳ Attributes (6 stats, modifier-based StatSheet, drift model) | [characters/attributes.md](characters/attributes.md) |
 | ↳ Physiology (Phase 4 — conditions, diagnosis, contagion) | [characters/physiology.md](characters/physiology.md) |
 | NPC AI (utility + BT, drives, memory) | [npc-ai.md](npc-ai.md) |
 | Social pillar overview | [social/index.md](social/index.md) |
