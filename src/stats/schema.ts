@@ -38,6 +38,14 @@ type SkillXpMulId = `${SkillStatId}XpMul`
 export const ECONOMIC_IDS = ['wageMul', 'shopMul', 'rentMul'] as const
 export type EconomicStatId = typeof ECONOMIC_IDS[number]
 
+// Work performance multiplier. workSystem scales the per-minute
+// todayPerf increment by this stat so a flu-stricken player produces
+// 0.6× output without the system needing to know about flus. Default
+// base 1.0; conditions stack `percentMult` modifiers via the Effects
+// layer.
+export const WORK_PERF_IDS = ['workPerfMul'] as const
+export type WorkPerfStatId = typeof WORK_PERF_IDS[number]
+
 // Per-verb action speed multipliers. The action FSM scales its
 // per-tick `remaining`-decrement by the matching speed, so a 0.5
 // reads as a limp (action takes 2× as long), 0 as a hard lockout
@@ -68,6 +76,7 @@ export type StatId =
   | SkillStatId
   | SkillXpMulId
   | EconomicStatId
+  | WorkPerfStatId
   | VerbSpeedId
 
 export const STAT_IDS: readonly StatId[] = [
@@ -78,6 +87,7 @@ export const STAT_IDS: readonly StatId[] = [
   ...SKILL_IDS,
   ...SKILL_XP_MUL_IDS,
   ...ECONOMIC_IDS,
+  ...WORK_PERF_IDS,
   ...VERB_SPEED_IDS,
 ]
 
@@ -99,6 +109,7 @@ export const STAT_DEFAULTS: Partial<Record<StatId, number>> = (() => {
   for (const id of SKILL_IDS) out[id] = 0
   for (const id of SKILL_XP_MUL_IDS) out[id] = 1
   for (const id of ECONOMIC_IDS) out[id] = 1
+  for (const id of WORK_PERF_IDS) out[id] = 1
   for (const id of VERB_SPEED_IDS) out[id] = 1
   return out
 })()
