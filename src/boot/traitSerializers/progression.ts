@@ -14,7 +14,7 @@ import {
   Ambitions, Attributes, Flags,
   type AmbitionHistoryEntry, type AmbitionSlot,
 } from '../../ecs/traits'
-import { syncPerkModifiers } from '../../stats/perkSync'
+import { syncPerkModifiers } from '../../character/perkSync'
 
 interface AmbitionsSnap {
   active: AmbitionSlot[]

@@ -46,7 +46,6 @@ import { useCamera } from './cameraStore'
 import { BED_MULTIPLIERS, bedActiveOccupant } from '../systems/bed'
 import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
-import { ConditionStrip } from '../ui/ConditionStrip'
 import { useUI } from '../ui/uiStore'
 import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
@@ -233,7 +232,6 @@ export function Game() {
           />
         </div>
         <MapWarnings />
-        <ConditionStrip />
       </div>
     </div>
   )

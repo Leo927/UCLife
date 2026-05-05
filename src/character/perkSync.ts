@@ -9,8 +9,8 @@
 
 import type { Entity } from 'koota'
 import { Effects } from '../ecs/traits'
-import { getPerk } from '../character/perks'
-import { addEffect, removeEffect } from '../character/effects'
+import { getPerk } from './perks'
+import { addEffect, removeEffect } from './effects'
 
 const PERK_PREFIX = 'perk:'
 

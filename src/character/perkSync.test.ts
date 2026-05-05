@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createCharacterSheet, vitalDrainMulStat, skillXpMulStat } from './schema'
-import { addModifier, getStat, removeBySource, type Modifier } from './sheet'
-import type { StatId } from './schema'
+import { createCharacterSheet, vitalDrainMulStat, skillXpMulStat } from '../stats/schema'
+import { addModifier, getStat, removeBySource, type Modifier } from '../stats/sheet'
+import type { StatId } from '../stats/schema'
 
 // perkSync.ts itself touches a koota world via Attributes, which is hard
 // to instantiate from a unit test. The behavior worth pinning is the

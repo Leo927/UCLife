@@ -1186,12 +1186,12 @@ html, body, #root {
 /* ── Phase 4 physiology UX ──────────────────────────────────────── */
 
 .condition-strip {
-  position: absolute;
-  top: 8px;
+  position: fixed;
+  top: 56px;
   right: 8px;
   display: flex;
   gap: 6px;
-  z-index: 6;
+  z-index: 1040;
   pointer-events: auto;
   cursor: pointer;
 }
