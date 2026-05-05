@@ -1,7 +1,7 @@
 import type { Entity, World } from 'koota'
-import { Workstation, Bed, Position, Job, Home, Money, Skills, Attributes } from '../ecs/traits'
+import { Workstation, Bed, Position, Job, Home, Money, Attributes } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
-import { levelOf } from '../character/skills'
+import { levelOf, getSkillXp } from '../character/skills'
 import type { SkillId } from '../character/skills'
 import { getJobSpec } from '../data/jobs'
 import { useClock } from '../sim/clock'
@@ -29,13 +29,9 @@ export function meetsRequirements(world: World, entity: Entity, ws: Entity): boo
   if (!w) return false
   const spec = getJobSpec(w.specId)
   if (!spec) return false
-  const sk = entity.get(Skills)
-  if (!sk && Object.keys(spec.requirements).length > 0) return false
-  if (sk) {
-    for (const [skill, lv] of Object.entries(spec.requirements)) {
-      const xp = sk[skill as SkillId] ?? 0
-      if (levelOf(xp) < (lv ?? 0)) return false
-    }
+  for (const [skill, lv] of Object.entries(spec.requirements)) {
+    const xp = getSkillXp(entity, skill as SkillId)
+    if (levelOf(xp) < (lv ?? 0)) return false
   }
   if (spec.repReq) {
     if (getRep(entity, spec.repReq.faction) < spec.repReq.min) return false

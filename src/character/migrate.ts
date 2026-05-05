@@ -12,7 +12,7 @@
 
 import type { Entity, World } from 'koota'
 import {
-  IsPlayer, Position, MoveTarget, Action, Vitals, Health, Money, Skills,
+  IsPlayer, Position, MoveTarget, Action, Vitals, Health, Money,
   Inventory, Job, JobPerformance, Attributes, Reputation, JobTenure,
   Character, Appearance, FactionRole, Flags, Ambitions, EntityKey,
   Home, PendingEviction,
@@ -27,7 +27,6 @@ export function migratePlayerEntity(
   const vitals = srcEntity.get(Vitals)
   const health = srcEntity.get(Health)
   const money = srcEntity.get(Money)
-  const skills = srcEntity.get(Skills)
   const inventory = srcEntity.get(Inventory)
   const attributes = srcEntity.get(Attributes)
   const reputation = srcEntity.get(Reputation)
@@ -49,7 +48,6 @@ export function migratePlayerEntity(
     health ? Health(health) : Health,
     Action({ kind: 'idle', remaining: 0, total: 0 }),
     money ? Money(money) : Money,
-    skills ? Skills(skills) : Skills,
     inventory ? Inventory(inventory) : Inventory,
     Job,
     JobPerformance,

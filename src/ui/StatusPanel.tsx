@@ -1,5 +1,5 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Skills, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions } from '../ecs/traits'
 import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
@@ -28,7 +28,6 @@ export function StatusPanel() {
   const vitals = useTrait(player, Vitals)
   const health = useTrait(player, Health)
   const money = useTrait(player, Money)
-  const skills = useTrait(player, Skills)
   const inventory = useTrait(player, Inventory)
   const action = useTrait(player, Action)
   const job = useTrait(player, Job)
@@ -278,8 +277,8 @@ export function StatusPanel() {
 
         <section className="status-section">
           <h3>技能</h3>
-          {skills && SKILL_ORDER.map((id) => {
-            const xp = skills[id]
+          {attrs && SKILL_ORDER.map((id) => {
+            const xp = getStat(attrs.sheet, id)
             const lvl = levelOf(xp)
             const prog = progressInLevel(xp)
             const meta = SKILLS[id]

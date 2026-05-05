@@ -1,7 +1,7 @@
 import type { World, Entity } from 'koota'
-import { Action, Skills, Inventory, IsPlayer, Job, Position, Workstation, Attributes } from '../ecs/traits'
+import { Action, Inventory, IsPlayer, Job, Position, Workstation, Attributes } from '../ecs/traits'
 import type { ActionKind } from '../ecs/traits'
-import { BOOK_CAP_XP, type SkillId } from '../character/skills'
+import { BOOK_CAP_XP, getSkillXp, addSkillXp, type SkillId } from '../character/skills'
 import { isInWorkWindowWS, getJobSpec } from '../data/jobs'
 import { useClock } from '../sim/clock'
 import { releaseBarSeatFor } from './barSeats'
@@ -19,17 +19,15 @@ const READ_TARGET_SKILL: SkillId = actionsConfig.reading.targetSkill
 const REWARDS: Partial<Record<ActionKind, (entity: Entity) => void>> = {
   reading: (entity) => {
     const inv = entity.get(Inventory)
-    const s = entity.get(Skills)
     if (inv && inv.books > 0) entity.set(Inventory, { ...inv, books: inv.books - 1 })
-    if (s && s[READ_TARGET_SKILL] < BOOK_CAP_XP) {
+    const cur = getSkillXp(entity, READ_TARGET_SKILL)
+    if (cur < BOOK_CAP_XP) {
       const intMult = statMult(statValue(entity, 'intelligence'))
       const a = entity.get(Attributes)
       const skillMul = a ? getStat(a.sheet, skillXpMulStat(READ_TARGET_SKILL as SkillStatId)) : 1
       const xpGain = Math.round(READ_XP * intMult * skillMul)
-      entity.set(Skills, {
-        ...s,
-        [READ_TARGET_SKILL]: Math.min(BOOK_CAP_XP, s[READ_TARGET_SKILL] + xpGain),
-      })
+      const nextXp = Math.min(BOOK_CAP_XP, cur + xpGain)
+      addSkillXp(entity, READ_TARGET_SKILL, nextXp - cur)
     }
   },
   eating: (entity) => {

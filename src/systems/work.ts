@@ -1,9 +1,9 @@
 import type { World, Entity } from 'koota'
-import { IsPlayer, Action, JobPerformance, Job, Money, Skills, Workstation, JobTenure, Attributes } from '../ecs/traits'
+import { IsPlayer, Action, JobPerformance, Job, Money, Workstation, JobTenure, Attributes } from '../ecs/traits'
 import { wageMultiplier, getJobSpec } from '../data/jobs'
 import { isWorkstationOpen } from './market'
 import { emitSim } from '../sim/events'
-import type { SkillId } from '../character/skills'
+import { addSkillXp, type SkillId } from '../character/skills'
 import { feedUse, statValue } from './attributes'
 import { FEED, statMult } from '../character/stats'
 import type { AttributeId } from '../character/stats'
@@ -100,8 +100,7 @@ function processMinute(
       const m = entity.get(Money)
       if (m && wage > 0) entity.set(Money, { amount: m.amount + wage })
       if (spec.skill && xpGain > 0) {
-        const s = entity.get(Skills)
-        if (s) entity.set(Skills, { ...s, [spec.skill as SkillId]: s[spec.skill as SkillId] + xpGain })
+        addSkillXp(entity, spec.skill as SkillId, xpGain)
       }
 
       if (isPlayer) {

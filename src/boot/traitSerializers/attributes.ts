@@ -13,7 +13,8 @@ import {
   serializeSheet, attachFormulas, setBase, type SerializedSheet,
 } from '../../stats/sheet'
 import {
-  STAT_IDS, STAT_FORMULAS, ATTRIBUTE_IDS, createCharacterSheet, type StatId,
+  STAT_IDS, STAT_FORMULAS, ATTRIBUTE_IDS, SKILL_IDS, createCharacterSheet,
+  type StatId, type SkillStatId,
 } from '../../stats/schema'
 
 type AttrId = 'strength' | 'endurance' | 'charisma' | 'intelligence' | 'reflex' | 'resolve'
@@ -92,5 +93,28 @@ registerTraitSerializer<AttrSnap>({
       },
       lastDriftDay: v.lastDriftDay,
     })
+  },
+})
+
+// Legacy `skills` snapshot — pre-v8 saves carry skill XP in its own
+// top-level trait. v8+ folds skill XP into the Attributes sheet as a
+// stat base. This serializer lifts the legacy snap onto the sheet on
+// load; on save it returns undefined so new bundles don't repeat the
+// data. Bound to `Attributes` so its write runs only after the
+// attributes serializer has rebuilt the sheet (registration order).
+registerTraitSerializer<Partial<Record<SkillStatId, number>>>({
+  id: 'skills',
+  trait: Attributes,
+  read: () => undefined,
+  write: (e, v, ctx) => {
+    if (ctx.version >= 8) return
+    const a = e.get(Attributes)
+    if (!a) return
+    let sheet = a.sheet
+    for (const id of SKILL_IDS) {
+      const xp = v[id] ?? 0
+      sheet = setBase(sheet, id, xp)
+    }
+    if (sheet !== a.sheet) e.set(Attributes, { ...a, sheet })
   },
 })

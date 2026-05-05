@@ -5,19 +5,21 @@
 
 import type { Entity, World } from 'koota'
 import {
-  Character, Position, MoveTarget, Vitals, Health, Action, Money, Skills,
+  Character, Position, MoveTarget, Vitals, Health, Action, Money,
   Inventory, Job, JobPerformance, Attributes, Reputation, JobTenure,
   Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance,
   type Gender,
 } from '../ecs/traits'
 import type { FactionId } from '../data/factions'
-import type { SkillId } from './skills'
+import { setSkillXp, type SkillId } from './skills'
 import { getAppearanceOverride } from './appearance'
 import { generateAppearanceForName } from './appearanceGen'
 
-const ZERO_SKILLS: Record<SkillId, number> = {
-  mechanics: 0, marksmanship: 0, athletics: 0, cooking: 0, medicine: 0,
-  computers: 0, piloting: 0, bartending: 0, engineering: 0,
+function applySkillSpec(ent: Entity, spec: Partial<Record<SkillId, number>> | undefined): void {
+  if (!spec) return
+  for (const [k, xp] of Object.entries(spec)) {
+    if (xp !== undefined) setSkillXp(ent, k as SkillId, xp)
+  }
 }
 
 export interface NPCSpec {
@@ -68,7 +70,6 @@ export function spawnNPC(world: World, spec: NPCSpec): Entity {
     }),
     Health,
     Money({ amount: spec.money ?? 50 }),
-    Skills({ ...ZERO_SKILLS, ...spec.skills }),
     Inventory({ water: 2, meal: 2, books: 0 }),
     Job,
     JobPerformance,
@@ -76,6 +77,7 @@ export function spawnNPC(world: World, spec: NPCSpec): Entity {
     FactionRole({ faction: fr.faction, role: fr.role }),
     EntityKey({ key: spec.key ?? `npc-anon-${Math.random().toString(36).slice(2, 8)}` }),
   )
+  applySkillSpec(ent, spec.skills)
   setupAppearance(ent, spec.name, spec.gender)
   return ent
 }
@@ -92,7 +94,6 @@ export function spawnPlayer(world: World, spec: PlayerSpec): Entity {
     Health,
     Action,
     Money({ amount: spec.startingMoney ?? 30 }),
-    Skills,
     Inventory({ water: inv.water ?? 1, meal: inv.meal ?? 1, books: inv.books ?? 0 }),
     Job,
     JobPerformance,

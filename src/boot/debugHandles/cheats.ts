@@ -5,23 +5,24 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import {
-  IsPlayer, Attributes, Skills, Money, Reputation, Flags,
+  IsPlayer, Attributes, Money, Reputation, Flags,
   type StatId,
 } from '../../ecs/traits'
 import { setBase, getStat } from '../../stats/sheet'
 import { STAT_IDS } from '../../stats/schema'
 import { applyBackground, removeBackground } from '../../character/backgrounds'
 import type { FactionId } from '../../data/factions'
-import type { SkillId } from '../../character/skills'
+import { setSkillXp, type SkillId } from '../../character/skills'
 
 const STAT_ID_SET = new Set<string>(STAT_IDS)
 
 // Path forms:
 //   'attributes.<key>'        — sets the base value of the named stat
 //                                (any StatId — attributes, vital max,
-//                                vital drain mul, hpMax, hpRegenMul).
+//                                vital drain mul, hpMax, hpRegenMul,
+//                                <skill>, <skill>XpMul, wage/shop/rentMul).
 //                                Modifiers untouched.
-//   'skills.<key>'            — sets Skills[key]
+//   'skills.<key>'            — sets the skill XP base on the sheet
 //   'money'                   — sets Money.amount
 //   'reputation.<faction>'    — sets Reputation.rep[faction]
 registerDebugHandle('setPlayerStat', (path: string, value: number) => {
@@ -37,10 +38,7 @@ registerDebugHandle('setPlayerStat', (path: string, value: number) => {
     return true
   }
   if (segs[0] === 'skills' && segs.length === 2) {
-    const s = player.get(Skills)
-    if (!s) return false
-    ;(s as unknown as Record<SkillId, number>)[segs[1] as SkillId] = value
-    player.set(Skills, s)
+    setSkillXp(player, segs[1] as SkillId, value)
     return true
   }
   if (segs[0] === 'money' && segs.length === 1) {
@@ -68,10 +66,7 @@ registerDebugHandle('cheatMoney', (n: number) => {
 registerDebugHandle('cheatPiloting', (n: number) => {
   const p = world.queryFirst(IsPlayer)
   if (!p) return false
-  const s = p.get(Skills)
-  if (!s) return false
-  ;(s as unknown as Record<SkillId, number>).piloting = n
-  p.set(Skills, s)
+  setSkillXp(p, 'piloting', n)
   return true
 })
 

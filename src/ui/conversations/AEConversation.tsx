@@ -1,11 +1,11 @@
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
-  IsPlayer, Skills, Job, Workstation, Position, Reputation,
+  IsPlayer, Attributes, Job, Workstation, Position, Reputation,
   FactionRole, Knows, JobTenure, Character,
 } from '../../ecs/traits'
 import { useUI } from '../uiStore'
-import { SKILLS, levelOf, type SkillId } from '../../character/skills'
+import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../character/skills'
 import { getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
 import { jobsConfig, factionsConfig } from '../../config'
@@ -22,15 +22,16 @@ interface RankRow {
 }
 
 export function AEConversation() {
-  const player = useQueryFirst(IsPlayer, Skills, Job)
-  const skills = useTrait(player, Skills)
+  const player = useQueryFirst(IsPlayer, Attributes, Job)
+  // Subscribe to Attributes so the requirement chips refresh as XP grows.
+  void useTrait(player, Attributes)
   const job = useTrait(player, Job)
   const reputation = useTrait(player, Reputation)
   const tenure = useTrait(player, JobTenure)
   const allStations = useQuery(Workstation, Position)
   const factionRoles = useQuery(FactionRole)
 
-  if (!player || !skills) return null
+  if (!player) return null
 
   const aeRep = reputation?.rep.anaheim ?? 0
   const aeMeta = factionsConfig.catalog.anaheim
@@ -74,7 +75,7 @@ export function AEConversation() {
 
     const missing: string[] = []
     for (const [sid, lv] of Object.entries(spec.requirements)) {
-      const have = levelOf(skills[sid as SkillId] ?? 0)
+      const have = levelOf(getSkillXp(player, sid as SkillId))
       const need = lv ?? 0
       if (have < need) {
         missing.push(`${SKILLS[sid as SkillId].label} ${have} → 需 ${need}`)

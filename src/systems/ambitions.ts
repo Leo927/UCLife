@@ -10,7 +10,7 @@
 
 import type { Entity, World } from 'koota'
 import {
-  Ambitions, Flags, IsPlayer, Character, Skills, Money, Reputation,
+  Ambitions, Flags, IsPlayer, Character, Money, Reputation,
   FactionRole, Home, Bed, Job,
   type AmbitionSlot,
 } from '../ecs/traits'
@@ -20,7 +20,7 @@ import {
   type RequirementValue,
 } from '../character/ambitions'
 import type { FactionId } from '../data/factions'
-import type { SkillId } from '../character/skills'
+import { getSkillXp, type SkillId } from '../character/skills'
 import { emitSim } from '../sim/events'
 
 const ATTRIBUTE_KEYS = new Set(['strength', 'endurance', 'charisma', 'intelligence', 'reflex', 'resolve'])
@@ -85,9 +85,7 @@ export function readRequirementValue(
     return statValue(entity, key as 'strength')
   }
   if (SKILL_KEYS.has(key)) {
-    const s = entity.get(Skills)
-    if (!s) return 0
-    return s[key as SkillId]
+    return getSkillXp(entity, key as SkillId)
   }
   if (key === 'money') {
     return entity.get(Money)?.amount ?? 0

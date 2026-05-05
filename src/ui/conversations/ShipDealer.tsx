@@ -1,8 +1,9 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Skills, Flags } from '../../ecs/traits'
+import { IsPlayer, Money, Attributes, Flags } from '../../ecs/traits'
 import { useUI } from '../uiStore'
 import { getShipClass } from '../../data/ships'
 import { getWeapon, isWeaponId } from '../../data/weapons'
+import { getSkillXp } from '../../character/skills'
 
 const SHIP_ID = 'lightFreighter'
 const PILOTING_REQUIRED = 10
@@ -12,14 +13,15 @@ export function ShipDealer() {
   const close = () => useUI.getState().setShipDealer(false)
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
-  const skills = useTrait(player, Skills)
+  // Subscribe to Attributes so the piloting display refreshes as XP grows.
+  void useTrait(player, Attributes)
   const flags = useTrait(player, Flags)
 
   if (!open) return null
 
   const cls = getShipClass(SHIP_ID)
   const playerMoney = money?.amount ?? 0
-  const piloting = skills?.piloting ?? 0
+  const piloting = player ? getSkillXp(player, 'piloting') : 0
   const alreadyOwned = !!flags?.flags.shipOwned
   const canAfford = playerMoney >= cls.priceFiat
   const meetsPiloting = piloting >= PILOTING_REQUIRED

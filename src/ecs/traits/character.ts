@@ -55,18 +55,6 @@ export const Health = trait({ hp: 100, dead: false })
 
 export const Money = trait({ amount: 0 })
 
-export const Skills = trait({
-  mechanics: 0,
-  marksmanship: 0,
-  athletics: 0,
-  cooking: 0,
-  medicine: 0,
-  computers: 0,
-  piloting: 0,
-  bartending: 0,
-  engineering: 0,
-})
-
 export const Inventory = trait({
   water: 0,
   meal: 0,

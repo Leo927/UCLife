@@ -69,7 +69,14 @@ const LEGACY_KEY = 'uclife:autosave'
 //       on-disk EntitySnap shape is unchanged so v7 round-trips through
 //       the registry produce byte-identical output to pre-Wave-5 v7
 //       writers.
-const SAVE_VERSION = 7
+//   v8: Skill XP folded into the Attributes sheet as 9 stat bases
+//       (mechanics..engineering); the standalone Skills trait is gone.
+//       Perk economic effects (wageMul/shopMul/rentMul) and per-skill
+//       XP multipliers (<skill>XpMul) are sheet stats now too — perk
+//       resolution lives wholly in the StatSheet via perkSync.
+//       Pre-v8 saves are migrated by lifting the legacy `skills` snap
+//       onto the sheet (see traitSerializers/attributes.ts).
+const SAVE_VERSION = 8
 
 // Per-entity snapshot: stable `key` matched against the EntityKey trait
 // in the rebuilt world (or, for immigrants, identifies the NPC to re-

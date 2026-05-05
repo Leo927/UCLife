@@ -1,14 +1,15 @@
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
-import { IsPlayer, Skills, Job, Workstation, Position } from '../../ecs/traits'
+import { IsPlayer, Attributes, Job, Workstation, Position } from '../../ecs/traits'
 import { useUI } from '../uiStore'
-import { SKILLS, levelOf, type SkillId } from '../../character/skills'
+import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../character/skills'
 import { dowLabel, getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
 
 export function HRConversation() {
-  const player = useQueryFirst(IsPlayer, Skills, Job)
-  const skills = useTrait(player, Skills)
+  const player = useQueryFirst(IsPlayer, Attributes, Job)
+  // Subscribe to Attributes so the skill-requirement chips refresh as XP grows.
+  void useTrait(player, Attributes)
   const job = useTrait(player, Job)
   const allStations = useQuery(Workstation, Position)
 
@@ -27,9 +28,9 @@ export function HRConversation() {
   }
 
   const meets = (spec: JobSpec): boolean => {
-    if (!skills) return false
+    if (!player) return false
     for (const [sid, lv] of Object.entries(spec.requirements)) {
-      if (levelOf(skills[sid as SkillId]) < (lv ?? 0)) return false
+      if (levelOf(getSkillXp(player, sid as SkillId)) < (lv ?? 0)) return false
     }
     return true
   }
@@ -70,7 +71,7 @@ export function HRConversation() {
                 <div className="hr-job-reqs">
                   <span className="hr-req-label">要求: </span>
                   {reqEntries.map(([sid, lv], i) => {
-                    const playerLv = skills ? levelOf(skills[sid]) : 0
+                    const playerLv = player ? levelOf(getSkillXp(player, sid)) : 0
                     const met = playerLv >= lv
                     return (
                       <span key={sid} className={met ? 'req-met' : 'req-missed'}>

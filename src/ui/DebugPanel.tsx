@@ -1,11 +1,11 @@
 import { useQuery, useQueryFirst } from 'koota/react'
 import { useDebug, DEBUG_AVAILABLE } from '../debug/store'
-import { IsPlayer, Money, Skills, Character, Health, Knows, Flags } from '../ecs/traits'
+import { IsPlayer, Money, Character, Health, Knows, Flags } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { useClock } from '../sim/clock'
 import { skillsConfig, aiConfig, factionsConfig } from '../config'
-import { SKILL_ORDER } from '../character/skills'
+import { SKILL_ORDER, addSkillXp } from '../character/skills'
 import type { SkillId } from '../character/skills'
 import type { FactionId } from '../data/factions'
 import { addRep } from '../systems/reputation'
@@ -41,14 +41,10 @@ export function DebugPanel() {
 
   const giveSkills = () => {
     if (!player) return
-    const s = player.get(Skills)
-    if (!s) return
     const bumpXp = skillLevelGift * skillsConfig.xpPerLevel
-    const next = { ...s }
     for (const id of SKILL_ORDER) {
-      next[id as SkillId] = (s[id as SkillId] ?? 0) + bumpXp
+      addSkillXp(player, id as SkillId, bumpXp)
     }
-    player.set(Skills, next)
     useUI.getState().showToast(`所有技能 +${skillLevelGift} 级`)
   }
 
