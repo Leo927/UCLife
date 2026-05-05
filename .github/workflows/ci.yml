@@ -106,6 +106,10 @@ jobs:
       - if: always()
         run: node scripts/check-sprite.mjs
       - if: always()
+        run: node scripts/check-physiology-cold.mjs
+      - if: always()
+        run: node scripts/check-physiology-multi.mjs
+      - if: always()
         run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
 
       - name: Upload screenshots on failure
