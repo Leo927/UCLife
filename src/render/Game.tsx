@@ -24,19 +24,19 @@ import type { Application } from 'pixi.js'
 import type { Entity } from 'koota'
 import { useQueryFirst, useTrait } from 'koota/react'
 import { PixiCanvas } from './pixi'
-import {
-  PixiGroundRenderer,
-  type GroundSnapshot,
-  type RoadSnap,
-  type BuildingSnap,
-  type WallSnap,
-  type DoorSnap,
-  type BedSnap,
-  type BarSeatSnap,
-  type InteractableSnap,
-  type NpcSnap,
-  type PlayerSnap,
-} from './ground/PixiGroundRenderer'
+import { PixiGroundRenderer } from './ground/PixiGroundRenderer'
+import type {
+  GroundSnapshot,
+  RoadSnap,
+  BuildingSnap,
+  WallSnap,
+  DoorSnap,
+  BedSnap,
+  BarSeatSnap,
+  InteractableSnap,
+  NpcSnap,
+  PlayerSnap,
+} from './groundSnapshot'
 import {
   Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, Action,
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
