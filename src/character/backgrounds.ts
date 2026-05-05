@@ -1,17 +1,19 @@
-// Character backgrounds — first concrete modifier source for the new
-// stat system. Catalog lives in backgrounds.json5; parsed and validated
-// at module import. applyBackground() / removeBackground() push or
-// pull the entire modifier set against an entity's StatSheet, scoped to
-// a single source string per background so re-rolls are clean.
+// Character backgrounds — authored modifier bundles applied as Effects
+// onto the character's Effects trait. The StatSheet's modifier arrays
+// are derived from Effects.list (see src/character/effects.ts), so a
+// background's contribution rides through the same fold path as perks
+// and condition bands.
 
 import json5 from 'json5'
 import raw from './backgrounds.json5?raw'
 import type { Entity } from 'koota'
-import { Attributes } from '../ecs/traits'
-import { addModifier, removeBySource, type ModType, type Modifier } from '../stats/sheet'
+import { addEffect, removeEffect } from './effects'
+import type { ModType } from '../stats/sheet'
 import { STAT_IDS, type StatId } from '../stats/schema'
 
-const VALID_TYPES: ReadonlySet<ModType> = new Set<ModType>(['flat', 'percentAdd', 'percentMult'])
+const VALID_TYPES: ReadonlySet<ModType> = new Set<ModType>([
+  'flat', 'percentAdd', 'percentMult', 'floor', 'cap',
+])
 const VALID_STAT_IDS: ReadonlySet<string> = new Set<string>(STAT_IDS)
 
 export interface BackgroundDef {
@@ -60,32 +62,26 @@ export function getBackground(id: string): BackgroundDef | undefined {
   return byId[id]
 }
 
-export function backgroundSource(id: string): string {
+// Effect id for a background — `bg:<id>` keeps the namespace stable
+// across the legacy direct-write and the new Effects layer.
+export function backgroundEffectId(id: string): string {
   return `bg:${id}`
 }
 
-// Idempotent: already-applied backgrounds are removed and re-applied so
-// the post-call sheet always matches the catalog.
+// Idempotent: addEffect replaces an existing Effect with the same id.
 export function applyBackground(entity: Entity, id: string): boolean {
   const def = byId[id]
   if (!def) return false
-  const a = entity.get(Attributes)
-  if (!a) return false
-  const source = backgroundSource(id)
-  let sheet = removeBySource(a.sheet, source)
-  for (const m of def.modifiers) {
-    const mod: Modifier<StatId> = { statId: m.statId, type: m.type, value: m.value, source }
-    sheet = addModifier(sheet, mod)
-  }
-  entity.set(Attributes, { ...a, sheet })
-  return true
+  return addEffect(entity, {
+    id: backgroundEffectId(id),
+    originId: id,
+    family: 'background',
+    modifiers: def.modifiers.map((m) => ({ statId: m.statId, type: m.type, value: m.value })),
+    nameZh: def.nameZh,
+    descZh: def.descZh,
+  })
 }
 
 export function removeBackground(entity: Entity, id: string): boolean {
-  const a = entity.get(Attributes)
-  if (!a) return false
-  const next = removeBySource(a.sheet, backgroundSource(id))
-  if (next === a.sheet) return false
-  entity.set(Attributes, { ...a, sheet: next })
-  return true
+  return removeEffect(entity, backgroundEffectId(id))
 }
