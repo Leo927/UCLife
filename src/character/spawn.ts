@@ -6,7 +6,7 @@
 import type { Entity, World } from 'koota'
 import {
   Character, Position, MoveTarget, Vitals, Health, Action, Money,
-  Inventory, Job, JobPerformance, Attributes, Reputation, JobTenure,
+  Inventory, Job, JobPerformance, Attributes, Effects, Reputation, JobTenure,
   Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance,
   type Gender,
 } from '../ecs/traits'
@@ -74,6 +74,7 @@ export function spawnNPC(world: World, spec: NPCSpec): Entity {
     Job,
     JobPerformance,
     Attributes,
+    Effects,
     FactionRole({ faction: fr.faction, role: fr.role }),
     EntityKey({ key: spec.key ?? `npc-anon-${Math.random().toString(36).slice(2, 8)}` }),
   )
@@ -98,6 +99,7 @@ export function spawnPlayer(world: World, spec: PlayerSpec): Entity {
     Job,
     JobPerformance,
     Attributes,
+    Effects,
     Reputation,
     JobTenure,
     Ambitions,

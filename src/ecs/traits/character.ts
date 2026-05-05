@@ -7,6 +7,7 @@ import type { Entity } from 'koota'
 import type { FactionId, ActionKind, RoughKind } from '../../config'
 import { createCharacterSheet, type StatId } from '../../stats/schema'
 import type { StatSheet } from '../../stats/sheet'
+import type { Effect } from '../../stats/effects'
 
 // Re-export so existing `import { ActionKind } from '../ecs/traits'`
 // callers keep working. Canonical declarations live in config/kinds.ts.
@@ -54,6 +55,17 @@ export const Attributes = trait(() => ({
 }))
 
 export type { StatId, StatSheet }
+
+// Unified Effect bag. Backgrounds, perks, condition bands, and (future)
+// gear all live here. The character's StatSheet's modifier arrays are
+// derived from `list` — applyEffect / removeEffect rebuild the affected
+// stat arrays in lockstep. See src/stats/effects.ts and
+// Design/characters/effects.md.
+export const Effects = trait(() => ({
+  list: [] as Effect[],
+}))
+
+export type { Effect } from '../../stats/effects'
 
 export const Health = trait({ hp: 100, dead: false })
 
