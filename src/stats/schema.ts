@@ -1,20 +1,7 @@
-// Single source of truth for the per-character stat schema. Every stat the
-// modifier system understands lives here; new stats land by extending this
-// file plus the associated formula and default below.
-//
-// Categories:
-//   attribute    — slow-drifting RPG stats (strength..resolve). The
-//                  attributesSystem drifts each stat's `base` toward a
-//                  per-day target derived from recentUse/recentStress.
-//   vital max    — per-vital ceiling enforced by vitalsSystem's clamp.
-//   vital drain  — per-vital multiplier on outgoing drain (negative deltas
-//                  use the authored magnitude — recovery isn't scaled).
-//   health       — hpMax + hpRegenMul. Mirrors the vital pattern for HP.
-//
-// Sources for modifiers are namespaced strings, not object refs, so the
-// save bundle stays JSON-clean and removeBySource() has a stable identity
-// across reload. Examples: 'background:soldier', 'perk:long-distance',
-// 'item:belt'.
+// Single source of truth for every StatId the modifier system tracks.
+// Modifier sources are namespaced strings (e.g. 'bg:soldier',
+// 'perk:long-distance') so the save bundle survives JSON round-trip
+// without object-reference plumbing.
 
 import { type FormulaTable, identityFormulas, createSheet } from './sheet'
 

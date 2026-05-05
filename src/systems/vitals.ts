@@ -30,8 +30,14 @@ export function resetVitalsAccum(): void {
 }
 
 // Per-vital max + drain-mul lookups. Default sheet seeds these to 100 / 1
-// so behavior is identical to the legacy hardcoded clamp until a perk,
-// background, or item adds a modifier.
+// so behavior is identical to the legacy hardcoded clamp until a
+// background, perk, or item adds a modifier.
+//
+// Perf — N up to ~500 NPCs in a single scene; budget ≤2ms/tick total for
+// vitalsSystem. Each vital read is O(modifier-list-len), typically 0–3.
+// Sheet's WeakMap memo caches subsequent reads at O(1) until any
+// addModifier/removeBySource bumps the version. Set VITALS_PROF=1 to
+// time the per-tick loop.
 function vitalMax(entity: Entity, v: VitalId): number {
   const a = entity.get(Attributes)
   if (!a) return 100
@@ -58,6 +64,21 @@ function hpRegenMul(entity: Entity): number {
   const a = entity.get(Attributes)
   if (!a) return 1
   return getStat(a.sheet, 'hpRegenMul')
+}
+
+interface VitalDeltas {
+  dHunger: number; dThirst: number; dFatigue: number; dHygiene: number; dBoredom: number
+}
+
+// Mutates in place — d is a per-tick scratch object not shared across
+// entities, so no aliasing concern. Centralizes the five-vital fan-out
+// so player + NPC branches stay in lockstep.
+function applyDrainMuls(entity: Entity, d: VitalDeltas): void {
+  if (d.dHunger  > 0) d.dHunger  *= vitalDrainMul(entity, 'hunger')
+  if (d.dThirst  > 0) d.dThirst  *= vitalDrainMul(entity, 'thirst')
+  if (d.dFatigue > 0) d.dFatigue *= vitalDrainMul(entity, 'fatigue')
+  if (d.dHygiene > 0) d.dHygiene *= vitalDrainMul(entity, 'hygiene')
+  if (d.dBoredom > 0) d.dBoredom *= vitalDrainMul(entity, 'boredom')
 }
 
 const ROUGH_CFG = actionsConfig.rough
@@ -182,14 +203,9 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     if (d.dFatigue > 0) d.dFatigue *= statInvMult(statValue(entity, 'endurance'))
     if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
 
-    // Sheet-driven per-vital drain multipliers — only positive
-    // (decay-direction) deltas are scaled. Recovery actions (eating,
-    // washing) keep their authored magnitude.
-    if (d.dHunger  > 0) d.dHunger  *= vitalDrainMul(entity, 'hunger')
-    if (d.dThirst  > 0) d.dThirst  *= vitalDrainMul(entity, 'thirst')
-    if (d.dFatigue > 0) d.dFatigue *= vitalDrainMul(entity, 'fatigue')
-    if (d.dHygiene > 0) d.dHygiene *= vitalDrainMul(entity, 'hygiene')
-    if (d.dBoredom > 0) d.dBoredom *= vitalDrainMul(entity, 'boredom')
+    // Recovery actions (eating, washing) keep their authored magnitude;
+    // only positive decay deltas scale.
+    applyDrainMuls(entity, d)
 
     v.hunger  = clampVital(entity, 'hunger',  v.hunger  + d.dHunger  * gameMinutes)
     v.thirst  = clampVital(entity, 'thirst',  v.thirst  + d.dThirst  * gameMinutes)
@@ -240,11 +256,7 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     if (d.dFatigue > 0) d.dFatigue *= npcFatigueMult * statInvMult(statValue(entity, 'endurance'))
     if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
 
-    if (d.dHunger  > 0) d.dHunger  *= vitalDrainMul(entity, 'hunger')
-    if (d.dThirst  > 0) d.dThirst  *= vitalDrainMul(entity, 'thirst')
-    if (d.dFatigue > 0) d.dFatigue *= vitalDrainMul(entity, 'fatigue')
-    if (d.dHygiene > 0) d.dHygiene *= vitalDrainMul(entity, 'hygiene')
-    if (d.dBoredom > 0) d.dBoredom *= vitalDrainMul(entity, 'boredom')
+    applyDrainMuls(entity, d)
 
     const beforeHunger = v.hunger
     const beforeThirst = v.thirst

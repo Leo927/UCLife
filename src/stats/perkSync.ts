@@ -1,10 +1,6 @@
-// Bridges the perks catalog (Phase 5.0 ambitions) and the per-character
-// StatSheet. Perks live as a string array on Ambitions.perks; each maps
-// to a PerkEffect, and right now only `vitalDecay` is sheet-driven —
-// it pushes a percentMult modifier onto the matching <vital>DrainMul
-// stat. Other perk effects (skillXpMul, wageMul, shopDiscountMul,
-// rentMul) still flow through src/systems/perkEffects.ts and read the
-// perks array on demand.
+// Folds vitalDecay perks into the StatSheet as <vital>DrainMul
+// modifiers. Idempotent so it can re-run after every perk-array change
+// without leaking duplicates.
 
 import type { Entity } from 'koota'
 import { Attributes } from '../ecs/traits'
@@ -40,16 +36,16 @@ export function syncPerkModifiers(entity: Entity, perks: readonly string[]): voi
   const a = entity.get(Attributes)
   if (!a) return
   let sheet = a.sheet
-  // Drop every existing perk-sourced modifier (one pass, regardless of
-  // which perks were removed since last sync).
+  // Collect *every* distinct perk source first; otherwise stripping by
+  // source-of-first-match would skip a second perk-source on the same
+  // stat and let it leak across syncs.
+  const perkSources = new Set<string>()
   for (const id of Object.keys(sheet.stats) as StatId[]) {
     for (const m of sheet.stats[id].modifiers) {
-      if (m.source.startsWith(PERK_PREFIX)) {
-        sheet = removeBySource(sheet, m.source)
-        break
-      }
+      if (m.source.startsWith(PERK_PREFIX)) perkSources.add(m.source)
     }
   }
+  for (const src of perkSources) sheet = removeBySource(sheet, src)
 
   for (const perkId of perks) {
     const def = getPerk(perkId)

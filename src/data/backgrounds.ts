@@ -33,6 +33,7 @@ for (const bg of parsed.backgrounds) {
   if (seen.has(bg.id)) throw new Error(`backgrounds.json5: duplicate id "${bg.id}"`)
   seen.add(bg.id)
   if (!bg.nameZh) throw new Error(`backgrounds.json5: "${bg.id}" missing nameZh`)
+  if (!bg.descZh) throw new Error(`backgrounds.json5: "${bg.id}" missing descZh`)
   if (!Array.isArray(bg.modifiers)) {
     throw new Error(`backgrounds.json5: "${bg.id}" modifiers must be an array`)
   }

@@ -8,6 +8,33 @@ import type { StatId } from './schema'
 // modifier math — once the sync function pushes the right modifiers,
 // these tests show the sheet computes the expected drain multipliers.
 
+// Pulled out of perkSync.ts so the test doesn't need a koota world.
+// Reproduces the inner loop's collect-then-strip pass against a sheet
+// directly.
+function stripAllPerkSources<T extends Modifier<StatId>>(sheet0: ReturnType<typeof createCharacterSheet>): ReturnType<typeof createCharacterSheet> {
+  const sources = new Set<string>()
+  for (const id of Object.keys(sheet0.stats) as StatId[]) {
+    for (const m of sheet0.stats[id].modifiers) {
+      if (m.source.startsWith('perk:')) sources.add(m.source)
+    }
+  }
+  let s = sheet0
+  for (const src of sources) s = removeBySource(s, src)
+  void ({} as T)
+  return s
+}
+
+describe('strip-all-perk-sources regression', () => {
+  it('removes every perk modifier on a stat that has multiple perk sources', () => {
+    let s = createCharacterSheet()
+    s = addModifier(s, { statId: 'hungerDrainMul', type: 'percentMult', value: -0.20, source: 'perk:a' })
+    s = addModifier(s, { statId: 'hungerDrainMul', type: 'percentMult', value: -0.10, source: 'perk:b' })
+    s = stripAllPerkSources(s)
+    // Both perks gone; the base 1.0 must be intact.
+    expect(getStat(s, 'hungerDrainMul')).toBe(1)
+  })
+})
+
 describe('vitalDecay → DrainMul modifier math', () => {
   it('a 0.8 perk on hunger reduces hungerDrainMul to 0.8', () => {
     let s = createCharacterSheet()

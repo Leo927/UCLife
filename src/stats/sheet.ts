@@ -43,13 +43,17 @@ export interface StatSheet<StatId extends string> {
   stats: Record<StatId, StatData<StatId>>
   // Formula table re-attached after JSON round-trip; not serialized.
   formulas: FormulaTable<StatId>
-  // Bumped on every mutation so the per-stat memo can detect staleness
+  // Bumped on every mutation so a side-channel cache can detect staleness
   // without a separate dirty bit per stat.
   version: number
-  // Lazy cache of computed values. Populated on read; invalidated by
-  // bumping `version` (we read `cacheVersion` alongside).
-  cache: Partial<Record<StatId, { v: number; ver: number }>>
 }
+
+// Memo lives in a WeakMap so getStat() is a pure read of the sheet POJO.
+// Koota traits are POJO snapshots; mutating a `cache` field on a snapshot
+// would alias into koota's stored object — instead the memo is keyed by
+// the sheet reference and naturally garbage-collected when the snapshot
+// is replaced.
+const memo: WeakMap<object, Map<string, { v: number; ver: number }>> = new WeakMap()
 
 export function identityFormulas<StatId extends string>(ids: readonly StatId[]): FormulaTable<StatId> {
   const out = {} as FormulaTable<StatId>
@@ -67,7 +71,7 @@ export function createSheet<StatId extends string>(
   for (const id of ids) {
     stats[id] = { base: bases?.[id] ?? 0, modifiers: [] }
   }
-  return { stats, formulas, version: 1, cache: {} }
+  return { stats, formulas, version: 1 }
 }
 
 function cloneSheet<StatId extends string>(s: StatSheet<StatId>): StatSheet<StatId> {
@@ -80,7 +84,7 @@ function cloneSheet<StatId extends string>(s: StatSheet<StatId>): StatSheet<Stat
     const d = s.stats[id]
     stats[id] = { base: d.base, modifiers: d.modifiers.slice() }
   }
-  return { stats, formulas: s.formulas, version: s.version + 1, cache: {} }
+  return { stats, formulas: s.formulas, version: s.version + 1 }
 }
 
 export function setBase<StatId extends string>(
@@ -107,18 +111,6 @@ export function addModifier<StatId extends string>(
   return out
 }
 
-export function removeModifier<StatId extends string>(
-  s: StatSheet<StatId>,
-  mod: Modifier<StatId>,
-): StatSheet<StatId> {
-  const arr = s.stats[mod.statId].modifiers
-  const idx = arr.indexOf(mod)
-  if (idx < 0) return s
-  const out = cloneSheet(s)
-  out.stats[mod.statId].modifiers.splice(idx, 1)
-  return out
-}
-
 export function removeBySource<StatId extends string>(
   s: StatSheet<StatId>,
   source: string,
@@ -132,20 +124,7 @@ export function removeBySource<StatId extends string>(
     stats[id] = { base: d.base, modifiers: filtered }
   }
   if (!touched) return s
-  return { stats, formulas: s.formulas, version: s.version + 1, cache: {} }
-}
-
-export function getModifiersBySource<StatId extends string>(
-  s: StatSheet<StatId>,
-  source: string,
-): Modifier<StatId>[] {
-  const out: Modifier<StatId>[] = []
-  for (const id of Object.keys(s.stats) as StatId[]) {
-    for (const m of s.stats[id].modifiers) {
-      if (m.source === source) out.push(m)
-    }
-  }
-  return out
+  return { stats, formulas: s.formulas, version: s.version + 1 }
 }
 
 function compute<StatId extends string>(s: StatSheet<StatId>, id: StatId): number {
@@ -166,10 +145,16 @@ function compute<StatId extends string>(s: StatSheet<StatId>, id: StatId): numbe
 }
 
 export function getStat<StatId extends string>(s: StatSheet<StatId>, id: StatId): number {
-  const memo = s.cache[id]
-  if (memo && memo.ver === s.version) return memo.v
+  let bucket = memo.get(s)
+  if (bucket) {
+    const hit = bucket.get(id)
+    if (hit && hit.ver === s.version) return hit.v
+  } else {
+    bucket = new Map()
+    memo.set(s, bucket)
+  }
   const v = compute(s, id)
-  s.cache[id] = { v, ver: s.version }
+  bucket.set(id, { v, ver: s.version })
   return v
 }
 
@@ -203,5 +188,5 @@ export function attachFormulas<StatId extends string>(
       ? { base: d.base, modifiers: d.modifiers.map((m) => ({ ...m })) }
       : { base: 0, modifiers: [] }
   }
-  return { stats, formulas, version: saved.version || 1, cache: {} }
+  return { stats, formulas, version: saved.version || 1 }
 }

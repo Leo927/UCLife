@@ -16,7 +16,9 @@ import {
 } from '../data/stats'
 import type { StatId, StatSheet, AttributeDrift } from '../ecs/traits'
 import { setBase, getStat } from '../stats/sheet'
-import type { AttributeId } from '../stats/schema'
+import { ATTRIBUTE_IDS, type AttributeId } from '../stats/schema'
+
+const ATTRIBUTE_ID_SET: ReadonlySet<string> = new Set<string>(ATTRIBUTE_IDS)
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -79,8 +81,7 @@ export function attributesSystem(world: World, gameDate: Date): void {
 }
 
 function isDriftingStat(stat: StatId): stat is AttributeId {
-  return stat === 'strength' || stat === 'endurance' || stat === 'charisma'
-    || stat === 'intelligence' || stat === 'reflex' || stat === 'resolve'
+  return ATTRIBUTE_ID_SET.has(stat)
 }
 
 export function feedUse(entity: Entity, stat: StatId, intensityPerMin: number, gameMinutes: number): void {

@@ -147,8 +147,9 @@ describe('serialization', () => {
     let s = setBase(makeSheet(), 'strength', 50)
     s = addModifier(s, flatMod('strength', 10, 'item:belt'))
     s = addModifier(s, pctMulMod('strength', 0.10, 'perk:strong'))
-    const round = JSON.parse(JSON.stringify(s)) as StatSheet<TestStatId>
-    // Rehydrate by re-attaching the formula table — formulas are not data.
+    // The formula table holds non-serializable functions; serializeSheet
+    // strips it and attachFormulas rebuilds.
+    const round = JSON.parse(JSON.stringify({ stats: s.stats, version: s.version }))
     round.formulas = TEST_FORMULAS
     expect(getStat(round, 'strength')).toBe(getStat(s, 'strength'))
   })
