@@ -67,6 +67,52 @@ export const Effects = trait(() => ({
 
 export type { Effect } from '../../stats/effects'
 
+// Phase 4 — Conditions (RimWorld-hediff-style named bouts: cold, food
+// poisoning, sprains, scars). Per-instance runtime state. The phase
+// machine in src/systems/physiology.ts reads templates (authored in
+// src/character/conditions.ts + src/data/conditions.json5) and writes
+// instances onto this trait. Each band emits an Effect into the
+// Effects trait, keyed cond:<instanceId>:b<bandIndex>. The instance
+// type is declared inline here so the engine boundary doesn't have to
+// reach upward into src/character/. See Design/characters/physiology.md
+// and physiology-data.md.
+export type ConditionPhase = 'incubating' | 'rising' | 'peak' | 'recovering' | 'stalled'
+
+export interface ConditionInstance {
+  instanceId: string
+  templateId: string
+  phase: ConditionPhase
+  severity: number
+  peakTracking: number
+  bodyPart: string | null
+  onsetDay: number
+  // Rolled at onset from template ranges.
+  incubationDays: number
+  riseDays: number
+  peakSeverity: number
+  peakDays: number
+  // Days elapsed at peak; reset when entering peak phase.
+  peakDayCounter: number
+  // Apophenia tag — '在码头滑倒', '感染自李明(咳嗽)' — plain string,
+  // not entity ref, so it survives the source NPC's destruction.
+  source: string
+  // Player-only diagnosis gate; NPCs always read as diagnosed in inspector.
+  diagnosed: boolean
+  diagnosedDay: number | null
+  currentTreatmentTier: number
+  treatmentExpiresDay: number | null
+  // Mirror of currently-emitting band indices on the Effects trait.
+  // Diffed by the reconciler against the next set on every severity change.
+  activeBands: number[]
+  // Last game-day this instance emitted a digest line, so the daily
+  // tick doesn't double-emit if it runs more than once for any reason.
+  lastDigestDay: number
+}
+
+export const Conditions = trait(() => ({
+  list: [] as ConditionInstance[],
+}))
+
 export const Health = trait({ hp: 100, dead: false })
 
 export const Money = trait({ amount: 0 })
