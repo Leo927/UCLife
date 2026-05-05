@@ -72,7 +72,7 @@ never mutated at runtime.
 | `peakDays` | `[min, max]` \| number | Game-days held at peak before exit; rolled at onset (default 1) |
 | `peakSeverityFloor` | number | Clamp on `peakSeverity − peak_reduction_by_tier`; keeps treated illness non-trivial |
 | `baseRecoveryRate` | number | Severity points/day during recovering, before endurance/treatment multipliers |
-| `requiredTreatmentTier` | enum | `none` / `pharmacy` / `clinic`. **`recoveryMode = 'treatment'` only.** |
+| `requiredTreatmentTier` | number | Ordinal; see *Treatment tier scale* below. **`recoveryMode = 'treatment'` only.** |
 | `complicationRisk` | `{ daily: number, spawns: string }` | Daily prob of spawning the linked condition id while stalled. **Treatment mode only.** |
 | `lifestylePredicates` | `{ ids: string[], requiredPerDay: number, driftRate: number }` | N-of-M predicate gate. **`recoveryMode = 'lifestyle'` only.** Predicate catalog lives in mood layer (Phase 5). |
 | `severityFloors` | `{ pharmacy?: number, clinic?: number }` | Lifestyle-mode adjunct floors — meds/therapy raise the floor without resolving |
@@ -105,6 +105,33 @@ The severity band on a modifier is what lets one row carry a "mild
 fatigue 1.2× drain" entry and a "severe fatigue 1.5× drain" entry
 without needing two templates.
 
+### Treatment tier scale
+
+Tiers are **ordinal numbers**, not enum strings. The recovery gate is the
+plain comparison `instance.currentTreatmentTier >= template.requiredTreatmentTier`,
+and per-tier multiplier tables (peak reduction, recovery multiplier) are
+arrays indexed by tier. Encoding tiers as strings would force a parallel
+ordering map; ordinals make the comparison self-documenting and the tables
+indexable.
+
+| Tier | Name | Meaning |
+|---|---|---|
+| 0 | untreated | Self-care (sleep + water). Default for fresh instances. |
+| 1 | pharmacy | OTC meds; First Aid verbs default here when unlocked |
+| 2 | clinic | Civilian clinic prescription, AE clinic prescription |
+
+The scale is intentionally short and open-ended at the high end — a
+future trauma-tier or research-grade tier can extend to 3+ without a
+save break (numeric fields default-init cleanly on old saves).
+
+The AE clinic is **tier 2**, same as civilian clinic. Its faction perk is
+not a tier bump; it's a sidecar of additional benefits — extra peak
+reduction, reduced scar threshold — applied via the `TreatmentEvent`
+that committed it. Tier comparisons stay clean.
+
+UI strings (`'药店'`, `'诊所'`, the stalled-badge copy) live in
+zh-CN; numeric tiers never reach the player.
+
 ### `SelfTreatVerb`
 
 Authored entries on the template. Running one populates
@@ -115,7 +142,7 @@ Authored entries on the template. Running one populates
 | `verb` | string | `bandage` / `splint` / `clean_wound` / … |
 | `requiresSkill` | number | First Aid threshold |
 | `requiresItem` | string | Inventory key (`gauze`, `splint`, `antiseptic`) |
-| `equivalentTier` | enum | `pharmacy` (typical) — what tier this counts as for the recovery gate |
+| `equivalentTier` | number | What tier this verb counts as for the recovery gate (typically 1 / pharmacy) |
 | `dailyReduction` | number | Severity points/day on top of base recovery, while active |
 | `durationDays` | number | How long the verb's effect lasts |
 
@@ -137,7 +164,7 @@ Authored entries on the template. Running one populates
   peakSeverityFloor: 20,
   baseRecoveryRate: 12,
 
-  requiredTreatmentTier: 'none',
+  requiredTreatmentTier: 0,  // untreated — colds resolve on self-care
   complicationRisk: null,
 
   infectious: true,
@@ -197,8 +224,8 @@ entity references; safe to JSON-serialize.
 | `source` | string | Free-text apophenia tag — `'感染自李明(咳嗽)'`, `'在码头滑倒'`. Plain string, not entity ref — survives the source NPC's death/destroy. |
 | `diagnosed` | bool | Player-only. NPCs read as diagnosed in inspector regardless. |
 | `diagnosedDay` | number \| null | Set on diagnosis; drives the diagnosed card's "treatment record" line |
-| `currentTreatmentTier` | enum | `none` / `pharmacy` / `clinic`. The active commitment, **not** a property of the template. |
-| `treatmentExpiresDay` | number \| null | Day the current course lapses (e.g., 5-day pharmacy prescription). After this, `currentTreatmentTier` falls back to `none` unless renewed. |
+| `currentTreatmentTier` | number | Ordinal; see *Treatment tier scale* below. The active commitment, **not** a property of the template. |
+| `treatmentExpiresDay` | number \| null | Day the current course lapses (e.g., 5-day pharmacy prescription). After this, `currentTreatmentTier` falls back to 0 (untreated) unless renewed. |
 | `treatmentHistory` | `TreatmentEvent[]` | Append-only log: purchase / self-treat / lapse / clinic-visit. Drives the diagnosed card's history readback. |
 | `selfTreatActive` | `SelfTreatActive \| null` | If a First Aid verb is currently boosting recovery: `{ verb, equivalentTier, dailyReduction, expiresDay }` |
 | `lastDigestDay` | number | Last game-day a digest line was emitted; de-dup at rollover |
@@ -218,8 +245,8 @@ One per treatment action taken on this instance:
 | Field | Type | Notes |
 |---|---|---|
 | `day` | number | Game-day |
-| `kind` | enum | `civilian_clinic` / `ae_clinic` / `pharmacy_purchase` / `self_treat` / `lapse` |
-| `tierGranted` | enum | `none` / `pharmacy` / `clinic` |
+| `kind` | enum | `civilian_clinic` / `ae_clinic` / `pharmacy_purchase` / `self_treat` / `lapse` (descriptive category, not a tier) |
+| `tierGranted` | number | Ordinal; see *Treatment tier scale* below |
 | `durationDays` | number | How long this event's tier holds |
 | `costMoney` | number | For player audit |
 | `costRep` | `{ factionId: string, delta: number } \| null` | AE clinic burns rep |
@@ -243,7 +270,7 @@ One per treatment action taken on this instance:
   "source": "感染自李明(咳嗽)",
   "diagnosed": false,
   "diagnosedDay": null,
-  "currentTreatmentTier": "none",
+  "currentTreatmentTier": 0,
   "treatmentExpiresDay": null,
   "treatmentHistory": [],
   "selfTreatActive": null,

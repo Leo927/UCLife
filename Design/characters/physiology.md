@@ -120,8 +120,8 @@ Bounded scope; not infinite categories. Each family teaches a different lesson.
 
 | Family | Onset trigger | Default `requiredTier` | Duration | What it teaches |
 |---|---|---|---|---|
-| **Acute illness** (cold, flu, food poisoning, hangover) | Vitals saturation, ingestion, contagion | `none` (severe flu → `pharmacy`) | 1–7 days | "Stay home and recover" |
-| **Injury** (sprain, cut, fracture, burn, concussion) | Environmental event, combat (Phase 5+) | `pharmacy` (severe → `clinic`) | 3–30 days | "Patch it or it won't heal" |
+| **Acute illness** (cold, flu, food poisoning, hangover) | Vitals saturation, ingestion, contagion | 0 / untreated (severe flu → 1 / pharmacy) | 1–7 days | "Stay home and recover" |
+| **Injury** (sprain, cut, fracture, burn, concussion) | Environmental event, combat (Phase 5+) | 1 / pharmacy (severe → 2 / clinic) | 3–30 days | "Patch it or it won't heal" |
 | **Chronic** (scar, weak knee, recurring cough, asthma) | Resolved-with-souvenir from severe acute or injury; rarely innate | n/a — does not resolve | Permanent | "Your character has history" |
 | **Mental** (anxiety, withdrawal, grief, depression) — *Phase 5* | Behavior-pattern saturation, ingestion (addiction → withdrawal), bereavement event | n/a — `recoveryMode = lifestyle` | Variable | "Fix your lifestyle, not your prescription" |
 | **Pregnancy / aging** — *deferred* | — | — | — | Data shape supports it; no Phase 4 work |
@@ -196,9 +196,10 @@ incubating:
 
 rising:
     effective_peak = peakSeverity
-                   - peak_reduction_by_tier[treatment_tier]   (none 0,
-                                                              pharmacy 15,
-                                                              clinic 25)
+                   - peak_reduction_by_tier[treatmentTier]    (table indexed
+                                                              by ordinal:
+                                                              [0,15,25] for
+                                                              tiers 0/1/2)
     effective_peak = max(effective_peak, peakSeverityFloor)   (per-row,
                                                               keeps illness
                                                               non-trivial
@@ -217,15 +218,17 @@ peak:
     severity = effective_peak                                 (held)
     peakDayCounter += 1
     if peakDayCounter >= peakDays:
-        phase = (treatment_tier >= required_tier) ? recovering : stalled
+        phase = (treatmentTier >= requiredTier) ? recovering : stalled
 
 recovering:
     target = base_recovery_rate
            × endurance_multiplier        (Endurance 0..100 → 0.5×..1.5×)
-           × treatment_multiplier        (pharmacy 1.5× / clinic 2.0×)
+           × recovery_mul_by_tier[treatmentTier]
+                                         (table indexed by ordinal:
+                                          [1.0, 1.5, 2.0] for tiers 0/1/2)
            × (1.0 - severity / 100)      (high severity recovers slower)
     severity -= target
-    if treatment_tier < required_tier:
+    if treatmentTier < requiredTier:
         phase = stalled
 
 stalled:
@@ -233,7 +236,7 @@ stalled:
     roll complicationRisk                (on hit, spawn linked condition —
                                           open wound → infection,
                                           fracture → mal-union scar)
-    if treatment_tier >= required_tier:
+    if treatmentTier >= requiredTier:
         phase = recovering
 
 peakTracking = max(peakTracking, severity)   (read at resolve for scar branching)
@@ -247,7 +250,7 @@ Two design points worth pinning:
   could *reverse* the rise, every clinic visit would trivialize acute illness
   and the diagnosis loop would collapse.
 - **Self-treat (sleep + water at home) only resolves conditions where
-  `requiredTreatmentTier = none`** — colds, hangovers, mild food poisoning
+  `requiredTreatmentTier = 0`** — colds, hangovers, mild food poisoning
   route Peak → Recovering automatically. A sprained ankle or a deep cut still
   rises, peaks, then **stalls** at peak severity once `peakDays` elapses:
   severity won't fall, the character keeps suffering the modifiers (Strength
@@ -344,11 +347,11 @@ multiplier is applied at-or-above-required only.
 
 | Treatment | Effective tier | Cost | Peak reduction (during rising) | Recovery mult (when ≥ required) | Diagnosis | Notes |
 |---|---|---|---|---|---|---|
-| **Untreated** (sleep + water) | `none` | Free | 0 | 1.0× | No | Resolves only `requiredTier = none` rows (cold, hangover, mild food poisoning) |
-| **Self-treat with First Aid (skill ≥ 30)** | `pharmacy` for unlocked verbs (bandage, splint, clean wound); else `none` | Free + skill XP | 10–15 (skill scales) | 1.0×–1.3× (skill scales) | No | Lets you handle minor injuries at home; no help with internal illnesses or `clinic`-tier conditions |
-| **Pharmacy** | `pharmacy` | Money | −15 | 1.5× | No | Pharmacy interactable; Chemistry skill (Phase 5) lets player craft meds instead of buy |
-| **Civilian clinic** | `clinic` | Money (medium) | −25 | 2.0× | Yes | Walk-in; reveals condition name; prescribes |
-| **AE clinic** | `clinic` | AE rep + small money | −25 (+ shorter rising time) | 2.0× + reduced scar threshold | Yes, including subtle conditions | Gated on AE rep tier; legible faction benefit (the kind a silent gate would hide) |
+| **Untreated** (sleep + water) | 0 (untreated) | Free | 0 | 1.0× | No | Resolves only `requiredTier = 0` rows (cold, hangover, mild food poisoning) |
+| **Self-treat with First Aid (skill ≥ 30)** | 1 (pharmacy) for unlocked verbs (bandage, splint, clean wound); else 0 | Free + skill XP | 10–15 (skill scales) | 1.0×–1.3× (skill scales) | No | Lets you handle minor injuries at home; no help with internal illnesses or tier-2 conditions |
+| **Pharmacy** | 1 (pharmacy) | Money | −15 | 1.5× | No | Pharmacy interactable; Chemistry skill (Phase 5) lets player craft meds instead of buy |
+| **Civilian clinic** | 2 (clinic) | Money (medium) | −25 | 2.0× | Yes | Walk-in; reveals condition name; prescribes |
+| **AE clinic** | 2 (clinic) | AE rep + small money | −25 (+ shorter rising time) | 2.0× + reduced scar threshold | Yes, including subtle conditions | Gated on AE rep tier; same numeric tier as civilian, faction perks layered as sidecars on the TreatmentEvent |
 
 Peak reduction caps the worst day; it does not skip the rising phase.
 Reduction is clamped by `peakSeverityFloor` (per-row, in `conditions.json5`)
@@ -411,7 +414,7 @@ Profile gate: `CONTAGION_PROF=1`.
 contact-tick. Arc shape: `incubationDays: [1, 3]`, `riseDays: [1, 2]`,
 `peakSeverity: [55, 75]`, `peakDays: [1, 2]` — total 5–7 game-days from
 infection to clean. Higher peak than a cold (the modifiers actually bite),
-and `requiredTreatmentTier` bumps to `pharmacy` at the upper severity band
+and `requiredTreatmentTier` bumps to 1 (pharmacy) at the upper severity band
 so an untreated flu *can* stall and complicate, where a cold rides itself
 out. This is the Phase 4 demo line — *"a flu sweeps a workplace"* — earned
 mechanically.

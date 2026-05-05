@@ -304,7 +304,7 @@ log carry the load.
 
 Each sub-phase ships independent player-visible play. The stalled badge
 slipping into 4.1 (alongside injuries) is deliberate — colds in 4.0 don't
-stall (they all run at `requiredTier = none`), so the badge has no
+stall (they all run at `requiredTier = 0`), so the badge has no
 content to surface until injuries arrive.
 
 ## Open questions
