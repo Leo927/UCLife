@@ -11,3 +11,4 @@ tscout.txt
 .claude/settings.local.json
 arch/**/*.png
 arch/**/*.svg
+.claude/worktrees
