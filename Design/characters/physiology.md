@@ -40,6 +40,8 @@ character at the same time, each with independent state.
 | `onsetDay` | Game-day stamp; drives log-line phrasing and seniority |
 | `source` | Free-text origin tag — `"caught from 李明 at the dock"`, `"slipped on stairs"` — apophenia fuel |
 | `infectious` | If true, contagion system reads `transmissionRate` and `contactRadius` from the row |
+| `requiredTreatmentTier` | Per-row gate: `none` / `pharmacy` / `clinic`. Severity decays only when active treatment ≥ this tier. Below it, severity stalls. |
+| `complicationRisk` | Per-row daily probability of spawning a linked condition (infection, mal-union, etc.) when treatment < required |
 | `diagnosed` | Player-only flag; flips true after a clinic visit. NPCs are always "diagnosed" from the inspector's POV |
 
 State is per-instance, not per-condition-id — the same character can have two
@@ -105,13 +107,13 @@ Modifier channels a condition row may emit:
 
 Bounded scope; not infinite categories. Each family teaches a different lesson.
 
-| Family | Onset trigger | Duration | What it teaches |
-|---|---|---|---|
-| **Acute illness** (cold, flu, food poisoning, hangover) | Vital saturation, contagion, bad food, alcohol | 1–7 days | "Stay home and recover" |
-| **Injury** (sprain, cut, fracture, burn, concussion) | Environmental events, combat (Phase 5+) | 3–30 days | "Be careful with that body part" |
-| **Chronic** (scar, weak knee, recurring cough, asthma) | Resolved-with-souvenir from severe acute or injury; rarely innate | Permanent | "Your character has history" |
-| **Mental** (anxiety, withdrawal, grief) — *Phase 5 stub only* | Sustained low mood, addiction, NPC death | Variable | Reserved for [social/relationships.md](../social/relationships.md) and the mood layer |
-| **Pregnancy / aging** — *deferred* | — | — | Data shape supports it; no Phase 4 work |
+| Family | Onset trigger | Default `requiredTier` | Duration | What it teaches |
+|---|---|---|---|---|
+| **Acute illness** (cold, flu, food poisoning, hangover) | Vital saturation, contagion, bad food, alcohol | `none` (severe flu → `pharmacy`) | 1–7 days | "Stay home and recover" |
+| **Injury** (sprain, cut, fracture, burn, concussion) | Environmental events, combat (Phase 5+) | `pharmacy` (severe → `clinic`) | 3–30 days | "Patch it or it won't heal" |
+| **Chronic** (scar, weak knee, recurring cough, asthma) | Resolved-with-souvenir from severe acute or injury; rarely innate | n/a — does not resolve | Permanent | "Your character has history" |
+| **Mental** (anxiety, withdrawal, grief) — *Phase 5 stub only* | Sustained low mood, addiction, NPC death | TBD | Variable | Reserved for [social/relationships.md](../social/relationships.md) and the mood layer |
+| **Pregnancy / aging** — *deferred* | — | — | — | Data shape supports it; no Phase 4 work |
 
 Phase 4 ships **acute + injury + chronic-as-souvenir**. Mental gets a stub
 row in the schema so the data model doesn't churn when Phase 5 fills it in.
@@ -133,7 +135,8 @@ end note
 state Incubating : symptoms hidden\nseverity = 0\n1–2 game-days
 state Symptomatic : symptoms shown as\nzh-CN flavor blurb\nmodifiers active\ndiagnosed = false
 state Diagnosed : canonical name shown\nrecovery range shown\nrecommended treatment shown
-state Recovering : severity falling per day
+state Stalled : treatment < requiredTier\nseverity does not fall\nmodifiers still active\ndaily complication roll
+state Recovering : treatment ≥ requiredTier\nseverity falls per day
 state "Resolved (clean)" as Clean : peak < scarThreshold\ncondition removed
 state "Resolved (scarred)" as Scar : peak ≥ scarThreshold\nchronic stub spawned\ntalentCap penalty
 state NearDeath : permadeath OFF only
@@ -141,14 +144,18 @@ state Death : permadeath ON only
 
 Incubating --> Symptomatic : incubation elapses
 Symptomatic --> Diagnosed : clinic visit
-Symptomatic --> Recovering : self-treat / pharmacy
-Diagnosed --> Recovering : treatment chosen
+Symptomatic --> Stalled : insufficient treatment
+Symptomatic --> Recovering : treatment ≥ required
+Diagnosed --> Stalled : insufficient treatment
+Diagnosed --> Recovering : treatment ≥ required
+Stalled --> Recovering : treatment upgraded
+Stalled --> Stalled : complication roll\nmay spawn linked condition\n(infection, mal-union)
 Recovering --> Clean : severity → 0
 Recovering --> Scar : severity → 0
 Symptomatic --> Death : severity → 100
-Symptomatic --> NearDeath : severity → 100
+Stalled --> Death : severity → 100
+Stalled --> NearDeath : severity → 100
 Diagnosed --> Death : severity → 100
-Diagnosed --> NearDeath : severity → 100
 NearDeath --> Scar : auto-resolve\nrespawn at home / hospital
 
 Clean --> [*]
@@ -160,13 +167,30 @@ Death --> [*]
 **Severity update** (once per game-day, not per tick):
 
 ```
-target = base_recovery_rate
-       × endurance_multiplier        (Endurance 0..100 → 0.5×..1.5×)
-       × treatment_multiplier        (untreated 1.0× / pharmacy 1.5× / clinic 2.0×)
-       × (1.0 - severity / 100)      (high severity recovers slower)
-severity -= target
-peak = max(peak, severity)           (tracked for scar branching)
+if treatment_tier >= required_tier:
+    target = base_recovery_rate
+           × endurance_multiplier        (Endurance 0..100 → 0.5×..1.5×)
+           × treatment_multiplier        (pharmacy 1.5× / clinic 2.0×)
+           × (1.0 - severity / 100)      (high severity recovers slower)
+    severity -= target
+else:
+    severity stays                       (modifiers remain active)
+    roll complicationRisk                (on hit, spawn linked condition —
+                                          open wound → infection,
+                                          fracture → mal-union scar)
+
+peak = max(peak, severity)               (tracked for scar branching)
 ```
+
+Self-treat (sleep + water at home) only resolves conditions where
+`requiredTreatmentTier = none` — colds, hangovers, mild food poisoning. A
+sprained ankle or a deep cut **stalls** at home: severity won't fall, the
+character keeps suffering the modifiers (Strength capped, walking slower,
+work perf reduced), and each day rolls a complication chance. This is what
+makes the diagnosis loop carry weight: misjudging a "minor strain" that's
+actually a fracture costs you several days of stalled recovery and possibly
+an infection layered on top, while a clinic visit would have routed you
+straight into the recovering arc.
 
 **Onset triggers, in detail:**
 
@@ -188,15 +212,19 @@ permanent `talentCap` penalty. The scar is the apology for surviving.
 
 ## Treatment options
 
-Four treatment tiers, each with its own cost/benefit triangle:
+Treatment is **tiered**, and recovery is gated on the tier matching or
+exceeding the condition's `requiredTreatmentTier`. Choosing a tier below
+the required gate does not slow recovery — it stalls it (and rolls
+complications). Choosing a tier above does not speed it further; the table's
+multiplier is applied at-or-above-required only.
 
-| Treatment | Cost | Recovery boost | Diagnosis | Notes |
-|---|---|---|---|---|
-| **Self-treat** (sleep + water at home) | Free | 1.0× (Endurance only) | None | Zero-skill default |
-| **Self-treat with First Aid skill** | Free + skill XP | 1.0×–1.3× | None | Skill ≥ 30 unlocks bandage / splint actions on injuries |
-| **Pharmacy** (buy meds) | Money | 1.5× | None | Pharmacy interactable; Chemistry skill (Phase 5) lets player craft instead of buy |
-| **Civilian clinic** | Money (medium) | 2.0× | Yes | Walk-in; reads condition; prescribes |
-| **AE clinic** | AE rep + small money | 2.0× + chronic-prevention | Yes, including subtle conditions | Gated on AE rep tier; legible faction benefit (the kind a silent gate would hide) |
+| Treatment | Effective tier | Cost | Recovery mult (when ≥ required) | Diagnosis | Notes |
+|---|---|---|---|---|---|
+| **Untreated** (sleep + water) | `none` | Free | 1.0× | No | Resolves only `requiredTier = none` rows (cold, hangover, mild food poisoning) |
+| **Self-treat with First Aid (skill ≥ 30)** | `pharmacy` for unlocked verbs (bandage, splint, clean wound); else `none` | Free + skill XP | 1.0×–1.3× (skill scales) | No | Lets you handle minor injuries at home; no help with internal illnesses or `clinic`-tier conditions |
+| **Pharmacy** | `pharmacy` | Money | 1.5× | No | Pharmacy interactable; Chemistry skill (Phase 5) lets player craft meds instead of buy |
+| **Civilian clinic** | `clinic` | Money (medium) | 2.0× | Yes | Walk-in; reveals condition name; prescribes |
+| **AE clinic** | `clinic` | AE rep + small money | 2.0× + reduced scar threshold | Yes, including subtle conditions | Gated on AE rep tier; legible faction benefit (the kind a silent gate would hide) |
 
 The AE clinic gate is the design's anchor for the *"factions matter even if
 you're a civilian"* read. A player without AE rep will catch a flu and ride
