@@ -1,34 +1,67 @@
 # Desired architecture (target)
 
-This directory will hold the diagrams the codebase is being refactored **toward**. None of the diagrams here are required to match HEAD — they define the seams the refactor is working to establish.
+This directory holds diagrams the codebase is being refactored **toward**. A diagram here describes the seam being maintained today after the architecture-cleanup waves landed; further diagrams require the same design conversation that 001 went through.
 
 ## Status
 
-**Not yet drawn.** This is intentional. The desired-architecture diagrams should not be authored without first agreeing on:
+`001_component_layers.puml` is authored as of Wave 4. The rest of the suggested set (`002`-`006`) is **not yet authored** — the next agent picking this up should not assume they exist.
 
-1. **The engine / game split.** Which directories will live in a future engine package (`engine/{ecs,sim,render,procgen,save}`) vs. UC-specific game code (`game/`)? CLAUDE.md states the goal — "we should have a reusable engine that can be used on other projects" — but the actual line has never been drawn.
-2. **Resolution of known violations** flagged in `arch/current/`:
-   - The `globalThis.__uclife__` debug surface in `main.tsx` (couples boot to ~10 subsystems for Playwright fixtures).
-   - `save/index.ts` directly calling `stopLoop` / `startLoop` and reaching into per-system reset hooks (save → loop → all systems coupling). A "world reset lifecycle" event bus is the natural seam.
-   - Module-level singletons in systems (combat, population, relations, npcBuckets, vitalsAccum, stressAccum, supplyDrain, spaceSimFlags, engagement). These are not per-world today — works only because the world count is small and fixed.
-   - `sim/loop.ts` directly importing `save/index.ts` for autosave (loop knows about persistence).
-   - `Design/architecture.md` describing a stack (`react-konva`, `easystarjs`, `LinguiJS`) the codebase no longer ships.
-3. **Render seam** — formalise `render/Game.tsx`'s per-frame-snapshot pattern (vs. koota `useQuery` for HUD) as the contract, not as a workaround. Pin the snapshot type as the public ECS→render interface.
-4. **Multi-world contract** — make the `world` Proxy purely a convenience for "active scene" callers and require all save/load + cross-scene systems to take an explicit `World` argument. Today this is informally true; the diagrams should make it a rule.
+## Cleanup waves landed
 
-## Suggested diagram set (when the above is settled)
+- **Wave 1 — sim/save event bus.** `src/sim/events.ts` is a typed pub/sub. `src/save/index.ts` emits `load:start` / `load:end`; `src/sim/loop.ts` emits `day:rollover` / `hyperspeed:start`. `src/boot/autosaveBinding.ts` subscribes for autosave. The bidirectional save <-> sim/loop import cycle is gone.
+- **Wave 1.5 — save handler registry.** `src/save/registry.ts` plus 16 cluster files under `src/boot/saveHandlers/` invert per-subsystem reach. `save/index.ts` iterates handlers blindly; adding a 17th persisted subsystem is one new file in `src/boot/saveHandlers/`, not an edit to `save/index.ts`.
+- **Wave 2 — sim -> ui edge severed.** No `systems/*` file imports from `ui/`. `activeZone` switched from a camera-viewport coupling to a player-radius rule, removing the last reverse edge.
+- **Wave 3 — debug handle registry.** `src/debug/uclifeHandle.ts` plus 8 cluster files under `src/boot/debugHandles/` invert the `globalThis.__uclife__` god-object. `main.tsx` dynamic-imports the manifest behind `import.meta.env.DEV`; Rollup tree-shakes it from prod. The 300-line literal in `main.tsx` became 8 cluster files of 10-50 lines each.
 
-A 1:1 mirror of `arch/current/` is a good starting target so diff-reading the two folders shows the refactor delta:
+Post-Wave-3 layer arrows:
 
-| File | Will define |
-| --- | --- |
-| `001_component_layers.puml` | Engine vs. game split; a hard `engine/* MUST NOT depend on game/*` arrow rule. |
-| `002_tick_pipeline.puml` | Event-driven autosave hooks (loop emits `day:rollover`, `hyperspeed:start` — save subscribes); per-tick chain unchanged. |
-| `003_multi_world_scene_swap.puml` | `world` Proxy for active-scene callers only; explicit-World API for save / migrate / cross-scene tick. |
-| `004_save_load_roundtrip.puml` | World-reset lifecycle bus; per-system snapshot/restore registration replacing the centralised case-list. |
-| `005_render_flow.puml` | Pinned `GroundSnapshot` (and `SpaceSnapshot`) as the public ECS→render contract. |
-| `006_portrait_pipeline.puml` | Same seam as today (bridge / cacheLoader / adapter); core stays opaque and GPL-clean. |
+```
+config -> data -> procgen -> ecs -> ai/sim -> systems -> save/render -> ui
+boot -> render, boot -> ui, boot -> save, boot -> sim
+boot -> systems  (DEV-only, gated, dropped from prod bundle)
+```
+
+## Engine vs. game-asset seam
+
+The seam is binary, by user directive:
+
+- **`src/data/` and `src/config/`** are game assets — UC-Life-specific content.
+- **Everything else** (`src/ai`, `src/boot`, `src/debug`, `src/ecs`, `src/engine`, `src/procgen`, `src/render`, `src/save`, `src/sim`, `src/systems`, `src/ui`, `src/main.tsx`, `src/App.tsx`, `src/styles.css`) is engine — reusable across other games.
+
+PR review question: **does this change add a string literal in engine/ that only makes sense for UC Life?** If yes, push it down to `data/`.
+
+Known gap: `src/ui/` today contains hardcoded zh-CN player-facing strings. The seam shown in 001 describes the target split, not 100% of HEAD's content placement. Future content-extraction work will move player-facing copy into `data/` behind a string-id indirection; `ui/` stays engine.
+
+## Future waves
+
+The desired diagrams pin the *current* shape after Waves 1-3. The following items are real but not yet pinned; they are candidates for Wave 5+ and any diagram drawn for them must re-open the design conversation first.
+
+1. **Per-world singletons in 12 systems.** Module-level state in `combat`, `population`, `relations`, `npc` (buckets), `activeZone`, `vitals`, `stress`, `supplyDrain`, `spaceSim`, `engagement` (and others). Works only because world count is fixed and small. Target seam: hoist to a per-world `WorldState` trait so multi-world isolation stops being incidental.
+2. **Per-trait save registration.** `save/index.ts` still hard-codes the trait list in its serialise / restore loops even though the *subsystem* level is now registry-driven. Target seam: each trait registers its own `(read, write)` pair against the save registry; save/index.ts shrinks to a fixed entry-point.
+3. **Render snapshot type pinning.** `render/Game.tsx` already takes a per-frame snapshot of ECS state (rather than reading koota inside render). Pin `GroundSnapshot` (and `SpaceSnapshot`) as the *public* ECS -> render contract instead of an ad-hoc shape, so the renderer can be replaced without touching ECS.
+4. **Multi-world Proxy explicit-`World` argument contract.** The `world` Proxy in `src/ecs/world.ts` is convenience for active-scene callers. Save / migrate / cross-scene tick code should take an explicit `World` argument and never read the Proxy. This is informally true today; the desired diagram for `003` should make it a rule.
+
+## Suggested diagram set (when each item is settled)
+
+A 1:1 mirror of `arch/current/` is a good target so diff-reading the two folders shows the refactor delta:
+
+| File | Will define | Status |
+| --- | --- | --- |
+| `001_component_layers.puml` | Engine vs. game-asset split; layer dependency rule. | **Authored (Wave 4).** |
+| `002_tick_pipeline.puml` | Event-driven autosave hooks (Wave 1 already shipped); per-tick chain unchanged. | Not yet authored. |
+| `003_multi_world_scene_swap.puml` | `world` Proxy for active-scene callers only; explicit-`World` API for save / migrate / cross-scene tick. | Not yet authored. |
+| `004_save_load_roundtrip.puml` | Per-trait registration replacing the centralised loop in save/index.ts. | Not yet authored. |
+| `005_render_flow.puml` | Pinned `GroundSnapshot` (and `SpaceSnapshot`) as the public ECS -> render contract. | Not yet authored. |
+| `006_portrait_pipeline.puml` | Same seam as today (bridge / cacheLoader / adapter); core stays opaque and GPL-clean. | Not yet authored. |
+
+## Enforcement
+
+None. These diagrams are agent-steering docs, not CI gates. There is no `eslint-plugin-boundaries` setup, no GitHub Actions check, no merge gate. The seams hold because reviewers (human and agent) read the diagrams, not because tooling rejects PRs that violate them.
+
+## Rendering
+
+PlantUML sources are the source of truth (`.puml`). Render with the VS Code PlantUML extension, the official online server, or the local `plantuml` skill.
 
 ## Rule
 
-Do not author a diagram here until the corresponding `current/` diagram has been read and the user has agreed on the desired delta. Aspirational diagrams written without that anchor become fiction nobody trusts.
+Diagrams here describe the seam being maintained today; further diagrams require the same design conversation 001 had. Don't author a diagram in `desired/` without first agreeing on the shape with the user — aspirational diagrams written without that anchor become fiction nobody trusts.

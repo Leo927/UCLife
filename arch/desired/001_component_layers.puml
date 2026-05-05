@@ -1,0 +1,152 @@
+@startuml desired_001_component_layers
+title UC Life Sim - desired component layers (post-Wave-3 pin)
+
+' This diagram pins the layer shape after Waves 1-3 of the architecture-cleanup
+' arc. It is not a Wave-5+ projection: per-world singletons, per-trait save
+' registration, render snapshot type pinning, and the multi-world explicit-World
+' contract are tracked in arch/desired/README.md as future work.
+'
+' Rule: data flows DOWN. Engine consumes game-asset content via typed loaders
+' only; engine packages MUST NOT hard-code UC-Life-specific data shapes.
+' ASCII-only labels (em-dashes garble under Java's default Windows charset).
+
+skinparam shadowing false
+skinparam defaultFontName "Inter, sans-serif"
+skinparam linetype ortho
+skinparam ranksep 18
+skinparam nodesep 35
+skinparam rectangle {
+  BorderColor #888
+  FontSize 12
+}
+skinparam package {
+  BorderColor #555
+  FontSize 13
+  FontStyle bold
+}
+top to bottom direction
+
+' --- game-asset band: UC-Life-specific content only ---
+package "game asset (UC-Life-specific)" as P_GAME #fafaee {
+  rectangle "config\n.json5 -> loaders, read once at boot"          as L_CFG  #f3f6fa
+  rectangle "data\nstatic content (scenes, jobs, ships, ...)"       as L_DATA #f3f6fa
+}
+
+' --- engine band: reusable across other games ---
+package "engine (reusable)" as P_ENG #f0f6ff {
+  ' rank 0: composition root
+  rectangle "boot\nmain.tsx, autosave, save/debug handler manifests" as L_BOOT #ffffff
+
+  rectangle "procgen\npure, seeded -- roads -> blocks -> cells"     as L_PROC #eef5ee
+  rectangle "ecs\nkoota traits + Map<SceneId, World>"               as L_ECS  #fff8ec
+  together {
+    rectangle "ai\nmistreevous BT (trees + agent)"                  as L_AI   #fff3e6
+    rectangle "sim\nclock, scene, loop, ship, events bus"           as L_SIM  #fff3e6
+  }
+  rectangle "systems\n28 files (vitals, work, npc, combat, ...)"    as L_SYS  #fff3e6
+  together {
+    rectangle "save\nidb-keyval + handler registry"                 as L_SAVE #f0e6ff
+    rectangle "render\npixi + sprite + portrait"                    as L_REND #e9f3ff
+  }
+  rectangle "ui\nReact DOM + zustand stores"                        as L_UI   #e9f3ff
+}
+
+' --- hidden ranking spine: forces strict vertical stack ---
+L_CFG  -[hidden]-> L_DATA
+L_DATA -[hidden]-> L_BOOT
+L_DATA -[hidden]-> L_PROC
+L_BOOT -[hidden]-> L_PROC
+L_PROC -[hidden]-> L_ECS
+L_ECS  -[hidden]-> L_AI
+L_ECS  -[hidden]-> L_SIM
+L_AI   -[hidden]-> L_SYS
+L_SIM  -[hidden]-> L_SYS
+L_SYS  -[hidden]-> L_SAVE
+L_SYS  -[hidden]-> L_REND
+L_SAVE -[hidden]-> L_UI
+L_REND -[hidden]-> L_UI
+
+' --- intended (downward) dependency direction ---
+L_CFG  --> L_DATA
+L_DATA --> L_PROC
+L_DATA --> L_ECS
+L_PROC --> L_ECS
+L_ECS  --> L_SIM
+L_AI   --> L_SYS
+L_SIM  --> L_SYS
+L_SYS  --> L_REND
+L_SYS  --> L_SAVE
+L_REND --> L_UI
+L_BOOT --> L_REND
+L_BOOT --> L_UI
+
+' Boot's reach into save and sim is the canonical composition-root pattern
+' (handler manifests + autosave binding + DEV-gated debug handles). It is not
+' a violation; the seam was inverted in Waves 1, 1.5, 3.
+L_BOOT --> L_SAVE
+L_BOOT --> L_SIM
+
+note right of L_BOOT
+  boot reaches sim/systems/save through three
+  registries; concentration is gone.
+   - src/boot/autosaveBinding.ts subscribes to
+     sim/events.ts ('day:rollover','hyperspeed:start',
+     'load:start','load:end'); save and loop no
+     longer import each other.
+   - src/boot/saveHandlers/* (16 cluster files)
+     side-effect-register against src/save/registry.ts;
+     save/index.ts iterates handlers blindly.
+   - src/boot/debugHandles/* (8 cluster files)
+     register against src/debug/uclifeHandle.ts;
+     main.tsx dynamic-imports the manifest behind
+     import.meta.env.DEV. Rollup tree-shakes it from
+     prod. Pattern is canonical, not a violation.
+end note
+
+note right of L_SYS
+  Systems still hold module-level singletons
+  (combat, population, relations, npc buckets,
+  activeZone, vitals, stress, supplyDrain,
+  spaceSim, engagement). Future: hoist to a
+  per-world WorldState trait so multi-world
+  isolation stops depending on world count
+  being small and fixed. Tracked as Wave 5
+  candidate in arch/desired/README.md.
+end note
+
+note bottom of P_GAME
+  Engine consumes game-asset content via
+  typed loaders only (config/index.ts,
+  data/*.json5 + ?raw + json5.parse).
+  Engine packages MUST NOT hard-code
+  UC-Life-specific data shapes (scene
+  ids, district names, ship classes,
+  faction names, special-NPC ids, ...).
+  PR review question: does this change
+  add a string literal in engine/ that
+  only makes sense for UC Life? If yes,
+  push it down to data/.
+end note
+
+note bottom of L_UI
+  Known gap: ui/ today contains hardcoded
+  zh-CN player-facing strings. The seam
+  shown here describes the target split,
+  not 100% of HEAD's content placement.
+  Future content-extraction work will move
+  player-facing copy into data/ behind a
+  string-id indirection; ui/ stays engine.
+end note
+
+note right of L_REND
+  render/ has its own internal seam:
+   - Game.tsx + ground/PixiGroundRenderer
+     (ECS snapshot -> pixi)
+   - sprite/ (LPC composer, anim ticker)
+   - portrait/ (FC pregmod port -- opaque
+     core, UC owns bridge + adapter)
+  See 005_render_flow + 006_portrait_pipeline
+  in arch/current/ for the unchanged shape.
+end note
+
+@enduml
