@@ -8,12 +8,15 @@
 // a new sheet snapshot with cleared cache, mirroring the rest of this
 // codebase's update-by-replace style.
 //
-// Computation order matches the reference:
-//   final = (formula(base) + Σflat) * (1 + ΣpercentAdd) * Π(1 + percentMult)
-// which keeps the same modifier-stacking semantics as the upstream C# port,
-// rounded to 4 decimals to mask float-arithmetic noise.
+// Computation order matches the reference plus two clamps for situational
+// ceilings:
+//   val = (formula(base) + Σflat) * (1 + ΣpercentAdd) * Π(1 + percentMult)
+//   val = max(val, max(...floors))    — most generous floor wins
+//   val = min(val, min(...caps))      — most restrictive cap wins
+// Tie rule: when cap < floor, cap wins (disabled trumps inspired).
+// Rounded to 4 decimals to mask float-arithmetic noise.
 
-export type ModType = 'flat' | 'percentAdd' | 'percentMult'
+export type ModType = 'flat' | 'percentAdd' | 'percentMult' | 'floor' | 'cap'
 
 export interface Modifier<StatId extends string> {
   statId: StatId
@@ -134,13 +137,26 @@ function compute<StatId extends string>(s: StatSheet<StatId>, id: StatId): numbe
   let flat = 0
   let pctAdd = 0
   let pctMul = 1
+  let floor = -Infinity
+  let cap = Infinity
+  let hasFloor = false
+  let hasCap = false
   for (const m of data.modifiers) {
     if (m.type === 'flat') flat += m.value
     else if (m.type === 'percentAdd') pctAdd += m.value
     else if (m.type === 'percentMult') pctMul *= 1 + m.value
+    else if (m.type === 'floor') {
+      if (m.value > floor) floor = m.value
+      hasFloor = true
+    } else if (m.type === 'cap') {
+      if (m.value < cap) cap = m.value
+      hasCap = true
+    }
   }
-  const raw = (derivedBase + flat) * (1 + pctAdd) * pctMul
-  // Match the reference repo's float-noise mask.
+  let raw = (derivedBase + flat) * (1 + pctAdd) * pctMul
+  if (hasFloor && raw < floor) raw = floor
+  // Cap last so a cap below the floor wins (disabled trumps inspired).
+  if (hasCap && raw > cap) raw = cap
   return Math.round(raw * 10000) / 10000
 }
 

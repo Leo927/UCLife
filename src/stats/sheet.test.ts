@@ -31,6 +31,12 @@ const pctAddMod = (statId: TestStatId, value: number, source: string): Modifier<
 const pctMulMod = (statId: TestStatId, value: number, source: string): Modifier<TestStatId> => ({
   statId, type: 'percentMult', value, source,
 })
+const floorMod = (statId: TestStatId, value: number, source: string): Modifier<TestStatId> => ({
+  statId, type: 'floor', value, source,
+})
+const capMod = (statId: TestStatId, value: number, source: string): Modifier<TestStatId> => ({
+  statId, type: 'cap', value, source,
+})
 
 describe('createSheet', () => {
   it('seeds every stat type with a base of zero', () => {
@@ -104,6 +110,62 @@ describe('removeBySource', () => {
     const before = getStat(s, 'strength')
     s = removeBySource(s, 'never-existed')
     expect(getStat(s, 'strength')).toBe(before)
+  })
+})
+
+describe('floor modifier', () => {
+  it('raises a value below the floor up to the floor', () => {
+    let s = setBase(makeSheet(), 'strength', 10)
+    s = addModifier(s, floorMod('strength', 30, 'cond:inspired'))
+    expect(getStat(s, 'strength')).toBe(30)
+  })
+
+  it('does not lower a value already above the floor', () => {
+    let s = setBase(makeSheet(), 'strength', 80)
+    s = addModifier(s, floorMod('strength', 30, 'cond:inspired'))
+    expect(getStat(s, 'strength')).toBe(80)
+  })
+
+  it('most generous floor wins when stacked', () => {
+    let s = setBase(makeSheet(), 'strength', 5)
+    s = addModifier(s, floorMod('strength', 20, 'a'))
+    s = addModifier(s, floorMod('strength', 50, 'b'))
+    expect(getStat(s, 'strength')).toBe(50)
+  })
+})
+
+describe('cap modifier', () => {
+  it('lowers a value above the cap down to the cap', () => {
+    let s = setBase(makeSheet(), 'strength', 80)
+    s = addModifier(s, capMod('strength', 30, 'cond:broken-arm'))
+    expect(getStat(s, 'strength')).toBe(30)
+  })
+
+  it('does not raise a value already below the cap', () => {
+    let s = setBase(makeSheet(), 'strength', 10)
+    s = addModifier(s, capMod('strength', 30, 'cond:broken-arm'))
+    expect(getStat(s, 'strength')).toBe(10)
+  })
+
+  it('most restrictive cap wins when stacked', () => {
+    let s = setBase(makeSheet(), 'strength', 100)
+    s = addModifier(s, capMod('strength', 80, 'a'))
+    s = addModifier(s, capMod('strength', 50, 'b'))
+    expect(getStat(s, 'strength')).toBe(50)
+  })
+
+  it('cap below floor wins (disabled trumps inspired)', () => {
+    let s = setBase(makeSheet(), 'strength', 70)
+    s = addModifier(s, floorMod('strength', 50, 'gear:bracelet'))
+    s = addModifier(s, capMod('strength', 30, 'cond:broken-arm'))
+    expect(getStat(s, 'strength')).toBe(30)
+  })
+
+  it('floor + cap with value in range leaves the value untouched', () => {
+    let s = setBase(makeSheet(), 'strength', 60)
+    s = addModifier(s, floorMod('strength', 30, 'a'))
+    s = addModifier(s, capMod('strength', 80, 'b'))
+    expect(getStat(s, 'strength')).toBe(60)
   })
 })
 
