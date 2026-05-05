@@ -397,11 +397,10 @@ the trait + fold cache.
   source for NPCs is environmental rolls. Risk: NPC injury rates feel low
   and the body-part system reads as player-only. Acceptable for 4.1 ship,
   flagged for tuning.
-- **Diagnosis cost vs. tutorial leakage**: first-clinic-visit free?
-  Probably yes — teaches the verb. Decision deferred to UX pass.
 
 ## Related
 
+- [physiology-ux.md](physiology-ux.md) — player-facing UX pass: HUD strip, condition card, clinic modal, contagion cues, Phase 4.0/4.1/4.2 surface split
 - [index.md](index.md) — vitals saturation seeds onset; mood reads condition modifiers
 - [attributes.md](attributes.md) — Endurance scales recovery; conditions floor/cap stats
 - [skills.md](skills.md) — First Aid, Medicine, Chemistry are the skill-side levers
