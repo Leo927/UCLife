@@ -15,7 +15,8 @@
 import './core'         // Character, Position, MoveTarget
 import './vitals'       // Vitals, Health, Action
 import './economy'      // Money, Skills, Inventory, JobPerformance
-import './attributes'   // Attributes (must be before progression)
+import './attributes'   // Attributes (must be before effects + progression)
+import './effects'      // Effects (must be after attributes; rebuilds sheet)
 import './placement'    // Bed, BarSeat, RoughSpot, Workstation
 import './housingJob'   // Job, Home, PendingEviction
 import './social'       // RoughUse, ChatTarget, ChatLine, Reputation, JobTenure, FactionRole

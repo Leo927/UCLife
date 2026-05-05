@@ -76,7 +76,13 @@ const LEGACY_KEY = 'uclife:autosave'
 //       resolution lives wholly in the StatSheet via perkSync.
 //       Pre-v8 saves are migrated by lifting the legacy `skills` snap
 //       onto the sheet (see traitSerializers/attributes.ts).
-const SAVE_VERSION = 8
+//   v9: Effects trait (background / perk / condition Effects). The
+//       StatSheet's modifier arrays are derived from Effects.list on
+//       load. Pre-v9 saves carry no Effects field — legacy bg/perk
+//       modifiers stay in-place inside the saved sheet and produce
+//       identical numbers because the fold math is unchanged. Phase 4
+//       conditions emit into this trait too.
+const SAVE_VERSION = 9
 
 // Per-entity snapshot: stable `key` matched against the EntityKey trait
 // in the rebuilt world (or, for immigrants, identifies the NPC to re-
