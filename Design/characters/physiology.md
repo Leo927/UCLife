@@ -35,7 +35,13 @@ character at the same time, each with independent state.
 | Field | Notes |
 |---|---|
 | `id` | Data-driven; references a row in `src/data/conditions.json5` |
-| `severity` | 0–100; advances/recedes per game-day per the row's curve |
+| `severity` | 0–100; phase-driven update per the formula below (rises during onset, plateaus, then decays — not monotonic) |
+| `phase` | `incubating` / `rising` / `peak` / `recovering` / `stalled`. State machine that gates the per-day severity update. |
+| `incubationDays` | Per-instance scalar, rolled at onset from the row's `[min, max]` band. Game-days from onset roll until symptoms appear. |
+| `riseDays` | Per-instance scalar, rolled at onset from the row's `[min, max]` band. Game-days from symptomatic start until severity reaches `peakSeverity`. |
+| `peakSeverity` | Per-instance scalar, rolled at onset from the row's `[min, max]` band. Severity ceiling during rise; height of the peak plateau. |
+| `peakDays` | Per-row scalar (default 1). Game-days the condition holds at `peakSeverity` before phase transitions out of peak. |
+| `peakTracking` | Max severity ever reached on this instance. Read at resolve time for scar branching (replaces the old freestanding `peak`). |
 | `bodyPart` | Optional; injuries pin to one of {head, torso, leftArm, rightArm, leftLeg, rightLeg, hands, eyes}. Illnesses are systemic (`null`) |
 | `onsetDay` | Game-day stamp; drives log-line phrasing and seniority |
 | `source` | Free-text origin tag — `"caught from 李明 at the dock"`, `"slipped on stairs"` — apophenia fuel |
@@ -44,6 +50,14 @@ character at the same time, each with independent state.
 | `requiredTreatmentTier` | `treatment`-mode only. Per-row gate: `none` / `pharmacy` / `clinic`. Severity decays only when active treatment ≥ this tier. Below it, severity stalls. |
 | `complicationRisk` | `treatment`-mode only. Per-row daily probability of spawning a linked condition (infection, mal-union, etc.) when treatment < required |
 | `diagnosed` | Player-only flag; flips true after a clinic visit. NPCs are always "diagnosed" from the inspector's POV |
+
+The four duration-shape bands (`incubationDays`, `riseDays`, `peakSeverity`,
+`peakDays`) are what give two players the same flu and different stories. A
+cold row authored as `incubationDays: [1, 2]`, `riseDays: [1, 2]`,
+`peakSeverity: [35, 55]`, `peakDays: 1` produces arcs that peak around
+day 3, ±1 day, with a spread of how bad the worst day feels — the
+"mild → peak day 3-ish → ease" curve, expressed as data, not as scripted
+events.
 
 State is per-instance, not per-condition-id — the same character can have two
 different `injury` instances on two different body parts. Save layer
@@ -135,31 +149,41 @@ note on link
   • behavior-pattern saturation (Phase 5)
 end note
 
-state Incubating : symptoms hidden\nseverity = 0\n1–2 game-days
-state Symptomatic : symptoms shown as\nzh-CN flavor blurb\nmodifiers active\ndiagnosed = false
-state Diagnosed : canonical name shown\nrecovery range shown\nrecommended treatment shown
-state Stalled : treatment < requiredTier\nseverity does not fall\nmodifiers still active\ndaily complication roll
-state Recovering : treatment ≥ requiredTier\nseverity falls per day
-state "Resolved (clean)" as Clean : peak < scarThreshold\ncondition removed
-state "Resolved (scarred)" as Scar : peak ≥ scarThreshold\nchronic stub spawned\ntalentCap penalty
+state Incubating : severity = 0\nsymptoms hidden\nincubationDays elapses
+state Rising : severity climbs from 0 toward\neffective_peak over riseDays\nsymptoms shown,\nmodifiers active
+state Peak : severity held at effective_peak\nfor peakDays (typically 1)\nworst day; clearest diagnostic signal
+state Recovering : severity falls per\nrecovery formula\n(treatment ≥ requiredTier)
+state Stalled : severity does not fall\ntreatment < requiredTier\nmodifiers still active\ndaily complication roll
+state "Resolved (clean)" as Clean : peakTracking < scarThreshold\ncondition removed
+state "Resolved (scarred)" as Scar : peakTracking ≥ scarThreshold\nchronic stub spawned\ntalentCap penalty
 state NearDeath : permadeath OFF only
 state Death : permadeath ON only
 
-Incubating --> Symptomatic : incubation elapses
-Symptomatic --> Diagnosed : clinic visit
-Symptomatic --> Stalled : insufficient treatment
-Symptomatic --> Recovering : treatment ≥ required
-Diagnosed --> Stalled : insufficient treatment
-Diagnosed --> Recovering : treatment ≥ required
+Incubating --> Rising : incubationDays elapses
+Rising --> Peak : severity reaches effective_peak
+Peak --> Recovering : peakDays elapses\nAND treatment ≥ requiredTier
+Peak --> Stalled : peakDays elapses\nAND treatment < requiredTier
+Recovering --> Stalled : treatment lapses
 Stalled --> Recovering : treatment upgraded
 Stalled --> Stalled : complication roll\nmay spawn linked condition\n(infection, mal-union)
-Recovering --> Clean : severity → 0
-Recovering --> Scar : severity → 0
-Symptomatic --> Death : severity → 100
-Stalled --> Death : severity → 100
-Stalled --> NearDeath : severity → 100
-Diagnosed --> Death : severity → 100
+Recovering --> Clean : severity → 0,\npeakTracking < scarThreshold
+Recovering --> Scar : severity → 0,\npeakTracking ≥ scarThreshold
+
+Rising --> Death : severity → 100 (permadeath ON)
+Peak --> Death : severity → 100 (permadeath ON)
+Stalled --> Death : severity → 100 (permadeath ON)
+Rising --> NearDeath : severity → 100 (permadeath OFF)
+Peak --> NearDeath : severity → 100 (permadeath OFF)
+Stalled --> NearDeath : severity → 100 (permadeath OFF)
 NearDeath --> Scar : auto-resolve\nrespawn at home / hospital
+
+note bottom
+  ''diagnosed'' is an orthogonal flag, not a phase.
+  Flips true on clinic visit during any symptomatic phase
+  (Rising / Peak / Recovering / Stalled), revealing the
+  canonical name in the player UI. NPCs always read as
+  diagnosed in inspector mode.
+end note
 
 Clean --> [*]
 Scar --> [*] : (chronic stub persists\nas a separate condition)
@@ -167,33 +191,75 @@ Death --> [*]
 @enduml
 ```
 
-**Severity update** (once per game-day, not per tick):
+**Severity update** — phase machine, once per game-day (not per tick):
 
 ```
-if treatment_tier >= required_tier:
+incubating:
+    if (today - onsetDay) >= incubationDays:
+        phase = rising
+
+rising:
+    effective_peak = peakSeverity
+                   - peak_reduction_by_tier[treatment_tier]   (none 0,
+                                                              pharmacy 15,
+                                                              clinic 25)
+    effective_peak = max(effective_peak, peakSeverityFloor)   (per-row,
+                                                              keeps illness
+                                                              non-trivial
+                                                              even when
+                                                              treated early)
+    severity += peakSeverity / riseDays                       (linear; rows
+                                                              may declare
+                                                              an ease-in
+                                                              curve later)
+    if severity >= effective_peak:
+        severity = effective_peak
+        phase = peak
+        peakDayCounter = 0
+
+peak:
+    severity = effective_peak                                 (held)
+    peakDayCounter += 1
+    if peakDayCounter >= peakDays:
+        phase = (treatment_tier >= required_tier) ? recovering : stalled
+
+recovering:
     target = base_recovery_rate
            × endurance_multiplier        (Endurance 0..100 → 0.5×..1.5×)
            × treatment_multiplier        (pharmacy 1.5× / clinic 2.0×)
            × (1.0 - severity / 100)      (high severity recovers slower)
     severity -= target
-else:
+    if treatment_tier < required_tier:
+        phase = stalled
+
+stalled:
     severity stays                       (modifiers remain active)
     roll complicationRisk                (on hit, spawn linked condition —
                                           open wound → infection,
                                           fracture → mal-union scar)
+    if treatment_tier >= required_tier:
+        phase = recovering
 
-peak = max(peak, severity)               (tracked for scar branching)
+peakTracking = max(peakTracking, severity)   (read at resolve for scar branching)
 ```
 
-Self-treat (sleep + water at home) only resolves conditions where
-`requiredTreatmentTier = none` — colds, hangovers, mild food poisoning. A
-sprained ankle or a deep cut **stalls** at home: severity won't fall, the
-character keeps suffering the modifiers (Strength capped, walking slower,
-work perf reduced), and each day rolls a complication chance. This is what
-makes the diagnosis loop carry weight: misjudging a "minor strain" that's
-actually a fracture costs you several days of stalled recovery and possibly
-an infection layered on top, while a clinic visit would have routed you
-straight into the recovering arc.
+Two design points worth pinning:
+
+- **Treatment during rising caps the peak; it does not reverse the climb.**
+  An early clinic visit on day 1 of symptoms shaves 25 points off the worst
+  day — the player still gets sick, but the trough is shallower. If treatment
+  could *reverse* the rise, every clinic visit would trivialize acute illness
+  and the diagnosis loop would collapse.
+- **Self-treat (sleep + water at home) only resolves conditions where
+  `requiredTreatmentTier = none`** — colds, hangovers, mild food poisoning
+  route Peak → Recovering automatically. A sprained ankle or a deep cut still
+  rises, peaks, then **stalls** at peak severity once `peakDays` elapses:
+  severity won't fall, the character keeps suffering the modifiers (Strength
+  capped, walking slower, work perf reduced), and each day rolls a
+  complication chance. This is what makes the diagnosis loop carry weight:
+  misjudging a "minor strain" that's actually a fracture costs you several
+  days of stalled recovery and possibly an infection layered on top, while
+  a clinic visit would have routed you straight into the recovering arc.
 
 ### Recovery modes
 
@@ -280,19 +346,25 @@ the required gate does not slow recovery — it stalls it (and rolls
 complications). Choosing a tier above does not speed it further; the table's
 multiplier is applied at-or-above-required only.
 
-| Treatment | Effective tier | Cost | Recovery mult (when ≥ required) | Diagnosis | Notes |
-|---|---|---|---|---|---|
-| **Untreated** (sleep + water) | `none` | Free | 1.0× | No | Resolves only `requiredTier = none` rows (cold, hangover, mild food poisoning) |
-| **Self-treat with First Aid (skill ≥ 30)** | `pharmacy` for unlocked verbs (bandage, splint, clean wound); else `none` | Free + skill XP | 1.0×–1.3× (skill scales) | No | Lets you handle minor injuries at home; no help with internal illnesses or `clinic`-tier conditions |
-| **Pharmacy** | `pharmacy` | Money | 1.5× | No | Pharmacy interactable; Chemistry skill (Phase 5) lets player craft meds instead of buy |
-| **Civilian clinic** | `clinic` | Money (medium) | 2.0× | Yes | Walk-in; reveals condition name; prescribes |
-| **AE clinic** | `clinic` | AE rep + small money | 2.0× + reduced scar threshold | Yes, including subtle conditions | Gated on AE rep tier; legible faction benefit (the kind a silent gate would hide) |
+| Treatment | Effective tier | Cost | Peak reduction (during rising) | Recovery mult (when ≥ required) | Diagnosis | Notes |
+|---|---|---|---|---|---|---|
+| **Untreated** (sleep + water) | `none` | Free | 0 | 1.0× | No | Resolves only `requiredTier = none` rows (cold, hangover, mild food poisoning) |
+| **Self-treat with First Aid (skill ≥ 30)** | `pharmacy` for unlocked verbs (bandage, splint, clean wound); else `none` | Free + skill XP | 10–15 (skill scales) | 1.0×–1.3× (skill scales) | No | Lets you handle minor injuries at home; no help with internal illnesses or `clinic`-tier conditions |
+| **Pharmacy** | `pharmacy` | Money | −15 | 1.5× | No | Pharmacy interactable; Chemistry skill (Phase 5) lets player craft meds instead of buy |
+| **Civilian clinic** | `clinic` | Money (medium) | −25 | 2.0× | Yes | Walk-in; reveals condition name; prescribes |
+| **AE clinic** | `clinic` | AE rep + small money | −25 (+ shorter rising time) | 2.0× + reduced scar threshold | Yes, including subtle conditions | Gated on AE rep tier; legible faction benefit (the kind a silent gate would hide) |
+
+Peak reduction caps the worst day; it does not skip the rising phase.
+Reduction is clamped by `peakSeverityFloor` (per-row, in `conditions.json5`)
+so even an early clinic visit cannot trivialize a serious illness — a flu
+treated on day 1 is still a flu.
 
 The AE clinic gate is the design's anchor for the *"factions matter even if
 you're a civilian"* read. A player without AE rep will catch a flu and ride
-it out at a civilian clinic. A player with AE rep gets early-stage detection
-and lower scar rates. The benefit is perceivable — better outcomes, named in
-the log — and the gate is reachable through the existing AE rep loop.
+it out at a civilian clinic. A player with AE rep gets early-stage detection,
+a noticeably shorter and shallower rising arc, and lower scar rates. The
+benefit is perceivable — better outcomes, named in the log — and the gate
+is reachable through the existing AE rep loop.
 
 ## Contagion (Phase 4.2)
 
@@ -340,8 +412,13 @@ tick: ~50 broad-phase queries × ~10 hits = 500 contact rolls. Target
 Profile gate: `CONTAGION_PROF=1`.
 
 **First shipped contagious condition: flu.** `transmissionRate` ≈ 0.05 per
-contact-tick, 5–7 day duration, mid-severity baseline. This is the Phase 4
-demo line — *"a flu sweeps a workplace"* — earned mechanically.
+contact-tick. Arc shape: `incubationDays: [1, 3]`, `riseDays: [1, 2]`,
+`peakSeverity: [55, 75]`, `peakDays: [1, 2]` — total 5–7 game-days from
+infection to clean. Higher peak than a cold (the modifiers actually bite),
+and `requiredTreatmentTier` bumps to `pharmacy` at the upper severity band
+so an untreated flu *can* stall and complicate, where a cold rides itself
+out. This is the Phase 4 demo line — *"a flu sweeps a workplace"* — earned
+mechanically.
 
 ## Death and the souvenir
 
