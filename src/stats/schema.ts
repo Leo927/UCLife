@@ -36,6 +36,28 @@ type SkillXpMulId = `${SkillStatId}XpMul`
 export const ECONOMIC_IDS = ['wageMul', 'shopMul', 'rentMul'] as const
 export type EconomicStatId = typeof ECONOMIC_IDS[number]
 
+// Per-verb action speed multipliers. The action FSM scales its
+// per-tick `remaining`-decrement by the matching speed, so a 0.5
+// reads as a limp (action takes 2× as long), 0 as a hard lockout
+// (action cannot finish — terminal check never trips). Default base 1
+// keeps existing timings intact until a perk or condition stacks a
+// modifier. movement.ts reads walkingSpeed on top of statMult(reflex)
+// so reflex still drives the natural baseline; the stat captures only
+// the modifier layer.
+export const VERB_SPEED_IDS = [
+  'walkingSpeed',
+  'eatingSpeed',
+  'sleepingSpeed',
+  'washingSpeed',
+  'workingSpeed',
+  'readingSpeed',
+  'drinkingSpeed',
+  'revelingSpeed',
+  'chattingSpeed',
+  'exercisingSpeed',
+] as const
+export type VerbSpeedId = typeof VERB_SPEED_IDS[number]
+
 export type StatId =
   | AttributeId
   | VitalMaxId
@@ -44,6 +66,7 @@ export type StatId =
   | SkillStatId
   | SkillXpMulId
   | EconomicStatId
+  | VerbSpeedId
 
 export const STAT_IDS: readonly StatId[] = [
   ...ATTRIBUTE_IDS,
@@ -53,6 +76,7 @@ export const STAT_IDS: readonly StatId[] = [
   ...SKILL_IDS,
   ...SKILL_XP_MUL_IDS,
   ...ECONOMIC_IDS,
+  ...VERB_SPEED_IDS,
 ]
 
 export const STAT_FORMULAS: FormulaTable<StatId> = identityFormulas(STAT_IDS)
@@ -73,6 +97,7 @@ export const STAT_DEFAULTS: Partial<Record<StatId, number>> = (() => {
   for (const id of SKILL_IDS) out[id] = 0
   for (const id of SKILL_XP_MUL_IDS) out[id] = 1
   for (const id of ECONOMIC_IDS) out[id] = 1
+  for (const id of VERB_SPEED_IDS) out[id] = 1
   return out
 })()
 
@@ -88,6 +113,25 @@ export function vitalDrainMulStat(v: VitalId): VitalDrainMulId {
 }
 export function skillXpMulStat(s: SkillStatId): SkillXpMulId {
   return `${s}XpMul`
+}
+
+const VERB_SPEED_BY_KIND: Partial<Record<string, VerbSpeedId>> = {
+  walking: 'walkingSpeed',
+  eating: 'eatingSpeed',
+  sleeping: 'sleepingSpeed',
+  washing: 'washingSpeed',
+  working: 'workingSpeed',
+  reading: 'readingSpeed',
+  drinking: 'drinkingSpeed',
+  reveling: 'revelingSpeed',
+  chatting: 'chattingSpeed',
+  exercising: 'exercisingSpeed',
+}
+
+// Returns null for the action kinds that don't carry a verb-speed stat
+// (`idle`). Caller treats null as "no scaling."
+export function verbSpeedStat(actionKind: string): VerbSpeedId | null {
+  return VERB_SPEED_BY_KIND[actionKind] ?? null
 }
 
 // Helper for save/load. Re-imports avoid a circular ./sheet → ./schema chain.

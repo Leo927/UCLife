@@ -11,7 +11,7 @@ import { FEED, statMult } from '../character/stats'
 import { actionsConfig, worldConfig } from '../config'
 import { RoughUse } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
-import { skillXpMulStat, type SkillStatId } from '../stats/schema'
+import { skillXpMulStat, verbSpeedStat, type SkillStatId } from '../stats/schema'
 
 const READ_XP = actionsConfig.reading.xpPerBook
 const READ_TARGET_SKILL: SkillId = actionsConfig.reading.targetSkill
@@ -61,7 +61,17 @@ export function actionSystem(world: World, gameMinutes: number) {
     // sleeping, walking) feed in systems that iterate the full entity set.
     if (a.kind === 'reading') feedUse(entity, 'intelligence', FEED.reading, gameMinutes)
     if (a.kind === 'exercising') feedUse(entity, 'strength', FEED.gym, gameMinutes)
-    a.remaining -= gameMinutes
+    // Scale progress by the per-verb speed stat so a perk/condition
+    // that emits a `<verb>Speed` modifier slows or hard-locks the
+    // action without touching this FSM. Default 1.0 = unchanged.
+    const speedStat = verbSpeedStat(a.kind)
+    if (speedStat) {
+      const sheet = entity.get(Attributes)?.sheet
+      const speed = sheet ? getStat(sheet, speedStat) : 1
+      a.remaining -= gameMinutes * speed
+    } else {
+      a.remaining -= gameMinutes
+    }
     if (a.remaining <= 0) {
       const wasKind = a.kind
       const reward = REWARDS[wasKind]

@@ -113,3 +113,30 @@ describe('skill XP multiplier stats', () => {
     expect(getStat(s, skillXpMulStat('piloting'))).toBe(1)
   })
 })
+
+describe('verb speed stats', () => {
+  it('every <verb>Speed defaults to 1', () => {
+    const s = createCharacterSheet()
+    expect(getStat(s, 'walkingSpeed')).toBe(1)
+    expect(getStat(s, 'eatingSpeed')).toBe(1)
+    expect(getStat(s, 'sleepingSpeed')).toBe(1)
+    expect(getStat(s, 'workingSpeed')).toBe(1)
+    expect(getStat(s, 'readingSpeed')).toBe(1)
+  })
+
+  it('a 0.5 limp on walkingSpeed halves the value', () => {
+    let s = createCharacterSheet()
+    s = addModifier(s, {
+      statId: 'walkingSpeed', type: 'percentMult', value: -0.50, source: 'cond:limp',
+    })
+    expect(getStat(s, 'walkingSpeed')).toBeCloseTo(0.50, 6)
+  })
+
+  it('a cap of 0 hard-locks an action (action FSM treats 0 as never-finishes)', () => {
+    let s = createCharacterSheet()
+    s = addModifier(s, {
+      statId: 'workingSpeed', type: 'cap', value: 0, source: 'cond:exhausted',
+    })
+    expect(getStat(s, 'workingSpeed')).toBe(0)
+  })
+})

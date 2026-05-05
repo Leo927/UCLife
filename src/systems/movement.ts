@@ -1,10 +1,11 @@
 import type { World } from 'koota'
-import { Position, MoveTarget, Action, Path, Character, Health, Active, IsPlayer } from '../ecs/traits'
+import { Position, MoveTarget, Action, Path, Character, Health, Active, IsPlayer, Attributes } from '../ecs/traits'
 import { findPath } from './pathfinding'
 import { feedUse, statValue } from './attributes'
 import { FEED, statMult } from '../character/stats'
 import { worldConfig } from '../config'
 import { emitSim } from '../sim/events'
+import { getStat } from '../stats/sheet'
 
 const PX_PER_GAME_MIN = worldConfig.movePxPerGameMin
 const ARRIVE_EPS = worldConfig.arriveEpsPx
@@ -20,7 +21,11 @@ export function movementSystem(world: World, gameMinutes: number) {
     const target = entity.get(MoveTarget)!
     const action = entity.get(Action)!
     if (action.kind !== 'idle' && action.kind !== 'walking') continue
+    // Reflex drives the natural baseline; walkingSpeed is the modifier
+    // layer (perks/conditions stack here without touching reflex math).
     const reflexMult = statMult(statValue(entity, 'reflex'))
+    const a = entity.get(Attributes)
+    const walkSpeedMul = a ? getStat(a.sheet, 'walkingSpeed') : 1
 
     const dx0 = target.x - pos.x
     const dy0 = target.y - pos.y
@@ -62,7 +67,7 @@ export function movementSystem(world: World, gameMinutes: number) {
 
     feedUse(entity, 'reflex', FEED.walk, gameMinutes)
 
-    let stepBudget = PX_PER_GAME_MIN * gameMinutes * reflexMult
+    let stepBudget = PX_PER_GAME_MIN * gameMinutes * reflexMult * walkSpeedMul
     while (stepBudget > 0) {
       const wp = path.index < path.waypoints.length
         ? path.waypoints[path.index]
