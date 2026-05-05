@@ -4,7 +4,7 @@ This directory holds diagrams the codebase is being refactored **toward**. A dia
 
 ## Status
 
-`001_component_layers.puml` is authored as of Wave 4. The rest of the suggested set (`002`-`006`) is **not yet authored** — the next agent picking this up should not assume they exist.
+`001_component_layers.puml` is authored as of Wave 4. The rest of the suggested set (`002`-`006`) is **not yet authored** — the next agent picking this up should not assume they exist. Wave 7 (render snapshot type pinning) landed.
 
 ## Cleanup waves landed
 
@@ -13,6 +13,7 @@ This directory holds diagrams the codebase is being refactored **toward**. A dia
 - **Wave 2 — sim -> ui edge severed.** No `systems/*` file imports from `ui/`. `activeZone` switched from a camera-viewport coupling to a player-radius rule, removing the last reverse edge.
 - **Wave 3 — debug handle registry.** `src/debug/uclifeHandle.ts` plus 8 cluster files under `src/boot/debugHandles/` invert the `globalThis.__uclife__` god-object. `main.tsx` dynamic-imports the manifest behind `import.meta.env.DEV`; Rollup tree-shakes it from prod. The 300-line literal in `main.tsx` became 8 cluster files of 10-50 lines each.
 - **Wave 5 — per-world singletons + per-trait save registry.** `src/ecs/resources.ts` exposes a `WorldSingleton` marker trait and `worldSingleton(world)` accessor; activeZone, npc, vitals, stress, and relations hoist their per-entity Maps onto a per-world resource trait so cross-scene koota id collisions can no longer corrupt them. Combat / spaceSim / supplyDrain / promotion / population stay at module scope with one-line invariant comments naming why (per-active-scene-only or player-global). `src/save/traitRegistry.ts` plus 8 cluster files under `src/boot/traitSerializers/` invert per-trait reach in `save/index.ts`: snapshotEntity is now a generic loop over registered (read, write, reset) triples. Adding a new persisted trait is one file in `src/boot/traitSerializers/`, no edit to `save/index.ts`. On-disk EntitySnap shape is unchanged; SAVE_VERSION stays at 7.
+- **Wave 7 — render snapshot type pinning.** `src/render/groundSnapshot.ts` and `src/render/spaceSnapshot.ts` hold the `GroundSnapshot`/`SpaceSnapshot` (and component `*Snap`) types as the public ECS -> render contract. `PixiGroundRenderer.ts` and `PixiSpaceRenderer.ts` `import type` from those contract files; `Game.tsx` and `SpaceView.tsx` import the types directly from the contract files (not from the renderer module). The renderer impl is now swappable (Pixi -> WebGPU / canvas / debug overlay) without touching `Game.tsx` or ECS.
 
 Post-Wave-3 layer arrows:
 
@@ -35,10 +36,9 @@ Known gap: `src/ui/` today contains hardcoded zh-CN player-facing strings. The s
 
 ## Future waves
 
-The desired diagrams pin the *current* shape after Waves 1-3 + 5. The following items are real but not yet pinned; any diagram drawn for them must re-open the design conversation first.
+The desired diagrams pin the *current* shape after Waves 1-3 + 5 + 7. The following items are real but not yet pinned; any diagram drawn for them must re-open the design conversation first.
 
-1. **Render snapshot type pinning.** `render/Game.tsx` already takes a per-frame snapshot of ECS state (rather than reading koota inside render). Pin `GroundSnapshot` (and `SpaceSnapshot`) as the *public* ECS -> render contract instead of an ad-hoc shape, so the renderer can be replaced without touching ECS.
-2. **Multi-world Proxy explicit-`World` argument contract.** The `world` Proxy in `src/ecs/world.ts` is convenience for active-scene callers. Save / migrate / cross-scene tick code should take an explicit `World` argument and never read the Proxy. Wave 5 made this informally true for activeZone / npc / vitals / stress / relations resets; the desired diagram for `003` should make it a rule across all save / migrate paths.
+1. **Multi-world Proxy explicit-`World` argument contract.** The `world` Proxy in `src/ecs/world.ts` is convenience for active-scene callers. Save / migrate / cross-scene tick code should take an explicit `World` argument and never read the Proxy. Wave 5 made this informally true for activeZone / npc / vitals / stress / relations resets; the desired diagram for `003` should make it a rule across all save / migrate paths.
 
 ## Suggested diagram set (when each item is settled)
 
