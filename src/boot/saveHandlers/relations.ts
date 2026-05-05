@@ -7,7 +7,7 @@
 // one O(N) pass per load and keeps the registry contract minimal.
 
 import { registerSaveHandler } from '../../save/registry'
-import { world, SCENE_IDS, getWorld } from '../../ecs/world'
+import { SCENE_IDS, getWorld, getActiveSceneId } from '../../ecs/world'
 import { EntityKey } from '../../ecs/traits'
 import {
   snapshotRelations,
@@ -20,8 +20,12 @@ import type { Entity } from 'koota'
 registerSaveHandler<RelationSnap[]>({
   id: 'relations',
   phase: 'post',
-  snapshot: () => snapshotRelations(world),
+  snapshot: () => {
+    const world = getWorld(getActiveSceneId())
+    return snapshotRelations(world)
+  },
   restore: (blob) => {
+    const world = getWorld(getActiveSceneId())
     const byKey = new Map<string, Entity>()
     for (const e of world.query(EntityKey)) {
       byKey.set(e.get(EntityKey)!.key, e)

@@ -21,11 +21,11 @@
 
 import { get, set, del } from 'idb-keyval'
 import superjson from 'superjson'
-import type { Entity } from 'koota'
+import type { Entity, World } from 'koota'
 import {
   Character, EntityKey, Health, IsPlayer, Money, Active,
 } from '../ecs/traits'
-import { world } from '../ecs/world'
+import { getWorld, getActiveSceneId } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { resetWorld } from '../ecs/spawn'
@@ -146,7 +146,7 @@ function snapshotEntity(entity: Entity): EntitySnap {
   return snap
 }
 
-function buildMeta(slot: SlotId, gameDate: Date): SaveMeta {
+function buildMeta(world: World, slot: SlotId, gameDate: Date): SaveMeta {
   let playerMoney = 0
   let playerHp = 100
   const player = world.queryFirst(IsPlayer)
@@ -228,6 +228,8 @@ function migrateLegacyBundle(bundle: SaveBundle): {
 }
 
 export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
+  const world = getWorld(getActiveSceneId())
+
   // Combat state is transient by design (Slice G). Manual saves refuse with
   // a toast-friendly error; autosave logs and skips so the throttle clock
   // resets cleanly without spamming UI when combat happens to overlap a
@@ -246,7 +248,7 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
   }
 
   const gameDate = useClock.getState().gameDate
-  const meta = buildMeta(slot, gameDate)
+  const meta = buildMeta(world, slot, gameDate)
   const bundle: SaveBundle = {
     version: SAVE_VERSION,
     seed: WORLD_SEED,
@@ -364,6 +366,11 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   //     any other scene snapshots the player there, so we have to migrate the
   //     fresh player into the target scene before byKey lookup.
   restoreAll(subsystems, 'pre')
+
+  // Resolved after the 'pre' phase: the active-scene handler may swap the
+  // active scene id during restore (a save taken in any scene other than
+  // initialSceneId), so we have to read the world *after* that swap.
+  const world = getWorld(getActiveSceneId())
 
   const byKey = new Map<string, Entity>()
   for (const e of world.query(EntityKey)) {
