@@ -106,7 +106,7 @@ Never spawn NPCs inside luxury/apartment cells — locked cell doors will trap t
 
 ### Render
 
-`src/render/Game.tsx` is the `react-konva` Stage. Sprite composition is in `src/render/sprite/` — `appearanceToLpc.ts` adapts UC's `Appearance` trait to LPC layer keys; `compose.ts` resolves them to URLs under `/lpc/` (or `VITE_LPC_BASE_URL`). The animation ticker runs separately from the sim clock; see `animTick.ts`.
+`src/render/Game.tsx` is a thin React shell that mounts `PixiCanvas` (`src/render/pixi/`) and drives `PixiGroundRenderer` (`src/render/ground/`) via per-frame ECS snapshots — no `useQuery`/`useTrait` subscriptions for world-space visuals. Sprite composition is in `src/render/sprite/` — `appearanceToLpc.ts` adapts UC's `Appearance` trait to LPC layer keys; `compose.ts` resolves them to URLs under `/lpc/` (or `VITE_LPC_BASE_URL`). NPCs/interactables attach per-DisplayObject `pointerdown` handlers (Pixi `eventMode='static'`) so empty-space clicks fall through to the host-level walk handler — no O(N) hit-testing scan. The animation ticker runs separately from the sim clock; see `animTick.ts`.
 
 ### Portrait pipeline (FC pregmod port)
 
@@ -126,7 +126,7 @@ A flaky smoke test is worse than no smoke test: it teaches the team to ignore CI
 
 Required before a new smoke test can be marked done:
 
-1. **Drive through `__uclife__`, not the DOM.** Read state from the deterministic debug handle. Don't assert on rendered text, sprite positions, or konva canvas pixels unless the test is explicitly *about* the renderer — DOM/canvas timing is the #1 source of flakes here.
+1. **Drive through `__uclife__`, not the DOM.** Read state from the deterministic debug handle. Don't assert on rendered text, sprite positions, or Pixi canvas pixels unless the test is explicitly *about* the renderer — DOM/canvas timing is the #1 source of flakes here.
 2. **No fixed `sleep`/`waitForTimeout`.** Wait on a *condition* (`page.waitForFunction(() => __uclife__.something)`), not on wall-clock ms. If you find yourself reaching for `setTimeout(2000)`, expose a deterministic signal on `__uclife__` instead.
 3. **Drive sim time, not real time.** Advance the clock via the debug handle (or `superSpeed`/`alwaysHyperspeed` overrides). A test that sits through real seconds of game time is a flake waiting to happen on a slow CI runner.
 4. **Seeded determinism only.** Same `WORLD_SEED` → same world. Tests must not depend on procgen RNG drift or tick-order races. If a scenario depends on a specific spawn, pin it via `special-npcs.json5` / `scenes.json5` rather than fishing for a procedural NPC.
