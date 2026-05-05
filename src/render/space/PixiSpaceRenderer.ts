@@ -30,8 +30,8 @@
 import { Application, Container, Graphics, Text, ColorMatrixFilter } from 'pixi.js'
 import { AdvancedBloomFilter } from 'pixi-filters'
 import type { CelestialKind } from '../../data/celestialBodies'
-import type { Poi } from '../../data/pois'
 import { ParticlePool, emitThrust } from './particles'
+import type { BodySnapshot, PoiSnapshot, ShipSnapshot, SpaceSnapshot } from '../spaceSnapshot'
 
 const BODY_COLOR: Record<CelestialKind, { fill: number; stroke: number }> = {
   star:     { fill: 0xfde68a, stroke: 0xfef9c3 },
@@ -39,37 +39,6 @@ const BODY_COLOR: Record<CelestialKind, { fill: number; stroke: number }> = {
   moon:     { fill: 0x525252, stroke: 0xa3a3a3 },
   colony:   { fill: 0x14532d, stroke: 0x4ade80 },
   asteroid: { fill: 0x3f2d14, stroke: 0xa16207 },
-}
-
-export interface BodySnapshot {
-  x: number; y: number
-  bodyId: string; nameZh: string
-  radius: number; kind: CelestialKind
-}
-export interface PoiSnapshot {
-  x: number; y: number
-  poi: Poi
-}
-export interface ShipSnapshot {
-  x: number; y: number; vx: number; vy: number
-  course: { tx: number; ty: number; destPoiId: string | null; active: boolean } | null
-}
-export interface SpaceSnapshot {
-  bodies: BodySnapshot[]
-  pois: PoiSnapshot[]
-  ship: ShipSnapshot | null
-  /** World-space dock-snap radius (POI panel + course-snap target). */
-  dockSnapRadius: number
-  /** Camera target — usually the ship; in fit-mode this is overridden. */
-  fitMode: boolean
-  /** When fit-mode is on, the precomputed transform. */
-  fit: { scale: number; cx: number; cy: number } | null
-  /** Course preview line endpoint (resolved against live POI position). */
-  coursePreview: { fromX: number; fromY: number; toX: number; toY: number } | null
-  /** POI under the panel (highlighted with a snap-radius ring). */
-  hoveredPoiId: string | null
-  /** Real elapsed seconds since previous update — used by particle systems. */
-  dtSec: number
 }
 
 interface BodyNode { root: Container; circle: Graphics; label: Text }
