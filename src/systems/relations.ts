@@ -2,25 +2,48 @@
 // lockstep). Sparse — edges only exist between pairs that have been near
 // each other.
 
-import type { World } from 'koota'
+import { trait } from 'koota'
+import type { Entity, World } from 'koota'
 import { Active, Character, Position, Health, Knows, EntityKey, Action, ChatTarget } from '../ecs/traits'
 import { aiConfig, actionsConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { formatUC } from '../sim/clock'
 import { statValue } from './attributes'
 import { statMult } from '../data/stats'
+import { worldSingleton } from '../ecs/resources'
 
 const R = aiConfig.relations
 const PROX_SQ = R.proximityRadiusPx * R.proximityRadiusPx
 const GREET_COOLDOWN_MS = R.greetCooldownMin * 60 * 1000
 const LOG_COOLDOWN_MS = R.logCooldownMin * 60 * 1000
 
-// Per-pair log throttle — separate from per-edge lastSeenMs because the
-// log can be spammier than the gameplay event.
-const lastLogMsByPair = new Map<string, number>()
+// Per-world bookkeeping. The log-throttle map is keyed by stringified
+// entity-id pairs; with module-level scope, those numeric ids would
+// collide across scenes (each koota world starts ids from zero) and
+// silently suppress logs in the new world. The decay-day stamp + tick
+// accumulator are per-world by analogy — different scenes tick at
+// different rates and must not share a decay clock.
+interface RelationsState {
+  lastLogMsByPair: Map<string, number>
+  lastDecayDay: number
+  relAccumMin: number
+  isoCacheMs: Map<Entity, number>
+  isoCacheVal: Map<Entity, number>
+}
 
-// Tracks last day index decay ran so load/time-skip doesn't double or skip.
-let lastDecayDay = -1
+const RelationsResources = trait<() => RelationsState>(() => ({
+  lastLogMsByPair: new Map(),
+  lastDecayDay: -1,
+  relAccumMin: 0,
+  isoCacheMs: new Map(),
+  isoCacheVal: new Map(),
+}))
+
+function stateOf(world: World): RelationsState {
+  const e = worldSingleton(world)
+  if (!e.has(RelationsResources)) e.add(RelationsResources)
+  return e.get(RelationsResources)!
+}
 
 function relationLogTier(opinion: number): string {
   if (opinion >= 40) return '友好地'
@@ -30,8 +53,11 @@ function relationLogTier(opinion: number): string {
   return '简短地'
 }
 
-// Direction-insensitive — both A→B and B→A share one log slot.
-function pairKey(a: ReturnType<World['queryFirst']>, b: ReturnType<World['queryFirst']>): string {
+// Direction-insensitive — both A→B and B→A share one log slot. The numeric
+// keys are world-scoped (koota stamps ids per-world); pairKey is only ever
+// called from within a per-world relationsSystem run, so collisions across
+// worlds never reach the same lastLogMsByPair (it lives on the singleton).
+function pairKey(a: Entity, b: Entity): string {
   const ka = (a as unknown as number) | 0
   const kb = (b as unknown as number) | 0
   return ka < kb ? `${ka}:${kb}` : `${kb}:${ka}`
@@ -40,7 +66,7 @@ function pairKey(a: ReturnType<World['queryFirst']>, b: ReturnType<World['queryF
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x))
 
 interface BodySlot {
-  e: ReturnType<World['queryFirst']>
+  e: Entity
   x: number
   y: number
   // Visit each pair once: B updates A only if bodyIdx[B] > bodyIdx[A].
@@ -53,7 +79,6 @@ interface BodySlot {
 // Drift is multiplied by elapsedMin so cadence is gameplay-equivalent;
 // greets/chat-bonus/decay use absolute lastSeenMs.
 const RELATIONS_TICK_MIN = 5
-let relAccumMin = 0
 
 // Refresh window for fully-saturated pairs. LONELY_WINDOW (1440 min) and
 // GREET_COOLDOWN (360 min) are both much larger, so the lag in stored
@@ -61,10 +86,12 @@ let relAccumMin = 0
 const SATURATED_REFRESH_MS = 60 * 60 * 1000
 
 export function relationsSystem(world: World, gameDate: Date, gameMinutes: number): void {
-  relAccumMin += gameMinutes
-  if (relAccumMin < RELATIONS_TICK_MIN) return
-  const elapsedMin = relAccumMin
-  relAccumMin = 0
+  const state = stateOf(world)
+  state.relAccumMin += gameMinutes
+  if (state.relAccumMin < RELATIONS_TICK_MIN) return
+  const elapsedMin = state.relAccumMin
+  state.relAccumMin = 0
+  const lastLogMsByPair = state.lastLogMsByPair
 
   const nowMs = gameDate.getTime()
 
@@ -107,8 +134,8 @@ export function relationsSystem(world: World, gameDate: Date, gameMinutes: numbe
 
       // Lazy-create both directions on first encounter so the edge data
       // can be read uniformly below.
-      const a = A.e!
-      const b = B.e!
+      const a = A.e
+      const b = B.e
       if (!a.has(Knows(b))) a.add(Knows(b))
       if (!b.has(Knows(a))) b.add(Knows(a))
       const ab = a.get(Knows(b))!
@@ -191,10 +218,10 @@ export function relationsSystem(world: World, gameDate: Date, gameMinutes: numbe
   }
 
   const dayIdx = Math.floor(nowMs / (24 * 60 * 60 * 1000))
-  if (lastDecayDay === -1) {
-    lastDecayDay = dayIdx
-  } else if (dayIdx > lastDecayDay) {
-    lastDecayDay = dayIdx
+  if (state.lastDecayDay === -1) {
+    state.lastDecayDay = dayIdx
+  } else if (dayIdx > state.lastDecayDay) {
+    state.lastDecayDay = dayIdx
     decayAllRelations(world)
   }
 }
@@ -212,11 +239,13 @@ function decayAllRelations(world: World): void {
 
 // Log throttle map is keyed by raw entity ids — MUST clear on world rebuild
 // or stale timestamps will silently suppress logs in the new world.
-export function resetRelationsClock(): void {
-  lastDecayDay = -1
-  relAccumMin = 0
-  lastLogMsByPair.clear()
-  resetIsolationCache()
+export function resetRelationsClock(world: World): void {
+  const s = stateOf(world)
+  s.lastDecayDay = -1
+  s.relAccumMin = 0
+  s.lastLogMsByPair.clear()
+  s.isoCacheMs.clear()
+  s.isoCacheVal.clear()
 }
 
 export type RelationTier = 'stranger' | 'acquaintance' | 'friend' | 'rival' | 'enemy'
@@ -243,24 +272,20 @@ export const TIER_LABEL_ZH: Record<RelationTier, string> = {
 const LONELY_WINDOW_MS = R.lonelyWindowMin * 60 * 1000
 // Per-entity TTL cache: vitalsSystem calls this every tick for every alive
 // NPC, and an uncached scan is O(N²). 30-game-min TTL is acceptable —
-// friend-tier transitions happen on game-day timescales.
+// friend-tier transitions happen on game-day timescales. Cache lives on
+// the per-world singleton (see RelationsResources at top of file).
 const ISO_TTL_MS = 30 * 60 * 1000
-const isoCacheMs = new Map<ReturnType<World['queryFirst']>, number>()
-const isoCacheVal = new Map<ReturnType<World['queryFirst']>, number>()
-
-export function resetIsolationCache(): void {
-  isoCacheMs.clear()
-  isoCacheVal.clear()
-}
 
 export function isolationMultiplier(
-  entity: ReturnType<World['queryFirst']>,
+  world: World,
+  entity: Entity | undefined,
   nowMs: number,
 ): number {
   if (!entity) return 1
-  const lastMs = isoCacheMs.get(entity)
+  const s = stateOf(world)
+  const lastMs = s.isoCacheMs.get(entity)
   if (lastMs !== undefined && nowMs - lastMs < ISO_TTL_MS) {
-    return isoCacheVal.get(entity)!
+    return s.isoCacheVal.get(entity)!
   }
   let mult = R.lonelyBoredomMult
   for (const target of entity.targetsFor(Knows)) {
@@ -269,8 +294,8 @@ export function isolationMultiplier(
     if (nowMs - e.lastSeenMs > LONELY_WINDOW_MS) continue
     if (tierOf(e.opinion, e.familiarity) === 'friend') { mult = 1; break }
   }
-  isoCacheMs.set(entity, nowMs)
-  isoCacheVal.set(entity, mult)
+  s.isoCacheMs.set(entity, nowMs)
+  s.isoCacheVal.set(entity, mult)
   return mult
 }
 

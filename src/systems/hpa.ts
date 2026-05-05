@@ -90,6 +90,8 @@ interface SceneHpa {
   clusters: Cluster[]
   dirty: boolean
 }
+// already keyed per scene: cluster graph is per-world (each scene has its
+// own walls + door layout). Map<SceneId, SceneHpa> is the canonical shape.
 const sceneHpa = new Map<SceneId, SceneHpa>()
 
 function getSceneHpa(id: SceneId): SceneHpa {
@@ -333,6 +335,10 @@ function pathCost(path: number[]): number {
   return cost
 }
 
+// per-active-scene only: queryGen + the abstract heap below are scratch
+// for a single hpaFind() call against the active scene's cluster graph.
+// Only one findPath runs at a time (synchronous from a system tick), so
+// module scope is safe.
 let queryGen = 0
 
 // pathfinding.ts findPath calls setBlockedFor first so the door overlay is

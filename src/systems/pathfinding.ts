@@ -31,6 +31,8 @@ interface SceneCache {
   componentGrid: Uint16Array | null
   componentsDirty: boolean
 }
+// already keyed per scene: walls/components are per-world (different
+// geometry per scene); the static caches must not be shared across scenes.
 const sceneCaches = new Map<SceneId, SceneCache>()
 
 function getSceneCache(id: SceneId): SceneCache {
@@ -42,6 +44,10 @@ function getSceneCache(id: SceneId): SceneCache {
   return c
 }
 
+// per-active-scene only: blocked + scratch are filled per findPath() call
+// against the active scene's wall grid + per-requester door overlay. Only
+// one findPath runs at a time (synchronous from a system tick), so the
+// shared scratch is safe.
 let blocked: Uint8Array | null = null
 let _blockedScratch: Uint8Array | null = null
 

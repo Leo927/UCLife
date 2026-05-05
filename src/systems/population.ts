@@ -18,6 +18,12 @@ const TILE = worldConfig.tilePx
 const ARRIVAL_X = TILE * 20
 const ARRIVAL_Y = TILE * 16
 
+// per-active-scene only: populationSystem is called against the single
+// active world per tick (loop.ts), and only the initial scene currently
+// runs replenishment. The save format encodes immigrantCounter as a
+// single global counter — splitting per-world would force a save
+// migration with no correctness benefit, since EntityKeys must be unique
+// across the whole save (see ecs/spawn.ts: spawnNPC uses npc-imm-N keys).
 let lastSpawnGameMs: number | null = null
 
 // Persisted in saves so reload doesn't reuse keys from prior immigrants.

@@ -8,12 +8,14 @@
 // partitioner reads the player's Position from the world, not the camera
 // viewport, so the sim runs identically headless and on the renderer.
 
-import type { World } from 'koota'
+import { trait } from 'koota'
+import type { Entity, World } from 'koota'
 import {
   Active, Action, Character, ChatTarget, ChatLine, Health, IsPlayer,
   MoveTarget, Path, Position,
 } from '../ecs/traits'
 import { worldConfig } from '../config'
+import { worldSingleton } from '../ecs/resources'
 
 const TILE = worldConfig.tilePx
 const RADIUS_PX = worldConfig.activeZone.activeRadiusTiles * TILE
@@ -22,10 +24,21 @@ const TICK_MS = worldConfig.activeZone.membershipTickMin * 60 * 1000
 
 type Bounds = { x0: number; y0: number; x1: number; y1: number }
 
-let lastTickGameMs = -Infinity
+// Per-world membership-tick throttle. -Infinity sentinel means the next
+// call always fires regardless of gameMs. Hoisted off module scope so two
+// scenes don't share one timestamp (which would suppress activeZone in
+// whichever scene wasn't ticked last).
+const ActiveZoneState = trait({ lastTickGameMs: -Infinity })
 
-export function resetActiveZone(): void {
-  lastTickGameMs = -Infinity
+function stateOf(world: World): Entity {
+  const e = worldSingleton(world)
+  if (!e.has(ActiveZoneState)) e.add(ActiveZoneState)
+  return e
+}
+
+export function resetActiveZone(world: World): void {
+  const e = stateOf(world)
+  e.set(ActiveZoneState, { lastTickGameMs: -Infinity })
 }
 
 // Returns null when the world has no player entity yet — callers treat that
@@ -77,8 +90,10 @@ function breakChat(entity: import('koota').Entity): void {
 }
 
 export function activeZoneSystem(world: World, gameMs: number): void {
-  if (gameMs - lastTickGameMs < TICK_MS) return
-  lastTickGameMs = gameMs
+  const e = stateOf(world)
+  const s = e.get(ActiveZoneState)!
+  if (gameMs - s.lastTickGameMs < TICK_MS) return
+  e.set(ActiveZoneState, { lastTickGameMs: gameMs })
 
   const promoteBox = bounds(world, RADIUS_PX)
   if (!promoteBox) {

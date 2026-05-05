@@ -7,7 +7,7 @@
 // one O(N) pass per load and keeps the registry contract minimal.
 
 import { registerSaveHandler } from '../../save/registry'
-import { world } from '../../ecs/world'
+import { world, SCENE_IDS, getWorld } from '../../ecs/world'
 import { EntityKey } from '../../ecs/traits'
 import {
   snapshotRelations,
@@ -28,5 +28,7 @@ registerSaveHandler<RelationSnap[]>({
     }
     restoreRelations(world, byKey, blob)
   },
-  reset: () => resetRelationsClock(),
+  reset: () => {
+    for (const id of SCENE_IDS) resetRelationsClock(getWorld(id))
+  },
 })

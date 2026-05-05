@@ -9,6 +9,9 @@ import { spaceConfig } from '../config'
 import { MaintenanceLoad } from '../ecs/traits'
 import { emitSim } from '../sim/events'
 
+// player-global: applies to the single player ship; the player exists in
+// exactly one world at a time. Module-scope is safe — there is no second
+// player whose drain clock could collide with this one.
 let lastTickMs: number | null = null
 let suppliesOutLogged = false
 
