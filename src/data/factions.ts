@@ -1,12 +1,10 @@
-import { factionsConfig } from '../config'
+import { factionsConfig, type FactionId, type FactionTier } from '../config'
 
-// 'civilian' is the default for unaffiliated NPCs so FactionRole always has
-// a concrete value and faction queries return a meaningful set. 'federation'
-// and 'zeon' currently exist only as reputation buckets — no jobs or NPC
-// affiliation in 5.0; ambition stages reference them.
-export type FactionId = 'anaheim' | 'civilian' | 'federation' | 'zeon'
-
-export type FactionTier = 'S' | 'A' | 'B' | 'C' | 'D' | 'E'
+// FactionId / FactionTier are declared in config/factions.ts (the
+// schema layer); this module hosts the runtime helpers that read the
+// loaded factionsConfig roster. Re-export the types so existing
+// callers keep importing from data/factions.
+export type { FactionId, FactionTier }
 
 export function factionMeta(id: FactionId) {
   return factionsConfig.catalog[id]

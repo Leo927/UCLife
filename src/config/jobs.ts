@@ -1,7 +1,7 @@
 import json5 from 'json5'
 import raw from './jobs.json5?raw'
-import type { SkillId } from '../character/skills'
-import type { FactionId } from '../data/factions'
+import type { SkillId } from './skills'
+import type { FactionId } from './factions'
 
 // Career-ladder gate: hire into this rank requires `min` rep toward
 // `faction`.

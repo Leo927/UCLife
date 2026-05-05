@@ -3,14 +3,17 @@
 
 import { trait } from 'koota'
 import type { Entity } from 'koota'
-import type { FactionId } from '../../data/factions'
+import type { FactionId, BedTier, InteractableKind, RoadKind } from '../../config'
+
+// Re-export so existing `import { BedTier } from '../ecs/traits'`
+// callers keep working. Canonical declarations live in config/kinds.ts.
+export type { BedTier, InteractableKind, RoadKind }
 
 export const Wall = trait({ x: 0, y: 0, w: 0, h: 0 })
 
 // Procgen road surface — purely visual + semantic; the pathfinder treats
 // it the same as any non-wall space. Drawn in the ground layer below
 // buildings so a building's wall reads as flush against the road.
-export type RoadKind = 'avenue' | 'street' | 'alley'
 export const Road = trait({
   x: 0, y: 0, w: 0, h: 0,
   kind: 'avenue' as RoadKind,
@@ -29,18 +32,6 @@ export const Door = trait({
 // 'flop' and 'landlord' aren't here: flop beds use 'sleep' (rent semantics
 // differ by Bed.tier, not by kind), and the apartment landlord desk uses
 // 'manager' since the player clicks the bed under the per-bed rent model.
-export type InteractableKind =
-  | 'eat' | 'sleep' | 'wash' | 'work' | 'shop' | 'hr' | 'bar' | 'manager'
-  | 'tap' | 'scavenge' | 'rough'
-  | 'aeReception'
-  | 'gym'
-  | 'transit'
-  | 'ticketCounter'
-  | 'buyShip'
-  | 'boardShip'
-  | 'disembarkShip'
-  | 'helm'
-
 export const Interactable = trait({
   kind: 'eat' as InteractableKind,
   label: '',
@@ -68,8 +59,6 @@ export const BarSeat = trait({
 export const RoughSpot = trait({
   occupant: null as Entity | null,
 })
-
-export type BedTier = 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge'
 
 // `owned` is the realtor's purchase outcome — once true, the bed is the
 // occupant's permanently. The rent system skips owned beds entirely, so

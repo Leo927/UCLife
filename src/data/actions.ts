@@ -1,4 +1,4 @@
-import type { ActionKind, InteractableKind } from '../ecs/traits'
+import type { ActionKind, InteractableKind } from '../config/kinds'
 import { actionsConfig } from '../config'
 
 export type ActionDef = {
