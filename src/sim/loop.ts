@@ -1,4 +1,4 @@
-import { world, getWorld } from '../ecs/world'
+import { getWorld, getActiveSceneId } from '../ecs/world'
 import { useClock, gameDayNumber } from './clock'
 import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
@@ -74,6 +74,8 @@ function effectiveSpeed(): number {
 function frame(now: number) {
   const dt = Math.min(now - lastFrame, 100)
   lastFrame = now
+
+  const world = getWorld(getActiveSceneId())
 
   // Combat tick runs at frame rate independent of game-speed scaling — the
   // combatSystem reads its own dt and bails internally when paused. Drive it
