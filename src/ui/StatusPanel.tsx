@@ -1,5 +1,6 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
+import { getConditionTemplate, severityTier, type SeverityTier } from '../character/conditions'
 import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
@@ -42,6 +43,7 @@ export function StatusPanel() {
   const reputation = useTrait(player, Reputation)
   const character = useTrait(player, Character)
   const ambitions = useTrait(player, Ambitions)
+  const conditions = useTrait(player, Conditions)
   // Subscribe to gameDate so the rent countdown ticks live.
   const gameMs = useClock((s) => s.gameDate.getTime())
 
@@ -255,6 +257,18 @@ export function StatusPanel() {
           {health && <StatusBar label="健康" value={health.hp} invert />}
         </section>
 
+        <section className="status-section" data-testid="conditions-section">
+          <h3>健康</h3>
+          {conditions && conditions.list.filter((c) => c.phase !== 'incubating').length === 0 && (
+            <p className="status-muted">目前没有任何身体不适。</p>
+          )}
+          {conditions?.list.filter((c) => c.phase !== 'incubating').map((inst) => {
+            const t = getConditionTemplate(inst.templateId)
+            if (!t) return null
+            return <ConditionCard key={inst.instanceId} instance={inst} template={t} />
+          })}
+        </section>
+
         <section className="status-section">
           <h3>生理</h3>
           {vitals && (
@@ -387,6 +401,50 @@ function StatRow({ label, value }: { label: string; value: number }) {
     <div className="status-bar-row">
       <span className="status-bar-label">{label}</span>
       <span className="stat-grade" style={{ color: attributesConfig.gradeColors[grade] }}>{grade}</span>
+    </div>
+  )
+}
+
+const COND_TIER_LABEL: Record<SeverityTier, string> = {
+  mild: '轻微',
+  moderate: '中等',
+  severe: '严重',
+}
+
+const COND_TIER_COLOR: Record<SeverityTier, string> = {
+  mild: '#facc15',
+  moderate: '#f97316',
+  severe: '#ef4444',
+}
+
+function ConditionCard({
+  instance, template,
+}: {
+  instance: { instanceId: string; templateId: string; phase: string; severity: number; diagnosed: boolean; diagnosedDay: number | null; currentTreatmentTier: number }
+  template: ReturnType<typeof getConditionTemplate> & object
+}) {
+  const tier = severityTier(instance.severity)
+  const heading = instance.diagnosed ? template.displayName : '某种疾病'
+  const blurb =
+    tier === 'severe' ? template.symptomBlurbs.severe :
+    tier === 'moderate' ? template.symptomBlurbs.moderate :
+    template.symptomBlurbs.mild
+  const stalled = instance.phase === 'stalled'
+  return (
+    <div className="condition-card" data-template={template.id} data-phase={instance.phase} data-diagnosed={instance.diagnosed ? '1' : '0'}>
+      <div className="condition-card-head">
+        <span className="condition-card-name">{heading}</span>
+        <span className="condition-card-tier" style={{ color: COND_TIER_COLOR[tier] }}>{COND_TIER_LABEL[tier]}</span>
+      </div>
+      <div className="condition-card-blurb">{blurb}</div>
+      {instance.diagnosed && (
+        <div className="condition-card-meta">
+          严重度 {Math.round(instance.severity)} · 治疗等级 {['未治疗', '药店', '诊所'][instance.currentTreatmentTier] ?? '?'}
+        </div>
+      )}
+      {stalled && (
+        <div className="condition-card-stalled">未见好转 — 需要药店或诊所介入。</div>
+      )}
     </div>
   )
 }

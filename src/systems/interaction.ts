@@ -110,6 +110,11 @@ export function interactionSystem(world: World) {
       emitSim('ui:open-shop', {})
       continue
     }
+    if (nearestKind === 'clinic') {
+      // Clinic is always open in Phase 4.0 — no occupancy gate yet.
+      emitSim('ui:open-clinic', {})
+      continue
+    }
     if (nearestKind === 'hr') {
       if (!occupant) {
         emitSim('toast', { textZh: '人事不在 · 招聘窗口暂停办公' })

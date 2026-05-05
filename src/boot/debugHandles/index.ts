@@ -14,6 +14,7 @@ import './world'      // world proxy + player movement / introspection
 import './scene'      // useScene / useClock + clock-advance helpers
 import './transit'    // airports + transit terminals
 import './ambitions'  // ambitions, event log, flags, runAmbitionsTick
+import './physiology' // Phase 4 — force-onset, day-tick, diagnose, treatment, getters
 import './cheats'     // setPlayerStat + cheatMoney / cheatPiloting / setShipOwned
 import './ship'       // boardShip, helm, setCourse, tickSpace, ...
 import './combat'     // combat / transition / engagement stores + fastWinCombat

@@ -166,8 +166,8 @@ describe('physiology — banded reconciler emits Effects', () => {
       const cond = player.get(Conditions)!.list
       if (cond.length < 2) break
       const eff = player.get(Effects)!.list.filter((e) => e.family === 'condition')
-      const cold = eff.some((e) => e.nameZh.startsWith('感冒'))
-      const fp = eff.some((e) => e.nameZh.startsWith('食物中毒'))
+      const cold = eff.some((e) => e.nameZh?.startsWith('感冒') ?? false)
+      const fp = eff.some((e) => e.nameZh?.startsWith('食物中毒') ?? false)
       if (cold && fp) {
         multiActive = true
         // workPerfMul stacks multiplicatively: cold's mild band -0.20,

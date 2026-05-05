@@ -14,6 +14,7 @@ export type InteractableKind =
   | 'eat' | 'sleep' | 'wash' | 'work' | 'shop' | 'hr' | 'bar' | 'manager'
   | 'tap' | 'scavenge' | 'rough'
   | 'aeReception'
+  | 'clinic'
   | 'gym'
   | 'transit'
   | 'ticketCounter'
