@@ -40,8 +40,9 @@ character at the same time, each with independent state.
 | `onsetDay` | Game-day stamp; drives log-line phrasing and seniority |
 | `source` | Free-text origin tag — `"caught from 李明 at the dock"`, `"slipped on stairs"` — apophenia fuel |
 | `infectious` | If true, contagion system reads `transmissionRate` and `contactRadius` from the row |
-| `requiredTreatmentTier` | Per-row gate: `none` / `pharmacy` / `clinic`. Severity decays only when active treatment ≥ this tier. Below it, severity stalls. |
-| `complicationRisk` | Per-row daily probability of spawning a linked condition (infection, mal-union, etc.) when treatment < required |
+| `recoveryMode` | `treatment` (default — severity gated on `requiredTreatmentTier`) or `lifestyle` (severity gated on sustained lifestyle predicates). Mental-condition rows use `lifestyle`. |
+| `requiredTreatmentTier` | `treatment`-mode only. Per-row gate: `none` / `pharmacy` / `clinic`. Severity decays only when active treatment ≥ this tier. Below it, severity stalls. |
+| `complicationRisk` | `treatment`-mode only. Per-row daily probability of spawning a linked condition (infection, mal-union, etc.) when treatment < required |
 | `diagnosed` | Player-only flag; flips true after a clinic visit. NPCs are always "diagnosed" from the inspector's POV |
 
 State is per-instance, not per-condition-id — the same character can have two
@@ -112,7 +113,7 @@ Bounded scope; not infinite categories. Each family teaches a different lesson.
 | **Acute illness** (cold, flu, food poisoning, hangover) | Vital saturation, contagion, bad food, alcohol | `none` (severe flu → `pharmacy`) | 1–7 days | "Stay home and recover" |
 | **Injury** (sprain, cut, fracture, burn, concussion) | Environmental events, combat (Phase 5+) | `pharmacy` (severe → `clinic`) | 3–30 days | "Patch it or it won't heal" |
 | **Chronic** (scar, weak knee, recurring cough, asthma) | Resolved-with-souvenir from severe acute or injury; rarely innate | n/a — does not resolve | Permanent | "Your character has history" |
-| **Mental** (anxiety, withdrawal, grief) — *Phase 5 stub only* | Sustained low mood, addiction, NPC death | TBD | Variable | Reserved for [social/relationships.md](../social/relationships.md) and the mood layer |
+| **Mental** (anxiety, withdrawal, grief, depression) — *Phase 5* | Sustained low mood, addiction, NPC death | n/a — `recoveryMode = lifestyle` | Variable | "Fix your lifestyle, not your prescription" |
 | **Pregnancy / aging** — *deferred* | — | — | — | Data shape supports it; no Phase 4 work |
 
 Phase 4 ships **acute + injury + chronic-as-souvenir**. Mental gets a stub
@@ -191,6 +192,47 @@ makes the diagnosis loop carry weight: misjudging a "minor strain" that's
 actually a fracture costs you several days of stalled recovery and possibly
 an infection layered on top, while a clinic visit would have routed you
 straight into the recovering arc.
+
+### Recovery modes
+
+The formula above is `recoveryMode = treatment` — severity decay gated on
+treatment tier. Acute illness, injury, and chronic-stub conditions all use
+this mode. The player's job is to recognize, diagnose, and route to medical
+care.
+
+`recoveryMode = lifestyle` (Phase 5, mental conditions) replaces the
+treatment gate with a **sustained-lifestyle gate**:
+
+```
+if N of M lifestyle predicates met today:
+    severity -= base_recovery_rate × resolve_multiplier
+                                    × (1.0 - severity / 100)
+else:
+    severity stays                  (or drifts up by drift_rate for some rows)
+
+severity_floor = 0                  (default)
+                or pharmacy_floor   (medication adjunct active)
+clamp severity to [severity_floor, 100]
+```
+
+Pharmacy and clinic don't gate the decay — they offer **adjuncts**:
+
+- **Pharmacy meds**: raise `severity_floor`, capping the worst days but not
+  resolving the condition. The character can function; the condition still
+  exists.
+- **Clinic therapy**: a weekly interactable that applies a fixed severity
+  reduction. Diagnosis still flips `diagnosed = true` and reveals the name.
+
+The canonical case is **depression**: severity falls only on days when N of M
+lifestyle predicates are met (e.g., slept at home, social contact above
+threshold, ambition progress, varied activities). Meds soften the floor;
+therapy nudges weekly; the actual recovery happens through the player
+fixing their lifestyle. The full predicate catalog is authored alongside
+the mood layer; this section locks in the recovery shape, not the content.
+
+This mode keeps mental conditions from being modeled as a thing you cure
+by paying money. The decision space is the player's lifestyle, not their
+wallet.
 
 **Onset triggers, in detail:**
 
@@ -322,10 +364,11 @@ the trait + fold cache.
 
 ## Open questions
 
-- **Mental-health Phase 5 boundary**: anxiety/grief/withdrawal conditions
-  are designed-in here as schema rows but populated in the mood layer.
-  Decision needed: does grief instantiate as a condition, or as a
-  long-running mood debuff in the mood system? Defer until mood lands.
+- **Lifestyle-predicate catalog (Phase 5)**: the recoveryMode = lifestyle
+  shape is locked, but the per-condition predicate lists (which sustained
+  behaviors gate decay for depression vs. anxiety vs. grief, and how many
+  of M must be met per day) are authored alongside the mood layer. Bench
+  the catalog work until mood lands; data shape is stable.
 - **Childhood / starter chronics**: do some characters spawn with chronic
   conditions (asthma, scar from a creche-era accident) at character
   creation? RimWorld's "Genesis"-style starting hediffs add flavor cheaply.
