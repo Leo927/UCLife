@@ -1,0 +1,51 @@
+// Character backgrounds — the first concrete modifier source. Each entry
+// is a list of stat modifiers (statId / type / value); on apply, every
+// modifier lands on the character's StatSheet with source `bg:<id>` so
+// removeBySource() can undo it cleanly during character creation /
+// re-rolls.
+//
+// statId must be a valid src/stats/schema.ts StatId. Types:
+//   'flat'        — additive constant on top of base
+//   'percentAdd'  — additive percent (0.10 = +10%) into the shared bucket
+//   'percentMult' — multiplicative percent (0.10 = ×1.10) chained
+//
+// These are baseline examples. Tune (or replace) once the character
+// creator lands.
+{
+  backgrounds: [
+    {
+      id: 'soldier',
+      nameZh: '退役军人',
+      descZh: '体能与反应俱佳，但烦闷攒得快。',
+      modifiers: [
+        { statId: 'strength',  type: 'flat', value: 10 },
+        { statId: 'endurance', type: 'flat', value: 10 },
+        { statId: 'reflex',    type: 'flat', value: 5 },
+        { statId: 'boredomDrainMul', type: 'percentMult', value: 0.20 },  // +20% boredom drain
+      ],
+    },
+    {
+      id: 'scholar',
+      nameZh: '学者',
+      descZh: '智识充裕，体力欠奉。',
+      modifiers: [
+        { statId: 'intelligence', type: 'flat', value: 15 },
+        { statId: 'strength',     type: 'flat', value: -5 },
+        { statId: 'fatigueDrainMul', type: 'percentMult', value: -0.10 }, // 10% slower fatigue
+      ],
+    },
+    {
+      id: 'survivor',
+      nameZh: '幸存者',
+      descZh: '抗饿耐渴，肌体坚韧。',
+      modifiers: [
+        { statId: 'endurance', type: 'flat', value: 5 },
+        { statId: 'hungerMax',  type: 'flat', value: 20 },  // higher saturation cap
+        { statId: 'thirstMax',  type: 'flat', value: 20 },
+        { statId: 'hungerDrainMul', type: 'percentMult', value: -0.15 },
+        { statId: 'thirstDrainMul', type: 'percentMult', value: -0.15 },
+        { statId: 'hpMax', type: 'flat', value: 10 },
+      ],
+    },
+  ],
+}

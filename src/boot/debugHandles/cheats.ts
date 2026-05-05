@@ -8,8 +8,9 @@ import {
   IsPlayer, Attributes, Skills, Money, Reputation, Flags,
   type StatId,
 } from '../../ecs/traits'
-import { setBase } from '../../stats/sheet'
+import { setBase, getStat } from '../../stats/sheet'
 import { STAT_IDS } from '../../stats/schema'
+import { applyBackground, removeBackground } from '../../data/backgrounds'
 import type { FactionId } from '../../data/factions'
 import type { SkillId } from '../../data/skills'
 
@@ -80,4 +81,28 @@ registerDebugHandle('setShipOwned', () => {
   const f = p.get(Flags) ?? { flags: {} }
   p.set(Flags, { flags: { ...f.flags, shipOwned: true } })
   return true
+})
+
+registerDebugHandle('applyBackground', (id: string) => {
+  const p = world.queryFirst(IsPlayer)
+  if (!p) return false
+  return applyBackground(p, id)
+})
+
+registerDebugHandle('removeBackground', (id: string) => {
+  const p = world.queryFirst(IsPlayer)
+  if (!p) return false
+  return removeBackground(p, id)
+})
+
+// Reads the effective (post-modifier) value of a stat — useful for
+// smoke tests that need to assert the modifier system is actually
+// folding in background / perk effects.
+registerDebugHandle('getPlayerStat', (id: string) => {
+  const p = world.queryFirst(IsPlayer)
+  if (!p) return null
+  if (!STAT_ID_SET.has(id)) return null
+  const a = p.get(Attributes)
+  if (!a) return null
+  return getStat(a.sheet, id as StatId)
 })
