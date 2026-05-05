@@ -14,24 +14,17 @@
 // module — see src/save/registry.ts and src/boot/saveHandlers/. Adding a
 // new persisted subsystem == one file in src/boot/saveHandlers/, no edit
 // here.
+//
+// Per-trait persistence is handler-driven via `traitRegistry.ts` plus the
+// cluster files under src/boot/traitSerializers/. Adding a new persisted
+// trait == one new file there, no edit to snapshotEntity / loadGame.
 
 import { get, set, del } from 'idb-keyval'
 import superjson from 'superjson'
-import type { Entity, TraitInstance } from 'koota'
+import type { Entity } from 'koota'
 import {
-  Position, MoveTarget, Vitals, Health, Action, Money, Skills, Inventory,
-  Job, Home, JobPerformance, Attributes, Bed, BarSeat, RoughSpot, Workstation,
-  Character, EntityKey, PendingEviction, RoughUse, IsPlayer, ChatTarget, ChatLine,
-  Reputation, JobTenure, FactionRole, Active, Ambitions, Flags,
-  type AmbitionSlot, type AmbitionHistoryEntry, type AttributeDrift,
+  Character, EntityKey, Health, IsPlayer, Money, Active,
 } from '../ecs/traits'
-import {
-  serializeSheet, attachFormulas, setBase, type SerializedSheet,
-} from '../stats/sheet'
-import {
-  STAT_IDS, STAT_FORMULAS, ATTRIBUTE_IDS, createCharacterSheet, type StatId,
-} from '../stats/schema'
-import { syncPerkModifiers } from '../stats/perkSync'
 import { world } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
@@ -39,6 +32,9 @@ import { resetWorld, spawnNPC } from '../ecs/spawn'
 import { logEvent } from '../ui/EventLog'
 import { WORLD_SEED } from '../procgen'
 import { snapshotAll, restoreAll } from './registry'
+import {
+  getTraitSerializers, type RestoreCtx, type SerializeCtx,
+} from './traitRegistry'
 
 export type SlotId = 'auto' | 1 | 2 | 3
 export const MANUAL_SLOTS: ReadonlyArray<1 | 2 | 3> = [1, 2, 3]
@@ -67,54 +63,24 @@ const LEGACY_KEY = 'uclife:autosave'
 //   v7: Attributes trait carries a serialized StatSheet (modifier-based
 //       stats) plus a per-attribute drift map. Pre-v7 saves are migrated
 //       on load by reading the legacy {value, talent, recentUse,
-//       recentStress} StatState shape into a fresh sheet.
+//       recentStress} StatState shape into a fresh sheet. Per-trait
+//       serializer registry replaces the hard-coded snapshotEntity loop;
+//       on-disk EntitySnap shape is unchanged so v7 round-trips through
+//       the registry produce byte-identical output to pre-Wave-5 v7
+//       writers.
 const SAVE_VERSION = 7
 
-// Per-entity snapshot. `key` matches an EntityKey already in the world (or,
-// for immigrants, identifies the NPC to re-spawn). All trait fields are
-// optional — only emitted for traits the entity actually carries at save
-// time. Loader mirrors that: presence → set/add, absence → remove if added
-// at runtime.
+// Per-entity snapshot: stable `key` matched against the EntityKey trait
+// in the rebuilt world (or, for immigrants, identifies the NPC to re-
+// spawn) plus per-trait fields written by the registered serializers.
+// Field names are owned by each TraitSerializer's `id` (see
+// src/boot/traitSerializers/), not declared up here — the snap is just
+// a bag of optional fields.
 interface EntitySnap {
   key: string
-  character?: TraitInstance<typeof Character>
-  position?: TraitInstance<typeof Position>
-  moveTarget?: TraitInstance<typeof MoveTarget>
-  vitals?: TraitInstance<typeof Vitals>
-  health?: TraitInstance<typeof Health>
-  action?: TraitInstance<typeof Action>
-  money?: TraitInstance<typeof Money>
-  skills?: TraitInstance<typeof Skills>
-  inventory?: TraitInstance<typeof Inventory>
-  jobPerformance?: TraitInstance<typeof JobPerformance>
-  attributes?: {
-    sheet: SerializedSheet<StatId>
-    drift: Record<'strength' | 'endurance' | 'charisma' | 'intelligence' | 'reflex' | 'resolve', AttributeDrift>
-    lastDriftDay: number
-  }
-  // Bed/BarSeat/RoughSpot/Workstation static data is rebuilt by setupWorld;
-  // only mutable occupant + (for beds) rent state need persisting.
-  bed?: { occupant: string | null; rentPaidUntilMs: number; owned: boolean }
-  barSeat?: { occupant: string | null }
-  roughSpot?: { occupant: string | null }
-  workstation?: { occupant: string | null }
-  job?: { workstationKey: string | null; unemployedSinceMs: number }
-  home?: { bedKey: string | null }
-  pendingEviction?: { bedKey: string | null; expireMs: number }
-  roughUse?: TraitInstance<typeof RoughUse>
-  chatTarget?: { partnerKey: string | null }
-  chatLine?: TraitInstance<typeof ChatLine>
-  reputation?: TraitInstance<typeof Reputation>
-  jobTenure?: TraitInstance<typeof JobTenure>
-  factionRole?: TraitInstance<typeof FactionRole>
-  ambitions?: {
-    active: AmbitionSlot[]
-    history: AmbitionHistoryEntry[]
-    apBalance: number
-    apEarned: number
-    perks: string[]
-  }
-  flags?: { flags: Record<string, boolean> }
+  // Indexed by a TraitSerializer.id — value type is owned by that
+  // serializer. Keep `unknown` here so save/index.ts stays trait-blind.
+  [field: string]: unknown
 }
 
 // Stored in its own idb-keyval key per slot so the SystemMenu can render
@@ -158,167 +124,18 @@ function keyOf(entity: Entity | null): string | null {
   return k ? k.key : null
 }
 
+const serializeCtx: SerializeCtx = { keyOf }
+
 function snapshotEntity(entity: Entity): EntitySnap {
   const key = entity.get(EntityKey)!.key
   const snap: EntitySnap = { key }
-
-  if (entity.has(Character)) snap.character = { ...entity.get(Character)! }
-  if (entity.has(Position)) snap.position = { ...entity.get(Position)! }
-  if (entity.has(MoveTarget)) snap.moveTarget = { ...entity.get(MoveTarget)! }
-  if (entity.has(Vitals)) snap.vitals = { ...entity.get(Vitals)! }
-  if (entity.has(Health)) snap.health = { ...entity.get(Health)! }
-  if (entity.has(Action)) snap.action = { ...entity.get(Action)! }
-  if (entity.has(Money)) snap.money = { ...entity.get(Money)! }
-  if (entity.has(Skills)) snap.skills = { ...entity.get(Skills)! }
-  if (entity.has(Inventory)) snap.inventory = { ...entity.get(Inventory)! }
-  if (entity.has(JobPerformance)) snap.jobPerformance = { ...entity.get(JobPerformance)! }
-  if (entity.has(Attributes)) {
-    const a = entity.get(Attributes)!
-    snap.attributes = {
-      sheet: serializeSheet(a.sheet),
-      drift: {
-        strength: { ...a.drift.strength },
-        endurance: { ...a.drift.endurance },
-        charisma: { ...a.drift.charisma },
-        intelligence: { ...a.drift.intelligence },
-        reflex: { ...a.drift.reflex },
-        resolve: { ...a.drift.resolve },
-      },
-      lastDriftDay: a.lastDriftDay,
-    }
+  for (const s of getTraitSerializers()) {
+    if (!entity.has(s.trait)) continue
+    const v = s.read(entity, serializeCtx)
+    if (v === undefined) continue
+    snap[s.id] = v
   }
-
-  if (entity.has(Bed)) {
-    const b = entity.get(Bed)!
-    snap.bed = {
-      occupant: keyOf(b.occupant),
-      rentPaidUntilMs: b.rentPaidUntilMs,
-      owned: b.owned,
-    }
-  }
-  if (entity.has(BarSeat)) {
-    snap.barSeat = { occupant: keyOf(entity.get(BarSeat)!.occupant) }
-  }
-  if (entity.has(RoughSpot)) {
-    snap.roughSpot = { occupant: keyOf(entity.get(RoughSpot)!.occupant) }
-  }
-  if (entity.has(Workstation)) {
-    snap.workstation = { occupant: keyOf(entity.get(Workstation)!.occupant) }
-  }
-
-  if (entity.has(Job)) {
-    const j = entity.get(Job)!
-    snap.job = {
-      workstationKey: keyOf(j.workstation),
-      unemployedSinceMs: j.unemployedSinceMs,
-    }
-  }
-  if (entity.has(Home)) {
-    snap.home = { bedKey: keyOf(entity.get(Home)!.bed) }
-  }
-  if (entity.has(PendingEviction)) {
-    const p = entity.get(PendingEviction)!
-    snap.pendingEviction = {
-      bedKey: keyOf(p.bedEntity),
-      expireMs: p.expireMs,
-    }
-  }
-  if (entity.has(RoughUse)) {
-    snap.roughUse = { ...entity.get(RoughUse)! }
-  }
-  if (entity.has(ChatTarget)) {
-    snap.chatTarget = { partnerKey: keyOf(entity.get(ChatTarget)!.partner) }
-  }
-  if (entity.has(ChatLine)) {
-    snap.chatLine = { ...entity.get(ChatLine)! }
-  }
-  if (entity.has(Reputation)) {
-    // Clone the inner rep map so live-trait mutations don't leak into the
-    // snapshot.
-    const r = entity.get(Reputation)!
-    snap.reputation = { rep: { ...r.rep } }
-  }
-  if (entity.has(JobTenure)) {
-    snap.jobTenure = { ...entity.get(JobTenure)! }
-  }
-  if (entity.has(FactionRole)) {
-    snap.factionRole = { ...entity.get(FactionRole)! }
-  }
-  if (entity.has(Ambitions)) {
-    const a = entity.get(Ambitions)!
-    snap.ambitions = {
-      active: a.active.map((s) => ({ ...s })),
-      history: a.history.map((h) => ({ ...h })),
-      apBalance: a.apBalance,
-      apEarned: a.apEarned,
-      perks: [...a.perks],
-    }
-  }
-  if (entity.has(Flags)) {
-    snap.flags = { flags: { ...entity.get(Flags)!.flags } }
-  }
-
   return snap
-}
-
-// Pre-v7 StatState shape, kept here so the loader can migrate older
-// bundles into the modifier-based sheet without dragging the type into
-// the rest of the codebase.
-interface LegacyStatState {
-  value: number
-  talent: number
-  recentUse: number
-  recentStress: number
-}
-type LegacyAttributes = {
-  strength: LegacyStatState
-  endurance: LegacyStatState
-  charisma: LegacyStatState
-  intelligence: LegacyStatState
-  reflex: LegacyStatState
-  resolve: LegacyStatState
-  lastDriftDay: number
-}
-
-function hydrateAttributes(
-  raw: NonNullable<EntitySnap['attributes']> | LegacyAttributes,
-  version: number,
-): TraitInstance<typeof Attributes> {
-  if (version >= 7 && 'sheet' in raw) {
-    const sheet = attachFormulas(STAT_IDS, STAT_FORMULAS, raw.sheet)
-    return {
-      sheet,
-      drift: {
-        strength: { ...raw.drift.strength },
-        endurance: { ...raw.drift.endurance },
-        charisma: { ...raw.drift.charisma },
-        intelligence: { ...raw.drift.intelligence },
-        reflex: { ...raw.drift.reflex },
-        resolve: { ...raw.drift.resolve },
-      },
-      lastDriftDay: raw.lastDriftDay,
-    }
-  }
-  // Pre-v7: lift the six {value, talent, recentUse, recentStress}
-  // entries into a fresh sheet (value → base) plus the new drift map.
-  const legacy = raw as LegacyAttributes
-  const fresh = createCharacterSheet()
-  let sheet = fresh
-  for (const id of ATTRIBUTE_IDS) {
-    sheet = setBase(sheet, id, legacy[id].value)
-  }
-  return {
-    sheet,
-    drift: {
-      strength: { recentUse: legacy.strength.recentUse, recentStress: legacy.strength.recentStress, talent: legacy.strength.talent },
-      endurance: { recentUse: legacy.endurance.recentUse, recentStress: legacy.endurance.recentStress, talent: legacy.endurance.talent },
-      charisma: { recentUse: legacy.charisma.recentUse, recentStress: legacy.charisma.recentStress, talent: legacy.charisma.talent },
-      intelligence: { recentUse: legacy.intelligence.recentUse, recentStress: legacy.intelligence.recentStress, talent: legacy.intelligence.talent },
-      reflex: { recentUse: legacy.reflex.recentUse, recentStress: legacy.reflex.recentStress, talent: legacy.reflex.talent },
-      resolve: { recentUse: legacy.resolve.recentUse, recentStress: legacy.resolve.recentStress, talent: legacy.resolve.talent },
-    },
-    lastDriftDay: legacy.lastDriftDay,
-  }
 }
 
 function buildMeta(slot: SlotId, gameDate: Date): SaveMeta {
@@ -480,7 +297,11 @@ async function migrateLegacySlot(): Promise<void> {
         dayInGame: gameDayNumber(fallbackGameDate),
         playerMoney: 0,
         playerHp: 100,
-        alive: bundle.entities.filter((s) => s.character && (!s.health || !s.health.dead)).length,
+        alive: bundle.entities.filter((s) => {
+          const ch = s.character as { name?: unknown } | undefined
+          const h = s.health as { dead?: boolean } | undefined
+          return !!ch && (!h || !h.dead)
+        }).length,
       }
       await set(metaKey('auto'), superjson.stringify(meta))
     } catch (e) {
@@ -553,12 +374,14 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
       console.warn(`[save/load] saved entity has unknown key: ${snap.key}`)
       continue
     }
+    const ch = snap.character as { name?: string; color?: string; title?: string } | undefined
+    const pos = snap.position as { x?: number; y?: number } | undefined
     const e = spawnNPC({
-      name: snap.character?.name ?? snap.key,
-      color: snap.character?.color ?? '#888',
-      title: snap.character?.title ?? '市民',
-      x: snap.position?.x ?? 0,
-      y: snap.position?.y ?? 0,
+      name: ch?.name ?? snap.key,
+      color: ch?.color ?? '#888',
+      title: ch?.title ?? '市民',
+      x: pos?.x ?? 0,
+      y: pos?.y ?? 0,
       key: snap.key,
     })
     byKey.set(snap.key, e)
@@ -585,128 +408,20 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     return e
   }
 
+  const restoreCtx: RestoreCtx = { resolveRef, version: bundle.version }
+  const serializers = getTraitSerializers()
+
   for (const snap of bundle.entities) {
     const entity = byKey.get(snap.key)
     if (!entity) continue
 
-    if (snap.character) entity.set(Character, snap.character)
-    if (snap.position) entity.set(Position, snap.position)
-    if (snap.moveTarget) entity.set(MoveTarget, snap.moveTarget)
-    if (snap.vitals) entity.set(Vitals, snap.vitals)
-    if (snap.health) entity.set(Health, snap.health)
-    if (snap.action) entity.set(Action, snap.action)
-    if (snap.money) entity.set(Money, snap.money)
-    if (snap.skills) entity.set(Skills, snap.skills)
-    if (snap.inventory) entity.set(Inventory, snap.inventory)
-    if (snap.jobPerformance) entity.set(JobPerformance, snap.jobPerformance)
-    if (snap.attributes) {
-      entity.set(Attributes, hydrateAttributes(snap.attributes, bundle.version))
-    }
-
-    if (snap.bed) {
-      const cur = entity.get(Bed)!
-      entity.set(Bed, {
-        ...cur,
-        occupant: resolveRef(snap.bed.occupant),
-        rentPaidUntilMs: snap.bed.rentPaidUntilMs,
-        owned: snap.bed.owned,
-      })
-    }
-    if (snap.barSeat) {
-      entity.set(BarSeat, { occupant: resolveRef(snap.barSeat.occupant) })
-    }
-    if (snap.roughSpot) {
-      entity.set(RoughSpot, { occupant: resolveRef(snap.roughSpot.occupant) })
-    }
-    if (snap.workstation) {
-      const cur = entity.get(Workstation)!
-      entity.set(Workstation, { ...cur, occupant: resolveRef(snap.workstation.occupant) })
-    }
-
-    if (snap.job) {
-      entity.set(Job, {
-        workstation: resolveRef(snap.job.workstationKey),
-        unemployedSinceMs: snap.job.unemployedSinceMs,
-      })
-    }
-    if (snap.home) {
-      const bed = resolveRef(snap.home.bedKey)
-      if (entity.has(Home)) entity.set(Home, { bed })
-      else entity.add(Home({ bed }))
-    } else if (entity.has(Home)) {
-      entity.remove(Home)
-    }
-    if (snap.pendingEviction) {
-      const bedEntity = resolveRef(snap.pendingEviction.bedKey)
-      if (entity.has(PendingEviction)) {
-        entity.set(PendingEviction, { bedEntity, expireMs: snap.pendingEviction.expireMs })
-      } else {
-        entity.add(PendingEviction({ bedEntity, expireMs: snap.pendingEviction.expireMs }))
+    for (const s of serializers) {
+      const v = snap[s.id]
+      if (v !== undefined) {
+        s.write(entity, v as never, restoreCtx)
+      } else if (s.reset) {
+        s.reset(entity)
       }
-    } else if (entity.has(PendingEviction)) {
-      entity.remove(PendingEviction)
-    }
-    if (snap.roughUse) {
-      if (entity.has(RoughUse)) entity.set(RoughUse, snap.roughUse)
-      else entity.add(RoughUse(snap.roughUse))
-    } else if (entity.has(RoughUse)) {
-      entity.remove(RoughUse)
-    }
-    if (snap.chatTarget) {
-      const partner = resolveRef(snap.chatTarget.partnerKey)
-      if (entity.has(ChatTarget)) entity.set(ChatTarget, { partner })
-      else entity.add(ChatTarget({ partner }))
-    } else if (entity.has(ChatTarget)) {
-      entity.remove(ChatTarget)
-    }
-    if (snap.chatLine) {
-      if (entity.has(ChatLine)) entity.set(ChatLine, snap.chatLine)
-      else entity.add(ChatLine(snap.chatLine))
-    } else if (entity.has(ChatLine)) {
-      entity.remove(ChatLine)
-    }
-    if (snap.reputation) {
-      if (entity.has(Reputation)) entity.set(Reputation, { rep: { ...snap.reputation.rep } })
-      else entity.add(Reputation({ rep: { ...snap.reputation.rep } }))
-    } else if (entity.has(Reputation)) {
-      entity.remove(Reputation)
-    }
-    if (snap.jobTenure) {
-      if (entity.has(JobTenure)) entity.set(JobTenure, snap.jobTenure)
-      else entity.add(JobTenure(snap.jobTenure))
-    } else if (entity.has(JobTenure)) {
-      entity.remove(JobTenure)
-    }
-    if (snap.factionRole) {
-      if (entity.has(FactionRole)) entity.set(FactionRole, snap.factionRole)
-      else entity.add(FactionRole(snap.factionRole))
-    } else if (entity.has(FactionRole)) {
-      entity.remove(FactionRole)
-    }
-    if (snap.ambitions) {
-      const payload = {
-        active: snap.ambitions.active.map((s) => ({ ...s })),
-        history: snap.ambitions.history.map((h) => ({ ...h })),
-        apBalance: snap.ambitions.apBalance ?? 0,
-        apEarned: snap.ambitions.apEarned ?? 0,
-        perks: snap.ambitions.perks ? [...snap.ambitions.perks] : [],
-      }
-      if (entity.has(Ambitions)) entity.set(Ambitions, payload)
-      else entity.add(Ambitions(payload))
-      // After both Ambitions and Attributes are settled for this entity,
-      // re-derive sheet modifiers from the perks array. Skip if the
-      // entity has no Attributes yet — only player-side perks land on
-      // the sheet anyway.
-      if (entity.has(Attributes)) syncPerkModifiers(entity, payload.perks)
-    } else if (entity.has(Ambitions)) {
-      entity.remove(Ambitions)
-    }
-    if (snap.flags) {
-      const payload = { flags: { ...snap.flags.flags } }
-      if (entity.has(Flags)) entity.set(Flags, payload)
-      else entity.add(Flags(payload))
-    } else if (entity.has(Flags)) {
-      entity.remove(Flags)
     }
   }
 

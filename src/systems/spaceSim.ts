@@ -34,17 +34,17 @@ const resolveBody: ParentResolver = (id: string): OrbitalParams | undefined => {
   }
 }
 
-// Re-prompt cooldown — once an engagement modal resolves for an enemy,
-// suppress further prompts for that enemy until they exit aggro range
-// AND the cooldown elapses. Avoids re-firing the modal every frame while
-// still inside contact radius.
+// per-active-scene only: spaceSim ticks exclusively against the
+// 'spaceCampaign' world (loop.ts gates by scene id). Cooldowns are keyed
+// by EntityKey strings (save-unique), and only one player ship exists, so
+// module-scope state is safe — there is no second concurrent space scene.
 const ENGAGEMENT_COOLDOWN_MS = 5000
 const engagementCooldownByKey = new Map<string, number>()
 const enemyOutOfAggro = new Set<string>()
 
-// Edge-triggered "燃料耗尽" log: flips true once when fuel runs out, back to
-// false when fuel is replenished above 0. Module-local so a single exhaustion
-// only logs once across many frames.
+// per-active-scene only: edge-triggered "燃料耗尽" log; flips true once
+// when fuel runs out and back to false on refill, so a single exhaustion
+// logs once across many frames.
 let fuelOutLogged = false
 
 // Save/load and resetWorld() call this so the next exhaustion logs cleanly

@@ -12,6 +12,7 @@ This directory holds diagrams the codebase is being refactored **toward**. A dia
 - **Wave 1.5 — save handler registry.** `src/save/registry.ts` plus 16 cluster files under `src/boot/saveHandlers/` invert per-subsystem reach. `save/index.ts` iterates handlers blindly; adding a 17th persisted subsystem is one new file in `src/boot/saveHandlers/`, not an edit to `save/index.ts`.
 - **Wave 2 — sim -> ui edge severed.** No `systems/*` file imports from `ui/`. `activeZone` switched from a camera-viewport coupling to a player-radius rule, removing the last reverse edge.
 - **Wave 3 — debug handle registry.** `src/debug/uclifeHandle.ts` plus 8 cluster files under `src/boot/debugHandles/` invert the `globalThis.__uclife__` god-object. `main.tsx` dynamic-imports the manifest behind `import.meta.env.DEV`; Rollup tree-shakes it from prod. The 300-line literal in `main.tsx` became 8 cluster files of 10-50 lines each.
+- **Wave 5 — per-world singletons + per-trait save registry.** `src/ecs/resources.ts` exposes a `WorldSingleton` marker trait and `worldSingleton(world)` accessor; activeZone, npc, vitals, stress, and relations hoist their per-entity Maps onto a per-world resource trait so cross-scene koota id collisions can no longer corrupt them. Combat / spaceSim / supplyDrain / promotion / population stay at module scope with one-line invariant comments naming why (per-active-scene-only or player-global). `src/save/traitRegistry.ts` plus 8 cluster files under `src/boot/traitSerializers/` invert per-trait reach in `save/index.ts`: snapshotEntity is now a generic loop over registered (read, write, reset) triples. Adding a new persisted trait is one file in `src/boot/traitSerializers/`, no edit to `save/index.ts`. On-disk EntitySnap shape is unchanged; SAVE_VERSION stays at 7.
 
 Post-Wave-3 layer arrows:
 
@@ -34,12 +35,10 @@ Known gap: `src/ui/` today contains hardcoded zh-CN player-facing strings. The s
 
 ## Future waves
 
-The desired diagrams pin the *current* shape after Waves 1-3. The following items are real but not yet pinned; they are candidates for Wave 5+ and any diagram drawn for them must re-open the design conversation first.
+The desired diagrams pin the *current* shape after Waves 1-3 + 5. The following items are real but not yet pinned; any diagram drawn for them must re-open the design conversation first.
 
-1. **Per-world singletons in 12 systems.** Module-level state in `combat`, `population`, `relations`, `npc` (buckets), `activeZone`, `vitals`, `stress`, `supplyDrain`, `spaceSim`, `engagement` (and others). Works only because world count is fixed and small. Target seam: hoist to a per-world `WorldState` trait so multi-world isolation stops being incidental.
-2. **Per-trait save registration.** `save/index.ts` still hard-codes the trait list in its serialise / restore loops even though the *subsystem* level is now registry-driven. Target seam: each trait registers its own `(read, write)` pair against the save registry; save/index.ts shrinks to a fixed entry-point.
-3. **Render snapshot type pinning.** `render/Game.tsx` already takes a per-frame snapshot of ECS state (rather than reading koota inside render). Pin `GroundSnapshot` (and `SpaceSnapshot`) as the *public* ECS -> render contract instead of an ad-hoc shape, so the renderer can be replaced without touching ECS.
-4. **Multi-world Proxy explicit-`World` argument contract.** The `world` Proxy in `src/ecs/world.ts` is convenience for active-scene callers. Save / migrate / cross-scene tick code should take an explicit `World` argument and never read the Proxy. This is informally true today; the desired diagram for `003` should make it a rule.
+1. **Render snapshot type pinning.** `render/Game.tsx` already takes a per-frame snapshot of ECS state (rather than reading koota inside render). Pin `GroundSnapshot` (and `SpaceSnapshot`) as the *public* ECS -> render contract instead of an ad-hoc shape, so the renderer can be replaced without touching ECS.
+2. **Multi-world Proxy explicit-`World` argument contract.** The `world` Proxy in `src/ecs/world.ts` is convenience for active-scene callers. Save / migrate / cross-scene tick code should take an explicit `World` argument and never read the Proxy. Wave 5 made this informally true for activeZone / npc / vitals / stress / relations resets; the desired diagram for `003` should make it a rule across all save / migrate paths.
 
 ## Suggested diagram set (when each item is settled)
 

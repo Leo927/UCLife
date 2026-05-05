@@ -12,6 +12,10 @@ import { bootstrapApp } from './boot/lifecycle'
 // subsystem (clock, population, ship, space, ...). Adding a new
 // persisted subsystem == one new file under src/boot/saveHandlers/.
 import './boot/saveHandlers'
+// Side-effect imports: register per-trait serializers (Position, Vitals,
+// Bed, ...). Adding a new persisted trait == one new file under
+// src/boot/traitSerializers/.
+import './boot/traitSerializers'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'

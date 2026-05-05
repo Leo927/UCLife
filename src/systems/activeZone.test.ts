@@ -1,9 +1,9 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createWorld } from 'koota'
 import {
   Action, Active, Character, Health, IsPlayer, MoveTarget, Position,
 } from '../ecs/traits'
-import { activeZoneSystem, isPointInActiveZone, resetActiveZone } from './activeZone'
+import { activeZoneSystem, isPointInActiveZone } from './activeZone'
 import { worldConfig } from '../config'
 
 const TILE = worldConfig.tilePx
@@ -18,10 +18,6 @@ const spawnNpc = (world: ReturnType<typeof createWorld>, x: number, y: number) =
   world.spawn(Position({ x, y }), Character({ name: 'npc', color: '#aaa', title: '' }), Health({ hp: 100, dead: false }), Action({ kind: 'idle', remaining: 0, total: 0 }))
 
 describe('activeZoneSystem (player-radius model)', () => {
-  beforeEach(() => {
-    resetActiveZone()
-  })
-
   it('partitions NPCs into Active vs Inactive based on distance from the player', () => {
     const world = createWorld()
     spawnPlayer(world, 1000, 1000)
@@ -119,7 +115,7 @@ describe('activeZoneSystem (player-radius model)', () => {
     const npc = spawnNpc(world, 10000, 10000)
     npc.add(Active)
 
-    // First call: gameMs = 0, lastTickGameMs starts at -Infinity → runs.
+    // First call: gameMs = 0, fresh world's lastTickGameMs starts at -Infinity → runs.
     activeZoneSystem(world, 0)
     expect(npc.has(Active)).toBe(false)
 
@@ -130,13 +126,32 @@ describe('activeZoneSystem (player-radius model)', () => {
     // Throttle should have skipped this tick.
     expect(npc.has(Active)).toBe(true)
   })
+
+  it('throttle state is per-world — two worlds do not share the lastTickGameMs', () => {
+    // Regression guard: previously a module-level lastTickGameMs would
+    // suppress activeZone runs in world B if world A had ticked recently.
+    // Each koota world must carry its own throttle.
+    const w1 = createWorld()
+    const w2 = createWorld()
+    spawnPlayer(w1, 1000, 1000)
+    spawnPlayer(w2, 1000, 1000)
+    const npc1 = spawnNpc(w1, 10000, 10000)
+    const npc2 = spawnNpc(w2, 10000, 10000)
+    npc1.add(Active)
+    npc2.add(Active)
+
+    // Tick w1 forward; the throttle in w1 should now suppress further w1 calls.
+    activeZoneSystem(w1, TICK_MS * 100)
+    expect(npc1.has(Active)).toBe(false)
+
+    // w2 has never run; even at t=0 it must still execute (the throttle is
+    // per-world, not shared with w1's huge timestamp).
+    activeZoneSystem(w2, 0)
+    expect(npc2.has(Active)).toBe(false)
+  })
 })
 
 describe('isPointInActiveZone (player-radius model)', () => {
-  beforeEach(() => {
-    resetActiveZone()
-  })
-
   it('returns true for points within the player radius', () => {
     const world = createWorld()
     spawnPlayer(world, 1000, 1000)

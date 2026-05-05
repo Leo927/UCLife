@@ -43,6 +43,7 @@ import {
 import type { TransitTerminal } from '../data/transit'
 import { setLandmark, clearLandmarks, addRoughSource, setShopRect } from '../data/landmarks'
 import { resetAll } from '../save/registry'
+import { bootstrapWorldSingleton } from './resources'
 
 const TILE = worldConfig.tilePx
 const WALL_T = worldConfig.wallThicknessPx
@@ -982,6 +983,12 @@ export function setupWorld() {
   transitTerminalsBound.clear()
   clearAirportPlacements()
   clearTransitPlacements()
+
+  // Allocate the per-world singleton on every scene world up-front. Per-
+  // world resource traits attach lazily on first read; the singleton itself
+  // exists from boot so save handlers, tests, and reset paths can rely on
+  // it being available without further bootstrap calls.
+  for (const id of SCENE_IDS) bootstrapWorldSingleton(getWorld(id))
 
   for (const scene of scenes) {
     if (scene.sceneType === 'space') {

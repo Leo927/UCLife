@@ -8,6 +8,8 @@ import { jobsConfig } from '../config'
 import { meetsRequirements } from './market'
 import { emitSim } from '../sim/events'
 
+// player-global: the promotion notice memo applies to the single player;
+// only the player has a job-family promotion ladder. Module-scope is safe.
 const noticedRankByFamily = new Map<string, number>()
 
 export function resetPromotionNotices() {

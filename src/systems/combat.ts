@@ -54,6 +54,11 @@ interface ProjectileSnap {
   rangeRemaining: number
 }
 
+// per-active-scene only: combat runs exclusively in the playerShipInterior
+// world; only one tactical encounter exists at any time. Module-level
+// projectile pool + id seed are safe — there's no second concurrent combat
+// to keep separate state for. (combatSystem itself takes a `world` argument
+// but doesn't use it — it always reads/writes the SHIP_SCENE_ID world.)
 let nextProjectileId = 1
 const projectiles: ProjectileSnap[] = []
 
@@ -187,6 +192,7 @@ export function startCombat(enemyShipId: string): void {
   logEvent(`战斗开始 · 对手: ${blueprint.nameZh}`)
 }
 
+// per-active-scene only: see projectiles[] above for why module-scope is fine.
 let enemyMaintainRange = 160
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
@@ -265,8 +271,9 @@ function applyDamageToEnemy(
   return { absorbed: false, destroyed: hullCurrent <= 0 }
 }
 
-// The player damage path goes through sim/ship.ts for hull/armor and a
-// module-local flux/shield model that mirrors the enemy structure.
+// per-active-scene only: there is exactly one player ship; module-local
+// flux/shield model mirrors the enemy structure on the same per-encounter
+// scope as projectiles[].
 const playerShield = { fluxCurrent: 0, shieldUp: true, fluxMax: 0, shieldEfficiency: 1 }
 
 function refreshPlayerFluxFromShip(ship: Entity): void {

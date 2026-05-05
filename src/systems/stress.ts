@@ -1,10 +1,12 @@
 // feedStress on Resolve is a no-op until Resolve participates in drift.
 
+import { trait } from 'koota'
 import type { Entity, World } from 'koota'
 import { Active, Attributes, Vitals, Health, Action, Job, Home, IsPlayer } from '../ecs/traits'
 import { feedStress } from './attributes'
 import type { StatId } from '../data/stats'
 import { attributesConfig, worldConfig } from '../config'
+import { worldSingleton } from '../ecs/resources'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const SLOW_FACTOR = worldConfig.activeZone.inactiveSlowFactor
@@ -13,12 +15,20 @@ const COARSE_TICK_MIN = worldConfig.activeZone.inactiveCoarseTickMin
 // Resolve omitted — feedStress would no-op anyway.
 const ALL_PHYSICAL: StatId[] = ['strength', 'endurance', 'charisma', 'intelligence', 'reflex']
 
-// Same Inactive flush semantics as vitalsSystem; kept separate so each
-// system can be reset and inspected independently.
-const inactiveAccumMin = new Map<Entity, number>()
+// Per-world inactive-NPC accumulator. Same Inactive flush semantics as
+// vitalsSystem; kept separate so each system can be reset and inspected
+// independently. Hoisted to the per-world singleton — see vitals.ts
+// header for why Map<Entity, T> at module scope is unsafe under multi-world.
+const StressAccum = trait(() => ({ inactiveAccumMin: new Map<Entity, number>() }))
 
-export function resetStressAccum(): void {
-  inactiveAccumMin.clear()
+function accumOf(world: World): Map<Entity, number> {
+  const e = worldSingleton(world)
+  if (!e.has(StressAccum)) e.add(StressAccum)
+  return e.get(StressAccum)!.inactiveAccumMin
+}
+
+export function resetStressAccum(world: World): void {
+  accumOf(world).clear()
 }
 
 export function stressSystem(world: World, gameMinutes: number, gameDate: Date): void {
@@ -27,6 +37,7 @@ export function stressSystem(world: World, gameMinutes: number, gameDate: Date):
   const F = cfg.feeds
   const graceMs = cfg.unemploymentGraceDays * MS_PER_DAY
   const now = gameDate.getTime()
+  const inactiveAccumMin = accumOf(world)
 
   for (const entity of world.query(Attributes, Vitals, Health, Action)) {
     const v = entity.get(Vitals)!

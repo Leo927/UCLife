@@ -1,6 +1,6 @@
+import { trait, Not } from 'koota'
 import type { World, Entity } from 'koota'
 import { Active, Vitals, Health, Action, IsPlayer, Character, Inventory, Money, Job, Workstation, RoughUse, Attributes } from '../ecs/traits'
-import { Not } from 'koota'
 import { useDebug } from '../debug/store'
 import { useClock, formatUC } from '../sim/clock'
 import { getBedMultiplierFor, releaseBedFor } from './bed'
@@ -15,18 +15,27 @@ import { isolationMultiplier } from './relations'
 import { requestNpcWake } from './npc'
 import { getStat } from '../stats/sheet'
 import { vitalDrainMulStat, type VitalId } from '../stats/schema'
+import { worldSingleton } from '../ecs/resources'
 
 const { drain, actions: act, npcFatigueMult, hpRegenPerMin, hpDamagePerMin } = vitalsConfig
 const SLOW_FACTOR = worldConfig.activeZone.inactiveSlowFactor
 const COARSE_TICK_MIN = worldConfig.activeZone.inactiveCoarseTickMin
 
-// Buffered game-minutes for Inactive NPCs. Flushed at coarse-tick boundaries
-// at `acc * inactiveSlowFactor`. On Inactive→Active promote, the partial
-// buffer drains on the next tick alongside the current full-rate drift.
-const inactiveAccumMin = new Map<Entity, number>()
+// Per-world inactive-NPC accumulators. Buffered game-minutes flush at
+// coarse-tick boundaries at `acc * inactiveSlowFactor`. Hoisted onto the
+// per-world singleton because the Map is keyed by Entity refs and koota
+// recycles entity ids per-world — sharing one Map across scenes would
+// silently merge accumulator state for entities with colliding ids.
+const VitalsAccum = trait(() => ({ inactiveAccumMin: new Map<Entity, number>() }))
 
-export function resetVitalsAccum(): void {
-  inactiveAccumMin.clear()
+function accumOf(world: World): Map<Entity, number> {
+  const e = worldSingleton(world)
+  if (!e.has(VitalsAccum)) e.add(VitalsAccum)
+  return e.get(VitalsAccum)!.inactiveAccumMin
+}
+
+export function resetVitalsAccum(world: World): void {
+  accumOf(world).clear()
 }
 
 // Per-vital max + drain-mul lookups. Default sheet seeds these to 100 / 1
@@ -184,6 +193,7 @@ export function vitalsSystem(world: World, gameMinutes: number) {
   const freezePlayer = useDebug.getState().freezeNeeds
   const toDestroy: Entity[] = []
   const nowMs = useClock.getState().gameDate.getTime()
+  const inactiveAccumMin = accumOf(world)
 
   // try/catch: destroyed entities can briefly surface in query() results
   // between destroy() and koota's index update.
@@ -201,7 +211,7 @@ export function vitalsSystem(world: World, gameMinutes: number) {
 
     // Endurance softens fatigue accumulation only — sleep recovery untouched.
     if (d.dFatigue > 0) d.dFatigue *= statInvMult(statValue(entity, 'endurance'))
-    if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
+    if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(world, entity, nowMs)
 
     // Recovery actions (eating, washing) keep their authored magnitude;
     // only positive decay deltas scale.
@@ -254,7 +264,7 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     const d = applyAction(a.kind, world, entity)
 
     if (d.dFatigue > 0) d.dFatigue *= npcFatigueMult * statInvMult(statValue(entity, 'endurance'))
-    if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
+    if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(world, entity, nowMs)
 
     applyDrainMuls(entity, d)
 
@@ -277,7 +287,7 @@ export function vitalsSystem(world: World, gameMinutes: number) {
       crossed(beforeHygiene, v.hygiene, HYGIENE_THRESH) ||
       crossed(beforeBoredom, v.boredom, BOREDOM_THRESH)
     ) {
-      requestNpcWake(entity)
+      requestNpcWake(world, entity)
     }
 
     if (a.kind === 'sleeping') feedUse(entity, 'endurance', FEED.sleep, effMinutes)
