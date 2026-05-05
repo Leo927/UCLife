@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
-import { IsPlayer, Money, Bed, Position, MoveTarget, QueuedInteract, Home } from '../../ecs/traits'
+import { IsPlayer, Money, Bed, Position, MoveTarget, QueuedInteract, Home, Attributes } from '../../ecs/traits'
 import type { BedTier } from '../../ecs/traits'
 import { useUI } from '../uiStore'
 import { useClock } from '../../sim/clock'
@@ -9,6 +9,7 @@ import { claimHome, buyHome } from '../../systems/market'
 import { world } from '../../ecs/world'
 import { bedActiveOccupant } from '../../systems/bed'
 import { economyConfig } from '../../config'
+import { getStat } from '../../stats/sheet'
 
 // Lounge couches are auto-claimed inside the AE complex (employee perk),
 // not rentable through the realtor — kept out of TIER_ORDER.
@@ -45,10 +46,16 @@ function purchasePriceFor(tier: BedTier, monthlyRent: number): number | null {
   return null
 }
 
+function applyRentMul(listed: number, mul: number): number {
+  return Math.max(1, Math.round(listed * mul))
+}
+
 export function RealtorConversation() {
   const player = useQueryFirst(IsPlayer, Money)
   const money = useTrait(player, Money)
   const playerHome = useTrait(player, Home)
+  const attrs = useTrait(player, Attributes)
+  const rentMul = attrs ? getStat(attrs.sheet, 'rentMul') : 1
   const allBeds = useQuery(Bed, Position)
   // Subscribe to gameDate so active/expired status refreshes while open.
   const gameMs = useClock((s) => s.gameDate.getTime())
@@ -92,8 +99,9 @@ export function RealtorConversation() {
     const b = bedEnt.get(Bed)
     if (!b) return
     const tier = b.tier as BedTier
-    const deposit = depositFor(tier, b.nightlyRent)
-    const total = b.nightlyRent + deposit
+    const adjustedRent = applyRentMul(b.nightlyRent, rentMul)
+    const deposit = depositFor(tier, adjustedRent)
+    const total = adjustedRent + deposit
     if (money.amount < total) {
       useUI.getState().showToast(`金钱不足 · 需 ¥${total}`)
       return
@@ -103,7 +111,7 @@ export function RealtorConversation() {
       useUI.getState().showToast('该房源已被人租下')
       return
     }
-    // claimHome charges nightlyRent itself; deduct only the deposit here.
+    // claimHome charges adjustedRent itself; deduct only the deposit here.
     if (deposit > 0) {
       player.set(Money, { amount: money.amount - deposit })
     }
@@ -161,6 +169,7 @@ export function RealtorConversation() {
                 playerEnt={player ?? null}
                 playerHomeEnt={playerHome?.bed ?? null}
                 playerMoney={money?.amount ?? 0}
+                rentMul={rentMul}
                 onPreview={preview}
                 onRent={rent}
                 onBuy={buy}
@@ -181,6 +190,7 @@ function RealtorRow({
   playerEnt,
   playerHomeEnt,
   playerMoney,
+  rentMul,
   onPreview,
   onRent,
   onBuy,
@@ -192,6 +202,7 @@ function RealtorRow({
   playerEnt: Entity | null
   playerHomeEnt: Entity | null
   playerMoney: number
+  rentMul: number
   onPreview: (e: Entity) => void
   onRent: (e: Entity) => void
   onBuy: (e: Entity) => void
@@ -202,8 +213,11 @@ function RealtorRow({
   const isPlayerClaim = active !== null && active === playerEnt
   const isOtherClaim = active !== null && active !== playerEnt
   const isPlayerOwned = bed.owned && isPlayerClaim
-  const deposit = depositFor(tier, bed.nightlyRent)
-  const rentTotal = bed.nightlyRent + deposit
+  const adjustedRent = applyRentMul(bed.nightlyRent, rentMul)
+  const deposit = depositFor(tier, adjustedRent)
+  const rentTotal = adjustedRent + deposit
+  // Purchase prices are not affected by rentMul — perks describe rent
+  // discounts only. Use listed nightlyRent as the basis.
   const purchase = purchasePriceFor(tier, bed.nightlyRent)
   const isCurrentHome = playerHomeEnt === bedEnt
 
@@ -249,9 +263,9 @@ function RealtorRow({
         <div className="apt-row-name">{TIER_UNIT_LABEL[tier]} {unitNumber}号</div>
         <div className="apt-row-meta">
           {tier === 'apartment' ? (
-            <>月租 ¥{bed.nightlyRent} · 押金 ¥{deposit} · 合计 ¥{rentTotal}</>
+            <>月租 ¥{adjustedRent} · 押金 ¥{deposit} · 合计 ¥{rentTotal}</>
           ) : (
-            <>租金 ¥{bed.nightlyRent} / {rentPeriodLabel(tier)}</>
+            <>租金 ¥{adjustedRent} / {rentPeriodLabel(tier)}</>
           )}
           {purchase !== null && <> · 售价 ¥{purchase.toLocaleString()}</>}
         </div>

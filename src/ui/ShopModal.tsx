@@ -1,21 +1,27 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Inventory } from '../ecs/traits'
+import { IsPlayer, Money, Inventory, Attributes } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { SHOP_ITEMS, type ShopItem } from '../data/shop'
+import { getStat } from '../stats/sheet'
 
 export function ShopModal() {
   const open = useUI((s) => s.shopOpen)
   const setShop = useUI((s) => s.setShop)
   const player = useQueryFirst(IsPlayer, Money)
   const money = useTrait(player, Money)
+  const attrs = useTrait(player, Attributes)
+  const shopMul = attrs ? getStat(attrs.sheet, 'shopMul') : 1
 
   if (!open) return null
 
+  const priceOf = (item: ShopItem) => Math.max(1, Math.round(item.price * shopMul))
+
   const buy = (item: ShopItem) => {
     if (!player || !money) return
-    if (money.amount < item.price) return
+    const price = priceOf(item)
+    if (money.amount < price) return
 
-    player.set(Money, { amount: money.amount - item.price })
+    player.set(Money, { amount: money.amount - price })
 
     const inv = player.get(Inventory)
     if (!inv) return
@@ -50,7 +56,8 @@ export function ShopModal() {
 
         <section className="status-section">
           {SHOP_ITEMS.map((item) => {
-            const canAfford = (money?.amount ?? 0) >= item.price
+            const price = priceOf(item)
+            const canAfford = (money?.amount ?? 0) >= price
             return (
               <div key={item.id} className="shop-item">
                 <div className="shop-item-info">
@@ -62,7 +69,7 @@ export function ShopModal() {
                   disabled={!canAfford}
                   onClick={() => buy(item)}
                 >
-                  ¥{item.price}
+                  ¥{price}
                 </button>
               </div>
             )

@@ -1,26 +1,26 @@
 import json5 from 'json5'
 import raw from './perks.json5?raw'
-import type { SkillId } from './skills'
+import { STAT_IDS, type StatId } from '../stats/schema'
+import type { ModType } from '../stats/sheet'
 
 // Sims-style aspiration-reward catalog. Player spends Ambition Points
 // (AP) earned from any ambition's stage payoffs on perks from this
 // universal list. Permanent once purchased — no respec.
+//
+// Each perk lists a flat array of stat modifiers, identical in shape to
+// backgrounds.json5. Sync code (src/stats/perkSync.ts) folds them into
+// the character's StatSheet under source `perk:<id>`. Perks whose
+// downstream consumer hasn't shipped yet (Phase 5.2 social, Phase 6.1
+// combat) carry an empty modifiers array — the sync still namespaces
+// them so they round-trip correctly through saves.
 
 export type PerkCategory = 'vital' | 'skill' | 'social' | 'economic' | 'combat' | 'faction'
 
-export type VitalKey = 'hunger' | 'thirst' | 'fatigue' | 'hygiene' | 'boredom' | 'all'
-
-export type PerkEffect =
-  | { kind: 'vitalDecay'; vital: VitalKey; mul: number }
-  | { kind: 'skillXpMul'; skill: SkillId; mul: number }
-  | { kind: 'wageMul'; mul: number }
-  | { kind: 'shopDiscountMul'; mul: number }
-  | { kind: 'rentMul'; mul: number }
-  // Scaffolded effects whose downstream consumers haven't shipped yet —
-  // Phase 5.2 (relations) and Phase 6.1 (combat) will replace these
-  // with concrete kinds. Keeping them as 'placeholder' lets the perk
-  // catalog ship without a partial-effect implementation.
-  | { kind: 'placeholder' }
+export interface PerkModifier {
+  statId: StatId
+  type: ModType
+  value: number
+}
 
 export interface PerkDef {
   id: string
@@ -28,7 +28,7 @@ export interface PerkDef {
   descZh: string
   apCost: number
   category: PerkCategory
-  effect: PerkEffect
+  modifiers: PerkModifier[]
 }
 
 interface PerksFile {
@@ -40,12 +40,9 @@ const parsed = json5.parse(raw) as PerksFile
 const VALID_CATEGORIES: ReadonlySet<PerkCategory> = new Set<PerkCategory>([
   'vital', 'skill', 'social', 'economic', 'combat', 'faction',
 ])
-const VALID_SKILLS: ReadonlySet<SkillId> = new Set<SkillId>([
-  'mechanics', 'marksmanship', 'athletics', 'cooking', 'medicine', 'computers',
-  'piloting', 'bartending', 'engineering',
-])
-const VALID_VITALS: ReadonlySet<VitalKey> = new Set<VitalKey>([
-  'hunger', 'thirst', 'fatigue', 'hygiene', 'boredom', 'all',
+const VALID_STAT_IDS: ReadonlySet<string> = new Set<string>(STAT_IDS)
+const VALID_TYPES: ReadonlySet<ModType> = new Set<ModType>([
+  'flat', 'percentAdd', 'percentMult', 'floor', 'cap',
 ])
 
 const seen = new Set<string>()
@@ -60,32 +57,19 @@ for (const p of parsed.perks) {
   if (!VALID_CATEGORIES.has(p.category)) {
     throw new Error(`perks.json5: perk "${p.id}" invalid category "${p.category}"`)
   }
-  switch (p.effect.kind) {
-    case 'vitalDecay':
-      if (!VALID_VITALS.has(p.effect.vital)) {
-        throw new Error(`perks.json5: perk "${p.id}" invalid vital "${p.effect.vital}"`)
-      }
-      if (p.effect.mul <= 0) {
-        throw new Error(`perks.json5: perk "${p.id}" vitalDecay.mul must be > 0`)
-      }
-      break
-    case 'skillXpMul':
-      if (!VALID_SKILLS.has(p.effect.skill)) {
-        throw new Error(`perks.json5: perk "${p.id}" invalid skill "${p.effect.skill}"`)
-      }
-      if (p.effect.mul <= 0) {
-        throw new Error(`perks.json5: perk "${p.id}" skillXpMul.mul must be > 0`)
-      }
-      break
-    case 'wageMul':
-    case 'shopDiscountMul':
-    case 'rentMul':
-      if (p.effect.mul <= 0) {
-        throw new Error(`perks.json5: perk "${p.id}" ${p.effect.kind}.mul must be > 0`)
-      }
-      break
-    case 'placeholder':
-      break
+  if (!Array.isArray(p.modifiers)) {
+    throw new Error(`perks.json5: perk "${p.id}" modifiers must be an array`)
+  }
+  for (const m of p.modifiers) {
+    if (!VALID_STAT_IDS.has(m.statId)) {
+      throw new Error(`perks.json5: perk "${p.id}" unknown statId "${m.statId}"`)
+    }
+    if (!VALID_TYPES.has(m.type)) {
+      throw new Error(`perks.json5: perk "${p.id}" unknown modifier type "${m.type}"`)
+    }
+    if (typeof m.value !== 'number' || !Number.isFinite(m.value)) {
+      throw new Error(`perks.json5: perk "${p.id}" non-finite value`)
+    }
   }
 }
 
@@ -99,4 +83,8 @@ export function getPerk(id: string): PerkDef | undefined {
 
 export function isPerkId(id: string): boolean {
   return id in byId
+}
+
+export function perkSource(id: string): string {
+  return `perk:${id}`
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCharacterSheet, vitalDrainMulStat } from './schema'
+import { createCharacterSheet, vitalDrainMulStat, skillXpMulStat } from './schema'
 import { addModifier, getStat, removeBySource, type Modifier } from './sheet'
 import type { StatId } from './schema'
 
@@ -35,20 +35,20 @@ describe('strip-all-perk-sources regression', () => {
   })
 })
 
-describe('vitalDecay → DrainMul modifier math', () => {
-  it('a 0.8 perk on hunger reduces hungerDrainMul to 0.8', () => {
+describe('vital drain modifier math', () => {
+  it('a -0.2 percentMult on hunger reduces hungerDrainMul to 0.8', () => {
     let s = createCharacterSheet()
     const mod: Modifier<StatId> = {
       statId: vitalDrainMulStat('hunger'),
       type: 'percentMult',
-      value: -0.2, // 0.8 - 1
+      value: -0.2,
       source: 'perk:slow-hunger',
     }
     s = addModifier(s, mod)
     expect(getStat(s, 'hungerDrainMul')).toBeCloseTo(0.8, 6)
   })
 
-  it("the 'all' perk stacks across every vital", () => {
+  it("the 'all vitals' stack matches a single -0.10 per vital", () => {
     let s = createCharacterSheet()
     for (const v of ['hunger', 'thirst', 'fatigue', 'hygiene', 'boredom'] as const) {
       s = addModifier(s, {
@@ -69,5 +69,47 @@ describe('vitalDecay → DrainMul modifier math', () => {
     expect(getStat(s, 'hungerDrainMul')).toBeCloseTo(0.72, 6)  // 0.8 * 0.9
     s = removeBySource(s, 'perk:a')
     expect(getStat(s, 'hungerDrainMul')).toBeCloseTo(0.9, 6)
+  })
+})
+
+describe('economic stat defaults and perks', () => {
+  it('wageMul/shopMul/rentMul default to 1', () => {
+    const s = createCharacterSheet()
+    expect(getStat(s, 'wageMul')).toBe(1)
+    expect(getStat(s, 'shopMul')).toBe(1)
+    expect(getStat(s, 'rentMul')).toBe(1)
+  })
+
+  it('a +10% wage perk lifts wageMul to 1.10', () => {
+    let s = createCharacterSheet()
+    s = addModifier(s, {
+      statId: 'wageMul', type: 'percentMult', value: 0.10, source: 'perk:good_negotiator',
+    })
+    expect(getStat(s, 'wageMul')).toBeCloseTo(1.10, 6)
+  })
+
+  it('a -5% shop perk drops shopMul to 0.95', () => {
+    let s = createCharacterSheet()
+    s = addModifier(s, {
+      statId: 'shopMul', type: 'percentMult', value: -0.05, source: 'perk:frugal',
+    })
+    expect(getStat(s, 'shopMul')).toBeCloseTo(0.95, 6)
+  })
+})
+
+describe('skill XP multiplier stats', () => {
+  it('every <skill>XpMul defaults to 1', () => {
+    const s = createCharacterSheet()
+    expect(getStat(s, skillXpMulStat('mechanics'))).toBe(1)
+    expect(getStat(s, skillXpMulStat('piloting'))).toBe(1)
+  })
+
+  it('a +20% mechanics perk raises mechanicsXpMul to 1.20 only', () => {
+    let s = createCharacterSheet()
+    s = addModifier(s, {
+      statId: skillXpMulStat('mechanics'), type: 'percentMult', value: 0.20, source: 'perk:natural_mechanic',
+    })
+    expect(getStat(s, skillXpMulStat('mechanics'))).toBeCloseTo(1.20, 6)
+    expect(getStat(s, skillXpMulStat('piloting'))).toBe(1)
   })
 })

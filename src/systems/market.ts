@@ -1,5 +1,5 @@
 import type { Entity, World } from 'koota'
-import { Workstation, Bed, Position, Job, Home, Money, Skills } from '../ecs/traits'
+import { Workstation, Bed, Position, Job, Home, Money, Skills, Attributes } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
 import { levelOf } from '../character/skills'
 import type { SkillId } from '../character/skills'
@@ -8,6 +8,13 @@ import { useClock } from '../sim/clock'
 import { economyConfig } from '../config'
 import { bedActiveOccupant } from './bed'
 import { getRep, hasFriendInFaction } from './reputation'
+import { getStat } from '../stats/sheet'
+
+function rentPriceFor(entity: Entity, listed: number): number {
+  const a = entity.get(Attributes)
+  const mul = a ? getStat(a.sheet, 'rentMul') : 1
+  return Math.max(1, Math.round(listed * mul))
+}
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -102,9 +109,10 @@ export function findBestOpenBed(world: World, entity: Entity, money: number): En
     if (b.tier === 'lounge') continue
     const active = bedActiveOccupant(b, now)
     if (active !== null && active !== entity) continue
-    if (b.nightlyRent > money) continue
+    const price = rentPriceFor(entity, b.nightlyRent)
+    if (price > money) continue
     const tierScore = TIER_RANK[b.tier as BedTier] ?? 0
-    const score = tierScore * 1000 - b.nightlyRent
+    const score = tierScore * 1000 - price
     if (score > bestScore) {
       bestScore = score
       best = bed
@@ -126,9 +134,10 @@ export function claimHome(world: World, entity: Entity, bed: Entity): boolean {
     releaseHome(world, entity)
     bed.set(Bed, { ...b, occupant: entity })
   } else {
+    const price = rentPriceFor(entity, b.nightlyRent)
     const m = entity.get(Money)
-    if (!m || m.amount < b.nightlyRent) return false
-    entity.set(Money, { amount: m.amount - b.nightlyRent })
+    if (!m || m.amount < price) return false
+    entity.set(Money, { amount: m.amount - price })
     releaseHome(world, entity)
     bed.set(Bed, {
       ...b,

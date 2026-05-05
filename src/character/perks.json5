@@ -8,24 +8,20 @@
 //   descZh      — zh-CN one-paragraph blurb
 //   apCost      — AP price; tier ladder is 1 AP / 2 AP / 4 AP
 //   category    — vital | skill | social | economic | combat | faction
-//   effect      — discriminated union; system code branches on `kind`.
-//                 Phase 5.0 ships effect kinds in this order of risk:
-//                   - vitalDecay      : multiplier on the per-tick decay
-//                                       of one or all vitals (1.0 = no effect)
-//                   - skillXpMul      : multiplier on skill XP gain in a category
-//                                       (categories match SkillId)
-//                   - wageMul         : multiplier on workSystem wage payout
-//                   - shopDiscountMul : multiplier on shop prices (<1 cheaper)
-//                   - rentMul         : multiplier on bed nightly rent (<1 cheaper)
-//                 Future (combat/faction-tier perks) hook here as they land.
+//   modifiers   — flat list of { statId, type, value } rows, same shape as
+//                 backgrounds.json5. The sync layer folds these onto the
+//                 character's StatSheet under `perk:<id>`. Perks whose
+//                 downstream consumers don't ship yet leave modifiers
+//                 empty.
 //
-// Phase 6.0 ships only the perks above; the combat / faction-leader
-// categories are scaffolded but their effects don't yet activate.
+// Modifier types: 'flat', 'percentAdd', 'percentMult', 'floor', 'cap'.
+// Vital drain conventions: a "−10% hunger drain" perk is
+// `{ statId: 'hungerDrainMul', type: 'percentMult', value: -0.10 }` since
+// hungerDrainMul has base 1 and is multiplied into the per-tick drain.
+// "All vitals" perks list each vital explicitly — there is no shorthand.
 //
 // Pricing intent: 1 AP = "small permanent quality-of-life nudge", 2 AP =
-// "noticeable build choice", 4 AP = "significant lategame reward". Total
-// AP across the six starter ambitions is roughly 30-50, so a long career
-// can buy a meaningful but not unlimited set.
+// "noticeable build choice", 4 AP = "significant lategame reward".
 
 {
   perks: [
@@ -36,7 +32,9 @@
       descZh: '饥饿增长减慢 10%。习惯了月面合成食品的副作用。',
       apCost: 1,
       category: 'vital',
-      effect: { kind: 'vitalDecay', vital: 'hunger', mul: 0.90 },
+      modifiers: [
+        { statId: 'hungerDrainMul', type: 'percentMult', value: -0.10 },
+      ],
     },
     {
       id: 'desert_kidneys',
@@ -44,7 +42,9 @@
       descZh: '口渴增长减慢 10%。',
       apCost: 1,
       category: 'vital',
-      effect: { kind: 'vitalDecay', vital: 'thirst', mul: 0.90 },
+      modifiers: [
+        { statId: 'thirstDrainMul', type: 'percentMult', value: -0.10 },
+      ],
     },
     {
       id: 'deep_sleeper',
@@ -52,7 +52,9 @@
       descZh: '疲劳增长减慢 15%。',
       apCost: 2,
       category: 'vital',
-      effect: { kind: 'vitalDecay', vital: 'fatigue', mul: 0.85 },
+      modifiers: [
+        { statId: 'fatigueDrainMul', type: 'percentMult', value: -0.15 },
+      ],
     },
     {
       id: 'long_distance',
@@ -60,7 +62,13 @@
       descZh: '所有生理消耗减慢 10%。',
       apCost: 4,
       category: 'vital',
-      effect: { kind: 'vitalDecay', vital: 'all', mul: 0.90 },
+      modifiers: [
+        { statId: 'hungerDrainMul',  type: 'percentMult', value: -0.10 },
+        { statId: 'thirstDrainMul',  type: 'percentMult', value: -0.10 },
+        { statId: 'fatigueDrainMul', type: 'percentMult', value: -0.10 },
+        { statId: 'hygieneDrainMul', type: 'percentMult', value: -0.10 },
+        { statId: 'boredomDrainMul', type: 'percentMult', value: -0.10 },
+      ],
     },
 
     // ── Skill ────────────────────────────────────────────────────────
@@ -70,7 +78,9 @@
       descZh: '机械相关训练效率提升 20%。',
       apCost: 1,
       category: 'skill',
-      effect: { kind: 'skillXpMul', skill: 'mechanics', mul: 1.20 },
+      modifiers: [
+        { statId: 'mechanicsXpMul', type: 'percentMult', value: 0.20 },
+      ],
     },
     {
       id: 'natural_pilot',
@@ -78,7 +88,9 @@
       descZh: '驾驶相关训练效率提升 20%。',
       apCost: 2,
       category: 'skill',
-      effect: { kind: 'skillXpMul', skill: 'piloting', mul: 1.20 },
+      modifiers: [
+        { statId: 'pilotingXpMul', type: 'percentMult', value: 0.20 },
+      ],
     },
     {
       id: 'natural_engineer',
@@ -86,7 +98,9 @@
       descZh: '工程相关训练效率提升 20%。',
       apCost: 1,
       category: 'skill',
-      effect: { kind: 'skillXpMul', skill: 'engineering', mul: 1.20 },
+      modifiers: [
+        { statId: 'engineeringXpMul', type: 'percentMult', value: 0.20 },
+      ],
     },
     {
       id: 'natural_bartender',
@@ -94,7 +108,9 @@
       descZh: '调酒相关训练效率提升 20%。',
       apCost: 1,
       category: 'skill',
-      effect: { kind: 'skillXpMul', skill: 'bartending', mul: 1.20 },
+      modifiers: [
+        { statId: 'bartendingXpMul', type: 'percentMult', value: 0.20 },
+      ],
     },
 
     // ── Economic ─────────────────────────────────────────────────────
@@ -104,7 +120,9 @@
       descZh: '工资 +10%。',
       apCost: 2,
       category: 'economic',
-      effect: { kind: 'wageMul', mul: 1.10 },
+      modifiers: [
+        { statId: 'wageMul', type: 'percentMult', value: 0.10 },
+      ],
     },
     {
       id: 'frugal',
@@ -112,7 +130,9 @@
       descZh: '商店购物折扣 5%。',
       apCost: 1,
       category: 'economic',
-      effect: { kind: 'shopDiscountMul', mul: 0.95 },
+      modifiers: [
+        { statId: 'shopMul', type: 'percentMult', value: -0.05 },
+      ],
     },
     {
       id: 'hard_bargainer',
@@ -120,7 +140,9 @@
       descZh: '住宿费用 -10%。',
       apCost: 2,
       category: 'economic',
-      effect: { kind: 'rentMul', mul: 0.90 },
+      modifiers: [
+        { statId: 'rentMul', type: 'percentMult', value: -0.10 },
+      ],
     },
     {
       id: 'family_money',
@@ -128,19 +150,21 @@
       descZh: '工资 +25%。',
       apCost: 4,
       category: 'economic',
-      effect: { kind: 'wageMul', mul: 1.25 },
+      modifiers: [
+        { statId: 'wageMul', type: 'percentMult', value: 0.25 },
+      ],
     },
 
     // ── Social ───────────────────────────────────────────────────────
-    // Effects are placeholder; relations system doesn't yet read perks.
-    // Phase 5.2 wires the talk-verb opinion gain through this kind.
+    // Effects scaffolded; relations system doesn't yet read these stats.
+    // Phase 5.2 wires opinion-gain through a new charisma-derived stat.
     {
       id: 'good_listener',
       nameZh: '好听众',
       descZh: '与 NPC 的好感增长 +20%。(Phase 5.2 生效)',
       apCost: 2,
       category: 'social',
-      effect: { kind: 'placeholder' },
+      modifiers: [],
     },
     {
       id: 'face_at_lazlos',
@@ -148,7 +172,7 @@
       descZh: '在酒吧第一次结识 NPC 时多 +1 魅力检定加成。(Phase 5.2 生效)',
       apCost: 1,
       category: 'social',
-      effect: { kind: 'placeholder' },
+      modifiers: [],
     },
 
     // ── Combat (scaffolded; not yet active) ──────────────────────────
@@ -158,7 +182,7 @@
       descZh: '武器命中率 +5%。(Phase 6.1 生效)',
       apCost: 2,
       category: 'combat',
-      effect: { kind: 'placeholder' },
+      modifiers: [],
     },
   ],
 }

@@ -1,5 +1,5 @@
 import type { World, Entity } from 'koota'
-import { IsPlayer, Action, JobPerformance, Job, Money, Skills, Workstation, JobTenure } from '../ecs/traits'
+import { IsPlayer, Action, JobPerformance, Job, Money, Skills, Workstation, JobTenure, Attributes } from '../ecs/traits'
 import { wageMultiplier, getJobSpec } from '../data/jobs'
 import { isWorkstationOpen } from './market'
 import { emitSim } from '../sim/events'
@@ -11,6 +11,18 @@ import { economyConfig, factionsConfig } from '../config'
 import type { JobSpec } from '../config'
 import { addRep } from './reputation'
 import { checkPromotionEligibility } from './promotion'
+import { getStat } from '../stats/sheet'
+import { skillXpMulStat, type SkillStatId } from '../stats/schema'
+
+function wageMul(entity: Entity): number {
+  const a = entity.get(Attributes)
+  return a ? getStat(a.sheet, 'wageMul') : 1
+}
+
+function skillXpMul(entity: Entity, skill: SkillStatId): number {
+  const a = entity.get(Attributes)
+  return a ? getStat(a.sheet, skillXpMulStat(skill)) : 1
+}
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -78,10 +90,12 @@ function processMinute(
     if (todayPerf > 0 && spec.wage > 0) {
       const npcBonus = isPlayer ? 1.0 : economyConfig.wage.npcBonus
       const attrMult = statMult(statValue(entity, jobAttr(spec)))
-      // Intelligence multiplies skill XP across all jobs.
+      // Intelligence multiplies skill XP across all jobs; per-skill perks
+      // stack on top via the <skill>XpMul stat.
       const intMult = statMult(statValue(entity, 'intelligence'))
-      const wage = Math.floor(spec.wage * wageMultiplier(todayPerf) * npcBonus * attrMult)
-      const xpGain = spec.skill ? Math.floor(spec.skillXp * (todayPerf / 100) * intMult) : 0
+      const skillMul = spec.skill ? skillXpMul(entity, spec.skill as SkillStatId) : 1
+      const wage = Math.floor(spec.wage * wageMultiplier(todayPerf) * npcBonus * attrMult * wageMul(entity))
+      const xpGain = spec.skill ? Math.floor(spec.skillXp * (todayPerf / 100) * intMult * skillMul) : 0
 
       const m = entity.get(Money)
       if (m && wage > 0) entity.set(Money, { amount: m.amount + wage })

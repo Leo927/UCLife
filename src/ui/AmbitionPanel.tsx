@@ -6,7 +6,6 @@ import { PERKS, getPerk } from '../character/perks'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { readStageProgress } from '../systems/ambitions'
-import { invalidatePerkCache } from '../systems/perkEffects'
 import { syncPerkModifiers } from '../stats/perkSync'
 import { useEventLog } from './EventLog'
 
@@ -193,7 +192,6 @@ export function AmbitionPanel() {
         apEarned: amb.apEarned,
         perks: newPerks,
       })
-      invalidatePerkCache()
       syncPerkModifiers(player, newPerks)
     }
 
