@@ -187,3 +187,4 @@ Caveats to respect:
 - Always prefer MCP server over raw API call
 - Always commit on every iteration
 - Use the plantuml skill to generate plantuml for diagram. 
+- Always assume a feature has a big scale. Lots of content. Ask for explicit user permission to implement naively. 
