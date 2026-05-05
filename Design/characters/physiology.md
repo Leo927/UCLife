@@ -126,8 +126,8 @@ end note
 state Incubating : severity = 0\nsymptoms hidden\nincubationDays elapses
 state Rising : severity climbs from 0 toward\neffective_peak over riseDays\nsymptoms shown,\nmodifiers active
 state Peak : severity held at effective_peak\nfor peakDays (typically 1)\nworst day; clearest diagnostic signal
-state Recovering : severity falls per\nrecovery formula\n(treatment ≥ requiredTier)
-state Stalled : severity does not fall\ntreatment < requiredTier\nmodifiers still active\ndaily complication roll
+state Recovering : severity falls per\nrecovery formula\n(treatmentTier ≥ requiredTier)
+state Stalled : severity does not fall\ntreatmentTier < requiredTier\nmodifiers still active\ndaily complication roll
 state "Resolved (clean)" as Clean : peakTracking < scarThreshold\ncondition removed
 state "Resolved (scarred)" as Scar : peakTracking ≥ scarThreshold\nchronic stub spawned\ntalentCap penalty
 state NearDeath : permadeath OFF only
@@ -135,8 +135,8 @@ state Death : permadeath ON only
 
 Incubating --> Rising : incubationDays elapses
 Rising --> Peak : severity reaches effective_peak
-Peak --> Recovering : peakDays elapses\nAND treatment ≥ requiredTier
-Peak --> Stalled : peakDays elapses\nAND treatment < requiredTier
+Peak --> Recovering : peakDays elapses\nAND treatmentTier ≥ requiredTier
+Peak --> Stalled : peakDays elapses\nAND treatmentTier < requiredTier
 Recovering --> Stalled : treatment lapses
 Stalled --> Recovering : treatment upgraded
 Stalled --> Stalled : complication roll\nmay spawn linked condition\n(infection, mal-union)
