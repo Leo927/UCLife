@@ -110,5 +110,6 @@ Until both land, every character has the same ceiling, but differentiated stat *
 
 - [index.md](index.md) — vitals feed stress
 - [skills.md](skills.md) — Intelligence multiplies XP, Reflex feeds piloting
+- [physiology.md](physiology.md) — Phase 4 conditions floor/cap stats; HP-based stress is anticipated here
 - [../social/ambitions.md](../social/ambitions.md) — many ambitions gate on stat thresholds
 - [../phasing.md](../phasing.md) — overall phase order

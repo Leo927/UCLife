@@ -1,11 +1,12 @@
 # Player character
 
-Three sub-topics live in sibling files because they're large enough to read on their own:
+Sub-topics live in sibling files because they're large enough to read on their own:
 
 - [skills.md](skills.md) — 27 skills, 6 groups, XP and decay model
 - [attributes.md](attributes.md) — 6 stats, drift model, talent caps, stress feeds
+- [physiology.md](physiology.md) — Phase 4 conditions (illness, injury, scars), diagnosis loop, contagion
 
-This file covers character creation, vitals, and physiology.
+This file covers character creation and vitals.
 
 ## Character creator
 
@@ -32,14 +33,15 @@ Death from neglect possible. (Permadeath off by default; toggle in Phase 4+.)
 
 ## Physiology (Phase 4)
 
-- Sickness with contagion (a flu can sweep a workplace)
-- Injuries with named body parts and recovery curves
-- Immune system as a hidden stat
-- Clinic interaction → medicine skill matters
+Discrete named conditions (RimWorld-hediff-shaped) layered on top of vitals:
+acute illness, injury with body parts, chronic stubs (scars), with diagnosis
+as the player's central verb and contagion as the workforce-level risk.
+Full design lives in [physiology.md](physiology.md).
 
 ## Related
 
 - [skills.md](skills.md) — what the character does with their attributes
 - [attributes.md](attributes.md) — slow-moving stats between vitals and skills
+- [physiology.md](physiology.md) — Phase 4 conditions, diagnosis, contagion
 - [../social/ambitions.md](../social/ambitions.md) — picked at character creation
 - [../npc-ai.md](../npc-ai.md) — player and NPCs share trait set

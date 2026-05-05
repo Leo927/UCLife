@@ -37,6 +37,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | Player character (creator, vitals, physiology) | [characters/index.md](characters/index.md) |
 | ↳ Skills (27 skills, 6 groups) | [characters/skills.md](characters/skills.md) |
 | ↳ Attributes (6 stats, drift model) | [characters/attributes.md](characters/attributes.md) |
+| ↳ Physiology (Phase 4 — conditions, diagnosis, contagion) | [characters/physiology.md](characters/physiology.md) |
 | NPC AI (utility + BT, drives, memory) | [npc-ai.md](npc-ai.md) |
 | Social pillar overview | [social/index.md](social/index.md) |
 | ↳ Ambitions (Phase 5.0) | [social/ambitions.md](social/ambitions.md) |

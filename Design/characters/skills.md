@@ -21,6 +21,7 @@ XP gained by use (books cap at level 30). Skill rust applies after months of dis
 ## Related
 
 - [attributes.md](attributes.md) — Intelligence multiplies XP gain
+- [physiology.md](physiology.md) — First Aid, Medicine, Chemistry are the skill-side levers on conditions
 - [../social/ambitions.md](../social/ambitions.md) — many ambitions gate on specific skill levels
 - [../mobile-worker.md](../mobile-worker.md) — first concrete verb behind the piloting skill
 - [index.md](index.md) — character creator sets starting skills
