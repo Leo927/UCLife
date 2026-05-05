@@ -7,13 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "build:portrait-cache": "tsx scripts/buildPortraitCache.ts",
     "prebuild": "npm run build:portrait-cache",
-    "check:ambitions": "node scripts/check-ambitions.mjs",
-    "check:portrait": "node scripts/check-portrait.mjs",
-    "check:portrait-modals": "node scripts/check-portrait-modals.mjs",
-    "check:portrait-enlarge": "node scripts/check-portrait-enlarge.mjs",
-    "check:sprite": "node scripts/check-sprite.mjs",
     "test:unit": "vitest run",
     "ci:local": "node scripts/ci-local.mjs"
   },
