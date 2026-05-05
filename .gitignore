@@ -12,3 +12,4 @@ tscout.txt
 arch/**/*.png
 arch/**/*.svg
 .claude/worktrees
+.claude/scheduled_tasks.lock

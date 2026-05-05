@@ -8,20 +8,11 @@
 
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Conditions } from '../ecs/traits'
-import { getConditionTemplate, severityTier, type SeverityTier } from '../character/conditions'
+import {
+  getConditionTemplate, severityTier,
+  SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR,
+} from '../character/conditions'
 import { useUI } from './uiStore'
-
-const TIER_ZH: Record<SeverityTier, string> = {
-  mild: '轻微',
-  moderate: '中等',
-  severe: '严重',
-}
-
-const TIER_FILL: Record<SeverityTier, string> = {
-  mild: '#facc15',
-  moderate: '#f97316',
-  severe: '#ef4444',
-}
 
 const FAMILY_GLYPH: Record<string, string> = {
   acute: '🤒',
@@ -49,12 +40,12 @@ export function ConditionStrip() {
         const tier = severityTier(inst.severity)
         const name = inst.diagnosed ? template.displayName : '某种疾病'
         const glyph = FAMILY_GLYPH[template.family] ?? '?'
-        const tooltip = `${name} — ${TIER_ZH[tier]}（严重度 ${Math.round(inst.severity)}）`
+        const tooltip = `${name} — ${SEVERITY_TIER_ZH[tier]}（严重度 ${Math.round(inst.severity)}）`
         return (
           <div
             key={inst.instanceId}
             className={`condition-icon ${inst.phase}`}
-            style={{ background: TIER_FILL[tier] }}
+            style={{ background: SEVERITY_TIER_COLOR[tier] }}
             title={tooltip}
             data-testid="condition-icon"
             data-template={template.id}

@@ -61,17 +61,21 @@ for (let day = 1; day <= 8; day++) {
 }
 
 if (!bothActiveOnce) fail('expected workPerfMul < 0.7 with cold + food_poisoning bands stacking')
-if (!stalledFp) fail('food_poisoning did not stall (requiredTier 1 untreated)')
+if (!stalledFp) {
+  // Hard fail before downstream cascades — the diagnose / commit / band
+  // hidden=false checks below all read the instance id from this object.
+  fail('food_poisoning did not stall (requiredTier 1 untreated) — aborting downstream checks')
+} else {
 
 // 3. Diagnose + commit pharmacy treatment on the food poisoning instance.
 const diagOk = await page.evaluate((id) =>
-  globalThis.__uclife__.physiologyDiagnose(id), stalledFp?.instanceId,
+  globalThis.__uclife__.physiologyDiagnose(id), stalledFp.instanceId,
 )
 if (!diagOk) fail('diagnose returned false')
 
 const commitOk = await page.evaluate(([id]) =>
   globalThis.__uclife__.physiologyCommitTreatment(id, 1, 5),
-[stalledFp?.instanceId])
+[stalledFp.instanceId])
 if (!commitOk) fail('commitTreatment returned false')
 
 // 4. After one more tick, food poisoning should NOT be stalled.
@@ -84,10 +88,12 @@ if (fpAfter && fpAfter.phase === 'stalled') {
 // 5. After diagnosis the per-band Effects should have hidden=false.
 const eff = await page.evaluate(() => globalThis.__uclife__.getEffectsList())
 const fpEffects = (eff ?? []).filter((e) =>
-  e.family === 'condition' && (e.id ?? '').includes(stalledFp?.instanceId ?? '__none__'),
+  e.family === 'condition' && (e.id ?? '').includes(stalledFp.instanceId),
 )
 if (fpEffects.length === 0) fail('expected food_poisoning band Effects to be present after diagnosis')
 if (fpEffects.some((e) => e.hidden === true)) fail('expected hidden=false on every band after diagnosis')
+
+}  // end of `else` guarding null stalledFp
 
 if (errors.length) {
   console.log('\nERRORS:')

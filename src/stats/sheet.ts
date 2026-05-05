@@ -174,18 +174,29 @@ export function getStat<StatId extends string>(s: StatSheet<StatId>, id: StatId)
   return v
 }
 
-// Strip the ephemeral cache + formula table for save/load. Pair with
-// `attachFormulas()` on load.
+// Strip the ephemeral cache + formula table for save/load. Modifier
+// arrays are derived from the per-character Effects trait (see
+// src/stats/effects.ts) on load — they are NOT serialized into the
+// sheet snapshot. Including them would risk a double-stack on load
+// (saved modifier + Effect-rebuilt modifier for the same source).
+//
+// Pair with `attachFormulas()` on load.
+export interface SerializedStat {
+  base: number
+  // Optional only so legacy (pre-v9) saves load — they carry the array
+  // and we drop it at attach time. New saves never write this field.
+  modifiers?: unknown[]
+}
+
 export interface SerializedSheet<StatId extends string> {
-  stats: Record<StatId, StatData<StatId>>
+  stats: Record<StatId, SerializedStat>
   version: number
 }
 
 export function serializeSheet<StatId extends string>(s: StatSheet<StatId>): SerializedSheet<StatId> {
-  const stats = {} as Record<StatId, StatData<StatId>>
+  const stats = {} as Record<StatId, SerializedStat>
   for (const id of Object.keys(s.stats) as StatId[]) {
-    const d = s.stats[id]
-    stats[id] = { base: d.base, modifiers: d.modifiers.map((m) => ({ ...m })) }
+    stats[id] = { base: s.stats[id].base }
   }
   return { stats, version: s.version }
 }
@@ -195,14 +206,16 @@ export function attachFormulas<StatId extends string>(
   formulas: FormulaTable<StatId>,
   saved: SerializedSheet<StatId>,
 ): StatSheet<StatId> {
-  // Re-seed any stat IDs the saved sheet didn't include (forward-compat
-  // when new stats are added without bumping the save version).
+  // Always start with empty modifier arrays — Effects are the source
+  // of truth and the Effects trait serializer rebuilds the modifier
+  // arrays after this runs (see src/boot/traitSerializers/effects.ts).
+  // Drops any legacy `bg:*`/`perk:*` modifiers a pre-v9 save may have
+  // carried in `saved.stats[id].modifiers` so v9 perk re-emission
+  // doesn't double-stack.
   const stats = {} as Record<StatId, StatData<StatId>>
   for (const id of ids) {
     const d = saved.stats[id]
-    stats[id] = d
-      ? { base: d.base, modifiers: d.modifiers.map((m) => ({ ...m })) }
-      : { base: 0, modifiers: [] }
+    stats[id] = { base: d ? d.base : 0, modifiers: [] }
   }
   return { stats, formulas, version: saved.version || 1 }
 }

@@ -106,6 +106,21 @@ describe('physiology — phase transitions', () => {
     const after = player.get(Conditions)!.list[0]
     expect(['recovering', 'peak']).toContain(after.phase)
   })
+
+  it('treatment expires on the configured day and reverts to untreated', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'food_poisoning', '测试', 1)!
+    for (let day = 2; day <= 6; day++) physiologySystem(world, day)
+    // Stalled at peak; commit pharmacy with a 2-day window.
+    commitTreatment(player, inst.instanceId, 1, /* expiresDay */ 8)
+    expect(player.get(Conditions)!.list[0].currentTreatmentTier).toBe(1)
+    physiologySystem(world, 7)  // still treated
+    expect(player.get(Conditions)!.list[0].currentTreatmentTier).toBe(1)
+    physiologySystem(world, 9)  // past expiry → tier resets to 0
+    const expired = player.get(Conditions)!.list[0]
+    expect(expired.currentTreatmentTier).toBe(0)
+    expect(expired.treatmentExpiresDay).toBeNull()
+  })
 })
 
 describe('physiology — banded reconciler emits Effects', () => {

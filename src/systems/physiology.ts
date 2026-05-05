@@ -24,7 +24,14 @@ import {
 import { addEffect, removeEffect } from '../character/effects'
 import { SeededRng } from '../procgen/rng'
 import { emitSim } from '../sim/events'
+import { useClock } from '../sim/clock'
 import { statValue } from './attributes'
+
+// Single source of truth for log timestamps — game time, not wall
+// time. Other systems (sim/helm.ts) follow the same pattern.
+function nowGameMs(): number {
+  return useClock.getState().gameDate.getTime()
+}
 
 // Treatment-tier tables from physiology.md § Treatment options.
 //   Untreated / pharmacy / clinic
@@ -53,10 +60,12 @@ function rollFromRange(rng: SeededRng, range: [number, number] | number): number
 // attach its bands to the character.
 // ──────────────────────────────────────────────────────────────────────
 let nextInstanceCounter = 0
-function freshInstanceId(templateId: string): string {
-  // Short, sortable, collision-resistant. Counter alone is fine here —
-  // instances live on a single in-process world and never cross-merge.
-  return `c-${templateId}-${++nextInstanceCounter}-${Math.random().toString(36).slice(2, 6)}`
+function freshInstanceId(templateId: string, rng: SeededRng): string {
+  // Counter is per-process; suffix from the seeded onset RNG keeps the
+  // id deterministic within a save+seed (so instance Effect ids are
+  // reproducible across runs).
+  const suffix = Math.floor(rng.uniform() * 0x100000).toString(36).padStart(4, '0')
+  return `c-${templateId}-${++nextInstanceCounter}-${suffix}`
 }
 
 export function spawnConditionInstance(
@@ -66,7 +75,7 @@ export function spawnConditionInstance(
   source: string,
 ): ConditionInstance {
   return {
-    instanceId: freshInstanceId(template.id),
+    instanceId: freshInstanceId(template.id, rng),
     templateId: template.id,
     phase: 'incubating',
     severity: 0,
@@ -117,13 +126,13 @@ export function onsetCondition(
   if (entity.has(IsPlayer)) {
     const onset = template.eventLogTemplates.onset
     if (onset) emitSim('toast', { textZh: onset, durationMs: 5000 })
-    if (onset) emitSim('log', { textZh: onset, atMs: Date.now() })
+    if (onset) emitSim('log', { textZh: onset, atMs: nowGameMs() })
   } else {
     const ch = entity.get(Character)
     if (ch?.name && template.eventLogTemplates.onset) {
       emitSim('log', {
         textZh: `${ch.name}${template.eventLogTemplates.onset.replace('你', '')}`,
-        atMs: Date.now(),
+        atMs: nowGameMs(),
       })
     }
   }
@@ -216,6 +225,18 @@ function advanceInstance(
   template: ConditionTemplate,
   dayNumber: number,
 ): boolean {
+  // Treatment commits carry a `treatmentExpiresDay` (e.g., a 5-day
+  // pharmacy prescription). When the expiry day passes the instance
+  // falls back to untreated; the next phase tick will reflect the lower
+  // recovery multiplier (and may flip recovering → stalled if the
+  // template's requiredTreatmentTier > 0).
+  if (
+    instance.treatmentExpiresDay !== null &&
+    dayNumber > instance.treatmentExpiresDay
+  ) {
+    instance.currentTreatmentTier = 0
+    instance.treatmentExpiresDay = null
+  }
   if (instance.phase === 'incubating') {
     if (dayNumber - instance.onsetDay >= instance.incubationDays) {
       instance.phase = 'rising'
@@ -248,7 +269,7 @@ function advanceInstance(
         const stalled = template.eventLogTemplates.stalled
         if (stalled) {
           emitSim('toast', { textZh: stalled, durationMs: 7000 })
-          emitSim('log', { textZh: stalled, atMs: Date.now() })
+          emitSim('log', { textZh: stalled, atMs: nowGameMs() })
         }
       }
     }
@@ -258,11 +279,20 @@ function advanceInstance(
     if (instance.currentTreatmentTier < template.requiredTreatmentTier) {
       instance.phase = 'stalled'
     } else if (instance.severity <= 0) {
-      // Resolve clean.
+      // Resolve clean. Phase 4.0 templates have scarConditionId = null;
+      // the scar-branching code-path lands in 4.1. Warn loudly if a
+      // future authoring mistake adds a non-null scar template ahead of
+      // that work — silent drop would be hard to spot.
+      if (template.scarConditionId !== null && instance.peakTracking >= template.scarThreshold) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[physiology] scarConditionId "${template.scarConditionId}" on template "${template.id}" — scar branching not yet implemented (Phase 4.1). Resolving clean.`,
+        )
+      }
       tearDownBands(entity, instance)
       if (entity.has(IsPlayer)) {
         const recovered = template.eventLogTemplates.recoveryClean
-        if (recovered) emitSim('log', { textZh: recovered, atMs: Date.now() })
+        if (recovered) emitSim('log', { textZh: recovered, atMs: nowGameMs() })
       }
       return true
     }
@@ -299,7 +329,7 @@ function emitDailyDigest(entity: Entity, instance: ConditionInstance, template: 
   const tail = instance.phase === 'stalled' ? ' — 需要药店或诊所介入' : ''
   emitSim('log', {
     textZh: `${name} — ${tierZh}（${Math.round(instance.severity)}，${phaseZh}）${tail}`,
-    atMs: Date.now(),
+    atMs: nowGameMs(),
   })
 }
 
@@ -332,9 +362,10 @@ export function physiologySystem(world: World, dayNumber: number): void {
         next.push(inst)
       }
     }
-    if (next.length !== cond.list.length || next.some((n, i) => n !== cond.list[i])) {
-      entity.set(Conditions, { list: next })
-    }
+    // Each `inst` is a fresh spread copy, so identity always differs from
+    // `live`; an actual no-op write is fine — koota dedupes setter calls
+    // that produce the same content via memo bumps elsewhere.
+    entity.set(Conditions, { list: next })
   }
 }
 
@@ -382,7 +413,7 @@ export function diagnoseCondition(
       reconcileBands(entity, inst, template)
       if (entity.has(IsPlayer)) {
         const dx = template.eventLogTemplates.diagnosis
-        if (dx) emitSim('log', { textZh: dx, atMs: Date.now() })
+        if (dx) emitSim('log', { textZh: dx, atMs: nowGameMs() })
       }
     }
     return inst

@@ -1,6 +1,10 @@
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Vitals, Health, Money, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
-import { getConditionTemplate, severityTier, type SeverityTier } from '../character/conditions'
+import {
+  getConditionTemplate, severityTier,
+  SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR, TREATMENT_TIER_ZH,
+  type ConditionTemplate,
+} from '../character/conditions'
 import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
@@ -405,23 +409,11 @@ function StatRow({ label, value }: { label: string; value: number }) {
   )
 }
 
-const COND_TIER_LABEL: Record<SeverityTier, string> = {
-  mild: '轻微',
-  moderate: '中等',
-  severe: '严重',
-}
-
-const COND_TIER_COLOR: Record<SeverityTier, string> = {
-  mild: '#facc15',
-  moderate: '#f97316',
-  severe: '#ef4444',
-}
-
 function ConditionCard({
   instance, template,
 }: {
   instance: { instanceId: string; templateId: string; phase: string; severity: number; diagnosed: boolean; diagnosedDay: number | null; currentTreatmentTier: number }
-  template: ReturnType<typeof getConditionTemplate> & object
+  template: ConditionTemplate
 }) {
   const tier = severityTier(instance.severity)
   const heading = instance.diagnosed ? template.displayName : '某种疾病'
@@ -434,12 +426,12 @@ function ConditionCard({
     <div className="condition-card" data-template={template.id} data-phase={instance.phase} data-diagnosed={instance.diagnosed ? '1' : '0'}>
       <div className="condition-card-head">
         <span className="condition-card-name">{heading}</span>
-        <span className="condition-card-tier" style={{ color: COND_TIER_COLOR[tier] }}>{COND_TIER_LABEL[tier]}</span>
+        <span className="condition-card-tier" style={{ color: SEVERITY_TIER_COLOR[tier] }}>{SEVERITY_TIER_ZH[tier]}</span>
       </div>
       <div className="condition-card-blurb">{blurb}</div>
       {instance.diagnosed && (
         <div className="condition-card-meta">
-          严重度 {Math.round(instance.severity)} · 治疗等级 {['未治疗', '药店', '诊所'][instance.currentTreatmentTier] ?? '?'}
+          严重度 {Math.round(instance.severity)} · 治疗等级 {TREATMENT_TIER_ZH[instance.currentTreatmentTier] ?? '?'}
         </div>
       )}
       {stalled && (

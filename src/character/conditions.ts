@@ -199,3 +199,18 @@ export function severityTier(severity: number): SeverityTier {
   if (severity >= 30) return 'moderate'
   return 'mild'
 }
+
+export const SEVERITY_TIER_ZH: Record<SeverityTier, string> = {
+  mild: '轻微',
+  moderate: '中等',
+  severe: '严重',
+}
+
+export const SEVERITY_TIER_COLOR: Record<SeverityTier, string> = {
+  mild: '#facc15',
+  moderate: '#f97316',
+  severe: '#ef4444',
+}
+
+// Treatment-tier ordinal → zh-CN label. Indexed by ConditionInstance.currentTreatmentTier.
+export const TREATMENT_TIER_ZH: readonly string[] = ['未治疗', '药店', '诊所']

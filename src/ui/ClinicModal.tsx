@@ -12,7 +12,7 @@ import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Money, Conditions } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useClock, gameDayNumber } from '../sim/clock'
-import { getConditionTemplate } from '../character/conditions'
+import { getConditionTemplate, TREATMENT_TIER_ZH } from '../character/conditions'
 import { diagnoseCondition, commitTreatment } from '../systems/physiology'
 import { emitSim } from '../sim/events'
 
@@ -112,7 +112,7 @@ export function ClinicModal() {
               if (!t) return null
               return (
                 <div key={inst.instanceId} className="condition-card-meta" style={{ marginBottom: 4 }}>
-                  · {t.displayName}（严重度 {Math.round(inst.severity)}，需要 {['未治疗', '药店', '诊所'][t.requiredTreatmentTier] ?? '?'}）
+                  · {t.displayName}（严重度 {Math.round(inst.severity)}，需要 {TREATMENT_TIER_ZH[t.requiredTreatmentTier] ?? '?'}）
                 </div>
               )
             })}
