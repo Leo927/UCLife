@@ -1,9 +1,8 @@
 @startuml desired_001_component_layers
 title UC Life Sim - desired component layers (post-Wave-3 pin)
 
-' This diagram pins the layer shape after Waves 1-3 of the architecture-cleanup
-' arc. It is not a Wave-5+ projection: per-world singletons, per-trait save
-' registration, render snapshot type pinning, and the multi-world explicit-World
+' This diagram pins the layer shape after Waves 1-3 + 5 of the architecture-
+' cleanup arc. Render snapshot type pinning and the multi-world explicit-World
 ' contract are tracked in arch/desired/README.md as future work.
 '
 ' Rule: data flows DOWN. Engine consumes game-asset content via typed loaders
@@ -104,14 +103,17 @@ note right of L_BOOT
 end note
 
 note right of L_SYS
-  Systems still hold module-level singletons
-  (combat, population, relations, npc buckets,
-  activeZone, vitals, stress, supplyDrain,
-  spaceSim, engagement). Future: hoist to a
-  per-world WorldState trait so multi-world
-  isolation stops depending on world count
-  being small and fixed. Tracked as Wave 5
-  candidate in arch/desired/README.md.
+  Wave 5 hoisted multi-world-unsafe state
+  (activeZone, npc buckets, vitals, stress,
+  relations) onto a per-world singleton via
+  src/ecs/resources.ts. Combat, spaceSim,
+  supplyDrain, promotion, and population
+  keep module-scope state under a one-line
+  per-active-scene-only / player-global
+  invariant comment in their respective
+  files. Per-trait save registration
+  landed in the same wave; see
+  src/boot/traitSerializers/.
 end note
 
 note bottom of P_GAME
