@@ -43,7 +43,7 @@ import type { Entity } from 'koota'
 import type {
   InteractableKind, RoadKind, BedTier, ActionKind,
 } from '../../ecs/traits'
-import type { AppearanceData } from '../../data/appearanceGen'
+import type { AppearanceData } from '../../character/appearanceGen'
 import { composeSheet } from '../sprite/compose'
 import { appearanceToLpc } from '../sprite/appearanceToLpc'
 import type { LpcAnimation, LpcDirection, LpcManifest } from '../sprite/types'

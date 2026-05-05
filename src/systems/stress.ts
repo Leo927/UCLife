@@ -4,7 +4,7 @@ import { trait } from 'koota'
 import type { Entity, World } from 'koota'
 import { Active, Attributes, Vitals, Health, Action, Job, Home, IsPlayer } from '../ecs/traits'
 import { feedStress } from './attributes'
-import type { StatId } from '../data/stats'
+import type { AttributeId } from '../character/stats'
 import { attributesConfig, worldConfig } from '../config'
 import { worldSingleton } from '../ecs/resources'
 
@@ -13,7 +13,7 @@ const SLOW_FACTOR = worldConfig.activeZone.inactiveSlowFactor
 const COARSE_TICK_MIN = worldConfig.activeZone.inactiveCoarseTickMin
 
 // Resolve omitted — feedStress would no-op anyway.
-const ALL_PHYSICAL: StatId[] = ['strength', 'endurance', 'charisma', 'intelligence', 'reflex']
+const ALL_PHYSICAL: AttributeId[] = ['strength', 'endurance', 'charisma', 'intelligence', 'reflex']
 
 // Per-world inactive-NPC accumulator. Same Inactive flush semantics as
 // vitalsSystem; kept separate so each system can be reset and inspected

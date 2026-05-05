@@ -7,12 +7,8 @@ import { create } from 'zustand'
 import {
   getWorld, setActiveSceneId, getActiveSceneId, type SceneId,
 } from '../ecs/world'
-import {
-  IsPlayer, Position, MoveTarget, Action, Vitals, Health, Money, Skills,
-  Inventory, Job, JobPerformance, Attributes, Reputation, JobTenure,
-  Character, Appearance, Bed, Workstation, EntityKey, Home, PendingEviction,
-  FactionRole, Flags, Ambitions,
-} from '../ecs/traits'
+import { IsPlayer, Position, MoveTarget, Action, Bed, Workstation } from '../ecs/traits'
+import { migratePlayerEntity } from '../character/migrate'
 import { markPathfindingDirty } from '../systems/pathfinding'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
 import { getShipClass } from '../data/ships'
@@ -59,20 +55,6 @@ export function migratePlayerToScene(
     throw new Error(`migratePlayerToScene: no player in ${fromSceneId}`)
   }
 
-  const character = oldPlayer.get(Character)
-  const vitals = oldPlayer.get(Vitals)
-  const health = oldPlayer.get(Health)
-  const money = oldPlayer.get(Money)
-  const skills = oldPlayer.get(Skills)
-  const inventory = oldPlayer.get(Inventory)
-  const attributes = oldPlayer.get(Attributes)
-  const reputation = oldPlayer.get(Reputation)
-  const jobTenure = oldPlayer.get(JobTenure)
-  const appearance = oldPlayer.get(Appearance)
-  const factionRole = oldPlayer.get(FactionRole)
-  const flags = oldPlayer.get(Flags)
-  const ambitions = oldPlayer.get(Ambitions)
-
   // Free back-references the source scene held to this player entity —
   // without this, the bed/workstation would carry a dangling occupant ref
   // pointing at a destroyed entity. Home/Job are forward-references on the
@@ -90,45 +72,7 @@ export function migratePlayerToScene(
     }
   }
 
-  oldPlayer.destroy()
-
-  const px = arrivalTilePx.x
-  const py = arrivalTilePx.y
-  const newPlayer = toWorld.spawn(
-    IsPlayer,
-    character ? Character(character) : Character,
-    Position({ x: px, y: py }),
-    MoveTarget({ x: px, y: py }),
-    vitals ? Vitals(vitals) : Vitals,
-    health ? Health(health) : Health,
-    Action({ kind: 'idle', remaining: 0, total: 0 }),
-    money ? Money(money) : Money,
-    skills ? Skills(skills) : Skills,
-    inventory ? Inventory(inventory) : Inventory,
-    Job,
-    JobPerformance,
-    attributes ? Attributes(attributes) : Attributes,
-    reputation ? Reputation(reputation) : Reputation,
-    jobTenure ? JobTenure(jobTenure) : JobTenure,
-    EntityKey({ key: 'player' }),
-  )
-  if (appearance) newPlayer.add(Appearance(appearance))
-  if (factionRole) newPlayer.add(FactionRole(factionRole))
-  if (flags) newPlayer.add(Flags({ flags: { ...flags.flags } }))
-  if (ambitions) {
-    newPlayer.add(Ambitions({
-      active: ambitions.active.map((s) => ({ ...s })),
-      history: ambitions.history.map((h) => ({ ...h })),
-      apBalance: ambitions.apBalance,
-      apEarned: ambitions.apEarned,
-      perks: [...ambitions.perks],
-    }))
-  }
-  // Guard against accidentally carrying origin-scene refs across the
-  // boundary if a respawn ever picks these up.
-  if (newPlayer.has(Home)) newPlayer.remove(Home)
-  if (newPlayer.has(PendingEviction)) newPlayer.remove(PendingEviction)
-
+  migratePlayerEntity(oldPlayer, toWorld, arrivalTilePx)
   useScene.getState().setActive(toSceneId)
 }
 

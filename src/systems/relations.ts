@@ -9,7 +9,7 @@ import { aiConfig, actionsConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { formatUC } from '../sim/clock'
 import { statValue } from './attributes'
-import { statMult } from '../data/stats'
+import { statMult } from '../character/stats'
 import { worldSingleton } from '../ecs/resources'
 
 const R = aiConfig.relations

@@ -1,6 +1,6 @@
 import json5 from 'json5'
 import raw from './special-npcs.json5?raw'
-import type { FactionId } from './factions'
+import type { FactionId } from '../data/factions'
 import type { SkillId } from './skills'
 
 export interface SpecialNpc {

@@ -5,7 +5,7 @@ import {
   FactionRole, Knows, JobTenure, Character,
 } from '../../ecs/traits'
 import { useUI } from '../uiStore'
-import { SKILLS, levelOf, type SkillId } from '../../data/skills'
+import { SKILLS, levelOf, type SkillId } from '../../character/skills'
 import { getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
 import { jobsConfig, factionsConfig } from '../../config'

@@ -53,7 +53,7 @@ if (!zumArrival || !startArrival) {
 }
 
 await page.evaluate(async () => {
-  const traitsMod = await import('/src/ecs/traits.ts')
+  const traitsMod = await import('/src/ecs/traits/index.ts')
   // eslint-disable-next-line no-undef
   const u = window.__uclife__
   const player = u.world.queryFirst(traitsMod.IsPlayer)
@@ -79,7 +79,7 @@ await page.click('.transit-terminal-go')
 await page.waitForTimeout(1500)
 
 const afterFly1 = await page.evaluate(async () => {
-  const traitsMod = await import('/src/ecs/traits.ts')
+  const traitsMod = await import('/src/ecs/traits/index.ts')
   // eslint-disable-next-line no-undef
   const u = window.__uclife__
   const player = u.world.queryFirst(traitsMod.IsPlayer)
@@ -99,7 +99,7 @@ console.log(leg1Ok ? 'PASS · scene swapped to zumCity at zumCityAirport arrival
 await page.screenshot({ path: 'scripts/out/scene-swap-zumcity.png', fullPage: false })
 
 const moneyAfterLeg1 = await page.evaluate(async () => {
-  const traitsMod = await import('/src/ecs/traits.ts')
+  const traitsMod = await import('/src/ecs/traits/index.ts')
   const u = window.__uclife__
   const player = u.world.queryFirst(traitsMod.IsPlayer)
   return player?.get(traitsMod.Money)?.amount ?? null
@@ -110,7 +110,7 @@ await page.evaluate(() => window.uclifeUI.getState().openFlight('zumCityAirport'
 await page.waitForTimeout(500)
 
 const returnDebug = await page.evaluate(async () => {
-  const traitsMod = await import('/src/ecs/traits.ts')
+  const traitsMod = await import('/src/ecs/traits/index.ts')
   const u = window.__uclife__
   const players = []
   for (const e of u.world.query(traitsMod.IsPlayer)) {
@@ -137,7 +137,7 @@ await page.click('.transit-terminal-go')
 await page.waitForTimeout(1500)
 
 const afterFly2 = await page.evaluate(async () => {
-  const traitsMod = await import('/src/ecs/traits.ts')
+  const traitsMod = await import('/src/ecs/traits/index.ts')
   // eslint-disable-next-line no-undef
   const u = window.__uclife__
   const player = u.world.queryFirst(traitsMod.IsPlayer)

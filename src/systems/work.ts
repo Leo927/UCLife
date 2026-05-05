@@ -3,10 +3,10 @@ import { IsPlayer, Action, JobPerformance, Job, Money, Skills, Workstation, JobT
 import { wageMultiplier, getJobSpec } from '../data/jobs'
 import { isWorkstationOpen } from './market'
 import { emitSim } from '../sim/events'
-import type { SkillId } from '../data/skills'
+import type { SkillId } from '../character/skills'
 import { feedUse, statValue } from './attributes'
-import { FEED, statMult } from '../data/stats'
-import type { StatId } from '../data/stats'
+import { FEED, statMult } from '../character/stats'
+import type { AttributeId } from '../character/stats'
 import { economyConfig, factionsConfig } from '../config'
 import type { JobSpec } from '../config'
 import { addRep } from './reputation'
@@ -50,7 +50,7 @@ export function workSystem(world: World, gameDateAfter: Date, totalMinutes: numb
   }
 }
 
-function jobAttr(spec: JobSpec): StatId {
+function jobAttr(spec: JobSpec): AttributeId {
   if (spec.skill === 'mechanics') return 'strength'
   if (spec.skill === 'computers' || spec.skill === 'medicine') return 'intelligence'
   return 'charisma'

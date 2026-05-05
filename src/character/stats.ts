@@ -1,8 +1,15 @@
+// Character-side facade over src/stats/. Holds the zh-CN labels for the
+// six attributes plus the linear stat→multiplier helpers used by every
+// system that reads an attribute's effect on action speed, vital drain,
+// or work performance. The modifier-based StatSheet engine itself lives
+// at src/stats/{schema,sheet,perkSync}.ts and is re-exported below.
+
 import { attributesConfig } from '../config'
+import { ATTRIBUTE_IDS, type AttributeId } from '../stats/schema'
 
-export type StatId = 'strength' | 'endurance' | 'charisma' | 'intelligence' | 'reflex' | 'resolve'
+export type { AttributeId } from '../stats/schema'
 
-export const STATS: Record<StatId, { label: string }> = {
+export const STATS: Record<AttributeId, { label: string }> = {
   strength: { label: '力量' },
   endurance: { label: '耐力' },
   charisma: { label: '魅力' },
@@ -11,9 +18,7 @@ export const STATS: Record<StatId, { label: string }> = {
   resolve: { label: '意志' },
 }
 
-export const STAT_ORDER: StatId[] = [
-  'strength', 'endurance', 'charisma', 'intelligence', 'reflex', 'resolve',
-]
+export const STAT_ORDER: readonly AttributeId[] = ATTRIBUTE_IDS
 
 export const STAT_FLOOR = attributesConfig.floor
 export const STAT_DRIFT = attributesConfig.drift

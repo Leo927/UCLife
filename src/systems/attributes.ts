@@ -13,7 +13,7 @@ import { Attributes } from '../ecs/traits'
 import {
   STAT_FLOOR, STAT_DRIFT,
   RECENT_USE_DECAY_PER_DAY, RECENT_STRESS_DECAY_PER_DAY,
-} from '../data/stats'
+} from '../character/stats'
 import type { StatId, StatSheet, AttributeDrift } from '../ecs/traits'
 import { setBase, getStat } from '../stats/sheet'
 import { ATTRIBUTE_IDS, type AttributeId } from '../stats/schema'

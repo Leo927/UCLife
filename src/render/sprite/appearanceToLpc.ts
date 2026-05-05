@@ -3,7 +3,7 @@
 // catalog. Unknown values fall back to a documented default rather than
 // throwing — character rendering is decorative.
 
-import type { AppearanceData } from '../../data/appearanceGen'
+import type { AppearanceData } from '../../character/appearanceGen'
 import type {
   LpcBodyPalette,
   LpcBodyType,

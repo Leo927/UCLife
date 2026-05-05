@@ -2,7 +2,7 @@ import type { World } from 'koota'
 import { Position, MoveTarget, Action, Path, Character, Health, Active, IsPlayer } from '../ecs/traits'
 import { findPath } from './pathfinding'
 import { feedUse, statValue } from './attributes'
-import { FEED, statMult } from '../data/stats'
+import { FEED, statMult } from '../character/stats'
 import { worldConfig } from '../config'
 import { emitSim } from '../sim/events'
 

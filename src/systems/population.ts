@@ -4,12 +4,12 @@
 import type { World } from 'koota'
 import { Not } from 'koota'
 import { Character, Health, IsPlayer } from '../ecs/traits'
-import { spawnNPC } from '../ecs/spawn'
+import { spawnNPC } from '../character/spawn'
 import { populationConfig, worldConfig } from '../config'
 import {
   pickFreshName, pickRandomColor,
   getAnonymousCounter, setAnonymousCounter, resetNameGen,
-} from '../data/nameGen'
+} from '../character/nameGen'
 
 const TILE = worldConfig.tilePx
 
@@ -23,7 +23,7 @@ const ARRIVAL_Y = TILE * 16
 // runs replenishment. The save format encodes immigrantCounter as a
 // single global counter — splitting per-world would force a save
 // migration with no correctness benefit, since EntityKeys must be unique
-// across the whole save (see ecs/spawn.ts: spawnNPC uses npc-imm-N keys).
+// across the whole save (see character/spawn.ts: spawnNPC uses npc-imm-N keys).
 let lastSpawnGameMs: number | null = null
 
 // Persisted in saves so reload doesn't reuse keys from prior immigrants.
@@ -72,7 +72,7 @@ export function populationSystem(world: World, gameDate: Date): void {
   if (nowMs - lastSpawnGameMs < intervalMs) return
 
   immigrantCounter += 1
-  spawnNPC({
+  spawnNPC(world, {
     name: pickFreshName(world),
     color: pickRandomColor(),
     title: '市民',

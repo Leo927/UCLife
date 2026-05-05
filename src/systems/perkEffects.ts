@@ -8,8 +8,8 @@
 
 import type { Entity } from 'koota'
 import { Ambitions, IsPlayer } from '../ecs/traits'
-import { getPerk } from '../data/perks'
-import type { SkillId } from '../data/skills'
+import { getPerk } from '../character/perks'
+import type { SkillId } from '../character/skills'
 import { world } from '../ecs/world'
 
 interface PerkMultipliers {

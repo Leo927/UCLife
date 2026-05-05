@@ -35,7 +35,7 @@ async function snapshotNPCs() {
 
 await page.evaluate(async () => {
   const { world } = globalThis.__uclife__
-  const npcMod = await import('/src/ecs/traits.ts')
+  const npcMod = await import('/src/ecs/traits/index.ts')
   const { NPCInfo, Position, Action, Vitals } = npcMod
   globalThis.__uclife__.snapshotNPCs = (w) => {
     const arr = []

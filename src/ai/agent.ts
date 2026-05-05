@@ -5,7 +5,7 @@ import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, J
 import { isPointInActiveZone } from '../systems/activeZone'
 import type { ActionKind, RoughKind } from '../ecs/traits'
 import { tierOf } from '../systems/relations'
-import { pickChatLine } from '../data/chatLines'
+import { pickChatLine } from '../character/chatLines'
 import { getLandmark, getNearestRoughSource, getRoughSources, isInsideShop } from '../data/landmarks'
 import { useClock } from '../sim/clock'
 import { isShopOpen, isBarOpen } from '../systems/shop'

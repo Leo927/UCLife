@@ -1,4 +1,4 @@
-import type { AppearanceData } from '../../data/appearanceGen'
+import type { AppearanceData } from '../../character/appearanceGen'
 import { appearanceToLpc } from './appearanceToLpc'
 import { composeSheet } from './compose'
 import type { LpcAnimation, LpcManifest } from './types'

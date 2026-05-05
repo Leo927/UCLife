@@ -2,7 +2,7 @@ import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import { IsPlayer, Skills, Job, Workstation, Position } from '../../ecs/traits'
 import { useUI } from '../uiStore'
-import { SKILLS, levelOf, type SkillId } from '../../data/skills'
+import { SKILLS, levelOf, type SkillId } from '../../character/skills'
 import { dowLabel, getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
 

@@ -18,9 +18,9 @@ import { statValue } from './attributes'
 import {
   ambitions, getAmbition, requirementSatisfied,
   type RequirementValue,
-} from '../data/ambitions'
+} from '../character/ambitions'
 import type { FactionId } from '../data/factions'
-import type { SkillId } from '../data/skills'
+import type { SkillId } from '../character/skills'
 import { emitSim } from '../sim/events'
 
 const ATTRIBUTE_KEYS = new Set(['strength', 'endurance', 'charisma', 'intelligence', 'reflex', 'resolve'])

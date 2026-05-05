@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AppearanceData } from '../../data/appearanceGen'
+import type { AppearanceData } from '../../character/appearanceGen'
 import { appearanceToLpc } from './appearanceToLpc'
 
 function appearance(overrides: Partial<AppearanceData> = {}): AppearanceData {

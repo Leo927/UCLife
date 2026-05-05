@@ -4,7 +4,7 @@
 
 import type { Entity } from 'koota'
 import { Attributes } from '../ecs/traits'
-import { getPerk, type VitalKey } from '../data/perks'
+import { getPerk, type VitalKey } from '../character/perks'
 import { addModifier, removeBySource } from './sheet'
 import { vitalDrainMulStat, VITAL_IDS, type StatId } from './schema'
 import type { Modifier } from './sheet'

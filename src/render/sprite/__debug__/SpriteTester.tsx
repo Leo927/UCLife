@@ -6,7 +6,7 @@ import { DEBUG_AVAILABLE } from '../../../debug/store'
 import {
   generateAppearanceForName,
   type AppearanceData,
-} from '../../../data/appearanceGen'
+} from '../../../character/appearanceGen'
 import { appearanceToLpc, composeSheet } from '..'
 import type { LpcAnimation } from '../types'
 

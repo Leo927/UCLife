@@ -1,6 +1,6 @@
 import json5 from 'json5'
 import raw from './actions.json5?raw'
-import type { SkillId } from '../data/skills'
+import type { SkillId } from '../character/skills'
 import type { BedTier } from '../ecs/traits'
 
 export interface ActionsConfig {

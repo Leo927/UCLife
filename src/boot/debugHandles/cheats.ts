@@ -10,9 +10,9 @@ import {
 } from '../../ecs/traits'
 import { setBase, getStat } from '../../stats/sheet'
 import { STAT_IDS } from '../../stats/schema'
-import { applyBackground, removeBackground } from '../../data/backgrounds'
+import { applyBackground, removeBackground } from '../../character/backgrounds'
 import type { FactionId } from '../../data/factions'
-import type { SkillId } from '../../data/skills'
+import type { SkillId } from '../../character/skills'
 
 const STAT_ID_SET = new Set<string>(STAT_IDS)
 

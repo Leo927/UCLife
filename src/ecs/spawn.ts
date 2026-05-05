@@ -4,14 +4,15 @@ import {
   type SceneConfig, type MicroSceneConfig, type ShipSceneConfig,
 } from '../data/scenes'
 import {
-  Position, MoveTarget, Vitals, Health, Action, Interactable, IsPlayer,
-  Money, Skills, Inventory, Building, Job, Character, Workstation,
-  JobPerformance, Bed, Wall, Door, Attributes, BarSeat, RoughSpot,
-  EntityKey, Reputation, JobTenure, FactionRole, Appearance, Transit,
-  FlightHub, Road, Ambitions, Flags,
+  Position, Interactable, Building,
+  Job, Workstation,
+  Bed, Wall, Door, BarSeat, RoughSpot,
+  EntityKey, Transit,
+  FlightHub, Road,
   Ship, ShipRoom, WeaponMount,
-  type Gender, type InteractableKind,
+  type InteractableKind,
 } from './traits'
+import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
 import { transitTerminals } from '../data/transit'
@@ -19,10 +20,8 @@ import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
 import { setTransitPlacement, clearTransitPlacements } from '../sim/transitPlacements'
 import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
-import { getAppearanceOverride } from '../data/appearance'
-import { generateAppearanceForName } from '../data/appearanceGen'
-import { specialNpcs } from '../data/specialNpcs'
-import { pickFreshName, pickRandomColor } from '../data/nameGen'
+import { specialNpcs } from '../character/specialNpcs'
+import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
 import { markPathfindingDirty } from '../systems/pathfinding'
 import { worldConfig, economyConfig } from '../config'
@@ -681,7 +680,7 @@ function spawnFixedTransitForScene(sceneId: string): void {
 
 function spawnSpecialNpcs(): void {
   for (const sn of specialNpcs) {
-    const ent = spawnNPC({
+    const ent = spawnNPC(world, {
       name: sn.name,
       color: sn.color,
       title: sn.title,
@@ -727,7 +726,7 @@ function spawnAeWorkforce(): void {
 
     const wp = wsEnt.get(Position)!
     counter += 1
-    const ent = spawnNPC({
+    const ent = spawnNPC(world, {
       name: pickFreshName(world),
       color: pickRandomColor(),
       title: 'AE 员工',
@@ -768,7 +767,7 @@ function spawnFoundingCivilians(scene: MicroSceneConfig): void {
   for (const tier of tiers) {
     for (let i = 0; i < tier.count; i++) {
       counter += 1
-      spawnNPC({
+      spawnNPC(world, {
         name: pickFreshName(world),
         color: pickRandomColor(),
         title: '市民',
@@ -793,29 +792,10 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   const rng = SeededRng.fromString(scene.procgen?.seed ?? 'default')
 
   if (scene.id === initialSceneId && scene.playerSpawnTile) {
-    const px = TILE * scene.playerSpawnTile.x
-    const py = TILE * scene.playerSpawnTile.y
-    const playerEnt = world.spawn(
-      IsPlayer,
-      Character({ name: '新人', color: '#4ade80', title: '市民' }),
-      Position({ x: px, y: py }),
-      MoveTarget({ x: px, y: py }),
-      Vitals,
-      Health,
-      Action,
-      Money({ amount: 30 }),
-      Skills,
-      Inventory({ water: 1, meal: 1, books: 0 }),
-      Job,
-      JobPerformance,
-      Attributes,
-      Reputation,
-      JobTenure,
-      Ambitions,
-      Flags,
-      EntityKey({ key: 'player' }),
-    )
-    setupAppearance(playerEnt, '新人')
+    spawnPlayer(world, {
+      x: TILE * scene.playerSpawnTile.x,
+      y: TILE * scene.playerSpawnTile.y,
+    })
   }
 
   if (scene.procgen?.enabled) {
@@ -962,14 +942,6 @@ function bedLabel(tier: BedTier): string {
   }
 }
 
-import type { Entity } from 'koota'
-function setupAppearance(ent: Entity, name: string, gender?: Gender): void {
-  const override = getAppearanceOverride(name)
-  const genderForGen = gender ?? (override?.gender as Gender | undefined)
-  const base = generateAppearanceForName(name, { gender: genderForGen })
-  ent.add(Appearance({ ...base, ...override }))
-}
-
 // ── PUBLIC API ───────────────────────────────────────────────────────────────
 
 let initialized = false
@@ -1001,50 +973,6 @@ export function setupWorld() {
   }
 
   setActiveSceneId(initialSceneId)
-}
-
-export type NPCSpec = {
-  name: string
-  color: string
-  title?: string
-  x: number
-  y: number
-  fatigue?: number
-  hunger?: number
-  thirst?: number
-  money?: number
-  skills?: Partial<Record<'mechanics' | 'marksmanship' | 'athletics' | 'cooking' | 'medicine' | 'computers' | 'piloting' | 'bartending' | 'engineering', number>>
-  key?: string
-  factionRole?: { faction: FactionId; role: 'staff' | 'manager' | 'board' }
-  gender?: Gender
-}
-
-export function spawnNPC(spec: NPCSpec) {
-  const baseSkills = { mechanics: 0, marksmanship: 0, athletics: 0, cooking: 0, medicine: 0, computers: 0, piloting: 0, bartending: 0, engineering: 0 }
-  const fr = spec.factionRole ?? { faction: 'civilian' as FactionId, role: 'staff' as const }
-  const ent = world.spawn(
-    Character({ name: spec.name, color: spec.color, title: spec.title ?? '市民' }),
-    Position({ x: spec.x, y: spec.y }),
-    MoveTarget({ x: spec.x, y: spec.y }),
-    Action,
-    Vitals({
-      hunger: spec.hunger ?? 0,
-      thirst: spec.thirst ?? 0,
-      fatigue: spec.fatigue ?? 0,
-      hygiene: 0,
-    }),
-    Health,
-    Money({ amount: spec.money ?? 50 }),
-    Skills({ ...baseSkills, ...spec.skills }),
-    Inventory({ water: 2, meal: 2, books: 0 }),
-    Job,
-    JobPerformance,
-    Attributes,
-    FactionRole({ faction: fr.faction, role: fr.role }),
-    EntityKey({ key: spec.key ?? `npc-anon-${Math.random().toString(36).slice(2, 8)}` }),
-  )
-  setupAppearance(ent, spec.name, spec.gender)
-  return ent
 }
 
 // World-reset fans out to every registered SaveHandler via the

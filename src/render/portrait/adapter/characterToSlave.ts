@@ -5,7 +5,7 @@
 
 import type { Entity } from 'koota'
 import { Appearance, Character } from '../../../ecs/traits'
-import { hashSeed } from '../../../data/appearanceGen'
+import { hashSeed } from '../../../character/appearanceGen'
 import type { SlaveLike } from './SlaveLike'
 import { makeBaseSlave } from './defaults'
 

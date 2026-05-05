@@ -28,7 +28,8 @@ import {
 import { world } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
-import { resetWorld, spawnNPC } from '../ecs/spawn'
+import { resetWorld } from '../ecs/spawn'
+import { spawnNPC } from '../character/spawn'
 import { logEvent } from '../ui/EventLog'
 import { WORLD_SEED } from '../procgen'
 import { snapshotAll, restoreAll } from './registry'
@@ -376,7 +377,7 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     }
     const ch = snap.character as { name?: string; color?: string; title?: string } | undefined
     const pos = snap.position as { x?: number; y?: number } | undefined
-    const e = spawnNPC({
+    const e = spawnNPC(world, {
       name: ch?.name ?? snap.key,
       color: ch?.color ?? '#888',
       title: ch?.title ?? '市民',
