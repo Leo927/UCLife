@@ -31,6 +31,7 @@ import {
 import {
   STAT_IDS, STAT_FORMULAS, ATTRIBUTE_IDS, createCharacterSheet, type StatId,
 } from '../stats/schema'
+import { syncPerkModifiers } from '../stats/perkSync'
 import { world } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { emitSim } from '../sim/events'
@@ -692,6 +693,11 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
       }
       if (entity.has(Ambitions)) entity.set(Ambitions, payload)
       else entity.add(Ambitions(payload))
+      // After both Ambitions and Attributes are settled for this entity,
+      // re-derive sheet modifiers from the perks array. Skip if the
+      // entity has no Attributes yet — only player-side perks land on
+      // the sheet anyway.
+      if (entity.has(Attributes)) syncPerkModifiers(entity, payload.perks)
     } else if (entity.has(Ambitions)) {
       entity.remove(Ambitions)
     }

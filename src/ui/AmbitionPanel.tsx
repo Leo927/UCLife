@@ -7,6 +7,7 @@ import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { readStageProgress } from '../systems/ambitions'
 import { invalidatePerkCache } from '../systems/perkEffects'
+import { syncPerkModifiers } from '../stats/perkSync'
 import { useEventLog } from './EventLog'
 
 const REQUIREMENT_LABELS: Record<string, string> = {
@@ -185,13 +186,15 @@ export function AmbitionPanel() {
       const def = getPerk(perkId)
       if (!def) return
       if (amb.apBalance < def.apCost) return
+      const newPerks = [...amb.perks, perkId]
       player.set(Ambitions, {
         active: amb.active, history: amb.history,
         apBalance: amb.apBalance - def.apCost,
         apEarned: amb.apEarned,
-        perks: [...amb.perks, perkId],
+        perks: newPerks,
       })
       invalidatePerkCache()
+      syncPerkModifiers(player, newPerks)
     }
 
     const grouped = useMemo(() => {

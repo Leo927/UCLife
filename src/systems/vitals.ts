@@ -1,5 +1,5 @@
 import type { World, Entity } from 'koota'
-import { Active, Vitals, Health, Action, IsPlayer, Character, Inventory, Money, Job, Workstation, RoughUse } from '../ecs/traits'
+import { Active, Vitals, Health, Action, IsPlayer, Character, Inventory, Money, Job, Workstation, RoughUse, Attributes } from '../ecs/traits'
 import { Not } from 'koota'
 import { useDebug } from '../debug/store'
 import { useClock, formatUC } from '../sim/clock'
@@ -13,7 +13,8 @@ import { vitalsConfig, actionsConfig, aiConfig, worldConfig } from '../config'
 import { getJobSpec } from '../data/jobs'
 import { isolationMultiplier } from './relations'
 import { requestNpcWake } from './npc'
-import { applyVitalDecayMul } from './perkEffects'
+import { getStat } from '../stats/sheet'
+import { vitalDrainMulStat, type VitalId } from '../stats/schema'
 
 const { drain, actions: act, npcFatigueMult, hpRegenPerMin, hpDamagePerMin } = vitalsConfig
 const SLOW_FACTOR = worldConfig.activeZone.inactiveSlowFactor
@@ -28,7 +29,36 @@ export function resetVitalsAccum(): void {
   inactiveAccumMin.clear()
 }
 
-const clamp = (x: number) => Math.max(0, Math.min(100, x))
+// Per-vital max + drain-mul lookups. Default sheet seeds these to 100 / 1
+// so behavior is identical to the legacy hardcoded clamp until a perk,
+// background, or item adds a modifier.
+function vitalMax(entity: Entity, v: VitalId): number {
+  const a = entity.get(Attributes)
+  if (!a) return 100
+  return getStat(a.sheet, `${v}Max`)
+}
+
+function vitalDrainMul(entity: Entity, v: VitalId): number {
+  const a = entity.get(Attributes)
+  if (!a) return 1
+  return getStat(a.sheet, vitalDrainMulStat(v))
+}
+
+function clampVital(entity: Entity, v: VitalId, x: number): number {
+  return Math.max(0, Math.min(vitalMax(entity, v), x))
+}
+
+function hpCap(entity: Entity): number {
+  const a = entity.get(Attributes)
+  if (!a) return 100
+  return getStat(a.sheet, 'hpMax')
+}
+
+function hpRegenMul(entity: Entity): number {
+  const a = entity.get(Attributes)
+  if (!a) return 1
+  return getStat(a.sheet, 'hpRegenMul')
+}
 
 const ROUGH_CFG = actionsConfig.rough
 
@@ -120,11 +150,12 @@ function applyAction(kind: string, world: World, entity: Entity): {
   return { dHunger, dThirst, dFatigue, dHygiene, dBoredom, dHpExtra }
 }
 
-function hpDamage(v: { hunger: number; thirst: number; fatigue: number }): number {
+function hpDamage(v: { hunger: number; thirst: number; fatigue: number }, entity: Entity): number {
   let dHp = 0
-  if (v.thirst  >= 100) dHp -= hpDamagePerMin.thirst
-  if (v.hunger  >= 100) dHp -= hpDamagePerMin.hunger
-  if (v.fatigue >= 100) dHp -= hpDamagePerMin.fatigue
+  // Saturation triggers HP damage when a vital hits its (per-character) max.
+  if (v.thirst  >= vitalMax(entity, 'thirst'))  dHp -= hpDamagePerMin.thirst
+  if (v.hunger  >= vitalMax(entity, 'hunger'))  dHp -= hpDamagePerMin.hunger
+  if (v.fatigue >= vitalMax(entity, 'fatigue')) dHp -= hpDamagePerMin.fatigue
   return dHp
 }
 
@@ -151,30 +182,31 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     if (d.dFatigue > 0) d.dFatigue *= statInvMult(statValue(entity, 'endurance'))
     if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
 
-    // Perk-driven vital decay multipliers — only positive (decay-direction)
-    // deltas are scaled. Recovery actions (eating, washing) keep their
-    // authored magnitude.
-    if (d.dHunger  > 0) d.dHunger  = applyVitalDecayMul('hunger',  d.dHunger)
-    if (d.dThirst  > 0) d.dThirst  = applyVitalDecayMul('thirst',  d.dThirst)
-    if (d.dFatigue > 0) d.dFatigue = applyVitalDecayMul('fatigue', d.dFatigue)
-    if (d.dHygiene > 0) d.dHygiene = applyVitalDecayMul('hygiene', d.dHygiene)
-    if (d.dBoredom > 0) d.dBoredom = applyVitalDecayMul('boredom', d.dBoredom)
+    // Sheet-driven per-vital drain multipliers — only positive
+    // (decay-direction) deltas are scaled. Recovery actions (eating,
+    // washing) keep their authored magnitude.
+    if (d.dHunger  > 0) d.dHunger  *= vitalDrainMul(entity, 'hunger')
+    if (d.dThirst  > 0) d.dThirst  *= vitalDrainMul(entity, 'thirst')
+    if (d.dFatigue > 0) d.dFatigue *= vitalDrainMul(entity, 'fatigue')
+    if (d.dHygiene > 0) d.dHygiene *= vitalDrainMul(entity, 'hygiene')
+    if (d.dBoredom > 0) d.dBoredom *= vitalDrainMul(entity, 'boredom')
 
-    v.hunger  = clamp(v.hunger  + d.dHunger  * gameMinutes)
-    v.thirst  = clamp(v.thirst  + d.dThirst  * gameMinutes)
-    v.fatigue = clamp(v.fatigue + d.dFatigue * gameMinutes)
-    v.hygiene = clamp(v.hygiene + d.dHygiene * gameMinutes)
-    v.boredom = clamp(v.boredom + d.dBoredom * gameMinutes)
+    v.hunger  = clampVital(entity, 'hunger',  v.hunger  + d.dHunger  * gameMinutes)
+    v.thirst  = clampVital(entity, 'thirst',  v.thirst  + d.dThirst  * gameMinutes)
+    v.fatigue = clampVital(entity, 'fatigue', v.fatigue + d.dFatigue * gameMinutes)
+    v.hygiene = clampVital(entity, 'hygiene', v.hygiene + d.dHygiene * gameMinutes)
+    v.boredom = clampVital(entity, 'boredom', v.boredom + d.dBoredom * gameMinutes)
 
     if (a.kind === 'sleeping') feedUse(entity, 'endurance', FEED.sleep, gameMinutes)
     else if (a.kind === 'reveling') feedUse(entity, 'charisma', FEED.reveling, gameMinutes)
 
-    const dHp = hpDamage(v) + d.dHpExtra
+    const dHp = hpDamage(v, entity) + d.dHpExtra
+    const cap = hpCap(entity)
     if (dHp < 0) {
       h.hp = Math.max(0, h.hp + dHp * gameMinutes)
       if (h.hp <= 0) h.dead = true
-    } else if (h.hp < 100) {
-      h.hp = Math.min(100, h.hp + hpRegenPerMin * gameMinutes)
+    } else if (h.hp < cap) {
+      h.hp = Math.min(cap, h.hp + hpRegenPerMin * hpRegenMul(entity) * gameMinutes)
     }
   })
 
@@ -208,17 +240,23 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     if (d.dFatigue > 0) d.dFatigue *= npcFatigueMult * statInvMult(statValue(entity, 'endurance'))
     if (d.dBoredom > 0) d.dBoredom *= isolationMultiplier(entity, nowMs)
 
+    if (d.dHunger  > 0) d.dHunger  *= vitalDrainMul(entity, 'hunger')
+    if (d.dThirst  > 0) d.dThirst  *= vitalDrainMul(entity, 'thirst')
+    if (d.dFatigue > 0) d.dFatigue *= vitalDrainMul(entity, 'fatigue')
+    if (d.dHygiene > 0) d.dHygiene *= vitalDrainMul(entity, 'hygiene')
+    if (d.dBoredom > 0) d.dBoredom *= vitalDrainMul(entity, 'boredom')
+
     const beforeHunger = v.hunger
     const beforeThirst = v.thirst
     const beforeFatigue = v.fatigue
     const beforeHygiene = v.hygiene
     const beforeBoredom = v.boredom
 
-    v.hunger  = clamp(v.hunger  + d.dHunger  * effMinutes)
-    v.thirst  = clamp(v.thirst  + d.dThirst  * effMinutes)
-    v.fatigue = clamp(v.fatigue + d.dFatigue * effMinutes)
-    v.hygiene = clamp(v.hygiene + d.dHygiene * effMinutes)
-    v.boredom = clamp(v.boredom + d.dBoredom * effMinutes)
+    v.hunger  = clampVital(entity, 'hunger',  v.hunger  + d.dHunger  * effMinutes)
+    v.thirst  = clampVital(entity, 'thirst',  v.thirst  + d.dThirst  * effMinutes)
+    v.fatigue = clampVital(entity, 'fatigue', v.fatigue + d.dFatigue * effMinutes)
+    v.hygiene = clampVital(entity, 'hygiene', v.hygiene + d.dHygiene * effMinutes)
+    v.boredom = clampVital(entity, 'boredom', v.boredom + d.dBoredom * effMinutes)
 
     if (
       crossed(beforeHunger, v.hunger, HUNGER_THRESH) ||
@@ -233,7 +271,8 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     if (a.kind === 'sleeping') feedUse(entity, 'endurance', FEED.sleep, effMinutes)
     else if (a.kind === 'reveling') feedUse(entity, 'charisma', FEED.reveling, effMinutes)
 
-    const dHp = hpDamage(v) + d.dHpExtra
+    const dHp = hpDamage(v, entity) + d.dHpExtra
+    const cap = hpCap(entity)
     if (dHp < 0) {
       h.hp = Math.max(0, h.hp + dHp * effMinutes)
       if (h.hp <= 0) {
@@ -264,8 +303,8 @@ export function vitalsSystem(world: World, gameMinutes: number) {
           toDestroy.push(entity)
         }
       }
-    } else if (h.hp < 100) {
-      h.hp = Math.min(100, h.hp + hpRegenPerMin * effMinutes)
+    } else if (h.hp < cap) {
+      h.hp = Math.min(cap, h.hp + hpRegenPerMin * hpRegenMul(entity) * effMinutes)
     }
   })
 
