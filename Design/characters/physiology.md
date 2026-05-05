@@ -110,10 +110,10 @@ Bounded scope; not infinite categories. Each family teaches a different lesson.
 
 | Family | Onset trigger | Default `requiredTier` | Duration | What it teaches |
 |---|---|---|---|---|
-| **Acute illness** (cold, flu, food poisoning, hangover) | Vital saturation, contagion, bad food, alcohol | `none` (severe flu → `pharmacy`) | 1–7 days | "Stay home and recover" |
-| **Injury** (sprain, cut, fracture, burn, concussion) | Environmental events, combat (Phase 5+) | `pharmacy` (severe → `clinic`) | 3–30 days | "Patch it or it won't heal" |
+| **Acute illness** (cold, flu, food poisoning, hangover) | Vitals saturation, ingestion, contagion | `none` (severe flu → `pharmacy`) | 1–7 days | "Stay home and recover" |
+| **Injury** (sprain, cut, fracture, burn, concussion) | Environmental event, combat (Phase 5+) | `pharmacy` (severe → `clinic`) | 3–30 days | "Patch it or it won't heal" |
 | **Chronic** (scar, weak knee, recurring cough, asthma) | Resolved-with-souvenir from severe acute or injury; rarely innate | n/a — does not resolve | Permanent | "Your character has history" |
-| **Mental** (anxiety, withdrawal, grief, depression) — *Phase 5* | Sustained low mood, addiction, NPC death | n/a — `recoveryMode = lifestyle` | Variable | "Fix your lifestyle, not your prescription" |
+| **Mental** (anxiety, withdrawal, grief, depression) — *Phase 5* | Behavior-pattern saturation, ingestion (addiction → withdrawal), bereavement event | n/a — `recoveryMode = lifestyle` | Variable | "Fix your lifestyle, not your prescription" |
 | **Pregnancy / aging** — *deferred* | — | — | — | Data shape supports it; no Phase 4 work |
 
 Phase 4 ships **acute + injury + chronic-as-souvenir**. Mental gets a stub
@@ -127,10 +127,12 @@ title Condition lifecycle (one instance, on one character)
 
 [*] --> Incubating : onset
 note on link
-  Three onset paths:
-  • vitals-saturation roll (Phase 4.0)
-  • event-driven (Phase 4.1)
-  • contagion (Phase 4.2)
+  Five onset paths:
+  • vitals saturation         (Phase 4.0)
+  • ingestion                 (Phase 4.0)
+  • environmental event       (Phase 4.1)
+  • contagion                 (Phase 4.2)
+  • behavior-pattern saturation (Phase 5)
 end note
 
 state Incubating : symptoms hidden\nseverity = 0\n1–2 game-days
@@ -234,11 +236,29 @@ This mode keeps mental conditions from being modeled as a thing you cure
 by paying money. The decision space is the player's lifestyle, not their
 wallet.
 
-**Onset triggers, in detail:**
+**Onset paths.** Five concrete cause→condition pipelines. Each one is a
+distinct *thing the player did or didn't do*, named in the event log so the
+player can read the arc back. A condition row declares which path(s) can
+spawn it; the rolls live in the system that owns the cause.
 
-- **Vitals-saturation roll** — sustained Hygiene > 70 → cold roll p ≈ 0.05/day; flop-tier sleep > 3 consecutive nights → cold roll p ≈ 0.10/day; `reveling` above an alcohol threshold seeds a hangover automatically.
-- **Event-driven** — specific actions inflict specific conditions: high Fatigue + walking rolls slip/sprain; labor work at low Reflex rolls cut/burn; combat (Phase 5+) becomes the dominant source.
-- **Contagion** — see [Contagion](#contagion-phase-42).
+| Path | Owns the roll | Causes that flow through it | Typical conditions |
+|---|---|---|---|
+| **Vitals saturation** | `vitalsSystem` | Hygiene > 70 sustained, flop-tier sleep streaks, chronic dehydration | Common cold, dermatitis, UTI / kidney stub |
+| **Ingestion** | `actionSystem` (eat / `reveling`) | Eating spoiled food, scavenging trash food, drinking past an alcohol threshold, (Phase 5+) drug use | Food poisoning, hangover, withdrawal |
+| **Environmental event** | `actionSystem` / world hooks | High-Fatigue walking, labor work at low Reflex, combat (Phase 5+) | Sprain, cut, burn, fracture, concussion |
+| **Contagion** | `contagionSystem` (Phase 4.2) | Active-zone contact with infectious carrier; aggregate prevalence on zone re-entry | Flu (Phase 4.2 demo), seasonal bugs |
+| **Behavior-pattern saturation** | `vitalsSystem` (extension) | *N* of *M* vitals saturated for *D* consecutive days — e.g., Boredom > 70 + Fatigue > 70 + Social isolation > 3 days → roll depression | Depression, anxiety, burnout, grief (the bereavement variant skips this and fires from the event) |
+
+Two design decisions worth calling out:
+
+- **Ingestion is its own path, not a "bad food" footnote on vitals.** The
+  player who scavenges from a dumpster to save money is making a *choice*,
+  and the food-poisoning roll is the consequence of that choice. Filing it
+  under "vitals saturation" would erase the agency.
+- **Behavior-pattern saturation reads raw vitals, not "mood".** Depression
+  doesn't wait for the Phase 5 mood layer to ship — its trigger is a
+  predicate over the same vital streaks the mood system will read. Mood
+  becomes a parallel readout of the same signal, not a prerequisite.
 
 **Diagnosis is player-only.** Symptomatic conditions on the player show as a
 zh-CN flavor blurb (*"你浑身发冷,关节酸痛"*); the canonical name is hidden
