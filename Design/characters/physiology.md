@@ -42,10 +42,11 @@ The data is split in two:
   severity, treatment commitment, and apophenia source string.
 
 This split is what keeps the engine data-agnostic — the phase machine,
-effects fold, and recovery formula read templates and write instances
+band reconciler, and recovery formula read templates and write instances
 without ever caring what a given condition "is." Full schemas, the
 authored example row, and the save shape live in
-[physiology-data.md](physiology-data.md).
+[physiology-data.md](physiology-data.md). The Effect/Modifier shape the
+templates emit into lives in [effects.md](effects.md).
 
 The four duration-shape bands (`incubationDays`, `riseDays`, `peakSeverity`,
 `peakDays`) are what give two players the same flu and different stories. A
@@ -60,59 +61,36 @@ different injury instances on two different body parts. The `Conditions`
 trait round-trips via `EntityKey` on the holder; instances are POJOs with
 no entity references, so no new key namespace is needed.
 
-## Effects-fold architecture
+## Effects architecture
 
-Conditions **emit modifiers**; they do not run their own tick loop. Existing
-per-tick systems read an effective sheet that's the fold of every active
-condition's modifiers over the base character. No system has to know "the
-player has a flu" — they read effective drain rates and effective caps.
+Conditions do not run their own tick loop and do not own a private fold
+cache. They speak the **unified Effect / Modifier model** described in
+[effects.md](effects.md): a condition emits one or more `Effect`s onto
+the character's `Effects` trait list, each carrying `Modifier`s on
+`StatSheet` stat ids. Every per-tick system already reads through the
+StatSheet; no system needs to know "the player has a flu."
 
-```puml
-@startuml
-title Effects fold — conditions emit, systems read
+The old per-channel taxonomy (vital drain mult, attribute floor/cap,
+skill malus, action lockout, work-perf mult, mood debit) collapses into
+plain modifiers on stats:
 
-skinparam componentStyle rectangle
+| Old channel | New Modifier shape |
+|---|---|
+| Vital drain mult | `percentMult` on `<vital>DrainMul` |
+| Attribute floor / cap | `floor` / `cap` ModType on the attribute stat |
+| Skill malus | `flat` on the skill stat |
+| Action lockout | `cap = 0` on `<verb>Speed` (and soft slowdowns are the same lever at a non-zero value) |
+| Work-perf mult | `percentMult` on `workPerfMul` |
+| Mood debit | `percentMult` on `moodDrainMul` (Phase 5 stat; modifier sits inert until Phase 5 wires the consumer) |
 
-package "Character entity" {
-  collections "Condition list" as CL
-  component "Effects fold cache" as FOLD
-}
-
-package "Per-tick systems (already shipped)" {
-  component "vitalsSystem" as VIT
-  component "attributeSystem" as ATT
-  component "actionSystem" as ACT
-  component "workSystem" as WORK
-  component "moodSystem\n(Phase 5)" as MOOD
-}
-
-CL --> FOLD : modifiers\n(drain mult, stat caps,\nskill malus, lockouts,\nperf mult, mood debit)
-FOLD --> VIT : effective drain rates
-FOLD --> ATT : effective floors / caps
-FOLD --> ACT : allowed verbs
-FOLD --> WORK : performance mult
-FOLD --> MOOD : mood debit
-
-note right of FOLD
-  Recompute only on
-  condition-list mutation
-  (onset / resolve / severity
-  band crossing).
-  Per-tick reads hit cache.
-end note
-@enduml
-```
-
-Modifier channels a condition row may emit:
-
-| Channel | Shape | Example |
-|---|---|---|
-| Vital drain | multiplier on hunger/thirst/fatigue/hygiene drain | flu → fatigue ×1.5 |
-| Attribute floor/cap | hard cap while active | broken arm → Strength ≤ 30 |
-| Skill malus | fixed minus on effective skill | concussion → −20 mental skills |
-| Action lockout | block a verb entirely | severe leg injury → no `working` at labor |
-| Work performance | multiplier on `workSystem` output | flu → ×0.6 even when working |
-| Mood debit | flat tick debit (Phase 5) | grief → −1 mood/hour |
+Severity is the gating mechanism: a condition template authors
+`BandedEffect[]` (each with a `severityRange`), the engine reconciles
+the active set whenever `instance.severity` crosses a band boundary,
+and the StatSheet rebuilds the affected modifier arrays once per
+mutation. Bands may overlap — a "mild flu" Effect and a "severe flu"
+Effect can both be live at severity 70, each contributing its own
+modifiers and its own player-visible card. See
+[effects.md](effects.md) for the full reconciler and compute order.
 
 ## The five condition families
 
@@ -436,8 +414,9 @@ Reload-as-undo is no longer free.
 
 | System | What physiology adds |
 |---|---|
-| Vitals ([index.md](index.md)) | Mood gets a condition-modifier feed; saturation rolls feed onset |
-| Attributes ([attributes.md](attributes.md)) | Conditions can floor or cap stat values; HP-based stress rows in attributes already anticipate this |
+| Vitals ([index.md](index.md)) | Vital saturation rolls feed onset; conditions modulate `<vital>DrainMul` via Effects |
+| Attributes ([attributes.md](attributes.md)) | Conditions can floor or cap stat values via the unified Effects/Modifier model — see [effects.md](effects.md); HP-based stress rows in attributes already anticipate this |
+| Effects ([effects.md](effects.md)) | Conditions are one of four Effect families (background / perk / condition / gear); banded effects are unique to conditions, the rest of the model is shared |
 | Skills ([skills.md](skills.md)) | First Aid speeds injury recovery; Medicine improves clinic outcomes for NPC patients (Phase 5+ player-as-medic verb); Chemistry crafts meds |
 | Work | Reduced perf at low severity; auto-call-in-sick (no shift, no firing) above a per-job severity threshold; same-day re-roll if you push through |
 | Active zone | Contagion only inside the zone; aggregate model outside |
@@ -450,13 +429,17 @@ Reload-as-undo is no longer free.
 
 | Phase | Scope | Demo |
 |---|---|---|
-| **4.0** | Conditions trait + effects-fold cache + onset/recovery scaffolding + symptom-vs-name UI + clinic interactable + the common cold | "I caught a cold from sleeping at a flop and lost a workday" |
+| **4.0** | Conditions trait + band reconciler emitting into the unified Effects trait + onset/recovery scaffolding + symptom-vs-name UI + clinic interactable + the common cold | "I caught a cold from sleeping at a flop and lost a workday" |
 | **4.1** | Injuries + body parts + First Aid skill verbs + chronic-stub mechanism (scars, weak-knee Endurance cap reduction) | "I sprained my ankle and limp until I get it splinted" |
 | **4.2** | Contagion (SIR on active, aggregate on inactive) + flu + AE-clinic-as-faction-perk | "A flu sweeps the dock and I have to choose: skip a shift, push through, or burn AE rep on a clinic visit" |
 
 Each sub-phase ships independent player-visible play. 4.1 and 4.2 are
 sequenceable in either order; 4.0 must land first because both depend on
-the trait + fold cache.
+the Conditions trait and the band-reconciler wiring into Effects.
+4.0 itself depends on the prerequisite Effects-layer steps in
+[effects.md § Migration plan](effects.md#migration-plan) — verb-speed
+and `workPerfMul` stats need to exist before the cold's modifiers have
+anywhere to land.
 
 ## Open questions
 
@@ -478,8 +461,8 @@ the trait + fold cache.
 
 - [physiology-data.md](physiology-data.md) — concrete data models (ConditionTemplate row schema + ConditionInstance trait shape) the engine reads/writes
 - [physiology-ux.md](physiology-ux.md) — player-facing UX pass: HUD strip, condition card, clinic modal, contagion cues, Phase 4.0/4.1/4.2 surface split
-- [index.md](index.md) — vitals saturation seeds onset; mood reads condition modifiers
-- [attributes.md](attributes.md) — Endurance scales recovery; conditions floor/cap stats
+- [effects.md](effects.md) — unified Effect / Modifier model conditions emit into; banded reconciler, ModType `floor`/`cap`, stat catalog
+- [attributes.md](attributes.md) — StatSheet engine; Endurance scales recovery
 - [skills.md](skills.md) — First Aid, Medicine, Chemistry are the skill-side levers
 - [../phasing.md](../phasing.md) — Phase 4 sub-phase ordering
 - [../saves.md](../saves.md) — condition list round-trips via EntityKey

@@ -22,7 +22,7 @@ Cramming both into one record forces every per-tick read to walk fields
 it doesn't care about, makes saves balloon (you'd serialize `[1, 3]` band
 ranges per active condition), and — the real hazard — invites authors to
 edit live state. Splitting them keeps logic data-agnostic: the phase
-machine, the effects-fold cache, and the recovery formula all read
+machine, the band reconciler, and the recovery formula all read
 templates, write instances, and never touch authored data.
 
 ```
@@ -38,10 +38,11 @@ ConditionTemplate          ConditionInstance
         │  (recoveryMode →           │
         │   formula dispatch)        │
         │                            │
-        │  read each fold rebuild    │
-        ├───────────────────────────►│  effectsFoldCache
-        │  (effects[] gated by       │
-        │   instance.severity)       │
+        │  read on severity change   │
+        ├──┐                         │  (no field on the instance —
+        │  │ band reconciler         │   add/remove ops emitted into
+        │  └─► character's Effects   │   the character's Effects trait,
+        │     trait (effects.md)     │   keyed cond:<instanceId>:b<n>)
         │                            │
         │  read at resolve           │
         ├───────────────────────────►│  scar branch decision
@@ -83,7 +84,7 @@ never mutated at runtime.
 | `scarConditionId` | string \| null | Chronic-family template id to spawn on scar; null = no souvenir possible |
 | `scarTalentPenalty` | `{ stat: string, capDelta: number }` | Permanent talent-cap delta written to the scar instance, e.g. `{ stat: 'endurance', capDelta: -5 }` |
 | `selfTreatVerbs` | `SelfTreatVerb[]` | First Aid unlocks (see below) |
-| `effects` | `EffectModifier[]` | What this condition does to the character — see below |
+| `effects` | `BandedEffect[]` | What this condition does to the character — see below |
 | `symptomBlurbs` | `{ mild: string, moderate: string, severe: string }` | zh-CN, undiagnosed-card body text per severity tier |
 | `eventLogTemplates` | `{ onset, diagnosis, recoveryClean, recoveryScar, complication, stalled }` | zh-CN line templates with `{source}` `{day}` `{name}` placeholders |
 | `glyphRef` | string | HUD strip icon key |
@@ -319,10 +320,12 @@ One per treatment action taken on this instance:
 | Resolve (scarred) | template `scarConditionId`, `scarTalentPenalty` | remove instance, spawn fresh chronic-permanent instance pinned to same `bodyPart`, `source = '{parent.displayName}后遗症'` |
 
 The phase machine reads only template fields and instance state. The
-effects fold reads only template `effects[]` and instance `severity`.
-The recovery formula reads only template recovery params, character
-Endurance, and instance `currentTreatmentTier`. No per-tick system needs
-to know "what is a flu" — it reads the fold and tick output.
+band reconciler reads only `template.effects[]` and `instance.severity`,
+emitting add/remove ops on the character's `Effects` trait. The recovery
+formula reads only template recovery params, character Endurance, and
+instance `currentTreatmentTier`. No per-tick system needs to know "what
+is a flu" — it reads the StatSheet, which is the fold of every active
+Effect (see [effects.md](effects.md)).
 
 ## Save shape
 
@@ -365,9 +368,11 @@ O(bands per template), which is small (<10 per template). See
 
 ## What this enables
 
-- **Authoring a new condition is a JSON5 edit.** No code change.
-- **The phase machine, fold cache, recovery formula, and contagion all
-  share one input format.** Adding a fifth recovery mode is a
+- **Authoring a new condition is a JSON5 edit.** No code change. Same
+  authoring shape as backgrounds, perks, and gear (modifier rows on
+  stat ids, per [effects.md](effects.md)).
+- **The phase machine, band reconciler, recovery formula, and contagion
+  all share one input format.** Adding a fifth recovery mode is a
   discriminator extension, not a parallel codepath.
 - **Scar branching is a forward-reference.** A flu's `scarConditionId`
   points at a chronic-family template; that template is a normal row
