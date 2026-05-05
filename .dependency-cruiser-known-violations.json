@@ -1,0 +1,1078 @@
+[
+  {
+    "type": "cycle",
+    "from": "src/character/skills.ts",
+    "to": "src/config/index.ts",
+    "unresolvedTo": "../config",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/actions.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/character/skills.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/character/skills.ts",
+    "to": "src/ecs/traits/index.ts",
+    "unresolvedTo": "../ecs/traits",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/ecs/traits/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/ecs/traits/character.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/data/factions.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/actions.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/character/skills.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/config/actions.ts",
+    "to": "src/ecs/traits/index.ts",
+    "unresolvedTo": "../ecs/traits",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/ecs/traits/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/ecs/traits/character.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/data/factions.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/actions.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/config/index.ts",
+    "to": "src/config/jobs.ts",
+    "unresolvedTo": "./jobs",
+    "dependencyTypes": [
+      "local",
+      "export"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/config/jobs.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/character/skills.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/config/index.ts",
+    "to": "src/config/skills.ts",
+    "unresolvedTo": "./skills",
+    "dependencyTypes": [
+      "local",
+      "export"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/config/skills.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/character/skills.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/config/jobs.ts",
+    "to": "src/data/factions.ts",
+    "unresolvedTo": "../data/factions",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/data/factions.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/jobs.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/ecs/traits/index.ts",
+    "to": "src/ecs/traits/world.ts",
+    "unresolvedTo": "./world",
+    "dependencyTypes": [
+      "local",
+      "export"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/ecs/traits/world.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/data/factions.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/actions.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/ecs/traits/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/ecs/traits/world.ts",
+    "to": "src/data/factions.ts",
+    "unresolvedTo": "../../data/factions",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/data/factions.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/config/actions.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/character/skills.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/ecs/traits/index.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/ecs/traits/world.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/systems/hpa.ts",
+    "to": "src/systems/pathfinding.ts",
+    "unresolvedTo": "./pathfinding",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/systems/pathfinding.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/systems/hpa.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "dependency",
+    "from": "src/config/actions.ts",
+    "to": "src/character/skills.ts",
+    "unresolvedTo": "../character/skills",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-config"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/config/actions.ts",
+    "to": "src/ecs/traits/index.ts",
+    "unresolvedTo": "../ecs/traits",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-config"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/config/jobs.ts",
+    "to": "src/character/skills.ts",
+    "unresolvedTo": "../character/skills",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-config"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/config/jobs.ts",
+    "to": "src/data/factions.ts",
+    "unresolvedTo": "../data/factions",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-config"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/config/skills.ts",
+    "to": "src/character/skills.ts",
+    "unresolvedTo": "../character/skills",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-config"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/data/actions.ts",
+    "to": "src/ecs/traits/index.ts",
+    "unresolvedTo": "../ecs/traits",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-data"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/data/flights.ts",
+    "to": "src/ecs/world.ts",
+    "unresolvedTo": "../ecs/world",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-data"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ecs/spawn.ts",
+    "to": "src/save/registry.ts",
+    "unresolvedTo": "../save/registry",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-ecs"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ecs/spawn.ts",
+    "to": "src/sim/airportPlacements.ts",
+    "unresolvedTo": "../sim/airportPlacements",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-ecs"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ecs/spawn.ts",
+    "to": "src/sim/spaceBootstrap.ts",
+    "unresolvedTo": "../sim/spaceBootstrap",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-ecs"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ecs/spawn.ts",
+    "to": "src/sim/transitPlacements.ts",
+    "unresolvedTo": "../sim/transitPlacements",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-ecs"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ecs/spawn.ts",
+    "to": "src/systems/pathfinding.ts",
+    "unresolvedTo": "../systems/pathfinding",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-ecs"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/procgen/ship.ts",
+    "to": "src/ecs/traits/index.ts",
+    "unresolvedTo": "../ecs/traits",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-procgen"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/procgen/ship.ts",
+    "to": "src/ecs/world.ts",
+    "unresolvedTo": "../ecs/world",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-procgen"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/render/Game.tsx",
+    "to": "src/ui/MapWarnings.tsx",
+    "unresolvedTo": "../ui/MapWarnings",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-render"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/render/Game.tsx",
+    "to": "src/ui/uiStore.ts",
+    "unresolvedTo": "../ui/uiStore",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-render"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/render/portrait/react/Portrait.tsx",
+    "to": "src/ui/uiStore.ts",
+    "unresolvedTo": "../../../ui/uiStore",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-render"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/save/index.ts",
+    "to": "src/ui/EventLog.ts",
+    "unresolvedTo": "../ui/EventLog",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-save"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/activeZone.ts",
+    "unresolvedTo": "../systems/activeZone",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/attributes.ts",
+    "unresolvedTo": "../systems/attributes",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/barSeats.ts",
+    "unresolvedTo": "../systems/barSeats",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/market.ts",
+    "unresolvedTo": "../systems/market",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/relations.ts",
+    "unresolvedTo": "../systems/relations",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/roughSpots.ts",
+    "unresolvedTo": "../systems/roughSpots",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/ai/agent.ts",
+    "to": "src/systems/shop.ts",
+    "unresolvedTo": "../systems/shop",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/engagement.ts",
+    "to": "src/systems/combat.ts",
+    "unresolvedTo": "../systems/combat",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/action.ts",
+    "unresolvedTo": "../systems/action",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/activeZone.ts",
+    "unresolvedTo": "../systems/activeZone",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/ambitions.ts",
+    "unresolvedTo": "../systems/ambitions",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/attributes.ts",
+    "unresolvedTo": "../systems/attributes",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/barSeats.ts",
+    "unresolvedTo": "../systems/barSeats",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/combat.ts",
+    "unresolvedTo": "../systems/combat",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/interaction.ts",
+    "unresolvedTo": "../systems/interaction",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/movement.ts",
+    "unresolvedTo": "../systems/movement",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/npc.ts",
+    "unresolvedTo": "../systems/npc",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/population.ts",
+    "unresolvedTo": "../systems/population",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/relations.ts",
+    "unresolvedTo": "../systems/relations",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/rent.ts",
+    "unresolvedTo": "../systems/rent",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/roughSpots.ts",
+    "unresolvedTo": "../systems/roughSpots",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/spaceSim.ts",
+    "unresolvedTo": "../systems/spaceSim",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/stress.ts",
+    "unresolvedTo": "../systems/stress",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/supplyDrain.ts",
+    "unresolvedTo": "../systems/supplyDrain",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/vitals.ts",
+    "unresolvedTo": "../systems/vitals",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/work.ts",
+    "unresolvedTo": "../systems/work",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/scene.ts",
+    "to": "src/systems/pathfinding.ts",
+    "unresolvedTo": "../systems/pathfinding",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/stats/perkSync.ts",
+    "to": "src/character/perks.ts",
+    "unresolvedTo": "../character/perks",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-stats"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/stats/perkSync.ts",
+    "to": "src/ecs/traits/index.ts",
+    "unresolvedTo": "../ecs/traits",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-stats"
+    }
+  }
+]

@@ -16,6 +16,9 @@ npm run build                # tsc -b && vite build (auto-runs build:portrait-ca
 npm run preview              # serve dist/
 npm run build:portrait-cache # rebuild SVG → JSON sprite maps under src/render/portrait/assets/cache/
 npm run test:unit            # vitest, pure logic, co-located *.test.ts. CI job `unit`.
+npm run lint:arch            # dependency-cruiser — engine boundary + layer direction.
+                             # CI job `arch`. Baseline grandfathered; new violations fail.
+npm run lint:arch:baseline   # re-snapshot baseline after intentionally fixing violations.
 npm run ci:local             # smoke / regression. Spawns its own dev server on an ephemeral port.
                              # Sources its step list from .github/workflows/ci.yml (`test` job).
                              # Add --workers 4 for parallel.
@@ -78,7 +81,7 @@ Backgrounds, perks, conditions, gear, and skill XP all live on the per-character
 
 ### Engine boundary
 
-`src/engine/` is the staging area for code that will eventually extract into a reusable simulation engine (the project's stated end-state). It may **only** import from `src/ecs/`, `src/stats/`, `src/sim/clock`, `src/sim/events`, and `src/procgen/`. It must **not** import from `src/character/`, `src/data/`, `src/systems/`, `src/render/`, `src/ui/`, or `src/save/`. If a new dependency is needed, hoist the abstraction or stop and discuss before adding it.
+`src/engine/` is the staging area for code that will eventually extract into a reusable simulation engine (the project's stated end-state). It may **only** import from `src/ecs/`, `src/stats/`, `src/sim/clock`, `src/sim/events`, `src/procgen/`, and `src/config/`. It must **not** import from `src/character/`, `src/data/`, `src/systems/`, `src/render/`, `src/ui/`, or `src/save/`. If a new dependency is needed, hoist the abstraction or stop and discuss before adding it.
 
 ### Layered dependency direction
 
@@ -89,6 +92,8 @@ config → data → procgen → ecs → sim/ai → systems → save/render → u
 ```
 
 Upward imports (e.g. `systems/` reaching into `ui/`, or `ecs/` importing `data/`) are bugs, not shortcuts. Fix at design time.
+
+Both rules are enforced by `dependency-cruiser` via `npm run lint:arch` (CI job `arch`), with baseline grandfathering: existing violations are listed in `.dependency-cruiser-known-violations.json` and *new* violations fail the build. When you intentionally clear an existing violation, refresh the baseline with `npm run lint:arch:baseline` and commit the change. Do **not** refresh the baseline to make a *new* violation green — fix the import direction instead.
 
 ### Refactor discipline
 
