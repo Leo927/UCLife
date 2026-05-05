@@ -328,6 +328,8 @@ content to surface until injuries arrive.
 
 - [physiology.md](physiology.md) — system spec; this file is the
   player-facing pass over it
+- [physiology-data.md](physiology-data.md) — the template + instance
+  shapes the surfaces in this file read from
 - [index.md](index.md) — vitals HUD slot and inspector seam
 - [../time.md](../time.md) — hyperspeed wake contract
 - [../architecture.md](../architecture.md) — DOM HUD vs Pixi worldspace

@@ -1,0 +1,332 @@
+# Physiology — Data model (Phase 4)
+
+The system spec ([physiology.md](physiology.md)) describes onset paths,
+lifecycle, recovery modes, treatment tiers, and contagion. The UX pass
+([physiology-ux.md](physiology-ux.md)) describes how the player perceives
+and acts on those. This file is the **data-model** pass: the two concrete
+shapes the engine reads and writes.
+
+## Why two shapes
+
+A condition has two halves that change at very different cadences:
+
+- **What a condition *is*** — its bands, its required treatment, its
+  modifiers, its scar-out partner — is **authored once** and frozen.
+  Editing it is a content task.
+- **What this character's current bout looks like** — phase, severity,
+  rolled durations, treatment in flight, peak tracking — **mutates every
+  game-day** and round-trips through saves. Editing it is what the engine
+  does.
+
+Cramming both into one record forces every per-tick read to walk fields
+it doesn't care about, makes saves balloon (you'd serialize `[1, 3]` band
+ranges per active condition), and — the real hazard — invites authors to
+edit live state. Splitting them keeps logic data-agnostic: the phase
+machine, the effects-fold cache, and the recovery formula all read
+templates, write instances, and never touch authored data.
+
+```
+ConditionTemplate          ConditionInstance
+(static, frozen, JSON5)    (per-character, mutable, serialized)
+        │                            │
+        │  rolled at onset           │
+        ├───────────────────────────►│  incubationDays, riseDays,
+        │  (band → scalar)           │  peakSeverity, peakDays
+        │                            │
+        │  read each phase tick      │
+        ├───────────────────────────►│  severity, phase, peakDayCounter
+        │  (recoveryMode →           │
+        │   formula dispatch)        │
+        │                            │
+        │  read each fold rebuild    │
+        ├───────────────────────────►│  effectsFoldCache
+        │  (effects[] gated by       │
+        │   instance.severity)       │
+        │                            │
+        │  read at resolve           │
+        ├───────────────────────────►│  scar branch decision
+        │  (scarThreshold,           │
+        │   scarConditionId)         │
+```
+
+Templates are loaded from `src/data/conditions.json5` once at module
+import and frozen. Instances live on the character's `Conditions` trait
+list and are part of the save snapshot.
+
+## ConditionTemplate
+
+One row per condition id in `src/data/conditions.json5`. Authoring-only;
+never mutated at runtime.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | Stable key; used as instance reference. **Never rename** — saves break. Tombstone retired ids instead. |
+| `displayName` | zh-CN string | Canonical name shown post-diagnosis (player) and always (inspector / NPCs) |
+| `family` | enum | `acute` / `injury` / `chronic` / `mental` / `pregnancy`. Drives HUD glyph, body-part scope default, scar branching policy |
+| `bodyPartScope` | enum | `systemic` (no body part) / `bodyPart` (one of {head, torso, leftArm, rightArm, leftLeg, rightLeg, hands, eyes}); injury templates use `bodyPart`, illnesses systemic |
+| `recoveryMode` | enum | `treatment` / `lifestyle` / `chronic-permanent`. Discriminator — fields below are conditional on this. |
+| `onsetPaths` | string[] | Subset of `vitals_saturation` / `ingestion` / `environment` / `contagion` / `behavior_pattern`. Declarative — the system that owns the cause checks this list before rolling. |
+| `incubationDays` | `[min, max]` | Game-day range; rolled at onset |
+| `riseDays` | `[min, max]` | Game-day range from rising→peak; rolled at onset |
+| `peakSeverity` | `[min, max]` | 0–100 ceiling for this bout; rolled at onset |
+| `peakDays` | `[min, max]` \| number | Game-days held at peak before exit; rolled at onset (default 1) |
+| `peakSeverityFloor` | number | Clamp on `peakSeverity − peak_reduction_by_tier`; keeps treated illness non-trivial |
+| `baseRecoveryRate` | number | Severity points/day during recovering, before endurance/treatment multipliers |
+| `requiredTreatmentTier` | enum | `none` / `pharmacy` / `clinic`. **`recoveryMode = 'treatment'` only.** |
+| `complicationRisk` | `{ daily: number, spawns: string }` | Daily prob of spawning the linked condition id while stalled. **Treatment mode only.** |
+| `lifestylePredicates` | `{ ids: string[], requiredPerDay: number, driftRate: number }` | N-of-M predicate gate. **`recoveryMode = 'lifestyle'` only.** Predicate catalog lives in mood layer (Phase 5). |
+| `severityFloors` | `{ pharmacy?: number, clinic?: number }` | Lifestyle-mode adjunct floors — meds/therapy raise the floor without resolving |
+| `infectious` | bool | If true, contagion system reads the next two fields |
+| `transmissionRate` | number | Per active-zone contact-tick probability |
+| `contactRadius` | number | Tile-space radius for the SIR broad-phase |
+| `scarThreshold` | number | If `instance.peakTracking ≥ scarThreshold` at resolve, spawn the scar |
+| `scarConditionId` | string \| null | Chronic-family template id to spawn on scar; null = no souvenir possible |
+| `scarTalentPenalty` | `{ stat: string, capDelta: number }` | Permanent talent-cap delta written to the scar instance, e.g. `{ stat: 'endurance', capDelta: -5 }` |
+| `selfTreatVerbs` | `SelfTreatVerb[]` | First Aid unlocks (see below) |
+| `effects` | `EffectModifier[]` | What this condition does to the character — see below |
+| `symptomBlurbs` | `{ mild: string, moderate: string, severe: string }` | zh-CN, undiagnosed-card body text per severity tier |
+| `eventLogTemplates` | `{ onset, diagnosis, recoveryClean, recoveryScar, complication, stalled }` | zh-CN line templates with `{source}` `{day}` `{name}` placeholders |
+| `glyphRef` | string | HUD strip icon key |
+
+### `EffectModifier`
+
+The fold cache rebuilds on condition-list mutation or severity-band
+crossing. Each entry:
+
+| Field | Type | Notes |
+|---|---|---|
+| `channel` | enum | `vitalDrainMul` / `attributeFloor` / `attributeCap` / `skillMalus` / `actionLockout` / `workPerfMul` / `moodDebit` |
+| `target` | string | Channel-typed: vital id (`fatigue`), attribute id (`strength`), action id (`working_at_labor`), skill id (`mental`), `null` for `workPerfMul` / `moodDebit` |
+| `value` | number | Multiplier / delta / cap value (channel-typed) |
+| `minSeverity` | number | Default 0 — modifier active when `severity ≥ minSeverity` |
+| `maxSeverity` | number | Default 100 — modifier active when `severity ≤ maxSeverity` |
+
+The severity band on a modifier is what lets one row carry a "mild
+fatigue 1.2× drain" entry and a "severe fatigue 1.5× drain" entry
+without needing two templates.
+
+### `SelfTreatVerb`
+
+Authored entries on the template. Running one populates
+`instance.selfTreatActive` for its window.
+
+| Field | Type | Notes |
+|---|---|---|
+| `verb` | string | `bandage` / `splint` / `clean_wound` / … |
+| `requiresSkill` | number | First Aid threshold |
+| `requiresItem` | string | Inventory key (`gauze`, `splint`, `antiseptic`) |
+| `equivalentTier` | enum | `pharmacy` (typical) — what tier this counts as for the recovery gate |
+| `dailyReduction` | number | Severity points/day on top of base recovery, while active |
+| `durationDays` | number | How long the verb's effect lasts |
+
+### Example template
+
+```json5
+{
+  id: 'cold_common',
+  displayName: '感冒',
+  family: 'acute',
+  bodyPartScope: 'systemic',
+  recoveryMode: 'treatment',
+  onsetPaths: ['vitals_saturation', 'contagion'],
+
+  incubationDays: [1, 2],
+  riseDays: [1, 2],
+  peakSeverity: [35, 55],
+  peakDays: 1,
+  peakSeverityFloor: 20,
+  baseRecoveryRate: 12,
+
+  requiredTreatmentTier: 'none',
+  complicationRisk: null,
+
+  infectious: true,
+  transmissionRate: 0.02,
+  contactRadius: 1.5,
+
+  scarThreshold: 80,
+  scarConditionId: null,
+  scarTalentPenalty: null,
+
+  selfTreatVerbs: [],
+
+  effects: [
+    { channel: 'vitalDrainMul', target: 'fatigue', value: 1.3, minSeverity: 20 },
+    { channel: 'workPerfMul',   target: null,     value: 0.8, minSeverity: 30 },
+    { channel: 'workPerfMul',   target: null,     value: 0.6, minSeverity: 60 },
+  ],
+
+  symptomBlurbs: {
+    mild:     '你有些鼻塞,喉咙发痒。',
+    moderate: '你浑身发冷,关节酸痛。',
+    severe:   '你高烧不退,几乎下不了床。',
+  },
+
+  eventLogTemplates: {
+    onset:          '{name}感冒了。{source}',
+    diagnosis:      '{name}在{clinic}确诊感冒。',
+    recoveryClean:  '{name}的感冒好了。',
+    recoveryScar:   null,
+    complication:   null,
+    stalled:        null,
+  },
+
+  glyphRef: 'illness_respiratory',
+}
+```
+
+## ConditionInstance
+
+Entries in the `Conditions` trait list on each character. POJO; no
+entity references; safe to JSON-serialize.
+
+| Field | Type | Notes |
+|---|---|---|
+| `instanceId` | string | UUID-ish; uniqueness so two `injury_sprain` instances on different ankles don't collide |
+| `templateId` | string | References `ConditionTemplate.id` |
+| `phase` | enum | `incubating` / `rising` / `peak` / `recovering` / `stalled` |
+| `severity` | number | 0–100, current |
+| `peakTracking` | number | Max severity ever reached this bout; read at resolve for scar branching |
+| `bodyPart` | string \| null | Pinned at onset; `null` if `template.bodyPartScope = 'systemic'` |
+| `onsetDay` | number | Game-day stamp |
+| `incubationDays` | number | Rolled from band at onset |
+| `riseDays` | number | Rolled from band at onset |
+| `peakSeverity` | number | Rolled from band at onset (this bout's ceiling, before treatment cap) |
+| `peakDays` | number | Rolled from band at onset |
+| `peakDayCounter` | number | Days elapsed at peak; reset when entering `peak` |
+| `source` | string | Free-text apophenia tag — `'感染自李明(咳嗽)'`, `'在码头滑倒'`. Plain string, not entity ref — survives the source NPC's death/destroy. |
+| `diagnosed` | bool | Player-only. NPCs read as diagnosed in inspector regardless. |
+| `diagnosedDay` | number \| null | Set on diagnosis; drives the diagnosed card's "treatment record" line |
+| `currentTreatmentTier` | enum | `none` / `pharmacy` / `clinic`. The active commitment, **not** a property of the template. |
+| `treatmentExpiresDay` | number \| null | Day the current course lapses (e.g., 5-day pharmacy prescription). After this, `currentTreatmentTier` falls back to `none` unless renewed. |
+| `treatmentHistory` | `TreatmentEvent[]` | Append-only log: purchase / self-treat / lapse / clinic-visit. Drives the diagnosed card's history readback. |
+| `selfTreatActive` | `SelfTreatActive \| null` | If a First Aid verb is currently boosting recovery: `{ verb, equivalentTier, dailyReduction, expiresDay }` |
+| `lastDigestDay` | number | Last game-day a digest line was emitted; de-dup at rollover |
+| `lastBandSurfaced` | enum | `mild` / `moderate` / `severe`. Last severity tier the HUD surfaced; pulse animation fires on change. |
+
+Lifestyle-mode (`recoveryMode = 'lifestyle'`) instances additionally carry:
+
+| Field | Type | Notes |
+|---|---|---|
+| `predicateMetTodayCount` | number | Set on day rollover; 0 if untracked yet today. Drives the digest readback. |
+| `currentSeverityFloor` | number | Cached fold of `template.severityFloors` against active adjuncts; the daily decay clamps against this. |
+
+### `TreatmentEvent`
+
+One per treatment action taken on this instance:
+
+| Field | Type | Notes |
+|---|---|---|
+| `day` | number | Game-day |
+| `kind` | enum | `civilian_clinic` / `ae_clinic` / `pharmacy_purchase` / `self_treat` / `lapse` |
+| `tierGranted` | enum | `none` / `pharmacy` / `clinic` |
+| `durationDays` | number | How long this event's tier holds |
+| `costMoney` | number | For player audit |
+| `costRep` | `{ factionId: string, delta: number } \| null` | AE clinic burns rep |
+
+### Example instance
+
+```json
+{
+  "instanceId": "c-7f3a",
+  "templateId": "cold_common",
+  "phase": "rising",
+  "severity": 28,
+  "peakTracking": 28,
+  "bodyPart": null,
+  "onsetDay": 12,
+  "incubationDays": 2,
+  "riseDays": 2,
+  "peakSeverity": 48,
+  "peakDays": 1,
+  "peakDayCounter": 0,
+  "source": "感染自李明(咳嗽)",
+  "diagnosed": false,
+  "diagnosedDay": null,
+  "currentTreatmentTier": "none",
+  "treatmentExpiresDay": null,
+  "treatmentHistory": [],
+  "selfTreatActive": null,
+  "lastDigestDay": 14,
+  "lastBandSurfaced": "mild"
+}
+```
+
+## Connections
+
+| Engine moment | Reads | Writes |
+|---|---|---|
+| Onset | template bands, `bodyPartScope`, `onsetPaths` | new instance with rolled durations, `phase = incubating` |
+| Day-rollover phase tick | template `recoveryMode`, `peakSeverityFloor`, `baseRecoveryRate`, `requiredTreatmentTier`, `complicationRisk`, `severityFloors` | instance `phase`, `severity`, `peakDayCounter`, `peakTracking`, optional spawn of complication instance |
+| Effects fold rebuild | template `effects[]` × instance `severity` band | character-level fold cache (not on the instance itself) |
+| Diagnosis (clinic step 1) | template `displayName`, `requiredTreatmentTier`, base recovery params | instance `diagnosed = true`, `diagnosedDay`, append `TreatmentEvent` |
+| Treatment commit (clinic step 2 / pharmacy / AE) | template `requiredTreatmentTier` | instance `currentTreatmentTier`, `treatmentExpiresDay`, append `TreatmentEvent` |
+| Self-treat verb run | template `selfTreatVerbs[verb]`, character First Aid + inventory | instance `selfTreatActive`, append `TreatmentEvent`; consume item; award XP |
+| Resolve (clean) | template `scarThreshold`, instance `peakTracking` | remove instance |
+| Resolve (scarred) | template `scarConditionId`, `scarTalentPenalty` | remove instance, spawn fresh chronic-permanent instance pinned to same `bodyPart`, `source = '{parent.displayName}后遗症'` |
+
+The phase machine reads only template fields and instance state. The
+effects fold reads only template `effects[]` and instance `severity`.
+The recovery formula reads only template recovery params, character
+Endurance, and instance `currentTreatmentTier`. No per-tick system needs
+to know "what is a flu" — it reads the fold and tick output.
+
+## Save shape
+
+The `Conditions` trait serializes as `{ list: ConditionInstance[] }`.
+Each instance is plain JSON. Templates are not serialized — they're
+code; saves load against current templates.
+
+Implications:
+
+- **Add fields to templates freely.** New fields default-init on instances
+  loaded from older saves.
+- **Never rename `ConditionTemplate.id`** — instance.templateId is the
+  hard reference. Tombstone retired ids (keep the row, mark inert)
+  instead of deleting.
+- **`source` is a string, not an entity ref.** This is deliberate: the
+  apophenia anchor is the *name*, and the source NPC may have been
+  destroyed (scene migration, off-screen attrition) by the time the
+  player reads the log line.
+- **Body part is a string enum, not an entity.** Stable across saves.
+- **`treatmentHistory` is append-only**, capped to the last N entries
+  per instance (8 is plenty — the diagnosed card never shows more than
+  the last 3) to bound save size on multi-week chronic cases.
+
+## Fold cache placement
+
+The effects fold is **not** stored on the instance — it's a per-character
+cache keyed off the full condition list. Storing it per-instance would
+miss the cross-condition stacking work the fold exists to do. Cache
+invalidation triggers:
+
+- onset / resolve / complication-spawn (list mutation)
+- severity crossing any modifier's `minSeverity` / `maxSeverity` boundary
+  (band crossing)
+- treatment commit / lapse (only when it crosses an effect threshold)
+
+Per-tick reads are O(1) cache hits. Recompute is O(conditions ×
+modifiers), which is small (a handful of conditions × <10 modifiers
+each).
+
+## What this enables
+
+- **Authoring a new condition is a JSON5 edit.** No code change.
+- **The phase machine, fold cache, recovery formula, and contagion all
+  share one input format.** Adding a fifth recovery mode is a
+  discriminator extension, not a parallel codepath.
+- **Scar branching is a forward-reference.** A flu's `scarConditionId`
+  points at a chronic-family template; that template is a normal row
+  with `recoveryMode: 'chronic-permanent'`. No special-case scar logic.
+- **Saves stay small.** ~20 fields × few active conditions ≈ <2 KB per
+  character; templates contribute zero bytes to the save.
+- **Mental-condition rows can ship as data when the lifestyle predicate
+  catalog lands** (Phase 5). The schema is honest about what's missing
+  via `recoveryMode = 'lifestyle'` requiring `lifestylePredicates`.
+
+## Related
+
+- [physiology.md](physiology.md) — system spec (lifecycle, recovery, treatment, contagion); this file is the data-shape pass over it
+- [physiology-ux.md](physiology-ux.md) — the UI surfaces that read these shapes
+- [../saves.md](../saves.md) — save round-trip contract
+- [attributes.md](attributes.md) — Attribute / StatSheet effects-fold pattern this design borrows

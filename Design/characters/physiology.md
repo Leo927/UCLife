@@ -28,28 +28,24 @@ answer the question *"what is wrong with me?"* in named pieces.
 
 ## The Condition trait
 
-A character (player or NPC) carries a **list** of `Condition` instances.
+A character (player or NPC) carries a **list** of condition instances.
 Composable: a flu + a bruised ankle + a hangover all coexist on the same
 character at the same time, each with independent state.
 
-| Field | Notes |
-|---|---|
-| `id` | Data-driven; references a row in `src/data/conditions.json5` |
-| `severity` | 0–100; phase-driven update per the formula below (rises during onset, plateaus, then decays — not monotonic) |
-| `phase` | `incubating` / `rising` / `peak` / `recovering` / `stalled`. State machine that gates the per-day severity update. |
-| `incubationDays` | Per-instance scalar, rolled at onset from the row's `[min, max]` band. Game-days from onset roll until symptoms appear. |
-| `riseDays` | Per-instance scalar, rolled at onset from the row's `[min, max]` band. Game-days from symptomatic start until severity reaches `peakSeverity`. |
-| `peakSeverity` | Per-instance scalar, rolled at onset from the row's `[min, max]` band. Severity ceiling during rise; height of the peak plateau. |
-| `peakDays` | Per-row scalar (default 1). Game-days the condition holds at `peakSeverity` before phase transitions out of peak. |
-| `peakTracking` | Max severity ever reached on this instance. Read at resolve time for scar branching (replaces the old freestanding `peak`). |
-| `bodyPart` | Optional; injuries pin to one of {head, torso, leftArm, rightArm, leftLeg, rightLeg, hands, eyes}. Illnesses are systemic (`null`) |
-| `onsetDay` | Game-day stamp; drives log-line phrasing and seniority |
-| `source` | Free-text origin tag — `"caught from 李明 at the dock"`, `"slipped on stairs"` — apophenia fuel |
-| `infectious` | If true, contagion system reads `transmissionRate` and `contactRadius` from the row |
-| `recoveryMode` | `treatment` (default — severity gated on `requiredTreatmentTier`) or `lifestyle` (severity gated on sustained lifestyle predicates). Mental-condition rows use `lifestyle`. |
-| `requiredTreatmentTier` | `treatment`-mode only. Per-row gate: `none` / `pharmacy` / `clinic`. Severity decays only when active treatment ≥ this tier. Below it, severity stalls. |
-| `complicationRisk` | `treatment`-mode only. Per-row daily probability of spawning a linked condition (infection, mal-union, etc.) when treatment < required |
-| `diagnosed` | Player-only flag; flips true after a clinic visit. NPCs are always "diagnosed" from the inspector's POV |
+The data is split in two:
+
+- **`ConditionTemplate`** — the authored row in `src/data/conditions.json5`.
+  Static, frozen, shared by every instance. Describes what the condition
+  *is*: bands, required treatment, modifiers, scar branching.
+- **`ConditionInstance`** — the per-character runtime entry on the
+  `Conditions` trait list. Holds the rolled durations, current phase,
+  severity, treatment commitment, and apophenia source string.
+
+This split is what keeps the engine data-agnostic — the phase machine,
+effects fold, and recovery formula read templates and write instances
+without ever caring what a given condition "is." Full schemas, the
+authored example row, and the save shape live in
+[physiology-data.md](physiology-data.md).
 
 The four duration-shape bands (`incubationDays`, `riseDays`, `peakSeverity`,
 `peakDays`) are what give two players the same flu and different stories. A
@@ -60,9 +56,9 @@ day 3, ±1 day, with a spread of how bad the worst day feels — the
 events.
 
 State is per-instance, not per-condition-id — the same character can have two
-different `injury` instances on two different body parts. Save layer
-serializes the list as part of the character entity; round-trips via
-`EntityKey` on the holder, no new key namespace needed.
+different injury instances on two different body parts. The `Conditions`
+trait round-trips via `EntityKey` on the holder; instances are POJOs with
+no entity references, so no new key namespace is needed.
 
 ## Effects-fold architecture
 
@@ -477,6 +473,7 @@ the trait + fold cache.
 
 ## Related
 
+- [physiology-data.md](physiology-data.md) — concrete data models (ConditionTemplate row schema + ConditionInstance trait shape) the engine reads/writes
 - [physiology-ux.md](physiology-ux.md) — player-facing UX pass: HUD strip, condition card, clinic modal, contagion cues, Phase 4.0/4.1/4.2 surface split
 - [index.md](index.md) — vitals saturation seeds onset; mood reads condition modifiers
 - [attributes.md](attributes.md) — Endurance scales recovery; conditions floor/cap stats

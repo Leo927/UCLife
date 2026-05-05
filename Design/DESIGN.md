@@ -38,6 +38,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Skills (9 shipped, 5 groups; 27-skill catalog reserved) | [characters/skills.md](characters/skills.md) |
 | ↳ Attributes (6 stats, modifier-based StatSheet, drift model) | [characters/attributes.md](characters/attributes.md) |
 | ↳ Physiology (Phase 4 — conditions, diagnosis, contagion) | [characters/physiology.md](characters/physiology.md) |
+| ↳ Physiology data model (template + instance split) | [characters/physiology-data.md](characters/physiology-data.md) |
 | NPC AI (utility + BT, drives, memory) | [npc-ai.md](npc-ai.md) |
 | Social pillar overview | [social/index.md](social/index.md) |
 | ↳ Ambitions (Phase 5.0) | [social/ambitions.md](social/ambitions.md) |
