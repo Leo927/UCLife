@@ -1,44 +1,42 @@
-// Folds purchased perks into the StatSheet under source `perk:<id>`.
-// Idempotent so it can re-run after every perk-array change without
-// leaking duplicates.
+// Folds purchased perks onto the character's Effects trait. Each perk
+// is one Effect with id 'perk:<id>' and originId = perk id. Idempotent:
+// re-running drops every existing perk Effect and re-emits from the
+// `perks` array, so a perk add/remove/load round-trips cleanly.
+//
+// The StatSheet's modifier arrays are derived from the Effects list
+// (see src/character/effects.ts) so any modifiers a perk authors —
+// including 'floor' / 'cap' types — flow through the unified fold.
 
 import type { Entity } from 'koota'
-import { Attributes } from '../ecs/traits'
-import { getPerk, perkSource } from '../character/perks'
-import { addModifier, removeBySource, type Modifier } from './sheet'
-import type { StatId } from './schema'
+import { Effects } from '../ecs/traits'
+import { getPerk } from '../character/perks'
+import { addEffect, removeEffect } from '../character/effects'
 
 const PERK_PREFIX = 'perk:'
 
-// Idempotent: every existing 'perk:*' modifier is dropped and the full
-// set is re-derived from the perks array. Safe to call after any
-// add/remove/load.
+function perkEffectId(id: string): string {
+  return `${PERK_PREFIX}${id}`
+}
+
 export function syncPerkModifiers(entity: Entity, perks: readonly string[]): void {
-  const a = entity.get(Attributes)
-  if (!a) return
-  let sheet = a.sheet
-  // Collect *every* distinct perk source first; otherwise stripping by
-  // source-of-first-match would skip a second perk-source on the same
-  // stat and let it leak across syncs.
-  const perkSources = new Set<string>()
-  for (const id of Object.keys(sheet.stats) as StatId[]) {
-    for (const m of sheet.stats[id].modifiers) {
-      if (m.source.startsWith(PERK_PREFIX)) perkSources.add(m.source)
-    }
-  }
-  for (const src of perkSources) sheet = removeBySource(sheet, src)
+  if (!entity.has(Effects)) return
+  // Collect existing perk Effect ids first; otherwise removing one
+  // would invalidate the iterator over the list.
+  const existing = entity.get(Effects)!.list
+    .filter((e) => e.id.startsWith(PERK_PREFIX))
+    .map((e) => e.id)
+  for (const id of existing) removeEffect(entity, id)
 
   for (const perkId of perks) {
     const def = getPerk(perkId)
     if (!def) continue
-    const source = perkSource(def.id)
-    for (const m of def.modifiers) {
-      const mod: Modifier<StatId> = { statId: m.statId, type: m.type, value: m.value, source }
-      sheet = addModifier(sheet, mod)
-    }
-  }
-
-  if (sheet !== a.sheet) {
-    entity.set(Attributes, { ...a, sheet })
+    addEffect(entity, {
+      id: perkEffectId(perkId),
+      originId: perkId,
+      family: 'perk',
+      modifiers: def.modifiers.map((m) => ({ statId: m.statId, type: m.type, value: m.value })),
+      nameZh: def.nameZh,
+      descZh: def.descZh,
+    })
   }
 }
