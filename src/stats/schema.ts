@@ -4,6 +4,14 @@
 // without object-reference plumbing.
 
 import { type FormulaTable, identityFormulas, createSheet } from './sheet'
+import { SKILL_IDS, type SkillId } from '../config/skills'
+
+// Re-exports — keeps callers' `import { SKILL_IDS, SkillStatId } from
+// '../stats/schema'` paths intact. SKILL_IDS lives canonically in
+// config/skills.ts (the lowest layer) so config-layer schema files
+// can reference SkillId without reaching upward into character/.
+export { SKILL_IDS }
+export type SkillStatId = SkillId
 
 export const ATTRIBUTE_IDS = [
   'strength', 'endurance', 'charisma', 'intelligence', 'reflex', 'resolve',
@@ -20,12 +28,6 @@ type VitalDrainMulId = `${VitalId}DrainMul`
 
 export const HEALTH_IDS = ['hpMax', 'hpRegenMul'] as const
 export type HealthStatId = typeof HEALTH_IDS[number]
-
-export const SKILL_IDS = [
-  'mechanics', 'marksmanship', 'athletics', 'cooking', 'medicine',
-  'computers', 'piloting', 'bartending', 'engineering',
-] as const
-export type SkillStatId = typeof SKILL_IDS[number]
 
 const SKILL_XP_MUL_IDS = SKILL_IDS.map((s) => `${s}XpMul` as const)
 type SkillXpMulId = `${SkillStatId}XpMul`

@@ -1,10 +1,11 @@
 import type { Entity } from 'koota'
-import { skillsConfig } from '../config'
+import { skillsConfig, type SkillId } from '../config'
 import { Attributes } from '../ecs/traits'
 import { getStat, setBase } from '../stats/sheet'
-import { SKILL_IDS } from '../stats/schema'
 
-export type SkillId = typeof SKILL_IDS[number]
+// Re-export so callers can keep importing SkillId from
+// character/skills. Canonical declaration lives in config/skills.ts.
+export type { SkillId }
 
 export const SKILLS = skillsConfig.catalog
 export const SKILL_ORDER: SkillId[] = skillsConfig.order

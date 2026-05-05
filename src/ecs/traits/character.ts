@@ -4,9 +4,13 @@
 
 import { trait, relation } from 'koota'
 import type { Entity } from 'koota'
-import type { FactionId } from '../../data/factions'
+import type { FactionId, ActionKind, RoughKind } from '../../config'
 import { createCharacterSheet, type StatId } from '../../stats/schema'
 import type { StatSheet } from '../../stats/sheet'
+
+// Re-export so existing `import { ActionKind } from '../ecs/traits'`
+// callers keep working. Canonical declarations live in config/kinds.ts.
+export type { ActionKind, RoughKind }
 
 export const Vitals = trait({
   hunger: 0,
@@ -77,8 +81,6 @@ export const Knows = relation({
   store: { opinion: 0, familiarity: 0, lastSeenMs: 0, meetCount: 0 },
 })
 
-export type ActionKind = 'idle' | 'walking' | 'eating' | 'sleeping' | 'washing' | 'working' | 'reading' | 'drinking' | 'reveling' | 'chatting' | 'exercising'
-
 export const Action = trait({
   kind: 'idle' as ActionKind,
   remaining: 0,
@@ -88,7 +90,6 @@ export const Action = trait({
 // Tags an actor while using a public/free survival source so vitals can
 // apply the per-action penalty (hygiene gain + small HP loss) without a
 // spatial lookup every tick.
-export type RoughKind = 'tap' | 'scavenge' | 'rough'
 export const RoughUse = trait({ kind: 'tap' as RoughKind })
 
 // Asymmetric in storage but symmetric in semantics — both directions are
