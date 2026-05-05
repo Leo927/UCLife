@@ -77,7 +77,18 @@ L_BOOT --> L_UI
 ' iterates handlers blindly — it does not import from systems/, sim/scene,
 ' sim/clock, sim/engagement. Adding a 16th persisted subsystem == one
 ' new file in src/boot/saveHandlers/, no edit to save/index.ts.
-L_BOOT -[#red]-> L_SYS  : (V) __uclife__ DEV surface\nreaches ~15 subsystems
+'
+' The __uclife__ DEV surface was inverted the same way via
+' src/debug/uclifeHandle.ts: each cluster file under src/boot/debugHandles/
+' (world, scene, transit, ambitions, cheats, ship, combat, save) registers
+' its own slice of the handle. main.tsx no longer imports from sim/,
+' systems/, or save/ — it dynamic-imports the manifest behind
+' import.meta.env.DEV (Rollup tree-shakes the whole branch in prod).
+' Adding a new debug handle == one line in a cluster file. The boot layer
+' still reaches into sim/systems/save (the cluster files live there in
+' spirit), but the concentration is gone — a 300-line god-object in
+' main.tsx became 8 cluster files of ~10-50 lines each.
+L_BOOT -[#red]-> L_SYS  : (DEV) __uclife__ handler-set\nreaches ~8 subsystems
 
 note right of L_SYS
   Module-level singletons in:
