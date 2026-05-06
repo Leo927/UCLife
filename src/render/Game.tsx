@@ -43,6 +43,7 @@ import {
   Active, Road, Appearance,
 } from '../ecs/traits'
 import { useCamera } from './cameraStore'
+import { useCombatStore } from '../systems/combat'
 import { BED_MULTIPLIERS, bedActiveOccupant } from '../systems/bed'
 import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
@@ -209,12 +210,17 @@ export function Game() {
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTextTarget(e.target)) return
+      // Tactical combat owns WASD while open — TacticalView's capture-phase
+      // listener stops propagation, but bail here too as a safety net so the
+      // ground player's MoveTarget can't drift during a combat session.
+      if (useCombatStore.getState().open) return
       const k = mapKey(e.code)
       if (!k) return
       e.preventDefault()
       held.add(k)
     }
     const onKeyUp = (e: KeyboardEvent) => {
+      if (useCombatStore.getState().open) return
       const k = mapKey(e.code)
       if (!k) return
       held.delete(k)
@@ -229,6 +235,15 @@ export function Game() {
     let lastDy = 0
     let raf = 0
     const tick = () => {
+      // Drop any held WASD when combat takes over — keyup events get
+      // stopped by TacticalView's capture listener and would otherwise
+      // leave the ground avatar walking forever after combat closes.
+      if (useCombatStore.getState().open) {
+        if (held.size > 0) held.clear()
+        if (lastDx !== 0 || lastDy !== 0) { lastDx = 0; lastDy = 0 }
+        raf = requestAnimationFrame(tick)
+        return
+      }
       const player = world.queryFirst(IsPlayer, Position)
       if (player) {
         let dx = 0, dy = 0

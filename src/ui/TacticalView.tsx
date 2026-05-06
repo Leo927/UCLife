@@ -231,7 +231,6 @@ export function TacticalView() {
               id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
             })),
             beams: beamVisuals(),
-            playerTarget: useCombatStore.getState().playerTarget,
           })
         }
       }
@@ -241,20 +240,80 @@ export function TacticalView() {
     return () => cancelAnimationFrame(raf)
   }, [open])
 
+  // Starsector-shape input: WASD drives ship-relative thrust (forward/strafe);
+  // holding Shift makes the helm orient to the mouse cursor instead of the
+  // default auto-face-enemy behavior. Capture-phase + stopPropagation keeps
+  // these keys out of the ground-game's WASD walker (Game.tsx) while combat
+  // is open. We track the held set in a ref and push the resolved axis into
+  // the combat store on every transition.
   useEffect(() => {
     if (!open) return
-    const onKey = (ev: KeyboardEvent) => {
-      const target = ev.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        return
+    const held = new Set<'w' | 's' | 'a' | 'd'>()
+    const flush = () => {
+      let forward = 0
+      let strafe = 0
+      if (held.has('w')) forward += 1
+      if (held.has('s')) forward -= 1
+      if (held.has('d')) strafe += 1
+      if (held.has('a')) strafe -= 1
+      useCombatStore.getState().setInputAxis({ forward, strafe })
+    }
+    const map = (code: string): 'w' | 's' | 'a' | 'd' | null => {
+      switch (code) {
+        case 'KeyW': return 'w'
+        case 'KeyS': return 's'
+        case 'KeyA': return 'a'
+        case 'KeyD': return 'd'
+        default: return null
       }
+    }
+    const onKeyDown = (ev: KeyboardEvent) => {
+      const target = ev.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
       if (ev.code === 'Space') {
         ev.preventDefault()
         useCombatStore.getState().togglePause()
+        return
       }
+      if (ev.code === 'ShiftLeft' || ev.code === 'ShiftRight') {
+        useCombatStore.getState().setAimAtMouse(true)
+        return
+      }
+      const k = map(ev.code)
+      if (!k) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      if (held.has(k)) return
+      held.add(k)
+      flush()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const onKeyUp = (ev: KeyboardEvent) => {
+      if (ev.code === 'ShiftLeft' || ev.code === 'ShiftRight') {
+        useCombatStore.getState().setAimAtMouse(false)
+        return
+      }
+      const k = map(ev.code)
+      if (!k) return
+      ev.stopPropagation()
+      held.delete(k)
+      flush()
+    }
+    const onBlur = () => {
+      held.clear()
+      flush()
+      useCombatStore.getState().setAimAtMouse(false)
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    window.addEventListener('keyup', onKeyUp, { capture: true })
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true } as AddEventListenerOptions)
+      window.removeEventListener('keyup', onKeyUp, { capture: true } as AddEventListenerOptions)
+      window.removeEventListener('blur', onBlur)
+      useCombatStore.getState().setInputAxis({ forward: 0, strafe: 0 })
+      useCombatStore.getState().setAimAtMouse(false)
+      useCombatStore.getState().setAimMouse(null)
+    }
   }, [open])
 
   // Tear down renderer when the overlay closes — its parent unmounts the
@@ -279,16 +338,17 @@ export function TacticalView() {
   const flashAge = performance.now() - lastFlashAtMs
   const showFlash = lastFlashZh && flashAge < 1500
 
-  // Click on the arena: convert screen coords to arena world coords via
-  // the renderer's viewport transform.
-  const onArenaClick = (ev: React.MouseEvent<HTMLDivElement>) => {
+  // Mouse over arena: track cursor in arena world coords. The combat tick
+  // only consults this when shift is held (aimAtMouse=true); otherwise the
+  // helm auto-faces the enemy.
+  const onArenaMouseMove = (ev: React.MouseEvent<HTMLDivElement>) => {
     const r = rendererRef.current
     if (!r) return
     const rect = ev.currentTarget.getBoundingClientRect()
     const sx = ev.clientX - rect.left
     const sy = ev.clientY - rect.top
     const wp = r.screenToWorld(sx, sy)
-    useCombatStore.getState().setPlayerTarget({ x: wp.x, y: wp.y })
+    useCombatStore.getState().setAimMouse({ x: wp.x, y: wp.y })
   }
 
   const onPixiReady = (app: Application) => {
@@ -300,7 +360,7 @@ export function TacticalView() {
 
   return (
     <div className="tactical-overlay">
-      <div className="tactical-canvas-host" onClick={onArenaClick}>
+      <div className="tactical-canvas-host" onMouseMove={onArenaMouseMove}>
         <PixiCanvas
           width={size.w}
           height={size.h}
@@ -353,7 +413,7 @@ export function TacticalView() {
       </div>
 
       <div className="tactical-hint">
-        点击战场为旗舰下达航向 · 武器在敌方进入射程时自动开火 · 空格切换暂停
+        WASD 操控旗舰 · 按住 Shift 让船头追随鼠标 · 武器在敌方进入射程时自动开火 · 空格切换暂停
       </div>
     </div>
   )

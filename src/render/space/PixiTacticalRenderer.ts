@@ -57,9 +57,6 @@ export interface TacticalSnapshot {
   enemy: ShipSnap | null
   projectiles: ProjectileVisual[]
   beams: BeamFlashVisual[]
-  /** Player's queued move target — drawn as a small reticle so the
-   *  player can see the click landed. Null = no target queued. */
-  playerTarget: { x: number; y: number } | null
 }
 
 const PROJECTILE_COLOR = {
@@ -94,11 +91,9 @@ export class PixiTacticalRenderer {
   private enemyNode: ShipNode
   private projectileLayer: Container
   private beamLayer: Graphics
-  private targetMarker: Graphics
   private projectileNodes = new Map<number, Graphics>()
   private destroyed = false
   private beamLayerAttached = false
-  private targetMarkerAttached = false
   private playerAttached = false
   private enemyAttached = false
   private arenaW: number
@@ -124,16 +119,12 @@ export class PixiTacticalRenderer {
     this.projectileLayer = new Container()
     this.root.addChild(this.projectileLayer)
 
-    // Beam + target marker layers are constructed but NOT added to the
-    // stage until they have actual content — Pixi v8's batcher null-derefs
-    // on initially-empty Graphics that ride along during the first frame.
+    // Beam layer is constructed but NOT added to the stage until it has
+    // actual content — Pixi v8's batcher null-derefs on initially-empty
+    // Graphics that ride along during the first frame.
     this.beamLayer = new Graphics()
     this.beamLayer.visible = false
     this.beamLayerAttached = false
-
-    this.targetMarker = new Graphics()
-    this.targetMarker.visible = false
-    this.targetMarkerAttached = false
 
     // Ships rendered above projectiles, so projectile streams don't
     // visually intersect ship cores. Same lazy-attach pattern.
@@ -200,7 +191,6 @@ export class PixiTacticalRenderer {
     this.syncShip(this.enemyNode, snap.enemy)
     this.syncProjectiles(snap.projectiles)
     this.syncBeams(snap.beams)
-    this.syncTargetMarker(snap.playerTarget)
 
     if (PROF) {
       tacticalStats.frames++
@@ -300,31 +290,4 @@ export class PixiTacticalRenderer {
     }
   }
 
-  private syncTargetMarker(target: { x: number; y: number } | null): void {
-    if (!target) {
-      if (this.targetMarkerAttached) this.targetMarker.visible = false
-      return
-    }
-    if (!this.targetMarkerAttached) {
-      this.root.addChild(this.targetMarker)
-      this.targetMarkerAttached = true
-    }
-    this.targetMarker.visible = true
-    // Reticle: outer ring + four cross-hatches. Each subpath is closed
-    // with its own stroke() so the v8 batcher doesn't see a multi-
-    // subpath build-up that breaks geometry.
-    const g = this.targetMarker
-    g.clear()
-    g.circle(0, 0, 8)
-    g.stroke({ color: 0x4ade80, width: 1, alpha: 0.5 })
-    for (const [x1, y1, x2, y2] of [
-      [-12, 0, -4, 0], [4, 0, 12, 0], [0, -12, 0, -4], [0, 4, 0, 12],
-    ] as const) {
-      g.moveTo(x1, y1)
-      g.lineTo(x2, y2)
-      g.stroke({ color: 0x4ade80, width: 1, alpha: 0.7 })
-    }
-    g.x = target.x
-    g.y = target.y
-  }
 }

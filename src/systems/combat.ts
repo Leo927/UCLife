@@ -112,13 +112,22 @@ interface CombatState {
   // Recent flash banner (e.g. weapon hit)
   lastFlashZh: string
   lastFlashAtMs: number
-  // Player throttle target — set by the tactical UI; combat tick steers
-  // the flagship toward it. Null = hold position.
-  playerTarget: { x: number; y: number } | null
+  // Starsector-shape direct control. WASD drives `inputAxis` in the
+  // ship's local frame: forward = W/S along heading, strafe = A/D
+  // perpendicular. Each component is clamped to [-1, 1]; the combat
+  // tick normalizes diagonals before applying topSpeed.
+  inputAxis: { forward: number; strafe: number }
+  // When `aimAtMouse` is true (shift held) and `aimMouse` is set,
+  // the heading rotates toward the cursor instead of auto-facing the
+  // enemy. Coords are in arena world units.
+  aimAtMouse: boolean
+  aimMouse: { x: number; y: number } | null
   setOpen: (open: boolean) => void
   togglePause: () => void
   setSelectedMount: (idx: number | null) => void
-  setPlayerTarget: (t: { x: number; y: number } | null) => void
+  setInputAxis: (axis: { forward: number; strafe: number }) => void
+  setAimAtMouse: (on: boolean) => void
+  setAimMouse: (m: { x: number; y: number } | null) => void
   flash: (textZh: string) => void
   reset: () => void
   // Snapshot of projectiles — UI reads this each render. Not persisted
@@ -132,7 +141,9 @@ export const useCombatStore = create<CombatState>((set) => ({
   selectedMountIdx: null,
   lastFlashZh: '',
   lastFlashAtMs: 0,
-  playerTarget: null,
+  inputAxis: { forward: 0, strafe: 0 },
+  aimAtMouse: false,
+  aimMouse: null,
   setOpen: (open) => set({ open }),
   togglePause: () => set((s) => {
     const next = !s.paused
@@ -140,7 +151,9 @@ export const useCombatStore = create<CombatState>((set) => ({
     return { paused: next }
   }),
   setSelectedMount: (selectedMountIdx) => set({ selectedMountIdx }),
-  setPlayerTarget: (playerTarget) => set({ playerTarget }),
+  setInputAxis: (inputAxis) => set({ inputAxis }),
+  setAimAtMouse: (aimAtMouse) => set({ aimAtMouse }),
+  setAimMouse: (aimMouse) => set({ aimMouse }),
   flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: performance.now() }),
   reset: () => set({
     open: false,
@@ -148,7 +161,9 @@ export const useCombatStore = create<CombatState>((set) => ({
     selectedMountIdx: null,
     lastFlashZh: '',
     lastFlashAtMs: 0,
-    playerTarget: null,
+    inputAxis: { forward: 0, strafe: 0 },
+    aimAtMouse: false,
+    aimMouse: null,
   }),
   getProjectiles: () => projectiles.slice(),
 }))
@@ -575,25 +590,28 @@ export function combatSystem(_world: World, dtMs: number): void {
   const enemyState = enemyEnt.get(EnemyShipState)!
 
   // -- 1. Player ship physics ------------------------------------------------
-  // Steer toward playerTarget; otherwise hold position. Top-speed clamp.
-  // Heading rotates toward whichever of {playerTarget, enemy} the helm is
-  // committed to so the +x-forward weapon arcs aim at something useful
-  // even when the player isn't actively giving move orders.
+  // WASD direct control in ship-local frame: forward = W/S along heading,
+  // strafe = A/D perpendicular (right-hand: +strafe = starboard). Diagonals
+  // normalize so W+D doesn't outrun pure W. Velocity caps at topSpeed.
+  // Heading default = auto-face enemy; when shift+mouse aim is active, the
+  // helm rotates toward the cursor instead. Maneuverability caps turn rate.
   const playerPos = combatPlayerPos
-  const playerTarget = store.playerTarget
-  if (playerTarget) {
-    const ang = angleBetween(playerPos, playerTarget)
-    const d = dist(playerPos, playerTarget)
-    if (d > 4) {
-      const move = Math.min(d, shipState.topSpeed * dtSec)
-      playerPos.x += Math.cos(ang) * move
-      playerPos.y += Math.sin(ang) * move
-    }
+  const axis = store.inputAxis
+  const inputLen = Math.hypot(axis.forward, axis.strafe)
+  if (inputLen > 0) {
+    const fwd = axis.forward / Math.max(1, inputLen)
+    const stf = axis.strafe / Math.max(1, inputLen)
+    const cosH = Math.cos(combatPlayerHeading)
+    const sinH = Math.sin(combatPlayerHeading)
+    // Forward unit = (cosH, sinH); starboard unit = (-sinH, cosH).
+    const vx = (fwd * cosH + stf * -sinH) * shipState.topSpeed
+    const vy = (fwd * sinH + stf *  cosH) * shipState.topSpeed
+    playerPos.x += vx * dtSec
+    playerPos.y += vy * dtSec
   }
-  // Aim heading toward the enemy by default (Starsector-shape autofacing
-  // for the spine — explicit hold-heading orders land later). Maneuverability
-  // caps the per-second turn rate.
-  const desiredHeading = angleBetween(playerPos, enemyState.pos)
+  const desiredHeading = (store.aimAtMouse && store.aimMouse)
+    ? angleBetween(playerPos, store.aimMouse)
+    : angleBetween(playerPos, enemyState.pos)
   const turnRate = (Math.PI * 1.5) * Math.max(0.1, shipState.maneuverability)   // rad/sec
   const headingDelta = angleDelta(combatPlayerHeading, desiredHeading)
   const turnStep = Math.sign(headingDelta) * Math.min(Math.abs(headingDelta), turnRate * dtSec)
