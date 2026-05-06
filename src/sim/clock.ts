@@ -51,8 +51,26 @@ export const useClock = create<ClockState>((set) => ({
     d.setMinutes(d.getMinutes() + minutes)
     return { gameDate: d }
   }),
-  reset: () => set({ gameDate: startDate(), speed: 1, mode: 'normal', forceHyperspeed: false }),
+  reset: () => {
+    _partialMinute = 0
+    set({ gameDate: startDate(), speed: 1, mode: 'normal', forceHyperspeed: false })
+  },
 }))
+
+// Sub-minute fraction the loop has accumulated since the last integer-minute
+// advance. Lives outside zustand state so the per-frame update doesn't notify
+// every clock subscriber. Read by visualization code (orbit positions) that
+// wants smooth motion between clock ticks; the rest of the sim still works
+// off integer game-minutes (vitalsSystem, actionSystem, etc).
+let _partialMinute = 0
+
+export function setPartialMinute(m: number): void {
+  _partialMinute = m
+}
+
+export function getSmoothedGameMs(): number {
+  return useClock.getState().gameDate.getTime() + _partialMinute * 60_000
+}
 
 const DOW = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 

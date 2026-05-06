@@ -1,5 +1,5 @@
 import { getWorld, getActiveSceneId } from '../ecs/world'
-import { useClock, gameDayNumber } from './clock'
+import { useClock, gameDayNumber, setPartialMinute } from './clock'
 import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
 import { interactionSystem } from '../systems/interaction'
@@ -111,6 +111,9 @@ function frame(now: number) {
       tickAccum -= 1
       ticks++
     }
+    // Expose the sub-minute remainder so visualization code (orbit positions)
+    // can advance smoothly between integer-minute clock ticks.
+    setPartialMinute(tickAccum)
     if (ticks > 0) {
       useClock.getState().advance(ticks)
       // A single tick can span midnight, so compare day numbers rather than

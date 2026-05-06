@@ -142,54 +142,53 @@ export function SpaceView() {
     if (r) r.resize(size.w, size.h)
   }, [size])
 
-  // 30Hz throttled snapshot + render. Matches the previous Konva path —
-  // sim still ticks at full RAF rate via loop.ts; only the visual snapshot
-  // is throttled. RAF tick complexity is O(B + P) at B≈30 bodies and P≈30
-  // POIs — well inside the <3ms/frame budget.
+  // Per-RAF snapshot + render. Sim ticks at full RAF rate via loop.ts and
+  // body positions are smoothed by the clock's sub-minute accumulator, so
+  // sampling at 60Hz here is what makes orbital motion visibly smooth.
+  // RAF tick complexity is O(B + P) at B≈30 bodies and P≈30 POIs — well
+  // inside the <3ms/frame budget. Fuel HUD has its own 250ms gate to avoid
+  // setState churn on a per-frame cadence.
   useEffect(() => {
     let raf = 0
     let last = 0
     let lastFuelPoll = 0
-    const FRAME_MS = 33
     const FUEL_POLL_MS = 250
     const loop = (now: number) => {
-      if (now - last >= FRAME_MS) {
-        const dtSec = last === 0 ? FRAME_MS / 1000 : (now - last) / 1000
-        last = now
-        if (now - lastFuelPoll >= FUEL_POLL_MS) {
-          lastFuelPoll = now
-          const s = getShipState()
-          if (s) setFuelHud({ current: s.fuelCurrent, max: s.fuelMax })
-        }
-        const r = rendererRef.current
-        if (r) {
-          const bodies = readBodies()
-          const pois = readPois()
-          const ship = readShip()
-          lastPoisRef.current = pois
-          const sz = sizeRef.current
-          const fitOn = fitModeRef.current
-          const fit = fitOn ? fitTransform(bodies, pois, ship, sz.w, sz.h) : null
-          let coursePreview: SpaceSnapshot['coursePreview'] = null
-          if (ship && ship.course?.active) {
-            let tx = ship.course.tx
-            let ty = ship.course.ty
-            if (ship.course.destPoiId) {
-              const found = pois.find((p) => p.poi.id === ship.course!.destPoiId)
-              if (found) { tx = found.x; ty = found.y }
-            }
-            coursePreview = { fromX: ship.x, fromY: ship.y, toX: tx, toY: ty }
+      const dtSec = last === 0 ? 1 / 60 : (now - last) / 1000
+      last = now
+      if (now - lastFuelPoll >= FUEL_POLL_MS) {
+        lastFuelPoll = now
+        const s = getShipState()
+        if (s) setFuelHud({ current: s.fuelCurrent, max: s.fuelMax })
+      }
+      const r = rendererRef.current
+      if (r) {
+        const bodies = readBodies()
+        const pois = readPois()
+        const ship = readShip()
+        lastPoisRef.current = pois
+        const sz = sizeRef.current
+        const fitOn = fitModeRef.current
+        const fit = fitOn ? fitTransform(bodies, pois, ship, sz.w, sz.h) : null
+        let coursePreview: SpaceSnapshot['coursePreview'] = null
+        if (ship && ship.course?.active) {
+          let tx = ship.course.tx
+          let ty = ship.course.ty
+          if (ship.course.destPoiId) {
+            const found = pois.find((p) => p.poi.id === ship.course!.destPoiId)
+            if (found) { tx = found.x; ty = found.y }
           }
-          r.update({
-            bodies, pois, ship,
-            dockSnapRadius: spaceConfig.dockSnapRadius,
-            fitMode: fitOn,
-            fit,
-            coursePreview,
-            hoveredPoiId: panelRef.current?.poiId ?? null,
-            dtSec,
-          })
+          coursePreview = { fromX: ship.x, fromY: ship.y, toX: tx, toY: ty }
         }
+        r.update({
+          bodies, pois, ship,
+          dockSnapRadius: spaceConfig.dockSnapRadius,
+          fitMode: fitOn,
+          fit,
+          coursePreview,
+          hoveredPoiId: panelRef.current?.poiId ?? null,
+          dtSec,
+        })
       }
       raf = requestAnimationFrame(loop)
     }

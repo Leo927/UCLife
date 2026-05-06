@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { formatUC, gameDayNumber, startDate } from './clock'
+import {
+  formatUC, gameDayNumber, startDate,
+  getSmoothedGameMs, setPartialMinute, useClock,
+} from './clock'
 
 describe('startDate', () => {
   it('anchors at UC 0077.04.27 09:00 local time', () => {
@@ -49,6 +52,30 @@ describe('gameDayNumber', () => {
       d.setDate(d.getDate() + offset)
       expect(gameDayNumber(d)).toBe(offset + 1)
     }
+  })
+})
+
+describe('getSmoothedGameMs', () => {
+  it('returns plain gameDate.getTime() when partial is 0', () => {
+    useClock.getState().reset()
+    setPartialMinute(0)
+    expect(getSmoothedGameMs()).toBe(useClock.getState().gameDate.getTime())
+  })
+
+  it('adds partial-minute fraction in milliseconds', () => {
+    useClock.getState().reset()
+    const base = useClock.getState().gameDate.getTime()
+    setPartialMinute(0.5)
+    expect(getSmoothedGameMs()).toBe(base + 30_000)
+    setPartialMinute(0.25)
+    expect(getSmoothedGameMs()).toBe(base + 15_000)
+  })
+
+  it('clock.reset() clears the partial-minute accumulator', () => {
+    setPartialMinute(0.7)
+    useClock.getState().reset()
+    const base = useClock.getState().gameDate.getTime()
+    expect(getSmoothedGameMs()).toBe(base)
   })
 })
 

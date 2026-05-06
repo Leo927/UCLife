@@ -1,5 +1,5 @@
 import type { World } from 'koota'
-import { useClock } from '../sim/clock'
+import { useClock, getSmoothedGameMs } from '../sim/clock'
 import { spaceConfig } from '../config'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS } from '../data/pois'
@@ -65,8 +65,11 @@ export function spaceSimSystem(world: World, dtSec: number): void {
   // style "world pauses on contact" feel.
   if (useEngagement.getState().open) return
 
-  // 1. Derived t in days, scaled by orbitTimeScale.
-  const gameMs = useClock.getState().gameDate.getTime()
+  // 1. Derived t in days, scaled by orbitTimeScale. Use the smoothed clock
+  // so orbits advance continuously between integer-minute ticks (otherwise
+  // bodies snap forward once per real-second at speed 1, which reads as
+  // "low FPS" while the camera-locked ship moves smoothly).
+  const gameMs = getSmoothedGameMs()
   const tDays = (gameMs / MS_PER_DAY) * spaceConfig.orbitTimeScale
 
   // 2. Recompute Position for every Body and PoiTag entity.
