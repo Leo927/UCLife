@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "build:portrait-cache": "tsx scripts/buildPortraitCache.ts",
     "prebuild": "npm run build:portrait-cache",
     "test:unit": "vitest run",
     "lint:arch": "depcruise --ignore-known --config .dependency-cruiser.cjs src",
