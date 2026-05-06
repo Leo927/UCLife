@@ -32,13 +32,17 @@ export function thrustToward(
     return { thrust: { ax, ay }, arrived: true }
   }
 
+  // Use only the approach velocity (component toward target) for braking distance.
+  // Total speed would include lateral (perpendicular) velocity that cannot cause overshoot,
+  // which made the ship enter brake mode unnecessarily and orbit the target.
+  const distInv = distance > 0 ? 1 / distance : 0
+  const approachVel = (k.vel.x * dx + k.vel.y * dy) * distInv
   const brakingDistance =
-    thrustAccel > 0 ? (speed * speed) / (2 * thrustAccel) : Infinity
+    approachVel > 0 && thrustAccel > 0 ? (approachVel * approachVel) / (2 * thrustAccel) : 0
 
   if (distance > brakingDistance + BRAKING_MARGIN_PX) {
-    const inv = distance > 0 ? 1 / distance : 0
     return {
-      thrust: { ax: dx * inv * thrustAccel, ay: dy * inv * thrustAccel },
+      thrust: { ax: dx * distInv * thrustAccel, ay: dy * distInv * thrustAccel },
       arrived: false,
     }
   }
