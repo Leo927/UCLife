@@ -12,22 +12,29 @@ import { useEffect, useRef, useState } from 'react'
 import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
+  getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
 } from '../systems/combat'
 import { getWorld } from '../ecs/world'
 import { Ship, WeaponMount, EnemyShipState } from '../ecs/traits'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
 import { PixiCanvas } from '../render/pixi'
-import { PixiTacticalRenderer, type ShipSnap as PixiShipSnap } from '../render/space/PixiTacticalRenderer'
+import {
+  PixiTacticalRenderer,
+  type ShipSnap as PixiShipSnap,
+  type BeamFlashVisual,
+} from '../render/space/PixiTacticalRenderer'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
 interface PlayerSnap {
   classId: string
   pos: { x: number; y: number }
+  heading: number
   hullCurrent: number; hullMax: number
   armorCurrent: number; armorMax: number
   fluxCurrent: number; fluxMax: number
+  crCurrent: number; crMax: number
   topSpeed: number
   mounts: { mountIdx: number; weaponId: string; chargeSec: number; ready: boolean }[]
 }
@@ -36,6 +43,7 @@ interface EnemySnap {
   shipClassId: string
   nameZh: string
   pos: { x: number; y: number }
+  heading: number
   hullCurrent: number; hullMax: number
   armorCurrent: number; armorMax: number
   fluxCurrent: number; fluxMax: number
@@ -60,10 +68,12 @@ function snapshotPlayer(): PlayerSnap | null {
   mounts.sort((a, b) => a.mountIdx - b.mountIdx)
   return {
     classId: s.classId,
-    pos: { x: s.fleetPos.x, y: s.fleetPos.y },
+    pos: getCombatPlayerPos(),
+    heading: getCombatPlayerHeading(),
     hullCurrent: s.hullCurrent, hullMax: s.hullMax,
     armorCurrent: s.armorCurrent, armorMax: s.armorMax,
     fluxCurrent: s.fluxCurrent, fluxMax: s.fluxMax,
+    crCurrent: s.crCurrent, crMax: s.crMax,
     topSpeed: s.topSpeed,
     mounts,
   }
@@ -78,6 +88,7 @@ function snapshotEnemy(): EnemySnap | null {
     shipClassId: s.shipClassId,
     nameZh: s.nameZh,
     pos: { x: s.pos.x, y: s.pos.y },
+    heading: s.heading,
     hullCurrent: s.hullCurrent, hullMax: s.hullMax,
     armorCurrent: s.armorCurrent, armorMax: s.armorMax,
     fluxCurrent: s.fluxCurrent, fluxMax: s.fluxMax,
@@ -129,21 +140,39 @@ function ShipHud(props: { side: 'left' | 'right'; title: string; snap: PlayerSna
 }
 
 function playerVisual(p: PlayerSnap): PixiShipSnap {
+  // Shield alpha falls off as flux saturates so the player can read
+  // shield headroom from the ring fade.
+  const shieldHeadroom = p.fluxMax > 0 ? 1 - p.fluxCurrent / p.fluxMax : 0
   return {
     x: p.pos.x, y: p.pos.y,
-    ringRadius: 32, coreRadius: 14,
+    heading: p.heading,
+    hullRadius: 18,
+    shieldRadius: 32,
     color: 0x4ade80,
-    ringAlpha: p.fluxCurrent < p.fluxMax ? 0.7 : 0.15,
+    shieldAlpha: 0.15 + 0.55 * Math.max(0, shieldHeadroom),
   }
 }
 
 function enemyVisual(e: EnemySnap): PixiShipSnap {
+  const shieldHeadroom = e.fluxMax > 0 ? 1 - e.fluxCurrent / e.fluxMax : 0
   return {
     x: e.pos.x, y: e.pos.y,
-    ringRadius: 28, coreRadius: 12,
+    heading: e.heading,
+    hullRadius: 16,
+    shieldRadius: 28,
     color: 0xdc2626,
-    ringAlpha: e.shieldUp ? 0.7 : 0.15,
+    shieldAlpha: e.shieldUp ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
   }
+}
+
+function beamVisuals(): BeamFlashVisual[] {
+  return getBeamFlashes().map((b) => ({
+    id: b.id,
+    fromX: b.from.x, fromY: b.from.y,
+    toX: b.to.x, toY: b.to.y,
+    alpha: Math.max(0, 1 - b.ageMs / b.lifetimeMs),
+    ownerSide: b.ownerSide,
+  }))
 }
 
 export function TacticalView() {
@@ -176,6 +205,8 @@ export function TacticalView() {
             projectiles: projectiles.map((pj) => ({
               id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
             })),
+            beams: beamVisuals(),
+            playerTarget: useCombatStore.getState().playerTarget,
           })
         }
       }
