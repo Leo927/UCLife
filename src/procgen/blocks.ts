@@ -1,10 +1,12 @@
 // Sub-block → building assignment.
 //
-// Per-district greedy: process sub-blocks largest-first; for each, pick a
-// type that still has unmet `min`, falling back to types under `max`. Filter
-// out types that can't fit (size or cell-orientation constraint). The
-// largest-first sort ensures big mandatory types (e.g. airport) land in
-// blocks that can host them before smaller types claim everything.
+// Per-district greedy: process sub-blocks largest-first; for each, pack
+// up to `buildingsPerBlockMax` buildings flush along the chosen road wall,
+// advancing a frontage cursor after each placement. For each slot, pick a
+// type that still has unmet `min`, falling back to types under `max`.
+// Filter out types that can't fit (size or cell-orientation constraint).
+// The largest-first sort ensures big mandatory types (e.g. airport) land
+// in blocks that can host them before smaller types claim everything.
 
 import type { SeededRng } from './rng'
 import type { SubBlock, AdjacentRoad, Side } from './roads'
@@ -56,75 +58,82 @@ function pickDistrict(
   return best
 }
 
-// Try to size the building so it fits the sub-block. Returns null if the
-// type's min size doesn't fit or if the chosen orientation can't host the
-// cell count the type needs.
-function fitBuilding(
+// Try to size + position a building within the remaining frontage strip
+// of `sb`, starting at `cursorTiles` along the wall parallel to `doorSide`.
+// Buildings sit flush against that wall; the perpendicular axis is depth.
+// Returns null if the type's min size doesn't fit, the orientation can't
+// host the cell count the type needs, or the strip is exhausted.
+function fitBuildingInStrip(
   typeId: string,
   sb: SubBlock,
   doorSide: Side,
+  cursorTiles: number,
   rng: SeededRng,
-): { rect: { x: number; y: number; w: number; h: number } } | null {
+): { rect: { x: number; y: number; w: number; h: number }; frontageTiles: number } | null {
   const btype = getBuildingType(typeId)
-  if (isFixedSize(btype.size)) {
-    const w = btype.size.w
-    const h = btype.size.h
-    const sbWTiles = Math.floor(sb.rect.w / TILE)
-    const sbHTiles = Math.floor(sb.rect.h / TILE)
-    if (w > sbWTiles || h > sbHTiles) return null
-    return placeAlignedToDoor(sb, w, h, doorSide)
-  }
-
   const sbWTiles = Math.floor(sb.rect.w / TILE)
   const sbHTiles = Math.floor(sb.rect.h / TILE)
-  const effMaxW = Math.min(btype.size.maxW, sbWTiles)
-  const effMaxH = Math.min(btype.size.maxH, sbHTiles)
-  if (btype.size.minW > effMaxW || btype.size.minH > effMaxH) return null
+  const horizontal = doorSide === 'n' || doorSide === 's'
+  const frontageTotal = horizontal ? sbWTiles : sbHTiles
+  const depthTotal = horizontal ? sbHTiles : sbWTiles
+  const frontageMax = frontageTotal - cursorTiles
+  if (frontageMax <= 0) return null
 
-  let effMinW = btype.size.minW
-  let effMinH = btype.size.minH
-  if (btype.layout.algorithm === 'cells') {
-    const horizontal = doorSide === 'n' || doorSide === 's'
-    if (horizontal && btype.layout.minCells * 2 > effMaxW) return null
-    if (!horizontal && btype.layout.minCells * 3 > effMaxH) return null
-    // Clamp minimum so the chosen dimensions can always host minCells.
-    if (horizontal) effMinW = Math.max(effMinW, btype.layout.minCells * 2)
-    else effMinH = Math.max(effMinH, btype.layout.minCells * 3)
+  let buildFrontage: number
+  let buildDepth: number
+
+  if (isFixedSize(btype.size)) {
+    buildFrontage = horizontal ? btype.size.w : btype.size.h
+    buildDepth = horizontal ? btype.size.h : btype.size.w
+    if (buildFrontage > frontageMax || buildDepth > depthTotal) return null
+  } else {
+    const minFrontage = horizontal ? btype.size.minW : btype.size.minH
+    const maxFrontage = horizontal ? btype.size.maxW : btype.size.maxH
+    const minDepth = horizontal ? btype.size.minH : btype.size.minW
+    const maxDepth = horizontal ? btype.size.maxH : btype.size.maxW
+
+    let effMinFrontage = minFrontage
+    let effMinDepth = minDepth
+    const effMaxFrontage = Math.min(maxFrontage, frontageMax)
+    const effMaxDepth = Math.min(maxDepth, depthTotal)
+
+    if (btype.layout.algorithm === 'cells') {
+      // Horizontal corridor: cells need ≥2 tiles each along the frontage.
+      // Vertical corridor: cells need ≥3 tiles each along the frontage.
+      const cellMul = horizontal ? 2 : 3
+      if (btype.layout.minCells * cellMul > frontageMax) return null
+      effMinFrontage = Math.max(effMinFrontage, btype.layout.minCells * cellMul)
+    }
+
+    if (effMinFrontage > effMaxFrontage || effMinDepth > effMaxDepth) return null
+
+    buildFrontage = rng.intRange(effMinFrontage, effMaxFrontage)
+    buildDepth = rng.intRange(effMinDepth, effMaxDepth)
   }
 
-  const w = rng.intRange(effMinW, effMaxW)
-  const h = rng.intRange(effMinH, effMaxH)
-  return placeAlignedToDoor(sb, w, h, doorSide)
-}
-
-function placeAlignedToDoor(
-  sb: SubBlock,
-  buildWTiles: number,
-  buildHTiles: number,
-  doorSide: Side,
-): { rect: { x: number; y: number; w: number; h: number } } {
   const sbX = sb.rect.x / TILE
   const sbY = sb.rect.y / TILE
-  const sbW = sb.rect.w / TILE
-  const sbH = sb.rect.h / TILE
-
-  let bx = sbX
-  let by = sbY
+  let bx: number
+  let by: number
   if (doorSide === 'n') {
+    bx = sbX + cursorTiles
     by = sbY
-    bx = sbX + Math.floor((sbW - buildWTiles) / 2)
   } else if (doorSide === 's') {
-    by = sbY + sbH - buildHTiles
-    bx = sbX + Math.floor((sbW - buildWTiles) / 2)
+    bx = sbX + cursorTiles
+    by = sbY + sbHTiles - buildDepth
   } else if (doorSide === 'w') {
     bx = sbX
-    by = sbY + Math.floor((sbH - buildHTiles) / 2)
+    by = sbY + cursorTiles
   } else {
-    bx = sbX + sbW - buildWTiles
-    by = sbY + Math.floor((sbH - buildHTiles) / 2)
+    bx = sbX + sbWTiles - buildDepth
+    by = sbY + cursorTiles
   }
+
+  const buildWTiles = horizontal ? buildFrontage : buildDepth
+  const buildHTiles = horizontal ? buildDepth : buildFrontage
   return {
     rect: { x: bx * TILE, y: by * TILE, w: buildWTiles * TILE, h: buildHTiles * TILE },
+    frontageTiles: buildFrontage,
   }
 }
 
@@ -176,73 +185,81 @@ export function assignBuildings(
     const blocks = buckets.get(district.id) ?? []
     const placedCount = new Map<string, number>()
     for (const t of district.types) placedCount.set(t.id, 0)
+    const perBlockMax = Math.max(1, district.buildingsPerBlockMax ?? 1)
 
     for (const sb of blocks) {
       const door = pickDoorSide(sb.adjacentRoads)
       if (!door) continue
 
-      // Build candidate list: (type entry, fit). Filter to fitting types.
-      type Candidate = { entry: DistrictTypeEntry; rect: { x: number; y: number; w: number; h: number } }
-      const candidates: Candidate[] = []
-      for (const entry of district.types) {
-        const placed = placedCount.get(entry.id)!
-        const max = entry.max ?? Infinity
-        if (placed >= max) continue
-        const fit = fitBuilding(entry.id, sb, door.side, rng)
-        if (!fit) continue
-        candidates.push({ entry, rect: fit.rect })
-      }
-      if (candidates.length === 0) continue
+      let cursorTiles = 0
+      for (let placed = 0; placed < perBlockMax; placed++) {
+        type Candidate = {
+          entry: DistrictTypeEntry
+          rect: { x: number; y: number; w: number; h: number }
+          frontageTiles: number
+        }
+        const candidates: Candidate[] = []
+        for (const entry of district.types) {
+          const placedCnt = placedCount.get(entry.id)!
+          const max = entry.max ?? Infinity
+          if (placedCnt >= max) continue
+          const fit = fitBuildingInStrip(entry.id, sb, door.side, cursorTiles, rng)
+          if (!fit) continue
+          candidates.push({ entry, rect: fit.rect, frontageTiles: fit.frontageTiles })
+        }
+        if (candidates.length === 0) break
 
-      // Prefer types with unmet min. Among those, the one with the
-      // largest min footprint goes first, so airport (8×6) claims a big
-      // block before shop (6×4) takes everything for itself. Within the
-      // same footprint band, randomize.
-      const mustPlace = candidates.filter((c) => {
-        const placed = placedCount.get(c.entry.id)!
-        const min = c.entry.min ?? 0
-        return placed < min
-      })
-      let chosen: Candidate
-      if (mustPlace.length > 0) {
-        const sized = mustPlace
-          .map((c) => ({ c, area: minFootprint(c.entry.id) }))
-          .sort((a, b) => b.area - a.area)
-        const topArea = sized[0].area
-        const tied = sized.filter((s) => s.area === topArea).map((s) => s.c)
-        chosen = tied[rng.intRange(0, tied.length - 1)]
-      } else {
-        chosen = candidates[rng.intRange(0, candidates.length - 1)]
-      }
+        // Prefer types with unmet min. Among those, the one with the
+        // largest min footprint goes first, so airport (8×6) claims a big
+        // block before shop (6×4) takes everything for itself. Within the
+        // same footprint band, randomize.
+        const mustPlace = candidates.filter((c) => {
+          const placedCnt = placedCount.get(c.entry.id)!
+          const min = c.entry.min ?? 0
+          return placedCnt < min
+        })
+        let chosen: Candidate
+        if (mustPlace.length > 0) {
+          const sized = mustPlace
+            .map((c) => ({ c, area: minFootprint(c.entry.id) }))
+            .sort((a, b) => b.area - a.area)
+          const topArea = sized[0].area
+          const tied = sized.filter((s) => s.area === topArea).map((s) => s.c)
+          chosen = tied[rng.intRange(0, tied.length - 1)]
+        } else {
+          chosen = candidates[rng.intRange(0, candidates.length - 1)]
+        }
 
-      const wallTiles = (door.side === 'n' || door.side === 's')
-        ? chosen.rect.w / TILE
-        : chosen.rect.h / TILE
-      const primaryOffsetPx = pickDoorOffset(wallTiles, rng)
-      const primaryDoor: DoorPlacement = {
-        side: door.side, offsetPx: primaryOffsetPx, widthPx: TILE,
-      }
-
-      const btype = getBuildingType(chosen.entry.id)
-      const extraDoors: DoorPlacement[] = []
-      if (btype.layout.algorithm === 'open_floor' && btype.layout.extraDoors) {
-        const oppSide = oppositeOf(door.side)
-        const oppWallTiles = (oppSide === 'n' || oppSide === 's')
+        const wallTiles = (door.side === 'n' || door.side === 's')
           ? chosen.rect.w / TILE
           : chosen.rect.h / TILE
-        for (const ed of btype.layout.extraDoors) {
-          const off = ed.tiedToPrimary
-            ? primaryOffsetPx
-            : pickDoorOffset(oppWallTiles, rng)
-          extraDoors.push({ side: oppSide, offsetPx: off, widthPx: TILE })
+        const primaryOffsetPx = pickDoorOffset(wallTiles, rng)
+        const primaryDoor: DoorPlacement = {
+          side: door.side, offsetPx: primaryOffsetPx, widthPx: TILE,
         }
-      }
 
-      result.push({
-        typeId: chosen.entry.id,
-        slot: { rect: chosen.rect, primaryDoor, extraDoors },
-      })
-      placedCount.set(chosen.entry.id, (placedCount.get(chosen.entry.id) ?? 0) + 1)
+        const btype = getBuildingType(chosen.entry.id)
+        const extraDoors: DoorPlacement[] = []
+        if (btype.layout.algorithm === 'open_floor' && btype.layout.extraDoors) {
+          const oppSide = oppositeOf(door.side)
+          const oppWallTiles = (oppSide === 'n' || oppSide === 's')
+            ? chosen.rect.w / TILE
+            : chosen.rect.h / TILE
+          for (const ed of btype.layout.extraDoors) {
+            const off = ed.tiedToPrimary
+              ? primaryOffsetPx
+              : pickDoorOffset(oppWallTiles, rng)
+            extraDoors.push({ side: oppSide, offsetPx: off, widthPx: TILE })
+          }
+        }
+
+        result.push({
+          typeId: chosen.entry.id,
+          slot: { rect: chosen.rect, primaryDoor, extraDoors },
+        })
+        placedCount.set(chosen.entry.id, (placedCount.get(chosen.entry.id) ?? 0) + 1)
+        cursorTiles += chosen.frontageTiles
+      }
     }
   }
 

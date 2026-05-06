@@ -73,3 +73,74 @@ describe('assignBuildings — apartment cell sizing', () => {
     }
   })
 })
+
+function rectsOverlap(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x
+    && a.y < b.y + b.h && a.y + a.h > b.y
+}
+
+function rectInside(
+  inner: { x: number; y: number; w: number; h: number },
+  outer: { x: number; y: number; w: number; h: number },
+): boolean {
+  return inner.x >= outer.x
+    && inner.y >= outer.y
+    && inner.x + inner.w <= outer.x + outer.w
+    && inner.y + inner.h <= outer.y + outer.h
+}
+
+describe('assignBuildings — buildingsPerBlockMax', () => {
+  // 30×16-tile sub-block — wide enough to host several apartment frontages
+  // (apartment minW = 8 along a south-door wall) side by side.
+  const wideSouthSb: SubBlock = {
+    rect: { x: 0, y: 0, w: 30 * TILE, h: 16 * TILE },
+    adjacentRoads: [{ side: 's', kind: 'street' }],
+  }
+
+  it('packs more than one building when buildingsPerBlockMax > 1', () => {
+    const district: DistrictConfig = {
+      id: 'test',
+      rect: { x: 0, y: 0, w: 100, h: 100 },
+      types: [{ id: 'apartment' }],
+      buildingsPerBlockMax: 4,
+    }
+    let sawMultiple = false
+    for (let seed = 0; seed < 30; seed++) {
+      const buildings = assignBuildings(
+        procgenRect, [wideSouthSb], [district], SeededRng.fromNumber(seed),
+      )
+      if (buildings.length > 1) sawMultiple = true
+      // Every building stays inside the sub-block.
+      for (const b of buildings) {
+        expect(rectInside(b.slot.rect, wideSouthSb.rect), `seed=${seed} inside`).toBe(true)
+      }
+      // No two buildings in the same sub-block overlap.
+      for (let i = 0; i < buildings.length; i++) {
+        for (let j = i + 1; j < buildings.length; j++) {
+          expect(
+            rectsOverlap(buildings[i].slot.rect, buildings[j].slot.rect),
+            `seed=${seed} buildings ${i}/${j} overlap`,
+          ).toBe(false)
+        }
+      }
+    }
+    expect(sawMultiple, 'buildingsPerBlockMax=4 should produce >1 building on at least one seed').toBe(true)
+  })
+
+  it('still places exactly one building per sub-block when buildingsPerBlockMax is unset (default 1)', () => {
+    const district: DistrictConfig = {
+      id: 'test',
+      rect: { x: 0, y: 0, w: 100, h: 100 },
+      types: [{ id: 'apartment' }],
+    }
+    for (let seed = 0; seed < 20; seed++) {
+      const buildings = assignBuildings(
+        procgenRect, [wideSouthSb], [district], SeededRng.fromNumber(seed),
+      )
+      expect(buildings.length, `seed=${seed}`).toBeLessThanOrEqual(1)
+    }
+  })
+})
