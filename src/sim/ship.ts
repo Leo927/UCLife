@@ -4,6 +4,7 @@
 
 import { getWorld } from '../ecs/world'
 import { Ship } from '../ecs/traits'
+import { useDebug } from '../debug/store'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -23,6 +24,7 @@ export function getShipState() {
 export function spendFuel(amount: number): boolean {
   const ent = getPlayerShipEntity()
   if (!ent) return false
+  if (useDebug.getState().infiniteFuelSupply) return true
   const s = ent.get(Ship)!
   if (s.fuelCurrent < amount) return false
   ent.set(Ship, { ...s, fuelCurrent: s.fuelCurrent - amount })
@@ -32,9 +34,18 @@ export function spendFuel(amount: number): boolean {
 export function spendSupplies(amount: number): boolean {
   const ent = getPlayerShipEntity()
   if (!ent) return false
+  if (useDebug.getState().infiniteFuelSupply) return true
   const s = ent.get(Ship)!
   if (s.suppliesCurrent < amount) return false
   ent.set(Ship, { ...s, suppliesCurrent: s.suppliesCurrent - amount })
+  return true
+}
+
+export function refillFuelAndSupplies(): boolean {
+  const ent = getPlayerShipEntity()
+  if (!ent) return false
+  const s = ent.get(Ship)!
+  ent.set(Ship, { ...s, fuelCurrent: s.fuelMax, suppliesCurrent: s.suppliesMax })
   return true
 }
 

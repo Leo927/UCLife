@@ -11,14 +11,17 @@ import type { FactionId } from '../data/factions'
 import { addRep } from '../systems/reputation'
 import { boardShip } from '../sim/scene'
 import { takeHelm } from '../sim/helm'
+import { refillFuelAndSupplies, getShipState } from '../sim/ship'
 
 export function DebugPanel() {
   const open = useDebug((s) => s.panelOpen)
   const setOpen = useDebug((s) => s.setPanel)
   const alwaysHyperspeed = useDebug((s) => s.alwaysHyperspeed)
   const freezeNeeds = useDebug((s) => s.freezeNeeds)
+  const infiniteFuelSupply = useDebug((s) => s.infiniteFuelSupply)
   const setAlways = useDebug((s) => s.setAlwaysHyperspeed)
   const setFreeze = useDebug((s) => s.setFreezeNeeds)
+  const setInfiniteFuelSupply = useDebug((s) => s.setInfiniteFuelSupply)
   const moneyGift = useDebug((s) => s.moneyGift)
   const skillLevelGift = useDebug((s) => s.skillLevelGift)
   const repGift = useDebug((s) => s.repGift)
@@ -134,6 +137,23 @@ export function DebugPanel() {
               type="checkbox"
               checked={freezeNeeds}
               onChange={(e) => setFreeze(e.target.checked)}
+            />
+          </label>
+          <label className="debug-row">
+            <span className="debug-row-label">无限燃料与补给</span>
+            <span className="debug-row-desc">飞船燃料、补给消耗归零；开启时立即回满</span>
+            <input
+              className="debug-toggle"
+              type="checkbox"
+              checked={infiniteFuelSupply}
+              onChange={(e) => {
+                const next = e.target.checked
+                setInfiniteFuelSupply(next)
+                if (next && getShipState()) {
+                  refillFuelAndSupplies()
+                  useUI.getState().showToast('燃料与补给已回满 · 消耗已锁定')
+                }
+              }}
             />
           </label>
           <div className="debug-row">

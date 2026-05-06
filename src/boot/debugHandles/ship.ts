@@ -7,9 +7,10 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld } from '../../ecs/world'
 import { IsPlayer, Position, Course } from '../../ecs/traits'
 import { boardShip, disembarkShip } from '../../sim/scene'
-import { getShipState } from '../../sim/ship'
+import { getShipState, refillFuelAndSupplies } from '../../sim/ship'
 import { takeHelm } from '../../sim/helm'
 import { spaceSimSystem } from '../../systems/spaceSim'
+import { useDebug } from '../../debug/store'
 
 registerDebugHandle('boardShip', boardShip)
 registerDebugHandle('disembarkShip', disembarkShip)
@@ -50,4 +51,10 @@ registerDebugHandle('moveShipTo', (x: number, y: number) => {
   if (!e) return false
   e.set(Position, { x, y })
   return true
+})
+
+registerDebugHandle('setInfiniteFuelSupply', (enabled: boolean = true) => {
+  useDebug.getState().setInfiniteFuelSupply(enabled)
+  if (enabled) refillFuelAndSupplies()
+  return enabled
 })

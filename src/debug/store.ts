@@ -8,6 +8,7 @@ interface DebugState {
   panelOpen: boolean
   alwaysHyperspeed: boolean
   freezeNeeds: boolean
+  infiniteFuelSupply: boolean
   // Drives the player entity via NPC behavior trees so long-running
   // scenarios can run unattended.
   playerAutoAI: boolean
@@ -26,6 +27,7 @@ interface DebugState {
   setPanel: (open: boolean) => void
   setAlwaysHyperspeed: (b: boolean) => void
   setFreezeNeeds: (b: boolean) => void
+  setInfiniteFuelSupply: (b: boolean) => void
   setPlayerAutoAI: (b: boolean) => void
   setSuperSpeed: (n: number) => void
   setLogNpcs: (b: boolean) => void
@@ -40,6 +42,7 @@ export const useDebug = create<DebugState>((set) => ({
   panelOpen: false,
   alwaysHyperspeed: false,
   freezeNeeds: false,
+  infiniteFuelSupply: false,
   playerAutoAI: false,
   superSpeed: 1,
   logNpcs: false,
@@ -52,6 +55,7 @@ export const useDebug = create<DebugState>((set) => ({
   setPanel: (open) => set({ panelOpen: open }),
   setAlwaysHyperspeed: (b) => set({ alwaysHyperspeed: b }),
   setFreezeNeeds: (b) => set({ freezeNeeds: b }),
+  setInfiniteFuelSupply: (b) => set({ infiniteFuelSupply: b }),
   setPlayerAutoAI: (b) => set({ playerAutoAI: b }),
   setSuperSpeed: (n) => set({ superSpeed: Math.max(1, n) }),
   setLogNpcs: (b) => set({ logNpcs: b }),

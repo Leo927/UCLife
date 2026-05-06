@@ -25,7 +25,7 @@ export function Hud() {
   const setSpeed = useClock((s) => s.setSpeed)
   const mode = useClock((s) => s.mode)
   const toggleDebug = useDebug((s) => s.togglePanel)
-  const debugActive = useDebug((s) => s.alwaysHyperspeed || s.freezeNeeds)
+  const debugActive = useDebug((s) => s.alwaysHyperspeed || s.freezeNeeds || s.infiniteFuelSupply)
   const toggleSystem = useUI((s) => s.toggleSystem)
   const toggleMap = useUI((s) => s.toggleMap)
   const player = useQueryFirst(IsPlayer, Position)
