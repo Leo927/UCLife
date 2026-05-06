@@ -1,6 +1,5 @@
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
-import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
 
@@ -19,41 +18,23 @@ page.on('console', (m) => {
 const failures = []
 const fail = (msg) => failures.push(msg)
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(800)
+await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(() => !!globalThis.__uclife__?.getAmbitions, null, { timeout: 30000 })
 
-// ── Step 1: forced picker should have auto-opened ────────────────────────
-const pickerOverlay = page.locator('.status-overlay[data-ambition-picker="forced"]')
-try {
-  await pickerOverlay.waitFor({ state: 'visible', timeout: 3000 })
-} catch {
-  fail('forced picker did not auto-open within 3s')
-}
-const closeBtnCount = await pickerOverlay.locator('.status-close').count()
-if (closeBtnCount !== 0) fail('forced picker should not render a close button')
-await page.screenshot({ path: 'scripts/out/ambition-picker.png', fullPage: false })
+// ── Step 1: panel must NOT auto-open; player should already have a default ──
+const overlayCount = await page.locator('.status-overlay').count()
+if (overlayCount !== 0) fail(`no overlay should auto-open at start, got ${overlayCount}`)
 
-// ── Step 2: pick mw_pilot + lazlos_owner via __uclife__ ──────────────────
+const initial = await page.evaluate(() => globalThis.__uclife__.getAmbitions())
+if (!initial?.active?.length) fail('player should boot with a pre-seeded ambition slot')
+
+// ── Step 2: replace the placeholder with mw_pilot + lazlos_owner ──
 await page.evaluate(() => {
   return globalThis.__uclife__.pickAmbitions(['mw_pilot', 'lazlos_owner'])
 })
-await page.waitForTimeout(300)
-// Forced overlay should disappear once active.length === 2.
-const stillForced = await page.locator('.status-overlay[data-ambition-picker="forced"]').count()
-if (stillForced !== 0) fail('forced picker still visible after picking 2 ambitions')
-
-// Close the panel (it stays open in view mode).
-const setOpen = await page.evaluate(() => {
-  globalThis.__uclife__.useClock // touch to ensure handle present
-  return true
-})
-if (!setOpen) fail('__uclife__ handle missing')
-await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(false) })
-await page.waitForTimeout(150)
 
 // ── Step 3: pause, then mutate stats so mw_pilot stage 1 thresholds clear ──
 await page.locator('.hud-controls button', { hasText: '暂停' }).click().catch(() => {})
-await page.waitForTimeout(200)
 
 await page.evaluate(() => {
   globalThis.__uclife__.setPlayerStat('attributes.reflex', 35)
@@ -65,7 +46,6 @@ await page.evaluate(() => {
   globalThis.__uclife__.advanceGameDays(1)
   globalThis.__uclife__.runAmbitionsTick()
 })
-await page.waitForTimeout(200)
 
 // ── Step 5: assert title + log + active[0].currentStage ─────────────────
 const after = await page.evaluate(() => {
@@ -89,57 +69,35 @@ else if (mwSlot.currentStage !== 1) {
 const stageLog = after.log.find((e) => e.textZh.includes('体检合格'))
 if (!stageLog) fail('expected stage-1 log line not found in event log')
 
-// ── Step 6: open panel, screenshot view mode ─────────────────────────────
+// ── Step 6: open panel manually, screenshot view mode ───────────────────
 await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(true) })
-await page.waitForTimeout(200)
+await page.waitForFunction(() => !!document.querySelector('.status-panel'))
 await page.screenshot({ path: 'scripts/out/ambition-view.png', fullPage: false })
 
 const titleEl = await page.locator('[data-player-title]').first().textContent().catch(() => null)
 if (!titleEl || !titleEl.includes(expectedTitle)) {
-  // Title is rendered in StatusPanel, which is a separate panel. Open status to verify.
   await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(false); window.uclifeUI.getState().setStatus(true) })
-  await page.waitForTimeout(200)
+  await page.waitForFunction(() => !!document.querySelector('.status-panel'))
   const t2 = await page.locator('[data-player-title]').first().textContent().catch(() => null)
   if (!t2 || !t2.includes(expectedTitle)) {
     fail(`StatusPanel title element does not contain '${expectedTitle}': got '${t2}'`)
   }
   await page.evaluate(() => { window.uclifeUI.getState().setStatus(false); window.uclifeUI.getState().setAmbitions(true) })
-  await page.waitForTimeout(150)
 }
 
 // ── Step 7: save → reload → load → assert persistence ──────────────────
 await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(false) })
-await page.waitForTimeout(150)
 
-const openSystem = async () => {
-  await page.locator('button.hud-system').click()
-  await page.waitForTimeout(300)
-}
-const closeSystem = async () => {
-  await page.locator('.status-overlay').first().click({ position: { x: 5, y: 5 } }).catch(() => {})
-  await page.waitForTimeout(200)
-}
-const slotRow = (label) => page.locator('.debug-row', {
-  has: page.locator('.debug-row-label', { hasText: label })
-})
+await page.evaluate(async () => { await globalThis.__uclife__.saveGame(1) })
 
-await openSystem()
-await slotRow('存档 1').locator('button.debug-action', { hasText: '保存' }).click()
-await page.waitForTimeout(800)
-await closeSystem()
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForFunction(() => !!globalThis.__uclife__?.getAmbitions, null, { timeout: 30000 })
 
-// Reload page entirely to prove persistence survives a fresh load.
-await page.reload({ waitUntil: 'networkidle' })
-await page.waitForTimeout(1000)
-
-// On reload, the player has 0 ambitions (fresh world) so the forced picker
-// reappears and intercepts every click. Dismiss it so the system menu can
-// open, then load slot 1 to restore the saved ambitions.
-await dismissAmbitionPicker(page)
-await openSystem()
-await slotRow('存档 1').locator('button.debug-action', { hasText: '读档' }).click()
-await page.waitForTimeout(1500)
-await closeSystem()
+await page.evaluate(async () => { await globalThis.__uclife__.loadGame(1) })
+await page.waitForFunction(() => {
+  const a = globalThis.__uclife__?.getAmbitions()
+  return a?.active?.some((s) => s.id === 'mw_pilot' && s.currentStage === 1)
+}, null, { timeout: 10000 })
 
 const restored = await page.evaluate(() => globalThis.__uclife__.getAmbitions())
 const mwSlot2 = restored?.active?.find((s) => s.id === 'mw_pilot')

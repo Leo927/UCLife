@@ -1,5 +1,4 @@
 import { chromium } from 'playwright'
-import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 // Phase 4.0 multi-condition smoke test.
 //
@@ -32,7 +31,6 @@ const fail = (msg) => failures.push(msg)
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => globalThis.__uclife__?.physiologyForceOnset !== undefined)
-await dismissAmbitionPicker(page)
 await page.evaluate(() => { globalThis.__uclife__.useClock?.getState?.()?.setSpeed?.(0) })
 
 // 1. Onset both.

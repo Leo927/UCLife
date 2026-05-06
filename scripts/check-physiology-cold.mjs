@@ -1,5 +1,4 @@
 import { chromium } from 'playwright'
-import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 // Phase 4.0 cold lifecycle smoke test.
 //
@@ -36,7 +35,6 @@ const fail = (msg) => failures.push(msg)
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => globalThis.__uclife__?.physiologyForceOnset !== undefined)
-await dismissAmbitionPicker(page)
 
 // Pause the game so the day rollover can't fire from the RAF loop.
 await page.evaluate(() => { globalThis.__uclife__.useClock?.getState?.()?.setSpeed?.(0) })

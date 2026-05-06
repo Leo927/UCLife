@@ -49,16 +49,16 @@ describe('sim/events typed dispatch', () => {
   })
 
   it('routes empty payloads for marker events', () => {
-    const onSlotEmpty = vi.fn()
     const onShop = vi.fn()
-    cleanups.push(onSim('ambitions:slot-empty', onSlotEmpty))
+    const onShipDealer = vi.fn()
     cleanups.push(onSim('ui:open-shop', onShop))
+    cleanups.push(onSim('ui:open-ship-dealer', onShipDealer))
 
-    emitSim('ambitions:slot-empty', {})
     emitSim('ui:open-shop', {})
+    emitSim('ui:open-ship-dealer', {})
 
-    expect(onSlotEmpty).toHaveBeenCalledWith({})
     expect(onShop).toHaveBeenCalledWith({})
+    expect(onShipDealer).toHaveBeenCalledWith({})
   })
 
   it('routes ui:open-* payloads with their typed fields', () => {

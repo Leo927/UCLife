@@ -1,5 +1,4 @@
 import { chromium } from 'playwright'
-import { dismissAmbitionPicker } from './lib/dismissPicker.mjs'
 
 const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
 const browser = await chromium.launch()
@@ -14,7 +13,6 @@ page.on('console', (m) => {
 
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(800)
-await dismissAmbitionPicker(page)
 
 await page.locator('button.hud-system').click()
 await page.waitForTimeout(300)

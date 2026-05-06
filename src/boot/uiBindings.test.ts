@@ -67,22 +67,6 @@ describe('boot/uiBindings', () => {
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
-  it('ambitions:slot-empty opens the picker when closed', async () => {
-    const { emitSim, useUI } = await setup()
-    expect(useUI.getState().ambitionsOpen).toBe(false)
-    emitSim('ambitions:slot-empty', {})
-    expect(useUI.getState().ambitionsOpen).toBe(true)
-  })
-
-  it('ambitions:slot-empty does not re-toggle when already open', async () => {
-    const { emitSim, useUI } = await setup()
-    useUI.setState({ ambitionsOpen: true })
-    const setAmbitions = vi.spyOn(useUI.getState(), 'setAmbitions')
-    emitSim('ambitions:slot-empty', {})
-    expect(setAmbitions).not.toHaveBeenCalled()
-    expect(useUI.getState().ambitionsOpen).toBe(true)
-  })
-
   it('ui:open-shop sets shopOpen', async () => {
     const { emitSim, useUI } = await setup()
     emitSim('ui:open-shop', {})
@@ -123,14 +107,10 @@ describe('boot/uiBindings', () => {
     bindUi()
     bindUi()
     const { emitSim } = await import('../sim/events')
+    useUI.setState({ shopOpen: false })
+    const spy = vi.spyOn(useUI.getState(), 'setShop')
     emitSim('ui:open-shop', {})
-    expect(useUI.getState().shopOpen).toBe(true)
-    // If bindUi had registered a second subscriber, showToast et al. would
-    // still be a single store call and toggle once — but we can prove
-    // duplication didn't happen via setAmbitions counting.
-    useUI.setState({ ambitionsOpen: false })
-    const spy = vi.spyOn(useUI.getState(), 'setAmbitions')
-    emitSim('ambitions:slot-empty', {})
     expect(spy).toHaveBeenCalledTimes(1)
+    expect(useUI.getState().shopOpen).toBe(true)
   })
 })
