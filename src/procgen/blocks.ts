@@ -81,14 +81,19 @@ function fitBuilding(
   const effMaxH = Math.min(btype.size.maxH, sbHTiles)
   if (btype.size.minW > effMaxW || btype.size.minH > effMaxH) return null
 
+  let effMinW = btype.size.minW
+  let effMinH = btype.size.minH
   if (btype.layout.algorithm === 'cells') {
     const horizontal = doorSide === 'n' || doorSide === 's'
     if (horizontal && btype.layout.minCells * 2 > effMaxW) return null
     if (!horizontal && btype.layout.minCells * 3 > effMaxH) return null
+    // Clamp minimum so the chosen dimensions can always host minCells.
+    if (horizontal) effMinW = Math.max(effMinW, btype.layout.minCells * 2)
+    else effMinH = Math.max(effMinH, btype.layout.minCells * 3)
   }
 
-  const w = rng.intRange(btype.size.minW, effMaxW)
-  const h = rng.intRange(btype.size.minH, effMaxH)
+  const w = rng.intRange(effMinW, effMaxW)
+  const h = rng.intRange(effMinH, effMaxH)
   return placeAlignedToDoor(sb, w, h, doorSide)
 }
 
