@@ -6,6 +6,7 @@ import { Not } from 'koota'
 import { Character, Health, IsPlayer } from '../ecs/traits'
 import { spawnNPC } from '../character/spawn'
 import { populationConfig, worldConfig } from '../config'
+import type { ReplenishmentConfig } from '../data/scenes'
 import {
   pickFreshName, pickRandomColor,
   getAnonymousCounter, setAnonymousCounter, resetNameGen,
@@ -13,18 +14,13 @@ import {
 
 const TILE = worldConfig.tilePx
 
-// Same walkable street tile as the player's homeless spawn. Update here
-// if the sector layout makes this tile interior or unreachable.
-const ARRIVAL_X = TILE * 20
-const ARRIVAL_Y = TILE * 16
-
-// Initial-scene only: loop.ts gates this call on activeSceneId === initialSceneId
-// because ARRIVAL_X/Y is the startTown homeless-spawn street tile. Running it on
-// the ship interior or other scenes would drop immigrants inside those envelopes.
-// The save format encodes immigrantCounter as a single global counter — splitting
-// per-world would force a save migration with no correctness benefit, since
-// EntityKeys must be unique across the whole save (see character/spawn.ts:
-// spawnNPC uses npc-imm-N keys).
+// loop.ts looks up the active scene's replenishment config and only invokes
+// this system when one is declared, so any scene without a `replenishment`
+// field (ship interiors, space sectors) is silently skipped. The save format
+// keeps immigrantCounter as a single global counter — splitting per-world
+// would force a save migration with no correctness benefit, since EntityKeys
+// must be unique across the whole save (see character/spawn.ts: spawnNPC
+// uses npc-imm-N keys).
 let lastSpawnGameMs: number | null = null
 
 // Persisted in saves so reload doesn't reuse keys from prior immigrants.
@@ -54,14 +50,16 @@ export function setPopulationState(s: {
   immigrantCounter = s.immigrantCounter
 }
 
-export function populationSystem(world: World, gameDate: Date): void {
-  const target = populationConfig.target
-
+export function populationSystem(
+  world: World,
+  gameDate: Date,
+  config: ReplenishmentConfig,
+): void {
   let alive = 0
   for (const e of world.query(Character, Health, Not(IsPlayer))) {
     if (!e.get(Health)!.dead) alive += 1
   }
-  if (alive >= target) return
+  if (alive >= config.target) return
 
   const nowMs = gameDate.getTime()
   if (lastSpawnGameMs === null) {
@@ -77,8 +75,8 @@ export function populationSystem(world: World, gameDate: Date): void {
     name: pickFreshName(world),
     color: pickRandomColor(),
     title: '市民',
-    x: ARRIVAL_X,
-    y: ARRIVAL_Y,
+    x: config.arrivalTile.x * TILE,
+    y: config.arrivalTile.y * TILE,
     money: 50 + Math.floor(Math.random() * 100),
     key: `npc-imm-${immigrantCounter}`,
   })

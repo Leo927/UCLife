@@ -18,6 +18,11 @@
 //                 for the first scene in declaration order.
 //
 // Fields (micro scenes):
+//   replenishment — opt-in NPC auto-spawn config. Omit to disable. Fields:
+//                   target (alive-NPC count to maintain) and arrivalTile
+//                   (walkable street tile, in this scene's tile-space, where
+//                   each new immigrant appears). Throttle interval is global
+//                   (config/population.json5: replenishIntervalMin).
 //   procgenZones — array of road-based city generators, one per spatially
 //                  distinct sector. Zone rects must not overlap each other
 //                  or any fixedBuilding rect (the road carver doesn't know
@@ -57,6 +62,13 @@
       // West of the central procgen zone, on open ground. Player walks east
       // into the city's road network.
       playerSpawnTile: { x: 20, y: 50 },
+
+      // Same walkable street tile the homeless player spawns on — keeps
+      // immigrants on the road network so their first BT tick has a path.
+      replenishment: {
+        target: 30,
+        arrivalTile: { x: 20, y: 16 },
+      },
 
       procgenZones: [
         // ── Von Braun central district ────────────────────────────────────

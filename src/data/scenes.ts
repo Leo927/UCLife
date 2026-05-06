@@ -45,6 +45,17 @@ export type FixedBuildingRef = {
   tile: { x: number; y: number }
 }
 
+// Per-scene NPC replenishment. Absence of this field means the scene never
+// auto-spawns immigrants. Required values:
+//   target      — alive-NPC count to maintain (excluding the player).
+//   arrivalTile — where each new immigrant spawns, in this scene's tile-space.
+//                 Must be a walkable street tile inside the scene envelope.
+// Throttle (replenishIntervalMin) stays global — see config/population.json5.
+export interface ReplenishmentConfig {
+  target: number
+  arrivalTile: { x: number; y: number }
+}
+
 export interface MicroSceneConfig {
   id: string
   titleZh: string
@@ -59,6 +70,7 @@ export interface MicroSceneConfig {
   // road carver still doesn't know about holes.
   procgenZones?: ProcgenConfig[]
   fixedBuildings?: FixedBuildingRef[]
+  replenishment?: ReplenishmentConfig
 }
 
 export interface ShipSceneConfig {
@@ -111,6 +123,20 @@ for (const s of parsed.scenes) {
     if (!cls.rooms.some((r) => r.id === s.playerSpawnRoomId)) {
       throw new Error(
         `scenes.json5: scene "${s.id}" playerSpawnRoomId "${s.playerSpawnRoomId}" is not a room of ship class "${s.shipClassId}"`,
+      )
+    }
+  }
+  if (s.sceneType === 'micro' && s.replenishment) {
+    const r = s.replenishment
+    if (!Number.isFinite(r.target) || r.target < 0) {
+      throw new Error(
+        `scenes.json5: scene "${s.id}" replenishment.target must be a non-negative number`,
+      )
+    }
+    const t = r.arrivalTile
+    if (t.x < 0 || t.y < 0 || t.x >= s.tilesX || t.y >= s.tilesY) {
+      throw new Error(
+        `scenes.json5: scene "${s.id}" replenishment.arrivalTile (${t.x},${t.y}) is outside the ${s.tilesX}x${s.tilesY} envelope`,
       )
     }
   }

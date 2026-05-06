@@ -1,14 +1,8 @@
-// Population management — how the city replenishes itself when NPCs die.
-// populationSystem reads these values to decide when to spawn a new immigrant.
+// Global pacing for NPC replenishment. Per-scene target + arrivalTile live
+// on each scene's `replenishment` field in src/data/scenes.json5; this file
+// only holds the spawn throttle, which is shared across whichever scene is
+// currently replenishing.
 {
-  // Target living-NPC count (excluding the player). When the head count falls
-  // below this, populationSystem schedules a new arrival, throttled by
-  // replenishIntervalMin so the city doesn't suddenly snap back after a mass
-  // die-off. Raise this to make the city denser; the existing job/bed slots
-  // will run out around the count of available workstations + beds and
-  // surplus NPCs will stay homeless/jobless.
-  target: 30,
-
   // Minimum game-minutes between successive immigrant spawns. 360 = one
   // arrival every 6 game-hours, so a fully-emptied city refills over ~4
   // game-days. Setting this very small turns deaths into instant respawns

@@ -56,6 +56,7 @@ async function main() {
     { relationsSystem },
     { activeZoneSystem },
     { hpaStats, resetHpaStats },
+    { getSceneConfig, initialSceneId },
   ] = await Promise.all([
     import('../src/ecs/world'),
     import('../src/ecs/spawn'),
@@ -72,7 +73,15 @@ async function main() {
     import('../src/systems/relations'),
     import('../src/systems/activeZone'),
     import('../src/systems/hpa'),
+    import('../src/data/scenes'),
   ])
+
+  const initialScene = getSceneConfig(initialSceneId)
+  const replenishment =
+    initialScene.sceneType === 'micro' ? initialScene.replenishment : undefined
+  if (!replenishment) {
+    throw new Error(`perf-survive harness expects scene "${initialSceneId}" to declare replenishment`)
+  }
   hpaStats.enabled = process.env.HPA_PROF === '1'
 
   // Quiet the verbose [social] log — at high N it dominates wall-clock. Don't
@@ -120,8 +129,8 @@ async function main() {
   const startTime = performance.now()
   let lastReportTime = startTime
   // setKeepCorpses(false) destroys dead bodies, so we can't count `dead`
-  // directly. populationSystem only replenishes when alive < target (default
-  // 83), so above target the alive-delta IS the death count for the day.
+  // directly. populationSystem only replenishes when alive < scene target,
+  // so above target the alive-delta IS the death count for the day.
   let lastDayAlive = (() => { let n = 0; for (const e of world.query(Character, Health)) if (!e.get(Health)!.dead) n++; return n })()
   const startAlive = lastDayAlive
   let totalDeaths = 0
@@ -148,7 +157,7 @@ async function main() {
     tick('act', () => actionSystem(world, 1))
     tick('rent', () => rentSystem(world, useClock.getState().gameDate.getTime()))
     tick('work', () => workSystem(world, useClock.getState().gameDate, 1))
-    tick('pop', () => populationSystem(world, useClock.getState().gameDate))
+    tick('pop', () => populationSystem(world, useClock.getState().gameDate, replenishment))
     tick('rel', () => relationsSystem(world, useClock.getState().gameDate, 1))
     // Headless: cameraStore stays at 0×0 so activeZoneSystem treats the
     // viewport as unmeasured and marks every Character Active, keeping
@@ -164,7 +173,7 @@ async function main() {
         if (!e.get(Health)!.dead) alive++
       }
       // Deaths today = lastAlive - alive (assumes no immigration above
-      // populationConfig.target, which holds whenever alive ≥ 83).
+      // the scene's replenishment target, which holds whenever alive ≥ 83).
       const dayDeaths = Math.max(0, lastDayAlive - alive)
       totalDeaths += dayDeaths
       lastDayAlive = alive

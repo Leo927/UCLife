@@ -12,6 +12,7 @@ import { actionSystem } from '../src/systems/action'
 import { rentSystem } from '../src/systems/rent'
 import { workSystem } from '../src/systems/work'
 import { populationSystem } from '../src/systems/population'
+import { getSceneConfig, initialSceneId } from '../src/data/scenes'
 import { relationsSystem, topRelationsFor, TIER_LABEL_ZH } from '../src/systems/relations'
 import { activeZoneSystem } from '../src/systems/activeZone'
 
@@ -24,6 +25,13 @@ if (traceArg) {
 }
 
 setupWorld()
+
+const initialScene = getSceneConfig(initialSceneId)
+const replenishment =
+  initialScene.sceneType === 'micro' ? initialScene.replenishment : undefined
+if (!replenishment) {
+  throw new Error(`survive harness expects scene "${initialSceneId}" to declare replenishment`)
+}
 
 for (const p of world.query(IsPlayer)) {
   p.destroy()
@@ -82,7 +90,7 @@ for (let t = 1; t <= totalMinutes; t++) {
   actionSystem(world, 1)
   rentSystem(world, useClock.getState().gameDate.getTime())
   workSystem(world, useClock.getState().gameDate, 1)
-  populationSystem(world, useClock.getState().gameDate)
+  populationSystem(world, useClock.getState().gameDate, replenishment)
   relationsSystem(world, useClock.getState().gameDate, 1)
   // Headless: cameraStore stays at 0×0 so activeZoneSystem falls through
   // to its "viewport not measured → mark all Active" branch. Calling it

@@ -1,5 +1,5 @@
 import { getWorld, getActiveSceneId } from '../ecs/world'
-import { initialSceneId } from '../data/scenes'
+import { getSceneConfig } from '../data/scenes'
 import { useClock, gameDayNumber, setPartialMinute } from './clock'
 import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
@@ -136,12 +136,13 @@ function frame(now: number) {
       releaseStaleBarSeats(world)
       releaseStaleRoughSpots(world)
       attributesSystem(world, useClock.getState().gameDate)
-      // Replenishment is keyed to the initial city scene's hardcoded arrival
-      // tile (population.ts: ARRIVAL_X/Y). Running it on a ship/space/other
-      // scene drops "市民" immigrants at that absolute tile in *that* world,
-      // which lands inside ship interiors and other unintended envelopes.
-      if (getActiveSceneId() === initialSceneId) {
-        populationSystem(world, useClock.getState().gameDate)
+      // Per-scene opt-in: only scenes declaring a `replenishment` config in
+      // scenes.json5 auto-spawn immigrants, and they spawn at that scene's
+      // own arrivalTile. Ship interiors / space sectors omit the field, so
+      // boarding the ship doesn't drop citizens into the cabin.
+      const activeScene = getSceneConfig(getActiveSceneId())
+      if (activeScene.sceneType === 'micro' && activeScene.replenishment) {
+        populationSystem(world, useClock.getState().gameDate, activeScene.replenishment)
       }
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)

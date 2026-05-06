@@ -2,7 +2,6 @@ import json5 from 'json5'
 import raw from './population.json5?raw'
 
 export interface PopulationConfig {
-  target: number
   replenishIntervalMin: number
 }
 
