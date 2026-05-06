@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useQueryFirst, useTrait, useQuery } from 'koota/react'
-import { IsPlayer, Position, Building } from '../ecs/traits'
+import { IsPlayer, Position, Building, MoveTarget, QueuedInteract, Action } from '../ecs/traits'
 import { worldConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
@@ -29,17 +29,17 @@ function placeColor(kind: WorldPlace['kind']): string {
 
 interface PlaceMarkerProps {
   place: WorldPlace
-  labelAbove: boolean
   scale: number
+  hideLabel?: boolean
 }
 
-function PlaceMarker({ place, labelAbove, scale }: PlaceMarkerProps) {
+function PlaceMarker({ place, scale, hideLabel = false }: PlaceMarkerProps) {
   const w = Math.max(place.tileW, MIN_MARKER_TILES)
   const h = Math.max(place.tileH, MIN_MARKER_TILES)
   const x = place.tileX - (w - place.tileW) / 2
   const y = place.tileY - (h - place.tileH) / 2
   const cx = x + w / 2
-  const labelY = labelAbove ? y - 4 : y + h + 14
+  const cy = y + h / 2
   const color = placeColor(place.kind)
   const fontSize = Math.max(4, Math.round(11 / scale))
   return (
@@ -50,15 +50,18 @@ function PlaceMarker({ place, labelAbove, scale }: PlaceMarkerProps) {
         stroke={color} strokeWidth={1.5 / scale}
         rx={2 / scale}
       />
-      <text
-        x={cx} y={labelY}
-        textAnchor="middle"
-        fill={color}
-        fontSize={fontSize}
-        style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 3 / scale }}
-      >
-        {place.shortZh}
-      </text>
+      {!hideLabel && (
+        <text
+          x={cx} y={cy}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill={color}
+          fontSize={fontSize}
+          style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 3 / scale }}
+        >
+          {place.shortZh}
+        </text>
+      )}
     </g>
   )
 }
@@ -194,6 +197,12 @@ export function MapPanel() {
   } = useMapView(MAP_TILES_X, MAP_TILES_Y, initialBox, resolveZoomPivot)
   const buildingEnts = useQuery(Building)
 
+  // Right-click-to-navigate. Left-click is reserved for pan (useMapView). We
+  // record the right-button press position so we can suppress navigation when
+  // the user actually dragged (right-button drag isn't pan, but we still want
+  // a movement threshold to reject accidental swipes).
+  const pressRef = useRef<{ x: number; y: number } | null>(null)
+
   if (!open) return null
 
   // Airports are procgen-placed; pull from the runtime registry.
@@ -216,6 +225,7 @@ export function MapPanel() {
     })
   }
   const allPlaces = [...getPlacesInScene(activeSceneId), ...airportPlaces]
+  const airportIds = new Set(airportPlaces.map((p) => p.id))
 
   const maxTier = visibleTierAt(scale)
   const places = allPlaces.filter((p) => placeKindTier(p.kind) <= maxTier)
@@ -250,6 +260,35 @@ export function MapPanel() {
   const playerTileY = playerPos ? playerPos.y / TILE : null
   const playerR = Math.max(2, 6 / scale)
 
+  const handleMouseDown = (e: ReactMouseEvent<SVGSVGElement>) => {
+    if (e.button === 2) pressRef.current = { x: e.clientX, y: e.clientY }
+    onMouseDown(e)
+  }
+  const handleContextMenu = (e: ReactMouseEvent<SVGSVGElement>) => {
+    e.preventDefault()
+    const press = pressRef.current
+    pressRef.current = null
+    if (!press || !player) return
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4) return
+
+    const svg = e.currentTarget
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return
+    const pt = svg.createSVGPoint()
+    pt.x = e.clientX
+    pt.y = e.clientY
+    const u = pt.matrixTransform(ctm.inverse())
+    const px = Math.max(0, Math.min(MAP_TILES_X * TILE, u.x * TILE))
+    const py = Math.max(0, Math.min(MAP_TILES_Y * TILE, u.y * TILE))
+
+    const action = player.get(Action)
+    if (action && action.kind !== 'idle' && action.kind !== 'walking') {
+      player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
+    }
+    player.set(MoveTarget, { x: px, y: py })
+    if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+  }
+
   return (
     <div className="status-overlay" onClick={close}>
       <div className="status-panel map-panel" onClick={(e) => e.stopPropagation()}>
@@ -263,6 +302,7 @@ export function MapPanel() {
             <button className="map-zoom-btn" onClick={zoomOut} aria-label="缩小">－</button>
             <button className="map-zoom-btn map-zoom-reset" onClick={reset} aria-label="复位">⊙</button>
             <span className="map-zoom-level">{Math.round(scale * 100)}%</span>
+            <span className="map-hint">右键地图前往该地点</span>
           </div>
           <svg
             ref={svgRef}
@@ -271,10 +311,11 @@ export function MapPanel() {
             width={VIEW_W}
             height={VIEW_H}
             preserveAspectRatio="xMidYMid meet"
-            onMouseDown={onMouseDown}
+            onMouseDown={handleMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseLeave}
+            onContextMenu={handleContextMenu}
           >
             <rect
               x={0} y={0} width={MAP_TILES_X} height={MAP_TILES_Y}
@@ -306,7 +347,7 @@ export function MapPanel() {
                 key={p.id}
                 place={p}
                 scale={scale}
-                labelAbove={p.tileY + p.tileH > MAP_TILES_Y - 30}
+                hideLabel={showBuildingLabels && airportIds.has(p.id)}
               />
             ))}
             {transitDots.map((d) => (

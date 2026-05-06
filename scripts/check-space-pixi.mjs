@@ -136,7 +136,7 @@ if (!hasContent.ok) {
   fail(`canvas pixel sample failed: ${hasContent.reason}`)
 } else if (hasContent.nonBgCount === 0) {
   // Possible the camera centered nothing visible — set fit mode and re-shot.
-  await page.keyboard.press('Tab')
+  await page.keyboard.press('m')
   await page.waitForTimeout(300)
   await shot('02-fit-mode')
   pass(`canvas mounted; no non-bg pixels at sample sites (could be ship-follow with empty surroundings — fit mode shot saved for visual check)`)

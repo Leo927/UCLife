@@ -9,6 +9,19 @@
 
 A web-based RPG life simulator set in the Gundam Universal Century. The player is one ordinary human in lunar city **Von Braun**, **UC 0077** — two years before the One Year War. They eat, sleep, get sick, learn skills, hold jobs, build relationships, and witness a world that simulates around them whether they engage with it or not. Over the long arc of the game, that world drifts toward war.
 
+## Platform & input
+
+PC-only, keyboard + mouse. No touch input, no controller, no mobile fallback. Real-time tactical combat (Phase 6+) demands simultaneous strafe + aim + weapon control, which is unworkable on a touchscreen — so the whole input model standardizes on PC controls rather than maintaining two divergent surfaces. Smaller-form-factor play (laptop trackpad) is supported, but the game does not adapt UI for screens under ~1024px wide.
+
+**Canonical hotkeys:**
+
+- **WASD / arrows** — direct walking on the ground (and ship interiors).
+- **Mouse left-click on ground** — click-to-walk (path-routed). Click on NPC/interactable to engage.
+- **Mouse right-click in space** — set ship course (helm view).
+- **M** — toggle map. Ground scenes show the city map; the space scene zooms to sector-fit.
+- **Esc** — close topmost modal / leave helm / collapse overview.
+- **Space (in tactical combat)** — pause/resume.
+
 The game compensates for low-fidelity graphics with **simulation depth + apophenic storytelling** — the RimWorld and Dwarf Fortress lesson — and lays in **LLM-driven NPC dialogue** as a late-phase capstone, not a foundation.
 
 ## Design principles

@@ -185,6 +185,106 @@ export function Game() {
     if (r) r.resize(canvas.w, canvas.h)
   }, [canvas.w, canvas.h])
 
+  // WASD/arrow-key direct control. Drives MoveTarget a fixed lookahead ahead
+  // of the player in the held direction; the existing pathfinder + movement
+  // system carry the rest. We refresh MoveTarget only on direction change or
+  // when the player has caught up — otherwise findPath() would re-run every
+  // frame because targetX/Y would shift each tick.
+  useEffect(() => {
+    const held = new Set<'up' | 'down' | 'left' | 'right'>()
+    const mapKey = (code: string): 'up' | 'down' | 'left' | 'right' | null => {
+      switch (code) {
+        case 'KeyW': case 'ArrowUp': return 'up'
+        case 'KeyS': case 'ArrowDown': return 'down'
+        case 'KeyA': case 'ArrowLeft': return 'left'
+        case 'KeyD': case 'ArrowRight': return 'right'
+        default: return null
+      }
+    }
+    const isTextTarget = (t: EventTarget | null): boolean => {
+      const el = t as HTMLElement | null
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTextTarget(e.target)) return
+      const k = mapKey(e.code)
+      if (!k) return
+      e.preventDefault()
+      held.add(k)
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      const k = mapKey(e.code)
+      if (!k) return
+      held.delete(k)
+    }
+    const onBlur = () => held.clear()
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+
+    const LOOKAHEAD_PX = TILE * 3
+    let lastDx = 0
+    let lastDy = 0
+    let raf = 0
+    const tick = () => {
+      const player = world.queryFirst(IsPlayer, Position)
+      if (player) {
+        let dx = 0, dy = 0
+        if (held.has('left')) dx -= 1
+        if (held.has('right')) dx += 1
+        if (held.has('up')) dy -= 1
+        if (held.has('down')) dy += 1
+        const len = Math.hypot(dx, dy)
+        if (len > 0) {
+          const ndx = dx / len
+          const ndy = dy / len
+          const playerAction = player.get(Action)
+          const isWorking = playerAction?.kind === 'working'
+          if (
+            playerAction
+            && playerAction.kind !== 'idle'
+            && playerAction.kind !== 'walking'
+            && !isWorking
+          ) {
+            player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
+          }
+          if (isWorking) {
+            player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
+          }
+          const pos = player.get(Position)
+          const cur = player.get(MoveTarget)
+          if (pos) {
+            const distToTarget = cur ? Math.hypot(cur.x - pos.x, cur.y - pos.y) : 0
+            const dirChanged = Math.abs(ndx - lastDx) > 0.01 || Math.abs(ndy - lastDy) > 0.01
+            if (dirChanged || distToTarget < LOOKAHEAD_PX * 0.5) {
+              const tx = clamp(pos.x + ndx * LOOKAHEAD_PX, 0, W)
+              const ty = clamp(pos.y + ndy * LOOKAHEAD_PX, 0, H)
+              player.set(MoveTarget, { x: tx, y: ty })
+              if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+              lastDx = ndx
+              lastDy = ndy
+            }
+          }
+        } else if (lastDx !== 0 || lastDy !== 0) {
+          const pos = player.get(Position)
+          if (pos) player.set(MoveTarget, { x: pos.x, y: pos.y })
+          lastDx = 0
+          lastDy = 0
+        }
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [W, H])
+
   // Background click → move-to. Pixi's per-DisplayObject events stopPropagation
   // when an NPC/interactable is hit, so this only fires on empty space.
   const onCanvasPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {

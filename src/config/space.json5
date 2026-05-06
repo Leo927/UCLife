@@ -38,7 +38,7 @@
   // Enemies whose own aggroRadius overlaps fire the engagement modal.
   aggroContactRadius: 24,
 
-  // Padding on each edge when TAB fits the whole sector to viewport.
+  // Padding on each edge when M fits the whole sector to viewport.
   fitSystemPaddingPx: 200,
 
   // Click-target snap radius, in world px. Clicking within this distance

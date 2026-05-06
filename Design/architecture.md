@@ -29,6 +29,10 @@ Vite + React 18 + TypeScript
 No i18n framework. Player-facing strings are zh-CN inline; everything else
 (this file, code, comments, debug labels) is English.
 
+PC-only target: keyboard + mouse, no touch / controller path. WASD walking
+lives in `src/render/Game.tsx`; the M hotkey is rebroadcast via `Hud.tsx`
+on the ground and `SpaceView.tsx` in the space scene.
+
 LPC sprites are served at `/lpc/` in dev via a Vite middleware that mounts
 the sibling `Universal-LPC-Spritesheet-Character-Generator` checkout. In
 prod, `VITE_LPC_BASE_URL` points elsewhere.

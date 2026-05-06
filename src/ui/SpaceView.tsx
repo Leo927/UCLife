@@ -198,7 +198,9 @@ export function SpaceView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.code === 'KeyM') {
         e.preventDefault()
         setFitMode((m) => !m)
       } else if (e.key === 'Escape') {
@@ -334,7 +336,7 @@ export function SpaceView() {
             <div style={{ color: '#cbd5e1', marginTop: 8, lineHeight: 1.5 }}>{panelPoi.description}</div>
           )}
           <div style={{ marginTop: 10, fontSize: 11, color: '#64748b' }}>
-            右键空间 = 设置航向 · TAB = 缩放至全景 · ESC = 关闭
+            右键空间 = 设置航向 · M = 缩放至全景 · ESC = 关闭
           </div>
         </div>
       )}

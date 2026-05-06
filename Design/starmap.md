@@ -41,7 +41,7 @@ sit *much further out*, giving the player a real reason to ration fuel.
 Earth sits roughly mid-sector at (15000, 12000); Sides spread across
 the rest at orbital radii of 8000–14000 from Earth. Axis and Pezun sit
 at 16000–18000 — the outer belt. The envelope is large enough that 1× zoom
-shows only a fraction of the sector and TAB-fit is the canonical "where
+shows only a fraction of the sector and M-fit is the canonical "where
 am I" gesture.
 
 ## Orbital model
@@ -168,14 +168,16 @@ Sneaking past an enemy by giving them wide berth is a real strategy.
 Enemies persist hull state between encounters — flee a bandit at 30%
 hull and they're still at 30% hull when you come back.
 
-## TAB fit-zoom
+## M fit-zoom
 
 At 30000×24000 px the player can never see the whole sector at game
-zoom. TAB toggles a fit-zoom that frames the entire sector with
+zoom. M toggles a fit-zoom that frames the entire sector with
 `fitSystemPaddingPx` margin on each edge. POIs, enemies, and the
-player's ship are all visible at fit-zoom; TAB again returns to the
+player's ship are all visible at fit-zoom; M again returns to the
 prior camera. This is the canonical "what's around me" gesture and the
-only way to plan a long burn.
+only way to plan a long burn. M doubles as the ground-map hotkey
+outside the space scene, keeping a single "open the map" muscle memory
+across both views.
 
 ## Engine / data / config separation
 

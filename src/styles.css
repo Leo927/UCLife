@@ -502,6 +502,13 @@ html, body, #root {
   margin-left: 4px;
 }
 
+.map-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .map-svg {
   display: block;
   width: 100%;

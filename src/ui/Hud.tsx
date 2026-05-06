@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQueryFirst, useTrait } from 'koota/react'
 import { useClock, formatUC, type Speed } from '../sim/clock'
 import { DEBUG_AVAILABLE, useDebug } from '../debug/store'
@@ -6,6 +7,8 @@ import { IsPlayer, Position } from '../ecs/traits'
 import { getSceneTitle } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { worldConfig } from '../config'
+
+const SPACE_SCENE_ID = 'spaceCampaign'
 
 const TILE = worldConfig.tilePx
 
@@ -28,6 +31,27 @@ export function Hud() {
   const player = useQueryFirst(IsPlayer, Position)
   const playerPos = useTrait(player, Position)
   const activeSceneId = useScene((s) => s.activeId)
+
+  // M toggles the ground map. Skipped in the space-campaign scene — SpaceView
+  // owns M there for the starmap fit-mode overview.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyM') return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (activeSceneId === SPACE_SCENE_ID) return
+      const ui = useUI.getState()
+      const blocked = ui.statusOpen || ui.shopOpen || ui.systemOpen
+        || ui.ambitionsOpen || ui.shipDealerOpen
+        || ui.transitSourceId !== null || ui.flightHubId !== null
+        || ui.dialogNPC !== null || ui.enlargedPortrait !== null
+      if (blocked) return
+      e.preventDefault()
+      ui.toggleMap()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeSceneId])
 
   return (
     <div className={`hud ${mode === 'committed' ? 'hyperspeed' : ''}`}>

@@ -36,7 +36,9 @@ export function StatusPanel() {
   const inventory = useTrait(player, Inventory)
   const action = useTrait(player, Action)
   const job = useTrait(player, Job)
-  const wsTrait = job?.workstation?.get(Workstation) ?? null
+  const wsEnt = job?.workstation ?? null
+  const wsTrait = useTrait(wsEnt, Workstation)
+  const wsPos = useTrait(wsEnt, Position)
   const currentJob = wsTrait ? getJobSpec(wsTrait.specId) : null
   const home = useTrait(player, Home)
   const homeBedEnt = home?.bed ?? null
@@ -91,6 +93,13 @@ export function StatusPanel() {
     if (!player || !homeBedPos) return
     player.set(MoveTarget, { x: homeBedPos.x, y: homeBedPos.y })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    setOpen(false)
+  }
+
+  const walkToJob = () => {
+    if (!player || !wsPos) return
+    player.set(MoveTarget, { x: wsPos.x, y: wsPos.y })
+    if (!player.has(QueuedInteract)) player.add(QueuedInteract)
     setOpen(false)
   }
 
@@ -180,7 +189,15 @@ export function StatusPanel() {
           {currentJob ? (
             <>
               <div className="status-job">
-                <span className="status-job-name">{currentJob.jobTitle}</span>
+                <button
+                  type="button"
+                  className="status-link status-job-name"
+                  onClick={walkToJob}
+                  disabled={!wsPos}
+                  title="走向工作地点"
+                >
+                  {currentJob.jobTitle}
+                </button>
                 <span className="status-job-wage">¥{currentJob.wage} / 班</span>
               </div>
               {currentJob.family && currentJob.employer && typeof currentJob.rank === 'number' && (
