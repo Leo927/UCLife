@@ -19,3 +19,4 @@ import './cheats'     // setPlayerStat + cheatMoney / cheatPiloting / setShipOwn
 import './ship'       // boardShip, helm, setCourse, tickSpace, ...
 import './combat'     // combat / transition / engagement stores + fastWinCombat
 import './save'       // saveGame / loadGame
+import './jobs'       // fillJobVacancies — deterministic NPC/workstation setup for smoke tests

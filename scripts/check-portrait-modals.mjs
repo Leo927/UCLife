@@ -25,6 +25,12 @@ page.on('console', (m) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
+await page.waitForFunction(() => typeof globalThis.__uclife__?.fillJobVacancies === 'function')
+// Guarantee deterministic workers for every clerk specId used in this test,
+// regardless of procgen building placement outcomes.
+await page.evaluate(() =>
+  globalThis.__uclife__.fillJobVacancies(['city_hr_clerk', 'realtor', 'ae_director']),
+)
 await page.waitForTimeout(800)
 
 async function probe() {
