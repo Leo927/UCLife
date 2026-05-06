@@ -16,9 +16,17 @@ export interface ShipSnapshot {
   x: number; y: number; vx: number; vy: number
   course: { tx: number; ty: number; destPoiId: string | null; active: boolean } | null
 }
+export interface EnemyShipSnapshot {
+  /** Persistent key from EntityKey trait — used to dedupe DisplayObjects across frames. */
+  key: string
+  x: number; y: number; vx: number; vy: number
+  shipClassId: string
+  mode: 'patrol' | 'idle' | 'chase' | 'flee'
+}
 export interface SpaceSnapshot {
   bodies: BodySnapshot[]
   pois: PoiSnapshot[]
+  enemies: EnemyShipSnapshot[]
   ship: ShipSnapshot | null
   /** World-space dock-snap radius (POI panel + course-snap target). */
   dockSnapRadius: number

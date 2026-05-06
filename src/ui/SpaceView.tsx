@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { Application } from 'pixi.js'
 import { PixiCanvas } from '../render/pixi'
 import { PixiSpaceRenderer } from '../render/space/PixiSpaceRenderer'
-import type { SpaceSnapshot, BodySnapshot, PoiSnapshot, ShipSnapshot } from '../render/spaceSnapshot'
+import type { SpaceSnapshot, BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot } from '../render/spaceSnapshot'
 import { getWorld } from '../ecs/world'
-import { IsPlayer, Position, Body, PoiTag, Velocity, Course } from '../ecs/traits'
+import { IsPlayer, Position, Body, PoiTag, Velocity, Course, EnemyAI, EntityKey } from '../ecs/traits'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
@@ -52,6 +52,23 @@ function readPois(): PoiSnapshot[] {
   return out
 }
 
+function readEnemies(): EnemyShipSnapshot[] {
+  const w = getWorld(SPACE_SCENE_ID)
+  const out: EnemyShipSnapshot[] = []
+  for (const e of w.query(EnemyAI, Position, Velocity)) {
+    const ai = e.get(EnemyAI)!
+    const p = e.get(Position)!
+    const v = e.get(Velocity)!
+    const k = e.get(EntityKey)
+    out.push({
+      key: k?.key ?? `enemy-anon-${out.length}`,
+      x: p.x, y: p.y, vx: v.vx, vy: v.vy,
+      shipClassId: ai.shipClassId, mode: ai.mode,
+    })
+  }
+  return out
+}
+
 function readShip(): ShipSnapshot | null {
   const w = getWorld(SPACE_SCENE_ID)
   const playerEnt = w.queryFirst(IsPlayer, Position, Velocity)
@@ -65,10 +82,11 @@ function readShip(): ShipSnapshot | null {
   }
 }
 
-function fitTransform(bodies: BodySnapshot[], pois: PoiSnapshot[], ship: ShipSnapshot | null, viewW: number, viewH: number) {
+function fitTransform(bodies: BodySnapshot[], pois: PoiSnapshot[], enemies: EnemyShipSnapshot[], ship: ShipSnapshot | null, viewW: number, viewH: number) {
   const points: { x: number; y: number; r: number }[] = []
   for (const b of bodies) points.push({ x: b.x, y: b.y, r: b.radius })
   for (const p of pois) points.push({ x: p.x, y: p.y, r: 8 })
+  for (const e of enemies) points.push({ x: e.x, y: e.y, r: 8 })
   if (ship) points.push({ x: ship.x, y: ship.y, r: 8 })
   if (points.length === 0) return { scale: 1, cx: 0, cy: 0 }
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -165,11 +183,12 @@ export function SpaceView() {
       if (r) {
         const bodies = readBodies()
         const pois = readPois()
+        const enemies = readEnemies()
         const ship = readShip()
         lastPoisRef.current = pois
         const sz = sizeRef.current
         const fitOn = fitModeRef.current
-        const fit = fitOn ? fitTransform(bodies, pois, ship, sz.w, sz.h) : null
+        const fit = fitOn ? fitTransform(bodies, pois, enemies, ship, sz.w, sz.h) : null
         let coursePreview: SpaceSnapshot['coursePreview'] = null
         if (ship && ship.course?.active) {
           let tx = ship.course.tx
@@ -181,7 +200,7 @@ export function SpaceView() {
           coursePreview = { fromX: ship.x, fromY: ship.y, toX: tx, toY: ty }
         }
         r.update({
-          bodies, pois, ship,
+          bodies, pois, enemies, ship,
           dockSnapRadius: spaceConfig.dockSnapRadius,
           fitMode: fitOn,
           fit,

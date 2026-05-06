@@ -31,7 +31,7 @@ import { Application, Container, Graphics, Text, ColorMatrixFilter } from 'pixi.
 import { AdvancedBloomFilter } from 'pixi-filters'
 import type { CelestialKind } from '../../data/celestialBodies'
 import { ParticlePool, emitThrust } from './particles'
-import type { BodySnapshot, PoiSnapshot, ShipSnapshot, SpaceSnapshot } from '../spaceSnapshot'
+import type { BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot, SpaceSnapshot } from '../spaceSnapshot'
 
 const BODY_COLOR: Record<CelestialKind, { fill: number; stroke: number }> = {
   star:     { fill: 0xfde68a, stroke: 0xfef9c3 },
@@ -43,6 +43,16 @@ const BODY_COLOR: Record<CelestialKind, { fill: number; stroke: number }> = {
 
 interface BodyNode { root: Container; circle: Graphics; label: Text }
 interface PoiNode { root: Container; rect: Graphics; ring: Graphics; label: Text }
+interface EnemyNode { root: Container; hull: Graphics; ring: Graphics }
+
+// Triangle silhouette per enemy class. Larger = heavier hull.
+// Coordinates are in world px and rotated by the enemy's velocity heading.
+const ENEMY_HULL_BY_CLASS: Record<string, { size: number; fill: number; stroke: number }> = {
+  pirate_skirmisher: { size: 9,  fill: 0xdc2626, stroke: 0xfecaca },
+  pirate_raider:     { size: 13, fill: 0xb91c1c, stroke: 0xfecaca },
+  pirateLight:       { size: 9,  fill: 0xdc2626, stroke: 0xfecaca },
+}
+const ENEMY_HULL_DEFAULT = { size: 10, fill: 0xdc2626, stroke: 0xfecaca }
 
 export const spaceStats = {
   enabled: false,
@@ -50,6 +60,7 @@ export const spaceStats = {
   totalUpdateMs: 0,
   bodyNodes: 0,
   poiNodes: 0,
+  enemyNodes: 0,
 }
 
 export function resetSpaceStats(): void {
@@ -57,6 +68,7 @@ export function resetSpaceStats(): void {
   spaceStats.totalUpdateMs = 0
   spaceStats.bodyNodes = 0
   spaceStats.poiNodes = 0
+  spaceStats.enemyNodes = 0
 }
 
 export class PixiSpaceRenderer {
@@ -64,10 +76,12 @@ export class PixiSpaceRenderer {
   private bodyLayer: Container
   private courseLayer: Container
   private poiLayer: Container
+  private enemyLayer: Container
   private particleLayer: Container
   private shipLayer: Container
   private bodyNodes = new Map<string, BodyNode>()
   private poiNodes = new Map<string, PoiNode>()
+  private enemyNodes = new Map<string, EnemyNode>()
   private shipShape: Graphics
   private courseLine: Graphics
   private particles: ParticlePool
@@ -82,17 +96,19 @@ export class PixiSpaceRenderer {
     this.viewport.label = 'space-viewport'
     app.stage.addChild(this.viewport)
 
-    // Layer order: bodies → course → POIs → particles (engine trails, etc) → ship.
-    // Particles render *under* the ship so the trail appears to come from
-    // behind it.
+    // Layer order: bodies → course → POIs → enemies → particles (engine trails)
+    // → ship. Enemies sit above POIs so a hostile parked next to a station
+    // remains visible; the player ship still renders on top.
     this.bodyLayer = new Container()
     this.courseLayer = new Container()
     this.poiLayer = new Container()
+    this.enemyLayer = new Container()
     this.particleLayer = new Container()
     this.shipLayer = new Container()
     this.viewport.addChild(this.bodyLayer)
     this.viewport.addChild(this.courseLayer)
     this.viewport.addChild(this.poiLayer)
+    this.viewport.addChild(this.enemyLayer)
     this.viewport.addChild(this.particleLayer)
     this.viewport.addChild(this.shipLayer)
 
@@ -143,6 +159,7 @@ export class PixiSpaceRenderer {
     this.viewport.destroy({ children: true })
     this.bodyNodes.clear()
     this.poiNodes.clear()
+    this.enemyNodes.clear()
   }
 
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
@@ -168,6 +185,7 @@ export class PixiSpaceRenderer {
 
     this.syncBodies(snap.bodies, scale)
     this.syncPois(snap.pois, scale, snap.hoveredPoiId, snap.dockSnapRadius)
+    this.syncEnemies(snap.enemies, scale)
     this.syncCourse(snap.coursePreview, scale)
     this.syncShip(snap.ship, scale)
     this.syncParticles(snap.ship, snap.dtSec)
@@ -177,6 +195,7 @@ export class PixiSpaceRenderer {
       spaceStats.totalUpdateMs += performance.now() - t0
       spaceStats.bodyNodes = this.bodyNodes.size
       spaceStats.poiNodes = this.poiNodes.size
+      spaceStats.enemyNodes = this.enemyNodes.size
     }
   }
 
@@ -311,6 +330,56 @@ export class PixiSpaceRenderer {
       t = t2 + dash
     }
     this.courseLine.stroke({ color: 0xfacc15, width: 2 / scale })
+  }
+
+  private syncEnemies(enemies: EnemyShipSnapshot[], scale: number): void {
+    const seen = new Set<string>()
+    for (const e of enemies) {
+      seen.add(e.key)
+      let node = this.enemyNodes.get(e.key)
+      if (!node) {
+        const root = new Container()
+        const ring = new Graphics()
+        const hull = new Graphics()
+        // Aggro ring under the hull so the triangle reads on top.
+        root.addChild(ring)
+        root.addChild(hull)
+        this.enemyLayer.addChild(root)
+        node = { root, hull, ring }
+        this.enemyNodes.set(e.key, node)
+      }
+
+      const cls = ENEMY_HULL_BY_CLASS[e.shipClassId] ?? ENEMY_HULL_DEFAULT
+      const s = cls.size
+      const aggroRingColor = e.mode === 'chase' ? 0xfca5a5 : 0x7f1d1d
+      const aggroRingAlpha = e.mode === 'chase' ? 0.55 : 0.25
+      // Visibility-floor: at far zoom levels the triangle would shrink to a
+      // sub-pixel speck. Scale stroke + ring inversely with zoom so the
+      // marker stays legible on the system map at any fit level.
+      node.hull
+        .clear()
+        .poly([s, 0, -s * 0.7, -s * 0.6, -s * 0.7, s * 0.6])
+        .fill(cls.fill)
+        .stroke({ color: cls.stroke, width: 1.2 / scale })
+      node.ring
+        .clear()
+        .circle(0, 0, s + 6 / scale)
+        .stroke({ color: aggroRingColor, alpha: aggroRingAlpha, width: 1 / scale })
+
+      node.root.x = e.x
+      node.root.y = e.y
+      // Face along velocity; default to "north" when stationary so idle
+      // ships still read as ships rather than a random rotation flicker.
+      let angle = -Math.PI / 2
+      if (e.vx !== 0 || e.vy !== 0) angle = Math.atan2(e.vy, e.vx)
+      node.root.rotation = angle
+    }
+    for (const [key, node] of this.enemyNodes) {
+      if (!seen.has(key)) {
+        node.root.destroy({ children: true })
+        this.enemyNodes.delete(key)
+      }
+    }
   }
 
   private syncShip(ship: ShipSnapshot | null, scale: number): void {
