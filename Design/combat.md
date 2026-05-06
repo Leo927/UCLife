@@ -95,10 +95,12 @@ directly. UC flavor names where canon supplies them:
 | Shields | Energy shield (Minovsky-saturation barrier in late game) | |
 | Flux (vent / hard) | Reactor heat / capacitor | |
 | Engines | Thruster + main drive | Burn rate, evasion |
-| Weapon mounts (small/medium/large) | Beam / missile / mega-particle mounts | Same hardpoint logic |
-| Fighter bays | **Hangar** | Each bay holds an MS wing; player can take direct control of one MS |
+| Weapon mounts (small/medium/large) | Beam / missile / mega-particle mounts | **Authored on the ship class, not player-swappable.** UC Life does not ship a ship-tier refit system — see [fleet.md](fleet.md). |
+| Fighter bays | **Hangar** | Each bay holds an MS; player can take direct control of one MS. **MS is the customization platform** — this is where loadout, weapon swap, and frame mods live. |
 | Officer slots | Bridge officers | Crew with Ship Command / Tactics / Leadership skills |
 | Cargo / fuel / supplies | Same | Drives campaign-layer logistics |
+
+**The asymmetry is deliberate.** Starsector treats ship refit as the central depth surface; UC Life pushes that depth one layer down to the MS. Ships are operational platforms (move, hold, survive); MS are the personalization surface (retrofit, frame mods, pilot pairing). A player who tunes their fleet is tuning their *MS roster*, not their hardpoints.
 
 Crew specialization reuses the existing skill set:
 
@@ -161,44 +163,56 @@ Witness mode. That is **a complete playthrough** and the design must
 support it as such — see [social/ambitions.md](social/ambitions.md) for
 how the unified perk-point system keeps small-scale ambitions rewarding.
 
-## Fleet scale: skill-gated, not hard-capped
+## Fleet scale: economics-gated, no skill formula on fleet size
 
-There is **no hard fleet cap**. Fleet capacity is gated by player and
-officer skills — primarily **Ship Command**, secondarily **Tactics** and
-**Leadership**. A player who never trains command tops out at flagship
-+ 1–2 escorts; a player who trains hard fields a real squadron.
+There is **no hard fleet-size cap and no skill formula gating ship
+count.** Fleet *size* is gated by economics and command bandwidth, per
+[fleet.md](fleet.md). Per-engagement *combat scale* (CP and DP) **is**
+skill-gated — see below — but that affects how many ships you can
+coordinate in a fight, not how many you may own:
 
-This is where late-game skill development gets concrete payoff. Ship
-Command and Tactics had no clear endgame target before; now they
-literally determine how many ships you can field. Leadership gates how
-many colonies you can govern.
+- **Per-ship + per-MS supply consumption** (Starsector model). Every
+  ship class has a fixed `supplyPerDay`; every MS in a hangar adds its
+  own per-MS cost; every MS in repair adds further per-MS-day cost.
+  Growing the fleet without growing the income stream bleeds you out.
+- **Command points.** Minovsky-particle scatter makes long-range comms
+  unreliable, so coordinating fleet-wide actions costs CP. CP cap is
+  gated by player Ship Command + Tactics and the flagship's comm
+  officer.
+- **Deployment points.** Tactical engagements have a per-engagement DP
+  budget — fleet size and combat scale decouple. A 20-ship fleet might
+  field 8 in any one fight.
 
-Specific capacity formula is a Phase 6.2 implementation concern.
-Structurally: capacity grows roughly linearly with skill level, with
-modest bonuses from officer skills. There is no soft cap that the
-player can't push past with investment.
+Late-game Ship Command / Tactics / Leadership gain concrete payoff
+through CP/DP throughput and doctrine effectiveness rather than through
+a linear "you may now field N ships" formula. Leadership still gates
+colony management.
 
-## Ship-as-scene (the flagship is your home)
+## Ship-as-scene (whichever ship you're on is walkable)
 
-The player flagship reuses the koota scene infrastructure already
+The walkable ship reuses the koota scene infrastructure already
 powering Von Braun and Zum City. Specifically:
 
-- **One koota world per ship.** Existing per-scene world architecture.
+- **One walkable scene at a time** — whichever ship the player is
+  currently aboard. That ship carries the `IsFlagshipMark` tag.
+  Mechanically, the flagship is *just* "the ship the player is on";
+  there is no other specialness. See [fleet.md](fleet.md).
 - **Rooms are ECS entities.** Same Building / Cell components used in city procgen.
 - **Crew = NPCs.** Same trait set, same BT framework, same drives. They eat in the mess, sleep in quarters, drink in the (smaller) ship bar, and have on-duty schedules that put them at their stations during combat.
 - **The player walks the ship the same way they walk Von Braun.** Same input, same pathfinding (HPA*).
-- **Travel between mother-ship and dockable cities** uses the existing flight system. The ship docks at a city port; player walks aboard.
+- **Travel between ship and dockable cities** uses the existing flight system. The ship docks at a city port; player walks aboard.
 
-Escort ships in the fleet are **not** walkable scenes — they're tactical
-assets with their own NPC crew rosters. The flagship is the only
-walkable ship at any given time. If the player promotes another ship to
-flagship (story-rare), that ship becomes the new walkable scene and the
-old flagship demotes to tactical asset.
+Other ships in the fleet are not currently being walked, but their
+interior is hydratable from the same class template the moment the
+player boards them. Per-ship interior content is **authored per class,
+not per instance** — five ship classes = five interior templates,
+regardless of fleet size. Switching which ship is the flagship is
+routine transit (gated to docking-with-fleet moments, not a story
+event).
 
-The flagship is **persistent** — it doesn't reset between encounters.
-Damage, crew injuries, supplies, ambient state all carry. Repairs
-happen at safe POIs (dockable colonies, friendly stations, your own
-colony if you have one).
+Every ship is **persistent** — damage, crew injuries, supplies, ambient
+state all carry between encounters. Repairs happen at safe POIs
+(dockable colonies, friendly stations, your own colony if you have one).
 
 ## Tactical mode (Starsector-shape combat UI)
 
@@ -357,9 +371,14 @@ The Starsector-shape calls are now locked. Specifically:
    continuous 2D map with named POIs (Sides 1–7, Luna, Luna II, Earth
    orbit, asteroid clusters); Jupiter expedition is a separate map
    reached by long burn. Full geography in [starmap.md](starmap.md).
-2. **Multi-ship fleet, skill-gated.** No hard cap. Ship Command +
-   Tactics + Leadership scale fleet capacity. Lost ships are permanent
-   losses, replaced by recruitment / procurement, not story event.
+2. **Multi-ship fleet, economics-gated.** No hard fleet-size cap and no
+   skill formula on ship count; CP and DP throughput remain
+   skill-gated and cap per-engagement combat scale instead.
+   Per-ship + per-MS supply consumption (Starsector
+   model), command points (Minovsky-comm bandwidth), and deployment
+   points are the suppressors. Lost ships are permanent losses,
+   replaced by recruitment / procurement, not story event. Mules and
+   freighters are first-class fleet roles. See [fleet.md](fleet.md).
 3. **Deployment cadence.** A deployment is a Starsector-shape run of
    ~1–3 in-game weeks of campaign-map travel + tactical encounters;
    between deployments, the flagship docks (Von Braun, Granada, Side 3
@@ -374,9 +393,12 @@ The Starsector-shape calls are now locked. Specifically:
    for bribes, Charisma, and a clinic medical letter all modify the
    roll. Failure forces the perspective shift into Tactical/Cockpit
    mode regardless of the player's wishes.
-6. **Walkable flagship.** The player's flagship is a koota scene the
-   player walks. Escort ships in the fleet are tactical assets only.
-   Promoting an escort to flagship swaps which ship is walkable.
+6. **Walkable current ship.** Whichever ship the player is currently
+   aboard is a walkable koota scene; that ship gets the `IsFlagshipMark`
+   tag and that is its only specialness. Switching to another ship in
+   the fleet is routine transit at docking-with-fleet moments, not a
+   story event. Walkable interior is authored per ship *class*, not per
+   instance.
 
 ## Open questions remaining
 
@@ -392,9 +414,11 @@ The Starsector-shape calls are now locked. Specifically:
    primitive parameters). **Defer; flagged here so it doesn't
    surprise the character system later.**
 
-3. **Fleet capacity formula.** Specific numbers for Ship Command /
-   Tactics / Leadership → fleet size are Phase 6.2 implementation.
-   Structural commitment: linear-with-skill, no soft cap, no hard cap.
+3. **CP / DP concrete numbers.** Specific command-point cap, regen,
+   per-action costs, and deployment-point budgets are Phase 6.2.7
+   implementation. Structural commitment: economics + CP + DP gate
+   fleet size and tactical scale, not a player-skill linear formula.
+   See [fleet.md](fleet.md) for the framework.
 
 ## Phasing
 
@@ -404,7 +428,9 @@ The Starsector-shape calls are now locked. Specifically:
 | **6.0** | Starsector-shape tactical foundation. Single-ship pre-war merc work. Walkable flagship as scene. Tactical view (top-down 2D, real-time + pause). Hardpoint weapons, flux, shields, hull. Encounter generator. Player buys their first ship as a Phase 6.0 capstone. |
 | **6.1** | Bridge ↔ hangar walkable transit. Player pilots an MS personally; cockpit primitives now have hostile counterparts (Engage/Evade/Suppress/Breach against NPC pilots with their own piloting/reflex stats). MS wings AI-piloted while player is at bridge. Walking-transit cost on flagship AI. |
 | **6.1.5** | Singleton-to-plural ship structural prep (no player-visible content). See [fleet.md](fleet.md). |
-| **6.2** | Multi-ship fleet. Ship Command / Tactics / Leadership gate capacity (linear formula in [fleet.md](fleet.md)). Escort ships as tactical assets with their own NPC crew (full Character entities). Fleet roster screen, hire-officer dialogue branch, doctrine slider, mothballing. Persistent fleet damage between encounters. Promote-to-flagship deferred to 6.2.5. |
+| **6.2** | Multi-ship fleet MVP. Two more ship classes (escort + small freighter). Per-ship + crew supply economics (Starsector model). Fleet roster + crew assignment screens. Hire-as-captain / hire-as-crew dialogue branches (stub; full hire flow in faction-management). Buy-ship dialog at brokers. Mothballing. Doctrine slider per ship. Persistent fleet damage between encounters. Debug "grant fleet" populates a 2-ship fleet + ~30 hired NPCs. See [fleet.md](fleet.md). |
+| **6.2.5** | MS + pilot layer. `ms-classes.json5`, MS runtime entity, hangar UI, pilot roster + assignment, per-MS + per-MS-repair supply economics. |
+| **6.2.7** | Command points + deployment points wired into tactical. Doctrine sliders fully active; out-of-CP standing-orders behavior. |
 | **6.3** | Colony establishment. Player can claim an asteroid POI or build a new colony from scratch. Walkable colony scenes (smaller than cities, reusing scene/building/cell procgen with industrial pool). See [social/faction-management.md](social/faction-management.md). |
 | **6.4** | Faction-tier features: large-scale recruitment, governance choices, faction reputation as actor (player-faction has its own faction rep with NPC factions). Phase 7 hostile-expedition mechanic foundations. |
 | **7.0** | Phase 7 trigger fires. Strategic war model goes live. Newsfeed wartime mode. Conscription. Wartime ambitions. Civilian-war content (TV, prices, refugees, departing friends). |
@@ -436,14 +462,14 @@ The Starsector-shape calls are now locked. Specifically:
 ## Related
 
 - [starmap.md](starmap.md) — Earth Sphere continuous campaign map + Jupiter expedition; the geography this Starsector-shape combat is drawn against
-- [fleet.md](fleet.md) — multi-ship fleet roster, captains, capacity formula, doctrine — the layer this combat doc's "no hard cap" commitment resolves into
+- [fleet.md](fleet.md) — multi-ship fleet roster, captains, MS + pilot layer, supply / CP / DP economics, doctrine — the layer this combat doc's "no hard cap" commitment resolves into
 - [encounters.md](encounters.md) — form of node events; combat is reached through them, not directly
 - [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun
 - [social/faction-management.md](social/faction-management.md) — Phase 6 fleet + colony layer; this is where the Starsector shape ships
 - [social/newsfeed.md](social/newsfeed.md) — strategic war's primary delivery channel; civilian-war texture
 - [characters/index.md](characters/index.md) — permadeath toggle interaction; crew death is independent of toggle
-- [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership gate fleet and colony capacity
+- [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership feed CP cap and doctrine effectiveness; Leadership still gates colony administrative load; `piloting` (existing unified skill) gates MS pilot quality
 - [npc-ai.md](npc-ai.md) — crew BT extends with combat-station drives
 - [worldgen.md](worldgen.md) — flagship interior + colony interior reuse scene-procgen building / cell pipelines
 - [phasing.md](phasing.md) — combat phasing relative to overall plan

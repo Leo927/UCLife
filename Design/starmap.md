@@ -127,21 +127,36 @@ detach time, not paid back if the player aborts immediately.
 
 ## Continuous fuel/supply economy
 
-Fuel and supplies drain in real game-time, not per-burn:
+Fuel and supplies drain in real game-time, not per-burn. Storage and
+drain are **per-ship**, not rolled up onto the flagship — see
+[fleet.md](fleet.md) for the full template/instance shape and the
+Starsector-style cost model.
 
-- **Fuel** burns whenever Thrust > 0 — `fuelPerThrustSec * |thrust| * dt`.
-  At rest fuel is free (you coast).
-- **Supplies** drain continuously even at rest:
-  - `supplyDrainPerHour` (life support — flat per game-hour)
-  - `perMaintenanceLoadDrainPerHour * (sum of MS aboard)` — heavier
-    fleets eat more
+- **Fuel** burns per ship whenever its Thrust > 0 —
+  `fuelPerThrustSec * |thrust| * dt`. At rest fuel is free (you coast).
+  Fuel storage is per-ship class (`fuelStorage` on the ship template);
+  freighters and tankers carry the deep reserves.
+- **Supplies** drain continuously even at rest. Aggregate fleet drain:
+  - `sum(ship.template.supplyPerDay for each non-mothballed ship)` —
+    fixed per-class life support / wear cost (Starsector model)
+  - `sum(ms.template.supplyPerDay for each MS in any non-mothballed
+    hangar)` — per-MS hangar cost
+  - `sum(ms.template.supplyPerRepairDay for each MS currently
+    in-repair)` — additional per-MS cost while repairing
+  - `crewUpkeepPerDay` — existing crew cost
   - `combatRepairDrainPerSec` — paid per real-second of active combat
     repair (the auto-fix-hull tick on the ship sheet)
 
-Supplies hitting zero triggers crew-morale collapse (mutiny risk) per
-the older spec. Fuel hitting zero strands the ship — drift to the
-nearest gravity well. These behaviors are wired in slice 7 (continuous
-economy).
+Supply storage is per-ship (`supplyStorage` on the ship template);
+during a deployment one ship can run dry while another has slack until
+the fleet next pools at a friendly station. The campaign HUD shows the
+fleet aggregate; per-ship breakdown lives on the fleet roster.
+
+Supplies hitting zero (anywhere in the fleet) triggers crew-morale
+collapse on that ship (mutiny risk). Fuel hitting zero on a ship
+strands *that ship* — it drifts to the nearest gravity well; the rest
+of the fleet doesn't automatically stop for it. These behaviors are
+wired in slice 7 (continuous economy).
 
 ## Engagement, not RNG
 
@@ -231,8 +246,10 @@ Earth Sphere regions (preserved labels):
 | **6.0.7** | Continuous fuel/supply economy. Take-off cost wired. Mutiny / drift-to-well failure modes. |
 | **6.0.8** | Save/load round-trip; smoke-test rewrite. |
 | **6.1** | Sensor / visibility play. Cloaked POIs (Pezun salvage, hidden caches) require active scanning. |
-| **6.1.5** | Singleton-to-plural ship structural prep — `IsFlagship` marker + `EscortShip` trait + save migration. No new content. See [fleet.md](fleet.md). |
-| **6.2** | Multi-ship fleet movement. Escorts station-keep to flagship at fixed formation offsets (no per-escort `Course`); fleet visibility scales with ship count. See [fleet.md](fleet.md) for roster UI, capacity formula, doctrine slider. |
+| **6.1.5** | Singleton-to-plural ship structural prep — ship-template/instance split, `IsFlagshipMark` marker, save migration. No new content. See [fleet.md](fleet.md). |
+| **6.2** | Multi-ship fleet movement. Non-flagship ships station-keep to flagship at fixed formation offsets (one `Course` in the world per fleet). Per-ship + crew supply economics replace the rolled-up flagship aggregate. Buy-ship at major shipyard POIs delivers a ship with its authored loadout — **no ship refit at any tier**. See [fleet.md](fleet.md) for roster UI, doctrine slider, debug "grant fleet". |
+| **6.2.5** | MS + pilot + retrofit layer in fleet (per-MS supply costs flow through this campaign HUD; MS-broker POIs surface the buy-MS / buy-weapon / buy-mod catalogs). MS retrofit lives at hangars — both the flagship's and any colony with a maintenance crew. |
+| **6.2.7** | CP / DP wired into tactical (campaign HUD shows CP regen against the day clock). |
 | **6.3** | Player-claimed colony POIs persist on the map. |
 | **6.4** | Jupiter expedition: long-burn transit + Jupiter local map. Same engine, different content tables. |
 | **7.0** | Phase 7 trigger flips faction control on contested POIs; Side 4 becomes debris (POI replaced with derelict body). Hostile patrols escalate by region. |
