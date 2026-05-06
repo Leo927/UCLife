@@ -1,6 +1,7 @@
 import json5 from 'json5'
 import raw from './scenes.json5?raw'
 import type { DoorSide } from './buildingTypes'
+import { getBuildingType, isFixedSize } from './buildingTypes'
 import { isShipClassId, getShipClass } from './ships'
 
 export type SceneType = 'micro' | 'macro' | 'ship' | 'space'
@@ -32,12 +33,56 @@ export type DistrictConfig = {
   buildingsPerBlockMax?: number
 }
 
+// Player-facing marker metadata for the world map. Attaching it to a
+// procgen zone or a reservedRect lets MapPanel/TransitMap derive the
+// place list straight from scenes.json5 — no second source of truth.
+//   id          — stable id; cross-references survive renames.
+//   nameZh/shortZh — full and abbreviated player-facing labels.
+//   description — long-form blurb shown in the map panel place list.
+//   kind        — drives marker color / visibility tier.
+export type WorldPlaceKind = 'district' | 'complex' | 'poi'
+export type WorldPlaceDisplay = {
+  id: string
+  nameZh: string
+  shortZh: string
+  description?: string
+  kind: WorldPlaceKind
+}
+
+// Hand-crafted building that lives *inside* a procgen zone instead of
+// outside it. The road grid forces avenues at the rect's east/west edges
+// and streets at its north/south edges, so the rect emerges as a single
+// uncarved super-block; spawn drops the crafted building into that block.
+//
+// Use this when a fixed building is "huge" enough that placing it as a
+// fixedBuilding outside the zone would visually fragment the district
+// (e.g. AE Complex inside the AE Industrial District).
+export type ReservedRectRef = {
+  buildingType: string
+  tile: { x: number; y: number }
+  display?: WorldPlaceDisplay
+}
+
+// Validated form: tile-space rect with the building's size baked in.
+export type ResolvedReservedRect = {
+  typeId: string
+  rect: { x: number; y: number; w: number; h: number }
+}
+
 export type ProcgenConfig = {
   enabled: boolean
   seed: string
   rect: { x: number; y: number; w: number; h: number }
   roads: RoadGridConfig
   districts: DistrictConfig[]
+  reservedRects?: ReservedRectRef[]
+  // Resolved at scene load time. Same data as `reservedRects` but with
+  // building dimensions looked up from buildingTypes, so procgen consumers
+  // never have to re-resolve.
+  resolvedReservedRects?: ResolvedReservedRect[]
+  // Optional zone-level marker for the player-facing map. Marker rect = the
+  // zone's procgen rect, so geometry stays in lockstep with road generation.
+  display?: WorldPlaceDisplay
 }
 
 export type FixedBuildingRef = {
@@ -107,6 +152,7 @@ if (parsed.scenes.length === 0) {
 }
 
 const seen = new Set<string>()
+const placeIds = new Set<string>()
 for (const s of parsed.scenes) {
   if (seen.has(s.id)) throw new Error(`scenes.json5: duplicate scene id "${s.id}"`)
   seen.add(s.id)
@@ -124,6 +170,56 @@ for (const s of parsed.scenes) {
       throw new Error(
         `scenes.json5: scene "${s.id}" playerSpawnRoomId "${s.playerSpawnRoomId}" is not a room of ship class "${s.shipClassId}"`,
       )
+    }
+  }
+  if (s.sceneType === 'micro' && s.procgenZones) {
+    for (const zone of s.procgenZones) {
+      if (zone.display) {
+        const id = zone.display.id
+        if (placeIds.has(id)) {
+          throw new Error(`scenes.json5: duplicate world-place id "${id}"`)
+        }
+        placeIds.add(id)
+      }
+      if (!zone.reservedRects) continue
+      const aw = zone.roads.avenueWidthTiles
+      const sw = zone.roads.streetWidthTiles
+      const resolved: ResolvedReservedRect[] = []
+      for (const r of zone.reservedRects) {
+        const btype = getBuildingType(r.buildingType)
+        if (!isFixedSize(btype.size)) {
+          throw new Error(
+            `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" must be a fixed-size building`,
+          )
+        }
+        if (btype.layout.algorithm !== 'crafted') {
+          throw new Error(
+            `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" must use crafted layout`,
+          )
+        }
+        const rect = { x: r.tile.x, y: r.tile.y, w: btype.size.w, h: btype.size.h }
+        // Need room for forced avenues at east/west edges and streets at
+        // north/south edges, so the rect can't touch the zone boundary.
+        if (rect.x - aw < zone.rect.x || rect.x + rect.w + aw > zone.rect.x + zone.rect.w) {
+          throw new Error(
+            `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" needs ${aw} tile(s) of horizontal buffer inside zone rect`,
+          )
+        }
+        if (rect.y - sw < zone.rect.y || rect.y + rect.h + sw > zone.rect.y + zone.rect.h) {
+          throw new Error(
+            `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" needs ${sw} tile(s) of vertical buffer inside zone rect`,
+          )
+        }
+        resolved.push({ typeId: r.buildingType, rect })
+        if (r.display) {
+          const id = r.display.id
+          if (placeIds.has(id)) {
+            throw new Error(`scenes.json5: duplicate world-place id "${id}"`)
+          }
+          placeIds.add(id)
+        }
+      }
+      zone.resolvedReservedRects = resolved
     }
   }
   if (s.sceneType === 'micro' && s.replenishment) {

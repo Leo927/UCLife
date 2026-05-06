@@ -1,8 +1,6 @@
-import json5 from 'json5'
-import raw from './world-map.json5?raw'
-import { isSceneId } from './scenes'
+import { scenes, type WorldPlaceDisplay, type WorldPlaceKind } from './scenes'
 
-export type WorldPlaceKind = 'district' | 'complex' | 'poi'
+export type { WorldPlaceKind } from './scenes'
 
 export interface WorldPlace {
   id: string
@@ -17,33 +15,47 @@ export interface WorldPlace {
   description?: string
 }
 
-interface WorldMapFile {
-  places: WorldPlace[]
-}
-
-const parsed = json5.parse(raw) as WorldMapFile
-
-// Without this check, a typo silently hides the place via the active-scene
-// filter instead of failing loud.
-for (const p of parsed.places) {
-  if (!isSceneId(p.sceneId)) {
-    throw new Error(`world-map.json5: place "${p.id}" references unknown sceneId "${p.sceneId}"`)
+function placeFromDisplay(
+  sceneId: string,
+  display: WorldPlaceDisplay,
+  rect: { x: number; y: number; w: number; h: number },
+): WorldPlace {
+  return {
+    id: display.id,
+    sceneId,
+    nameZh: display.nameZh,
+    shortZh: display.shortZh,
+    kind: display.kind,
+    description: display.description,
+    tileX: rect.x,
+    tileY: rect.y,
+    tileW: rect.w,
+    tileH: rect.h,
   }
 }
 
-export const worldPlaces: readonly WorldPlace[] = parsed.places
+const places: WorldPlace[] = []
 
-export function getWorldPlace(id: string): WorldPlace | undefined {
-  return worldPlaces.find((p) => p.id === id)
+for (const s of scenes) {
+  if (s.sceneType !== 'micro') continue
+  for (const zone of s.procgenZones ?? []) {
+    if (zone.display) {
+      places.push(placeFromDisplay(s.id, zone.display, zone.rect))
+    }
+    const reserved = zone.reservedRects ?? []
+    const resolvedReserved = zone.resolvedReservedRects ?? []
+    for (let i = 0; i < reserved.length; i++) {
+      const r = reserved[i]
+      if (!r.display) continue
+      const resolved = resolvedReserved[i]
+      if (!resolved) continue
+      places.push(placeFromDisplay(s.id, r.display, resolved.rect))
+    }
+  }
 }
+
+export const worldPlaces: readonly WorldPlace[] = places
 
 export function getPlacesInScene(sceneId: string): readonly WorldPlace[] {
   return worldPlaces.filter((p) => p.sceneId === sceneId)
-}
-
-export function placeCenterTile(place: WorldPlace): { x: number; y: number } {
-  return {
-    x: place.tileX + place.tileW / 2,
-    y: place.tileY + place.tileH / 2,
-  }
 }

@@ -5,8 +5,8 @@
 //
 // Fields (all scenes):
 //   id          — unique scene id. Referenced by data/flights.json5 (sceneId
-//                 on each hub) and data/world-map.json5 (sceneId on each
-//                 place). Cross-data references are validated at load time.
+//                 on each hub). Cross-data references are validated at load
+//                 time.
 //   titleZh     — player-facing name shown in the HUD title.
 //   sceneType   — 'micro': top-down human-scale city.
 //                 'macro': MS/warship/fighter scale (future).
@@ -40,6 +40,18 @@
 //                   (place opportunistically), max defaults to unbounded
 //                   (place freely). Use min ≥ 1 to mandate placement
 //                   (e.g. exactly 1 airport per central district).
+//     reservedRects — hand-crafted buildings that live *inside* the zone.
+//                   Procgen forces avenues/streets at the rect's edges so
+//                   it emerges as a single uncarved super-block, then
+//                   spawn drops the crafted building there. Use this for
+//                   buildings too large to host as a fixedBuilding outside
+//                   the zone (e.g. AE Complex).
+//                   { buildingType, tile:{x,y}, display? } — size from
+//                   buildingTypes; display attaches a world-map marker
+//                   over the building footprint.
+//     display     — optional player-facing marker. When present, MapPanel
+//                   renders a marker covering the zone's `rect` with the
+//                   given { id, nameZh, shortZh, description?, kind }.
 //   fixedBuildings — hand-placed buildings not subject to procgen.
 //     type, tile{x,y}.
 //
@@ -74,10 +86,17 @@
         // ── Von Braun central district ────────────────────────────────────
         {
           enabled: true,
-          // 100 × 80 procgen area; aeComplex + AE Industrial District sit
-          // ~250 tiles east of here.
+          // 100 × 80 procgen area; AE Industrial District (with the
+          // AE Complex inside it) sits ~250 tiles east of here.
           seed: 'von-braun-001',
           rect: { x: 40, y: 4, w: 100, h: 80 },
+          display: {
+            id: 'startTown',
+            nameZh: '冯·布劳恩中心区',
+            shortZh: '中心区',
+            kind: 'district',
+            description: '商业、居住和工厂集中的城市中心。新人在公寓与廉价旅馆之间的街道上初次降生于此。',
+          },
           roads: {
             avenueSpacingTiles: { min: 14, max: 22 },
             streetSpacingTiles: { min: 12, max: 18 },
@@ -102,16 +121,16 @@
               // Park is opportunistic.
               types: [
                 { id: 'airport',         min: 1, max: 1 },
-                { id: 'shop',            min: 1, max: 1 },
-                { id: 'bar',             min: 1, max: 1 },
+                { id: 'shop',            min: 1},
+                { id: 'bar',             min: 1 },
                 { id: 'hrOffice',        min: 1, max: 1 },
                 { id: 'realtor',         min: 1, max: 1 },
                 { id: 'transitTerminal', min: 1, max: 1 },
-                { id: 'clinic',          min: 1, max: 1 },
-                { id: 'pharmacy',        min: 1, max: 1 },
+                { id: 'clinic',          min: 1 },
+                { id: 'pharmacy',        min: 1 },
                 { id: 'park',            min: 0, max: 1 },
               ],
-              buildingsPerBlockMax: 1,
+              buildingsPerBlockMax: 5,
             },
             {
               id: 'residential_north',
@@ -158,17 +177,27 @@
         },
 
         // ── AE Industrial District ────────────────────────────────────────
-        // Self-contained sector built around the AE Complex (fixedBuilding
-        // at tile 400,200, size 28×26). Zone sits west of the complex —
-        // AE's reception door faces west, so workers/visitors step out the
-        // lobby straight into this district. Ends at x=394 to leave a
-        // 6-tile buffer + the aeReceptionStop transit kiosk at (398,213).
-        // Mix of worker-tier residential (apartment/luxury/dorm/flop),
-        // a couple of shops + a bar, and supporting subcontractor factories.
+        // Self-contained sector built around the AE Complex. The complex
+        // (28×26, crafted) sits at tile (400, 200) as a reservedRect — the
+        // road grid forces avenues/streets along its edges so it emerges
+        // as a single uncarved super-block, with the rest of the zone
+        // (worker housing, convenience commerce, subcontractor factories)
+        // generated around it. AE's reception door faces west, so workers
+        // and visitors step out the lobby straight onto the forced west
+        // avenue at (398..400). The district's transitTerminal building
+        // (binds to aeIndustrialStop) is mandated in the commercial band
+        // so procgen drops a kiosk somewhere along the worker-route.
         {
           enabled: true,
           seed: 'ae-industrial-001',
-          rect: { x: 302, y: 180, w: 92, h: 60 },
+          rect: { x: 302, y: 180, w: 132, h: 60 },
+          display: {
+            id: 'aeIndustrialDistrict',
+            nameZh: 'AE 工业区',
+            shortZh: 'AE 工业区',
+            kind: 'district',
+            description: '安那海姆电子总部周边的工业区：员工公寓、便利店、酒吧和承包商工厂围绕着 AE 总部展开。',
+          },
           roads: {
             avenueSpacingTiles: { min: 14, max: 18 },
             streetSpacingTiles: { min: 10, max: 14 },
@@ -178,11 +207,24 @@
             alleyWidthTiles: 1,
             alleyMinBlockTiles: 9,
           },
+          reservedRects: [
+            {
+              buildingType: 'aeComplex',
+              tile: { x: 400, y: 200 },
+              display: {
+                id: 'aeComplex',
+                nameZh: '安那海姆电子总部',
+                shortZh: 'AE 总部',
+                kind: 'complex',
+                description: 'AE 工业区的核心：安那海姆电子的庞大企业园区。前台面向工业区，董事会、车间、健身房、休息室都在这一栋楼里。',
+              },
+            },
+          ],
           districts: [
             // North band: mixed-tier housing for AE workers.
             {
               id: 'aeIndustrial_residential',
-              rect: { x: 0, y: 0, w: 92, h: 24 },
+              rect: { x: 0, y: 0, w: 132, h: 24 },
               types: [
                 { id: 'apartment', min: 0, max: 4 },
                 { id: 'luxury',    min: 0, max: 2 },
@@ -195,17 +237,18 @@
             // Middle band: convenience commerce for the workforce.
             {
               id: 'aeIndustrial_commercial',
-              rect: { x: 0, y: 24, w: 92, h: 14 },
+              rect: { x: 0, y: 24, w: 132, h: 14 },
               types: [
-                { id: 'shop', min: 1, max: 2 },
-                { id: 'bar',  min: 0, max: 1 },
+                { id: 'shop',            min: 1, max: 2 },
+                { id: 'bar',             min: 0, max: 1 },
+                { id: 'transitTerminal', min: 1, max: 1 },
               ],
               buildingsPerBlockMax: 1,
             },
             // South band: subcontractor factories supplying the AE plant.
             {
               id: 'aeIndustrial_industrial',
-              rect: { x: 0, y: 38, w: 92, h: 22 },
+              rect: { x: 0, y: 38, w: 132, h: 22 },
               types: [
                 { id: 'factory', min: 0, max: 4 },
               ],
@@ -213,10 +256,6 @@
             },
           ],
         },
-      ],
-
-      fixedBuildings: [
-        { type: 'aeComplex', tile: { x: 400, y: 200 } },
       ],
     },
 
@@ -233,6 +272,13 @@
           seed: 'zum-city-001',
           // Smaller, denser colony interior — Side 3 is industrial Zeon.
           rect: { x: 4, y: 4, w: 70, h: 60 },
+          display: {
+            id: 'zumCity',
+            nameZh: '祖姆市 · Side 3 共和国首府',
+            shortZh: '祖姆市',
+            kind: 'district',
+            description: 'Side 3 殖民卫星群中代表性最强的一座 — 吉翁共和国首府祖姆市。城市中央设有同等规模的航天港。',
+          },
           roads: {
             avenueSpacingTiles: { min: 12, max: 18 },
             streetSpacingTiles: { min: 10, max: 14 },
