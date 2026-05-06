@@ -43,7 +43,7 @@ async function probe(label, viewport) {
 
   await page.screenshot({ path: `scripts/out/${label}.png`, fullPage: true })
 
-  await page.click('.status-footer')
+  await page.locator('.status-footer-btn').first().click()
   await page.waitForTimeout(300)
   const panelOpen = await page.evaluate(() => !!document.querySelector('.status-panel'))
   await page.screenshot({ path: `scripts/out/${label}-status.png`, fullPage: true })

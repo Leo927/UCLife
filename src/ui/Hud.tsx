@@ -41,7 +41,7 @@ export function Hud() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
       if (activeSceneId === SPACE_SCENE_ID) return
       const ui = useUI.getState()
-      const blocked = ui.statusOpen || ui.shopOpen || ui.systemOpen
+      const blocked = ui.statusOpen || ui.inventoryOpen || ui.shopOpen || ui.systemOpen
         || ui.ambitionsOpen || ui.shipDealerOpen
         || ui.transitSourceId !== null || ui.flightHubId !== null
         || ui.dialogNPC !== null || ui.enlargedPortrait !== null

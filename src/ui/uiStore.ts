@@ -9,6 +9,7 @@ export interface Toast {
 
 interface UIState {
   statusOpen: boolean
+  inventoryOpen: boolean
   shopOpen: boolean
   systemOpen: boolean
   mapOpen: boolean
@@ -23,6 +24,8 @@ interface UIState {
   toasts: Toast[]
   toggleStatus: () => void
   setStatus: (open: boolean) => void
+  toggleInventory: () => void
+  setInventory: (open: boolean) => void
   setShop: (open: boolean) => void
   setSystem: (open: boolean) => void
   toggleSystem: () => void
@@ -53,6 +56,7 @@ if (typeof window !== 'undefined' && (import.meta as unknown as { env?: { DEV?: 
 
 export const useUI = create<UIState>((set) => ({
   statusOpen: false,
+  inventoryOpen: false,
   shopOpen: false,
   systemOpen: false,
   mapOpen: false,
@@ -65,6 +69,8 @@ export const useUI = create<UIState>((set) => ({
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
   setStatus: (open) => set({ statusOpen: open }),
+  toggleInventory: () => set((s) => ({ inventoryOpen: !s.inventoryOpen })),
+  setInventory: (open) => set({ inventoryOpen: open }),
   setShop: (open) => set({ shopOpen: open }),
   setSystem: (open) => set({ systemOpen: open }),
   toggleSystem: () => set((s) => ({ systemOpen: !s.systemOpen })),

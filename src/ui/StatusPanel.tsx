@@ -1,5 +1,5 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Inventory, Action, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
 import {
   getConditionTemplate, severityTier,
   SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR, TREATMENT_TIER_ZH,
@@ -10,7 +10,6 @@ import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP } from '../character/skills'
-import { READING_DURATION_MIN, EATING_DURATION_MIN, DRINKING_DURATION_MIN } from '../data/actions'
 import { dowLabel, getJobSpec } from '../data/jobs'
 import { STAT_ORDER, STATS } from '../character/stats'
 import { getStat } from '../stats/sheet'
@@ -33,8 +32,6 @@ export function StatusPanel() {
   const vitals = useTrait(player, Vitals)
   const health = useTrait(player, Health)
   const money = useTrait(player, Money)
-  const inventory = useTrait(player, Inventory)
-  const action = useTrait(player, Action)
   const job = useTrait(player, Job)
   const wsEnt = job?.workstation ?? null
   const wsTrait = useTrait(wsEnt, Workstation)
@@ -55,38 +52,6 @@ export function StatusPanel() {
 
   if (!open) return null
 
-  const canRead = action?.kind === 'idle' && (inventory?.books ?? 0) > 0
-  const startReading = () => {
-    if (!player || !canRead) return
-    player.set(Action, { kind: 'reading', remaining: READING_DURATION_MIN, total: READING_DURATION_MIN })
-    setOpen(false)
-  }
-
-  const isBusyAction = action && action.kind !== 'idle' && action.kind !== 'walking' && action.kind !== 'working'
-
-  const drinkWater = () => {
-    if (!player || !inventory || inventory.water === 0) return
-    if (isBusyAction) return
-    player.set(Action, { kind: 'drinking', remaining: DRINKING_DURATION_MIN, total: DRINKING_DURATION_MIN })
-    setOpen(false)
-  }
-
-  const eatMeal = () => {
-    if (!player || !inventory || inventory.meal === 0) return
-    if (isBusyAction) return
-    player.set(Action, { kind: 'eating', remaining: EATING_DURATION_MIN, total: EATING_DURATION_MIN })
-    setOpen(false)
-  }
-
-  // Same `eating` action as basic meal — actionSystem consumes premium first
-  // when available, so the path is unified for player + NPC.
-  const eatPremiumMeal = () => {
-    if (!player || !inventory || inventory.premiumMeal === 0) return
-    if (isBusyAction) return
-    player.set(Action, { kind: 'eating', remaining: EATING_DURATION_MIN, total: EATING_DURATION_MIN })
-    setOpen(false)
-  }
-
   // No QueuedInteract — the player might just want to check on their home;
   // if they want to rent/sleep they can click the bed.
   const walkHome = () => {
@@ -103,17 +68,16 @@ export function StatusPanel() {
     setOpen(false)
   }
 
-  const hasInv = inventory && (inventory.water > 0 || inventory.meal > 0 || inventory.premiumMeal > 0 || inventory.books > 0)
-
   return (
     <div className="status-overlay" onClick={() => setOpen(false)}>
-      <div className="status-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="status-panel status-panel--wide" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>状态</h2>
           <button className="status-close" onClick={() => setOpen(false)} aria-label="关闭">✕</button>
         </header>
 
-        <section className="status-section status-identity">
+        <div className="status-body">
+        <section className="status-section status-identity status-section--full">
           {player && (
             <div className="status-identity-portrait">
               <Portrait entity={player} renderer="revamp" width={96} height={128} />
@@ -332,37 +296,6 @@ export function StatusPanel() {
         </section>
 
         <section className="status-section">
-          <h3>物品</h3>
-          {!hasInv && <p className="status-muted">暂无物品</p>}
-          {inventory && inventory.water > 0 && (
-            <div className="inv-row">
-              <span className="inv-name">矿泉水 × {inventory.water}</span>
-              <button className="inv-action" onClick={drinkWater} disabled={isBusyAction}>饮用 (1分钟)</button>
-            </div>
-          )}
-          {inventory && inventory.meal > 0 && (
-            <div className="inv-row">
-              <span className="inv-name">简餐 × {inventory.meal}</span>
-              <button className="inv-action" onClick={eatMeal} disabled={isBusyAction}>食用 (10分钟)</button>
-            </div>
-          )}
-          {inventory && inventory.premiumMeal > 0 && (
-            <div className="inv-row">
-              <span className="inv-name">套餐 × {inventory.premiumMeal}</span>
-              <button className="inv-action" onClick={eatPremiumMeal} disabled={isBusyAction}>食用 (10分钟)</button>
-            </div>
-          )}
-          {inventory && inventory.books > 0 && (
-            <div className="inv-row">
-              <span className="inv-name">机械原理 × {inventory.books}</span>
-              <button className="inv-action" onClick={startReading} disabled={!canRead}>
-                阅读 (2小时)
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="status-section">
           <h3>声望</h3>
           {reputation && Object.keys(reputation.rep).length > 0 ? (
             Object.entries(reputation.rep).map(([fid, value]) => {
@@ -392,6 +325,7 @@ export function StatusPanel() {
           <h3>近期记录</h3>
           <p>Phase 3 解锁</p>
         </section>
+        </div>
       </div>
     </div>
   )

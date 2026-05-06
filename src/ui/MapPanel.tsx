@@ -296,7 +296,7 @@ export function MapPanel() {
           <h2>地图</h2>
           <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
-        <section className="status-section">
+        <section className="status-section map-body">
           <div className="map-controls">
             <button className="map-zoom-btn" onClick={zoomIn} aria-label="放大">＋</button>
             <button className="map-zoom-btn" onClick={zoomOut} aria-label="缩小">－</button>
@@ -392,7 +392,7 @@ export function MapPanel() {
             )}
           </div>
         </section>
-        <section className="status-section">
+        <section className="status-section map-places">
           {places.map((p) => {
             const isHere = playerTileX !== null && playerTileY !== null
               && playerTileX >= p.tileX && playerTileX < p.tileX + p.tileW

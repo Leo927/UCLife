@@ -25,7 +25,7 @@ async function setup() {
   bindUi()
   // Clear any state the modules ran into during import.
   useUI.setState({
-    statusOpen: false, shopOpen: false, systemOpen: false, mapOpen: false,
+    statusOpen: false, inventoryOpen: false, shopOpen: false, systemOpen: false, mapOpen: false,
     ambitionsOpen: false, shipDealerOpen: false,
     transitSourceId: null, flightHubId: null,
     dialogNPC: null, enlargedPortrait: null, toasts: [],
