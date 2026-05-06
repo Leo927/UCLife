@@ -132,10 +132,14 @@ drain are **per-ship**, not rolled up onto the flagship — see
 [fleet.md](fleet.md) for the full template/instance shape and the
 Starsector-style cost model.
 
-- **Fuel** burns per ship whenever its Thrust > 0 —
-  `fuelPerThrustSec * |thrust| * dt`. At rest fuel is free (you coast).
-  Fuel storage is per-ship class (`fuelStorage` on the ship template);
-  freighters and tankers carry the deep reserves.
+- **Fuel** is charged on actual delta-v, not commanded thrust —
+  `fuelPerThrustSec * |Δv| / thrustAccel` per integration step, where
+  `Δv` is the post-clamp velocity change. Cruising at maxSpeed in a
+  straight line is free (the integrator clamps the overshoot, so Δv is
+  zero); only real velocity changes — spin-up, braking, turning —
+  burn fuel. Coasting is also free. Fuel storage is per-ship class
+  (`fuelStorage` on the ship template); freighters and tankers carry
+  the deep reserves.
 - **Supplies** drain continuously even at rest. Aggregate fleet drain:
   - `sum(ship.template.supplyPerDay for each non-mothballed ship)` —
     fixed per-class life support / wear cost (Starsector model)

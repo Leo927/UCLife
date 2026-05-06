@@ -138,25 +138,45 @@ export function spaceSimSystem(world: World, dtSec: number): void {
     }
 
     const thrust = e.get(Thrust)!
-    // Fuel economy: debit proportional to thrust magnitude. When fuel is
-    // empty, computed thrust is dropped (player coasts) but Course stays
-    // active so a refuel mid-flight resumes the autopilot.
+    // Fuel economy: debit proportional to actual delta-v after the
+    // maxSpeed clamp, not commanded thrust. Cruising at maxSpeed in a
+    // straight line burns nothing because the integrator throws the
+    // overshoot away — fuel only buys real changes in velocity
+    // (spin-up, braking, turning). When fuel is empty, computed thrust
+    // is dropped (player coasts) but Course stays active so a refuel
+    // mid-flight resumes the autopilot.
     let appliedAx = thrust.ax
     let appliedAy = thrust.ay
     const thrustMag = Math.hypot(thrust.ax, thrust.ay)
     if (thrustMag > 0) {
-      const fuelSpent = thrustMag * dtSec * spaceConfig.fuelPerThrustSec / spaceConfig.thrustAccel
-      const ok = spendFuel(fuelSpent)
-      const ship = getShipState()
-      if (!ok || (ship && ship.fuelCurrent <= 0)) {
-        appliedAx = 0
-        appliedAy = 0
-        if (!fuelOutLogged) {
-          fuelOutLogged = true
-          emitSim('log', { textZh: '燃料耗尽', atMs: useClock.getState().gameDate.getTime() })
+      // Predict post-clamp delta-v using the same math as the
+      // integrator (semi-implicit Euler + maxSpeed clamp), so the
+      // charge matches what the next step() actually applies.
+      const tentVx = vel.vx + thrust.ax * dtSec
+      const tentVy = vel.vy + thrust.ay * dtSec
+      const tentSpeed = Math.hypot(tentVx, tentVy)
+      let nextVx = tentVx
+      let nextVy = tentVy
+      if (maxSpeed > 0 && tentSpeed > maxSpeed) {
+        const scale = maxSpeed / tentSpeed
+        nextVx *= scale
+        nextVy *= scale
+      }
+      const deltaV = Math.hypot(nextVx - vel.vx, nextVy - vel.vy)
+      if (deltaV > 0) {
+        const fuelSpent = deltaV * spaceConfig.fuelPerThrustSec / spaceConfig.thrustAccel
+        const ok = spendFuel(fuelSpent)
+        const ship = getShipState()
+        if (!ok || (ship && ship.fuelCurrent <= 0)) {
+          appliedAx = 0
+          appliedAy = 0
+          if (!fuelOutLogged) {
+            fuelOutLogged = true
+            emitSim('log', { textZh: '燃料耗尽', atMs: useClock.getState().gameDate.getTime() })
+          }
+        } else if (ship && ship.fuelCurrent > 0) {
+          fuelOutLogged = false
         }
-      } else if (ship && ship.fuelCurrent > 0) {
-        fuelOutLogged = false
       }
     } else {
       const ship = getShipState()

@@ -14,7 +14,9 @@
   // spins up from 0 to baseShipMaxSpeed in ~2.75 sec.
   thrustAccel: 80,
 
-  // Fuel consumed per (thrust * second) of burn. Coasting is free.
+  // Fuel consumed per second of full-thrust acceleration. Charged on
+  // actual post-clamp delta-v — cruising at maxSpeed costs nothing,
+  // only real velocity changes (spin-up, braking, turning) burn fuel.
   fuelPerThrustSec: 0.4,
 
   // Continuous supply drain — life support, paid every game-hour
