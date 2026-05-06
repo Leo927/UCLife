@@ -8,10 +8,9 @@
 //   defaultWeapons[] — ordered list bound to mounts
 //   ai — { aggression: 0..1, retreatThresholdPct: 0..1, maintainRange: number }
 //
-// Phase 6.0 spine ships one class — the pirate light frigate from
-// `pirate_patrol`. Tuning is deliberately weak: a freshly-bought
-// lightFreighter beats it cleanly, so the player learns the controls
-// without losing the ship on first contact.
+// Phase 6.0 spine ships three classes. pirateLight is the baseline learner;
+// pirate_skirmisher and pirate_raider are the campaign-map roster referenced
+// by space-entities.json5.
 
 {
   ships: [
@@ -37,6 +36,61 @@
         // Distance the AI tries to maintain from the player ship in arena
         // units. Pirate light frigates close in to brawling range.
         maintainRange: 160,
+      },
+    },
+
+    // Patrol-grade skirmisher — the standard pirate presence in the lunar shoal
+    // zone and near-moon orbit. Faster than pirateLight but equally fragile;
+    // a stock lightFreighter can trade with two of these if the player manages
+    // flux. Used by all pirate_skirmisher entries in space-entities.json5.
+    {
+      id: 'pirate_skirmisher',
+      nameZh: '海盗巡逻艇',
+      descZh: '轻型海盗巡逻艇；活跃于月球轨道附近，机动性好但装甲薄弱。',
+      hullMax: 550,
+      armorMax: 110,
+      fluxMax: 1100,
+      fluxDissipation: 50,
+      shieldEfficiency: 1.15,
+      topSpeed: 80,
+      maneuverability: 0.70,
+      mounts: [
+        { idx: 0, size: 'small', arc: 1.2, facing: 0 },
+        { idx: 1, size: 'small', arc: 1.0, facing: 0 },
+      ],
+      defaultWeapons: ['pirateBeamMk0', 'pirateBeamMk0'],
+      ai: {
+        aggression: 0.60,
+        retreatThresholdPct: 0.20,
+        maintainRange: 150,
+      },
+    },
+
+    // Heavy raider — anchors the outer-belt pirate groups and the sturdier
+    // near-moon patrol. More hull and a ballistic mount make it a threat even
+    // to a lightly-upgraded lightFreighter. Used by pirate_raider entries in
+    // space-entities.json5.
+    {
+      id: 'pirate_raider',
+      nameZh: '海盗突击舰',
+      descZh: '改装的吉翁式突击舰；装甲厚实，携带实弹炮，是近月轨道上最危险的海盗船型。',
+      hullMax: 900,
+      armorMax: 200,
+      fluxMax: 1700,
+      fluxDissipation: 68,
+      shieldEfficiency: 1.0,
+      topSpeed: 55,
+      maneuverability: 0.45,
+      mounts: [
+        { idx: 0, size: 'small', arc: 1.2, facing: 0 },
+        { idx: 1, size: 'small', arc: 1.0, facing: 0 },
+        { idx: 2, size: 'small', arc: 1.0, facing: 0 },
+      ],
+      defaultWeapons: ['pirateBeamMk0', 'ballisticMk1', 'pirateBeamMk0'],
+      ai: {
+        aggression: 0.75,
+        retreatThresholdPct: 0.15,
+        maintainRange: 130,
       },
     },
   ],
