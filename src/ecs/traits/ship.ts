@@ -26,6 +26,11 @@ export const Ship = trait({
   shieldEfficiency: 1,    // multiplier on flux-per-damage (1 = neutral)
   topSpeed: 0,            // map-units/sec equivalent for tactical movement
   maneuverability: 0,     // 0..1, scales turn rate
+  // Combat readiness — Starsector-shape gauge that depletes in combat
+  // and restores at safe POIs. Low CR = worse combat performance.
+  // Phase 6.0 only mutates CR on flee/defeat outcomes; per-tick CR drain
+  // during tactical engagements lands with multi-ship deployment in 6.2.
+  crCurrent: 0, crMax: 100,
   fuelCurrent: 0, fuelMax: 0,
   suppliesCurrent: 0, suppliesMax: 0,
   dockedAtPoiId: '',

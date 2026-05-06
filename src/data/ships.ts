@@ -54,6 +54,7 @@ export interface ShipClassDef {
   shieldEfficiency: number
   topSpeed: number
   maneuverability: number
+  crMax: number
   fuelMax: number
   suppliesMax: number
   crewMax: number
@@ -106,6 +107,7 @@ for (const ship of parsed.ships) {
   if (ship.maneuverability < 0 || ship.maneuverability > 2) {
     throw new Error(`ships.json5: ship "${ship.id}" maneuverability must be in [0, 2]`)
   }
+  if (ship.crMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crMax must be > 0`)
   if (ship.fuelMax < 0) throw new Error(`ships.json5: ship "${ship.id}" fuelMax must be >= 0`)
   if (ship.suppliesMax < 0) throw new Error(`ships.json5: ship "${ship.id}" suppliesMax must be >= 0`)
   if (ship.crewMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crewMax must be > 0`)

@@ -50,6 +50,7 @@
       shieldEfficiency: 1.0,
       topSpeed: 60,
       maneuverability: 0.55,
+      crMax: 100,
       fuelMax: 16,
       suppliesMax: 40,
       crewMax: 4,

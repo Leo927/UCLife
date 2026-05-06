@@ -869,6 +869,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       shieldEfficiency: cls.shieldEfficiency,
       topSpeed: cls.topSpeed,
       maneuverability: cls.maneuverability,
+      crCurrent: cls.crMax, crMax: cls.crMax,
       fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
       suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
       dockedAtPoiId: 'vonBraun',

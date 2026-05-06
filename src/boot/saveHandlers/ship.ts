@@ -16,6 +16,7 @@ interface ShipBlock {
   hullCurrent: number
   armorCurrent: number
   fluxCurrent: number
+  crCurrent: number
   fuelCurrent: number
   suppliesCurrent: number
   dockedAtPoiId: string
@@ -41,6 +42,7 @@ function snapshotShip(): ShipBlock | undefined {
     hullCurrent: s.hullCurrent,
     armorCurrent: s.armorCurrent,
     fluxCurrent: s.fluxCurrent,
+    crCurrent: s.crCurrent,
     fuelCurrent: s.fuelCurrent,
     suppliesCurrent: s.suppliesCurrent,
     dockedAtPoiId: s.dockedAtPoiId,
@@ -62,6 +64,9 @@ function restoreShip(block: ShipBlock): void {
       hullCurrent: block.hullCurrent,
       armorCurrent: block.armorCurrent,
       fluxCurrent: block.fluxCurrent,
+      // Saves predating CR (block.crCurrent === undefined) restore to a
+      // full gauge — old saves don't lose flight readiness on load.
+      crCurrent: block.crCurrent ?? cur.crMax,
       fuelCurrent: block.fuelCurrent,
       suppliesCurrent: block.suppliesCurrent,
       dockedAtPoiId: block.dockedAtPoiId,

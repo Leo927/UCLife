@@ -22,13 +22,17 @@ import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
   Ship, WeaponMount, EnemyShipState, EntityKey, IsPlayer, Money,
+  EnemyAI, Flags,
 } from '../ecs/traits'
 import { getEnemyShip } from '../data/enemyShips'
+import { getShipClass } from '../data/ships'
 import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
-import { setInCombat, damageHull } from '../sim/ship'
+import { setInCombat, damageHull, drainCR, getPlayerShipEntity } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim } from '../sim/events'
+import { migratePlayerToScene } from '../sim/scene'
+import { getAirportPlacement } from '../sim/airportPlacements'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -54,6 +58,25 @@ interface ProjectileSnap {
   rangeRemaining: number
 }
 
+// Transient visual record for an instant-hit beam shot — the renderer
+// draws a fading line for the duration of `lifetimeMs`. Without this,
+// beams resolve instantly and the only feedback is the flash banner.
+export interface BeamFlash {
+  id: number
+  ownerSide: 'player' | 'enemy'
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  ageMs: number
+  lifetimeMs: number
+}
+const BEAM_FLASH_LIFETIME_MS = 220
+const beamFlashes: BeamFlash[] = []
+let nextBeamId = 1
+
+export function getBeamFlashes(): BeamFlash[] {
+  return beamFlashes.slice()
+}
+
 // per-active-scene only: combat runs exclusively in the playerShipInterior
 // world; only one tactical encounter exists at any time. Module-level
 // projectile pool + id seed are safe — there's no second concurrent combat
@@ -61,6 +84,26 @@ interface ProjectileSnap {
 // but doesn't use it — it always reads/writes the SHIP_SCENE_ID world.)
 let nextProjectileId = 1
 const projectiles: ProjectileSnap[] = []
+
+// Tactical-arena position for the player flagship — module-local rather
+// than written to Ship.fleetPos, so the campaign-map fleet position
+// survives an engagement intact. UI snapshots read it via
+// getCombatPlayerPos().
+const combatPlayerPos: { x: number; y: number } = { x: 0, y: 0 }
+let combatPlayerHeading = 0   // radians, 0 = +x; rotates toward target
+
+// Campaign-world EntityKey of the enemy that triggered the engagement —
+// stored so endCombat('victory') can destroy it (otherwise the same
+// pirate re-prompts engagement after the cooldown expires).
+let activeCampaignEnemyKey: string | null = null
+
+export function getCombatPlayerPos(): { x: number; y: number } {
+  return { x: combatPlayerPos.x, y: combatPlayerPos.y }
+}
+
+export function getCombatPlayerHeading(): number {
+  return combatPlayerHeading
+}
 
 interface CombatState {
   open: boolean
@@ -130,26 +173,31 @@ function findPlayer(): Entity | undefined {
   return undefined
 }
 
-export function startCombat(enemyShipId: string): void {
+export function startCombat(enemyShipId: string, campaignEnemyKey?: string | null): void {
   const blueprint = getEnemyShip(enemyShipId)
   const w = shipWorld()
 
   for (const e of w.query(EnemyShipState)) e.destroy()
   projectiles.length = 0
+  activeCampaignEnemyKey = campaignEnemyKey ?? null
+
+  // Tactical-arena position lives in module-local state — Ship.fleetPos
+  // stays at its campaign-map value so the player rejoins the campaign
+  // (after flee or the next engagement) at the same spot they left.
+  combatPlayerPos.x = PLAYER_SPAWN.x
+  combatPlayerPos.y = PLAYER_SPAWN.y
+  combatPlayerHeading = 0   // facing +x toward enemy spawn
 
   const ship = getPlayerShip()
   if (ship) {
     const s = ship.get(Ship)!
-    // Reset combat-time state on the player ship: full flux dissipation
-    // baseline, position at arena spawn, no in-flight velocity.
+    // Combat-time mutable state on the singleton: reset flux to a clean
+    // baseline and restore armor (Starsector pattern — armor regenerates
+    // between encounters). Hull and CR carry over from prior fights.
     ship.set(Ship, {
       ...s,
       fluxCurrent: 0,
       armorCurrent: s.armorMax,
-      // fleetPos doubles as tactical arena position during combat. Saved
-      // off + restored at endCombat() so the campaign-map render keeps
-      // its docked position.
-      fleetPos: { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y },
     })
   }
 
@@ -197,10 +245,104 @@ let enemyMaintainRange = 160
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
 
+// Flee penalties — Starsector "you can't run for free" feel.
+// Hull lands the bigger hit; armor depletes (regenerates between
+// encounters); CR drains heavily so back-to-back flees stack.
+const FLEE_HULL_LOSS_PCT = 0.35
+const FLEE_CR_DRAIN = 50
+
+// Defeat: stripped to the survivor floor. Money goes to a small
+// rescue-stipend amount; the player has to ground-game back into a
+// new ship.
+const DEFEAT_SURVIVOR_MONEY = 200
+
+// Ground scenes the rescue transport might drop a defeated player at,
+// alongside the POI that scene's port maps to (used to keep ship state
+// internally consistent should the player re-acquire a ship later).
+const DEFEAT_DROP_OPTIONS: { sceneId: 'startTown' | 'zumCity'; airportHubId: string; poiId: string }[] = [
+  { sceneId: 'startTown', airportHubId: 'startTownAirport', poiId: 'vonBraun' },
+  { sceneId: 'zumCity',   airportHubId: 'zumCityAirport',   poiId: 'side3' },
+]
+
+function destroyCampaignEnemyByKey(key: string): void {
+  const space = getWorld('spaceCampaign')
+  for (const e of space.query(EnemyAI, EntityKey)) {
+    if (e.get(EntityKey)!.key === key) {
+      e.destroy()
+      return
+    }
+  }
+}
+
+// Public so the engagement modal's flee choice (which closes the modal
+// without entering combat) shares one penalty path with in-combat retreat.
+export function applyFleePenalty(): void {
+  const ship = getPlayerShip()
+  if (!ship) return
+  const s = ship.get(Ship)!
+  const hullLoss = Math.floor(s.hullCurrent * FLEE_HULL_LOSS_PCT)
+  ship.set(Ship, {
+    ...s,
+    hullCurrent: Math.max(1, s.hullCurrent - hullLoss),
+    armorCurrent: 0,
+  })
+  drainCR(FLEE_CR_DRAIN)
+  logEvent(`脱离接触 · 船体受创 -${hullLoss} · 战备 -${FLEE_CR_DRAIN}`)
+}
+
+function applyDefeatConsequence(): void {
+  // Pick a random ground colony (rescue transport drop-off).
+  const drop = DEFEAT_DROP_OPTIONS[Math.floor(Math.random() * DEFEAT_DROP_OPTIONS.length)]
+
+  // Reset Ship singleton to factory-fresh state so a re-acquired ship
+  // starts clean. The owned-flag flip below means the player can't board
+  // it until they re-buy from the dealer.
+  const ship = getPlayerShipEntity()
+  if (ship) {
+    const s = ship.get(Ship)!
+    const cls = getShipClass(s.classId)
+    ship.set(Ship, {
+      ...s,
+      hullCurrent: cls.hullMax,
+      armorCurrent: cls.armorMax,
+      fluxCurrent: 0,
+      crCurrent: cls.crMax,
+      fuelCurrent: cls.fuelMax,
+      suppliesCurrent: cls.suppliesMax,
+      dockedAtPoiId: drop.poiId,
+      inCombat: false,
+    })
+  }
+
+  // Strip ship ownership + everything in the player's pockets bar a
+  // survivor stipend. Other progression (skills, perks, relationships,
+  // ambitions) survives — the run continues.
+  const player = findPlayer()
+  if (player) {
+    player.set(Money, { amount: DEFEAT_SURVIVOR_MONEY })
+    const f = player.get(Flags)
+    if (f) {
+      player.set(Flags, { flags: { ...f.flags, shipOwned: false } })
+    }
+  }
+
+  // Drop the player at the rescue colony's airport arrival tile if the
+  // procgen registry knows it, otherwise the scene's declared spawn tile.
+  const placement = getAirportPlacement(drop.airportHubId)
+  const arrival = placement
+    ? { x: placement.arrivalPx.x, y: placement.arrivalPx.y }
+    : { x: 20 * 20, y: 50 * 20 }   // startTown spawn fallback in tile px (TILE=20)
+  migratePlayerToScene(drop.sceneId, arrival)
+
+  emitSim('toast', { textZh: '飞船被毁 · 救援运输船把你丢在了另一颗殖民地' })
+  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'startTown' ? '冯·布劳恩' : '祖姆市'}`)
+}
+
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
   for (const e of w.query(EnemyShipState)) e.destroy()
   projectiles.length = 0
+  beamFlashes.length = 0
 
   // Reset player weapon charge so a follow-up encounter starts cold.
   for (const e of w.query(WeaponMount)) {
@@ -213,7 +355,11 @@ export function endCombat(outcome: CombatOutcome): void {
   useClock.getState().setSpeed(1)
   useCombatStore.getState().reset()
 
+  const campaignKey = activeCampaignEnemyKey
+  activeCampaignEnemyKey = null
+
   if (outcome === 'victory') {
+    if (campaignKey) destroyCampaignEnemyByKey(campaignKey)
     const reward = 800 + Math.floor(Math.random() * 700)
     const player = findPlayer()
     if (player) {
@@ -222,15 +368,9 @@ export function endCombat(outcome: CombatOutcome): void {
     }
     logEvent(`战斗胜利 · 缴获 ¥${reward}`)
   } else if (outcome === 'defeat') {
-    // Spine: defeat is non-game-over. Slice 6.2 wires permadeath / POW.
-    const ship = getPlayerShip()
-    if (ship) {
-      const s = ship.get(Ship)!
-      ship.set(Ship, { ...s, hullCurrent: Math.max(1, s.hullCurrent) })
-    }
-    logEvent('战斗失败 · 飞船重创')
+    applyDefeatConsequence()
   } else {
-    logEvent('战斗脱离')
+    applyFleePenalty()
   }
 }
 
@@ -338,6 +478,14 @@ function fireWeapon(
     // Instant beam — apply damage immediately if within range and tracking
     // succeeds. We model tracking as a deterministic miss when the target
     // is moving fast; for the spine, every beam hits.
+    beamFlashes.push({
+      id: nextBeamId++,
+      ownerSide,
+      from: { x: from.x, y: from.y },
+      to: { x: to.x, y: to.y },
+      ageMs: 0,
+      lifetimeMs: BEAM_FLASH_LIFETIME_MS,
+    })
     const enemy = getEnemyEntity()
     if (!enemy) return
     if (ownerSide === 'player') {
@@ -375,7 +523,7 @@ function tickProjectiles(dtSec: number): void {
   const ship = getPlayerShip()
   if (!enemy || !ship) return
   const enemyState = enemy.get(EnemyShipState)!
-  const playerPos = ship.get(Ship)!.fleetPos
+  const playerPos = combatPlayerPos
   // Mutate-in-place + filter pattern.
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i]
@@ -428,7 +576,10 @@ export function combatSystem(_world: World, dtMs: number): void {
 
   // -- 1. Player ship physics ------------------------------------------------
   // Steer toward playerTarget; otherwise hold position. Top-speed clamp.
-  const playerPos = { x: shipState.fleetPos.x, y: shipState.fleetPos.y }
+  // Heading rotates toward whichever of {playerTarget, enemy} the helm is
+  // committed to so the +x-forward weapon arcs aim at something useful
+  // even when the player isn't actively giving move orders.
+  const playerPos = combatPlayerPos
   const playerTarget = store.playerTarget
   if (playerTarget) {
     const ang = angleBetween(playerPos, playerTarget)
@@ -439,9 +590,21 @@ export function combatSystem(_world: World, dtMs: number): void {
       playerPos.y += Math.sin(ang) * move
     }
   }
+  // Aim heading toward the enemy by default (Starsector-shape autofacing
+  // for the spine — explicit hold-heading orders land later). Maneuverability
+  // caps the per-second turn rate.
+  const desiredHeading = angleBetween(playerPos, enemyState.pos)
+  const turnRate = (Math.PI * 1.5) * Math.max(0.1, shipState.maneuverability)   // rad/sec
+  const headingDelta = angleDelta(combatPlayerHeading, desiredHeading)
+  const turnStep = Math.sign(headingDelta) * Math.min(Math.abs(headingDelta), turnRate * dtSec)
+  combatPlayerHeading += turnStep
+
+  // Clamp arena bounds so the player can't drift offscreen.
+  playerPos.x = Math.max(20, Math.min(ARENA_W - 20, playerPos.x))
+  playerPos.y = Math.max(20, Math.min(ARENA_H - 20, playerPos.y))
+
   ship.set(Ship, {
     ...shipState,
-    fleetPos: playerPos,
     fluxCurrent: Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec),
   })
   playerShield.fluxCurrent = Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec)
@@ -450,6 +613,11 @@ export function combatSystem(_world: World, dtMs: number): void {
   }
 
   // -- 2. Player weapon charge + auto-fire ----------------------------------
+  // Mount arcs are relative to ship heading. Until per-mount facing/arc
+  // authoring lands on the player ship, all hardpoints share the hull's
+  // forward arc — small mounts =180°, medium/large =360°.
+  const playerToEnemyAng = angleBetween(playerPos, enemyState.pos)
+  const playerToEnemyRange = dist(playerPos, enemyState.pos)
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
     if (!m.weaponId) continue
@@ -457,10 +625,8 @@ export function combatSystem(_world: World, dtMs: number): void {
     let charge = Math.min(def.chargeSec, m.chargeSec + dtSec)
     let ready = charge >= def.chargeSec
     if (ready) {
-      // Auto-fire if the enemy is in arc + range.
-      const targetAng = angleBetween(playerPos, enemyState.pos)
-      const inRange = dist(playerPos, enemyState.pos) <= def.range
-      const inArcCheck = inArc(targetAng, 0 /* heading is implicit forward */, m.size === 'small' ? Math.PI : Math.PI * 2)
+      const inRange = playerToEnemyRange <= def.range
+      const inArcCheck = inArc(playerToEnemyAng, combatPlayerHeading, m.size === 'small' ? Math.PI : Math.PI * 2)
       if (inRange && inArcCheck) {
         fireWeapon('player', def, playerPos, enemyState.pos)
         charge = 0
@@ -521,8 +687,14 @@ export function combatSystem(_world: World, dtMs: number): void {
   })
   void updatedWeapons; void enemyFlux  // tsc happy
 
-  // -- 6. Projectiles ------------------------------------------------------
+  // -- 6. Projectiles + beam-flash decay -----------------------------------
   tickProjectiles(dtSec)
+  for (let i = beamFlashes.length - 1; i >= 0; i--) {
+    beamFlashes[i].ageMs += dtMs
+    if (beamFlashes[i].ageMs >= beamFlashes[i].lifetimeMs) {
+      beamFlashes.splice(i, 1)
+    }
+  }
 
   // -- 7. Resolution ------------------------------------------------------
   const shipNow = ship.get(Ship)!

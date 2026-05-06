@@ -65,6 +65,20 @@ export function repairHull(amount: number): void {
   ent.set(Ship, { ...s, hullCurrent: hp })
 }
 
+export function drainCR(amount: number): void {
+  const ent = getPlayerShipEntity()
+  if (!ent) return
+  const s = ent.get(Ship)!
+  ent.set(Ship, { ...s, crCurrent: Math.max(0, s.crCurrent - amount) })
+}
+
+export function restoreCR(amount: number): void {
+  const ent = getPlayerShipEntity()
+  if (!ent) return
+  const s = ent.get(Ship)!
+  ent.set(Ship, { ...s, crCurrent: Math.min(s.crMax, s.crCurrent + amount) })
+}
+
 export function getDockedPoiId(): string | null {
   const s = getShipState()
   if (!s) return null

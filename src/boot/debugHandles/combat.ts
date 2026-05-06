@@ -8,13 +8,22 @@ import { getWorld } from '../../ecs/world'
 import {
   Position, EnemyShipState, EnemyAI, EntityKey,
 } from '../../ecs/traits'
-import { useCombatStore } from '../../systems/combat'
+import { useCombatStore, startCombat } from '../../systems/combat'
 import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
 
 registerDebugHandle('useCombatStore', useCombatStore)
 registerDebugHandle('useTransition', useTransition)
 registerDebugHandle('useEngagement', useEngagement)
+
+// Skip the contact-detection + modal flow for smoke tests / dev poking —
+// jump straight into a tactical engagement against the named enemy class.
+// The optional second arg is the campaign-world EntityKey of the enemy
+// (so victory can clean up the right pirate); omit for synthetic combat.
+registerDebugHandle('startCombatCheat', (enemyShipId: string, campaignEnemyKey: string | null = null) => {
+  startCombat(enemyShipId, campaignEnemyKey)
+  return true
+})
 
 registerDebugHandle('fastWinCombat', () => {
   const w = getWorld('playerShipInterior')

@@ -2,13 +2,14 @@
 // step calls prompt() when the player ship enters an enemy's contact
 // radius; the modal renders three choices (engage/flee/negotiate) and
 // resolve() routes them — engage hands off to the existing tactical
-// combat store (systems/combat.ts), flee logs an event and lets the
-// ship coast on, negotiate is a not-yet-implemented stub.
+// combat store (systems/combat.ts), flee applies the standard flee
+// penalty (hull/armor scuff + CR drain) and lets the ship coast on,
+// negotiate is a not-yet-implemented stub.
 //
 // Not persisted to save (slice 8) — engagement is transient by design.
 
 import { create } from 'zustand'
-import { startCombat } from '../systems/combat'
+import { startCombat, applyFleePenalty } from '../systems/combat'
 import { emitSim } from './events'
 import { isEnemyShipId } from '../data/enemyShips'
 
@@ -40,11 +41,15 @@ export const useEngagement = create<EngagementState>((set, get) => ({
     const s = get()
     if (!s.open) return
     const classId = s.enemyShipClassId
+    const key = s.enemyKey
     set({ open: false, enemyKey: null, enemyShipClassId: null })
     if (choice === 'engage') {
-      if (classId) startCombat(resolveCombatClassId(classId))
+      if (classId) startCombat(resolveCombatClassId(classId), key)
     } else if (choice === 'flee') {
-      emitSim('log', { textZh: '脱离接触', atMs: Date.now() })
+      // Modal-flee disengages without committing to combat — applies the
+      // flee penalty (hull/armor scuff + CR drain) since pulling away
+      // hot from contact range isn't free in Starsector-shape combat.
+      applyFleePenalty()
     } else if (choice === 'negotiate') {
       emitSim('toast', { textZh: '谈判尚未实装' })
     }

@@ -59,11 +59,17 @@ export function resetSpaceSimFlags(): void {
 // Slice 4 runs this only when the camera is on the spaceCampaign scene.
 // Slice 5 lifts that gate so off-helm autopilot continues.
 // Slice 6 adds enemy AI + engagement contact detection; the whole sim
-// freezes while the engagement modal is open.
+// freezes while the engagement modal is open or a tactical engagement
+// is active — orbits, autopilot, fuel drain, and pirate AI all halt
+// while the player is in combat.
 export function spaceSimSystem(world: World, dtSec: number): void {
   // Pause integration while the engagement modal is open — Starsector-
   // style "world pauses on contact" feel.
   if (useEngagement.getState().open) return
+  // Pause the campaign world for the duration of a tactical engagement.
+  // Without this, orbits march on, other pirates close in, and the
+  // player's autopilot keeps integrating while they're at the bridge.
+  if (useClock.getState().mode === 'combat') return
 
   // 1. Derived t in days, scaled by orbitTimeScale. Use the smoothed clock
   // so orbits advance continuously between integer-minute ticks (otherwise
