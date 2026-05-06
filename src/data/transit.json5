@@ -3,15 +3,14 @@
 // destination shown on the transit map overlay (ui/TransitMap.tsx).
 //
 // `placement` decides where the terminal is built:
-//   'building' — procgen places a `transitTerminal` building (one per
-//                scene's central/commercial district, min=max=1) and
-//                spawns the kiosk inside. Bound 1:1 to this entry by
-//                sceneId at spawn time. No coords here.
+//   'building' — procgen places a `transitTerminal` building in a district
+//                that mandates one (min ≥ 1) and spawns the kiosk inside.
+//                Multiple `'building'` entries per sceneId bind in
+//                declaration order to the procgen sub-blocks as they are
+//                processed (zone iteration order in scenes.json5).
 //   'airport'  — the airport spawn embeds this terminal as a kiosk near
 //                its entrance. Bound 1:1 to this entry by sceneId at
-//                spawn time. No coords here.
-//   'fixed'    — coords are hard-coded below (terminalTile + arrivalTile).
-//                Used for hand-placed buildings like aeComplex.
+//                spawn time.
 //
 // All runtime positions live in sim/transitPlacements.ts; the spawn code
 // registers them as it places each terminal. UI/migration read the
@@ -37,17 +36,12 @@
       description: '冯·布劳恩航天港大厅内的换乘站。乘公交直达售票处。',
     },
     {
-      id: 'aeReceptionStop',
+      id: 'aeIndustrialStop',
       sceneId: 'startTown',
-      placement: 'fixed',
-      nameZh: '安那海姆电子前台站',
-      shortZh: 'AE 前台站',
-      // West of the AE complex (rect 400,200 + 28×26), on open ground
-      // outside the reception door. Stays on public ground regardless of
-      // future AE faction-gate tweaks.
-      terminalTile: { x: 398, y: 213 },
-      arrivalTile:  { x: 398, y: 214 },
-      description: 'AE 总部门外的换乘站。员工和访客都可使用。',
+      placement: 'building',
+      nameZh: 'AE 工业区站',
+      shortZh: 'AE 工业区站',
+      description: 'AE 工业区的换乘站，服务工人通勤与访客往返。',
     },
 
     // ── zumCity ──────────────────────────────────────────────────────────

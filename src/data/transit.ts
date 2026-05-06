@@ -2,7 +2,7 @@ import json5 from 'json5'
 import raw from './transit.json5?raw'
 import { isSceneId } from './scenes'
 
-export type TransitPlacementKind = 'building' | 'airport' | 'fixed'
+export type TransitPlacementKind = 'building' | 'airport'
 
 export interface TransitTerminal {
   id: string
@@ -11,10 +11,6 @@ export interface TransitTerminal {
   nameZh: string
   shortZh: string
   description?: string
-  // Only present for placement='fixed'. For 'building' and 'airport' the
-  // spawn-time positions live in sim/transitPlacements.ts.
-  terminalTile?: { x: number; y: number }
-  arrivalTile?: { x: number; y: number }
 }
 
 interface TransitFile {
@@ -26,13 +22,6 @@ const parsed = json5.parse(raw) as TransitFile
 for (const t of parsed.terminals) {
   if (!isSceneId(t.sceneId)) {
     throw new Error(`transit.json5: terminal "${t.id}" references unknown sceneId "${t.sceneId}"`)
-  }
-  if (t.placement === 'fixed') {
-    if (!t.terminalTile || !t.arrivalTile) {
-      throw new Error(`transit.json5: fixed terminal "${t.id}" needs terminalTile + arrivalTile`)
-    }
-  } else if (t.terminalTile || t.arrivalTile) {
-    throw new Error(`transit.json5: terminal "${t.id}" placement=${t.placement} must not declare coords`)
   }
 }
 

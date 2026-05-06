@@ -39,14 +39,14 @@ for (const t of list) {
 
 // Expectations:
 //   startTown: 3 terminals, all live + registered
-//     - startTownPlaza      (placement: building)
+//     - startTownPlaza      (placement: building, central commercial district)
 //     - startTownAirportStop(placement: airport)
-//     - aeReceptionStop     (placement: fixed)
+//     - aeIndustrialStop    (placement: building, AE industrial district)
 //   zumCity:   2 terminals, all live + registered
 //     - zumCityPlaza        (placement: building)
 //     - zumCityAirportStop  (placement: airport)
 const expect = {
-  startTown: ['startTownPlaza', 'startTownAirportStop', 'aeReceptionStop'],
+  startTown: ['startTownPlaza', 'startTownAirportStop', 'aeIndustrialStop'],
   zumCity:   ['zumCityPlaza', 'zumCityAirportStop'],
 }
 
@@ -83,7 +83,7 @@ console.log(JSON.stringify(modal, null, 2))
 // modal-stacked); the rows query crosses both panels, so we just check
 // transit-row content rather than the header. The AmbitionPanel issue is
 // pre-existing and out of scope for transit testing.
-const wantNames = ['市中心广场站', '冯·布劳恩航天港站', '安那海姆电子前台站']
+const wantNames = ['市中心广场站', '冯·布劳恩航天港站', 'AE 工业区站']
 // Strip the trailing "所在地" badge if present (the source row appends it).
 const gotNames = modal.rows.map((r) => (r.name ?? '').replace('所在地', '').trim())
 for (const want of wantNames) {

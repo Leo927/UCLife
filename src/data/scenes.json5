@@ -115,17 +115,17 @@
               rect: { x: 30, y: 0, w: 40, h: 24 },
               // Mandatory placements: shop and bar drive NPC behavior trees
               // (shopCounter / barCounter landmarks); airport drives flights;
-              // transitTerminal hosts the city's main bus stop; hrOffice +
-              // realtor are gameplay anchors; clinic + pharmacy gate the
-              // physiology cure flow (doctor diagnosis + treatment / OTC).
-              // Park is opportunistic.
+              // hrOffice + realtor are gameplay anchors; clinic + pharmacy
+              // gate the physiology cure flow (doctor diagnosis + treatment
+              // / OTC). Park is opportunistic. The transitTerminal lives in
+              // residential_north because commercial is too dense to fit
+              // it alongside the airport reliably.
               types: [
                 { id: 'airport',         min: 1, max: 1 },
                 { id: 'shop',            min: 1},
                 { id: 'bar',             min: 1 },
                 { id: 'hrOffice',        min: 1, max: 1 },
                 { id: 'realtor',         min: 1, max: 1 },
-                { id: 'transitTerminal', min: 1, max: 1 },
                 { id: 'clinic',          min: 1 },
                 { id: 'pharmacy',        min: 1 },
                 { id: 'park',            min: 0, max: 1 },
@@ -136,6 +136,7 @@
               id: 'residential_north',
               rect: { x: 0, y: 0, w: 30, h: 40 },
               types: [
+                { id: 'transitTerminal', min: 1, max: 1 },
                 { id: 'park',      min: 0, max: 1 },
                 { id: 'apartment', min: 0, max: 4 },
                 { id: 'luxury',    min: 0, max: 2 },

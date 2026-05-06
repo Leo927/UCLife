@@ -40,7 +40,7 @@ import {
   type CellsLayout, type CraftedLayout, type ParkLayout,
   type ProcgenWorkstationItem,
 } from '../data/buildingTypes'
-import type { TransitTerminal } from '../data/transit'
+import type { TransitTerminal, TransitPlacementKind } from '../data/transit'
 import { setLandmark, clearLandmarks, addRoughSource, setShopRect } from '../data/landmarks'
 import { resetAll } from '../save/registry'
 import { bootstrapWorldSingleton } from './resources'
@@ -536,7 +536,7 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   }
 }
 
-function pickTransitTerminal(sceneId: SceneId, placement: 'building' | 'airport'): TransitTerminal | null {
+function pickTransitTerminal(sceneId: SceneId, placement: TransitPlacementKind): TransitTerminal | null {
   for (const t of transitTerminals) {
     if (t.sceneId !== sceneId) continue
     if (t.placement !== placement) continue
@@ -678,24 +678,6 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
   }
 }
 
-// ── TRANSIT ──────────────────────────────────────────────────────────────────
-
-// Fixed-coord terminals (e.g. the AE-complex stop). Procgen building +
-// airport-embedded terminals spawn from spawnTransitBuilding /
-// spawnAirportTransit instead.
-function spawnFixedTransitForScene(sceneId: string): void {
-  for (const t of transitTerminals) {
-    if (t.sceneId !== sceneId) continue
-    if (t.placement !== 'fixed') continue
-    if (!t.terminalTile || !t.arrivalTile) continue
-    const tx = t.terminalTile.x * TILE
-    const ty = t.terminalTile.y * TILE
-    const ax = t.arrivalTile.x * TILE
-    const ay = t.arrivalTile.y * TILE
-    spawnTransitEntity(t, { x: tx, y: ty }, { x: ax, y: ay })
-  }
-}
-
 // ── NPC SPAWNING ─────────────────────────────────────────────────────────────
 
 function spawnSpecialNpcs(): void {
@@ -819,9 +801,16 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   for (const cfg of scene.procgenZones ?? []) {
     if (!cfg.enabled) continue
     const zoneRng = SeededRng.fromString(cfg.seed)
-    const grid = generateRoadGrid(cfg.rect, cfg.roads, zoneRng)
+    const reserved = cfg.resolvedReservedRects ?? []
+    const grid = generateRoadGrid(cfg.rect, cfg.roads, zoneRng, reserved)
     for (const seg of grid.segments) {
       world.spawn(Road({ x: seg.rect.x, y: seg.rect.y, w: seg.rect.w, h: seg.rect.h, kind: seg.kind }))
+    }
+    for (const sb of grid.subBlocks) {
+      if (!sb.reservedFor) continue
+      const tile = { x: sb.rect.x / TILE, y: sb.rect.y / TILE }
+      const pb = placeFixedBuilding(sb.reservedFor, tile, zoneRng)
+      spawnBuilding(pb.typeId, pb.slot, zoneRng, scene.id)
     }
     for (const pb of assignBuildings(cfg.rect, grid.subBlocks, cfg.districts, zoneRng)) {
       spawnBuilding(pb.typeId, pb.slot, zoneRng, scene.id)
@@ -835,8 +824,6 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
     const pb = placeFixedBuilding(fb.type, fb.tile, fixedRng)
     spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
   }
-
-  spawnFixedTransitForScene(scene.id)
 
   // Special NPCs (AE board/managers/reception) and the AE workforce only
   // make sense in the scene that hosts aeComplex. Founding civilians spawn
