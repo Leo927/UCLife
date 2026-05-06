@@ -10,6 +10,13 @@
 //   5. The remaining sub-blocks become building-eligible areas; each carries
 //      a list of adjacent roads (which side, which kind).
 //
+// Reserved rects: tile-space rects passed in by the caller (e.g. for a big
+// hand-crafted building like the AE Complex). The grid forces avenue bands
+// at the rect's east/west edges and street bands at its north/south edges,
+// excludes the rect's interior from random fill, never alleyizes the
+// resulting super-block, and tags it with `reservedFor: typeId`. Spawn then
+// drops the crafted building straight into that sub-block.
+//
 // All inputs are tile-space; outputs are pixel-space rects so spawn.ts can
 // hand them straight to entity creation.
 
@@ -32,6 +39,17 @@ export type AdjacentRoad = { side: Side; kind: RoadKind }
 export type SubBlock = {
   rect: { x: number; y: number; w: number; h: number }
   adjacentRoads: AdjacentRoad[]
+  // When set, this sub-block is reserved for a hand-crafted building of
+  // this typeId. Procgen building assignment skips it; spawn places the
+  // crafted building here.
+  reservedFor?: string
+}
+
+// Resolved reserved rect: tile-space, end-exclusive, with the building
+// typeId that will be placed in it.
+export type ReservedRect = {
+  typeId: string
+  rect: { x: number; y: number; w: number; h: number }
 }
 
 export type RoadGrid = {
@@ -40,26 +58,64 @@ export type RoadGrid = {
 }
 
 type Band = { start: number; end: number }  // tile-space; end exclusive
+type Range = { lo: number; hi: number }     // tile-space; hi exclusive
 
-// Place bands of width `widthTiles` across [from, to) with random gaps in
-// [spacing.min, spacing.max]. The first band is offset by a random gap, so
-// no road ever sits flush against the procgen rect edge.
+// Place bands of width `widthTiles` across [from, to). Each band starts
+// after a random gap in [spacing.min, spacing.max] from the previous band's
+// end (or from `from` for the first band), so no road sits flush against
+// the segment edge.
+//
+// `forcedStarts`: anchor positions where bands MUST sit. `blocked`: ranges
+// where random bands MUST NOT be placed (the interior of reserved rects).
+// Random bands fill the gaps between forced+blocked intervals; forced
+// bands and any band landing in a non-empty gap are returned together,
+// sorted by start.
 function placeBands(
   from: number,
   to: number,
   spacing: { min: number; max: number },
   widthTiles: number,
   rng: SeededRng,
+  forcedStarts: readonly number[] = [],
+  blocked: readonly Range[] = [],
 ): Band[] {
-  const out: Band[] = []
-  let cursor = from
-  for (;;) {
-    const gap = rng.intRange(spacing.min, spacing.max)
-    cursor += gap
-    if (cursor + widthTiles > to) break
-    out.push({ start: cursor, end: cursor + widthTiles })
-    cursor += widthTiles
+  const forced: Band[] = []
+  for (const a of forcedStarts) {
+    if (a >= from && a + widthTiles <= to) forced.push({ start: a, end: a + widthTiles })
   }
+  forced.sort((a, b) => a.start - b.start)
+
+  const occupied: Range[] = [
+    ...forced.map((b) => ({ lo: b.start, hi: b.end })),
+    ...blocked,
+  ].sort((a, b) => a.lo - b.lo)
+  const merged: Range[] = []
+  for (const o of occupied) {
+    const top = merged[merged.length - 1]
+    if (top && o.lo <= top.hi) top.hi = Math.max(top.hi, o.hi)
+    else merged.push({ ...o })
+  }
+
+  const segments: Range[] = []
+  let cursor = from
+  for (const m of merged) {
+    if (m.lo > cursor) segments.push({ lo: cursor, hi: m.lo })
+    cursor = m.hi
+  }
+  if (to > cursor) segments.push({ lo: cursor, hi: to })
+
+  const out: Band[] = [...forced]
+  for (const seg of segments) {
+    let c = seg.lo
+    for (;;) {
+      const gap = rng.intRange(spacing.min, spacing.max)
+      c += gap
+      if (c + widthTiles > seg.hi) break
+      out.push({ start: c, end: c + widthTiles })
+      c += widthTiles
+    }
+  }
+  out.sort((a, b) => a.start - b.start)
   return out
 }
 
@@ -67,14 +123,32 @@ export function generateRoadGrid(
   rect: { x: number; y: number; w: number; h: number },  // tile-space
   cfg: RoadGridConfig,
   rng: SeededRng,
+  reservedRects: readonly ReservedRect[] = [],
 ): RoadGrid {
   const xMin = rect.x
   const xMax = rect.x + rect.w
   const yMin = rect.y
   const yMax = rect.y + rect.h
 
-  const avenues = placeBands(xMin, xMax, cfg.avenueSpacingTiles, cfg.avenueWidthTiles, rng)
-  const streets = placeBands(yMin, yMax, cfg.streetSpacingTiles, cfg.streetWidthTiles, rng)
+  const aw = cfg.avenueWidthTiles
+  const sw = cfg.streetWidthTiles
+  const avenueAnchors: number[] = []
+  const streetAnchors: number[] = []
+  const xExcl: Range[] = []
+  const yExcl: Range[] = []
+  for (const r of reservedRects) {
+    avenueAnchors.push(r.rect.x - aw, r.rect.x + r.rect.w)
+    streetAnchors.push(r.rect.y - sw, r.rect.y + r.rect.h)
+    xExcl.push({ lo: r.rect.x, hi: r.rect.x + r.rect.w })
+    yExcl.push({ lo: r.rect.y, hi: r.rect.y + r.rect.h })
+  }
+
+  const avenues = placeBands(
+    xMin, xMax, cfg.avenueSpacingTiles, aw, rng, avenueAnchors, xExcl,
+  )
+  const streets = placeBands(
+    yMin, yMax, cfg.streetSpacingTiles, sw, rng, streetAnchors, yExcl,
+  )
 
   const segments: RoadSegment[] = []
   for (const a of avenues) {
@@ -116,6 +190,7 @@ export function generateRoadGrid(
   type SBTiles = {
     left: number; right: number; top: number; bottom: number
     adjacent: AdjacentRoad[]
+    reservedFor?: string
   }
 
   const superBlocks: SBTiles[] = []
@@ -126,9 +201,14 @@ export function generateRoadGrid(
       if (xi.right < xMax)  adj.push({ side: 'e', kind: 'avenue' })
       if (yi.top > yMin)    adj.push({ side: 'n', kind: 'street' })
       if (yi.bottom < yMax) adj.push({ side: 's', kind: 'street' })
+      const reserved = reservedRects.find(
+        (r) => r.rect.x === xi.left && r.rect.y === yi.top
+            && r.rect.x + r.rect.w === xi.right && r.rect.y + r.rect.h === yi.bottom,
+      )
       superBlocks.push({
         left: xi.left, right: xi.right, top: yi.top, bottom: yi.bottom,
         adjacent: adj,
+        reservedFor: reserved?.typeId,
       })
     }
   }
@@ -140,6 +220,7 @@ export function generateRoadGrid(
   }
 
   function alleyize(sb: SBTiles, depth: number): SBTiles[] {
+    if (sb.reservedFor) return [sb]
     if (depth >= 1) return [sb]
     const w = sb.right - sb.left
     const h = sb.bottom - sb.top
@@ -196,8 +277,9 @@ export function generateRoadGrid(
   }
 
   // Drop blocks too small to host any building (smallest is 5x3 tiles).
+  // Reserved blocks are kept regardless — the caller validated their size.
   const subBlocks: SubBlock[] = splitSubBlocks
-    .filter((sb) => (sb.right - sb.left) >= 5 && (sb.bottom - sb.top) >= 3)
+    .filter((sb) => sb.reservedFor || ((sb.right - sb.left) >= 5 && (sb.bottom - sb.top) >= 3))
     .map((sb) => ({
       rect: {
         x: sb.left * TILE,
@@ -206,6 +288,7 @@ export function generateRoadGrid(
         h: (sb.bottom - sb.top) * TILE,
       },
       adjacentRoads: sb.adjacent,
+      ...(sb.reservedFor ? { reservedFor: sb.reservedFor } : {}),
     }))
 
   return { segments, subBlocks }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { worldConfig } from '../config'
 import type { RoadGridConfig } from '../data/scenes'
 import { SeededRng } from './rng'
-import { generateRoadGrid, type RoadGrid, type Side } from './roads'
+import { generateRoadGrid, type ReservedRect, type RoadGrid, type Side } from './roads'
 
 const TILE = worldConfig.tilePx
 
@@ -143,6 +143,88 @@ describe('generateRoadGrid — adjacent-road tagging', () => {
     const { subBlocks } = gridFor(202)
     for (const sb of subBlocks) {
       expect(sb.adjacentRoads.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('generateRoadGrid — reservedRects', () => {
+  // 60×40 zone with one 14×10 reserved rect at (20, 14). aw=sw=2, so the
+  // grid must force avenues at x=18..20 and 34..36, streets at y=12..14
+  // and 24..26.
+  const reservedRect: ReservedRect = {
+    typeId: 'aeComplex',
+    rect: { x: 20, y: 14, w: 14, h: 10 },
+  }
+
+  function reservedGridFor(seed: number): RoadGrid {
+    return generateRoadGrid(RECT, cfg, SeededRng.fromNumber(seed), [reservedRect])
+  }
+
+  it('emits exactly one sub-block tagged reservedFor and matches the rect bounds', () => {
+    const { subBlocks } = reservedGridFor(11)
+    const reserved = subBlocks.filter((sb) => sb.reservedFor === 'aeComplex')
+    expect(reserved.length).toBe(1)
+    const sb = reserved[0]
+    expect(sb.rect.x).toBe(reservedRect.rect.x * TILE)
+    expect(sb.rect.y).toBe(reservedRect.rect.y * TILE)
+    expect(sb.rect.w).toBe(reservedRect.rect.w * TILE)
+    expect(sb.rect.h).toBe(reservedRect.rect.h * TILE)
+  })
+
+  it('forces avenues at the rect east/west edges and streets at north/south edges', () => {
+    const { segments } = reservedGridFor(22)
+    const aw = cfg.avenueWidthTiles * TILE
+    const sw = cfg.streetWidthTiles * TILE
+    const rx = reservedRect.rect.x * TILE
+    const ry = reservedRect.rect.y * TILE
+    const rw = reservedRect.rect.w * TILE
+    const rh = reservedRect.rect.h * TILE
+
+    const westAvenue = segments.find(
+      (s) => s.kind === 'avenue' && s.rect.x + s.rect.w === rx,
+    )
+    const eastAvenue = segments.find(
+      (s) => s.kind === 'avenue' && s.rect.x === rx + rw,
+    )
+    const northStreet = segments.find(
+      (s) => s.kind === 'street' && s.rect.y + s.rect.h === ry,
+    )
+    const southStreet = segments.find(
+      (s) => s.kind === 'street' && s.rect.y === ry + rh,
+    )
+    expect(westAvenue?.rect.w).toBe(aw)
+    expect(eastAvenue?.rect.w).toBe(aw)
+    expect(northStreet?.rect.h).toBe(sw)
+    expect(southStreet?.rect.h).toBe(sw)
+  })
+
+  it('does not carve roads through the reserved rect interior', () => {
+    const { segments } = reservedGridFor(33)
+    const rx = reservedRect.rect.x * TILE
+    const ry = reservedRect.rect.y * TILE
+    const rw = reservedRect.rect.w * TILE
+    const rh = reservedRect.rect.h * TILE
+    function overlapsInterior(seg: { x: number; y: number; w: number; h: number }) {
+      return seg.x < rx + rw && seg.x + seg.w > rx
+        && seg.y < ry + rh && seg.y + seg.h > ry
+    }
+    for (const seg of segments) {
+      expect(
+        overlapsInterior(seg.rect),
+        `${seg.kind} ${JSON.stringify(seg.rect)} crosses reserved rect interior`,
+      ).toBe(false)
+    }
+  })
+
+  it('does not split the reserved sub-block with an alley', () => {
+    // Run 10 seeds: alleyChance=0.7 means a non-reserved 14×10 block would
+    // alley ~7/10 times. The reserved rect must never split.
+    for (let s = 1; s <= 10; s++) {
+      const { subBlocks } = reservedGridFor(s)
+      const reserved = subBlocks.filter((sb) => sb.reservedFor === 'aeComplex')
+      expect(reserved.length, `seed ${s}`).toBe(1)
+      expect(reserved[0].rect.w, `seed ${s}`).toBe(reservedRect.rect.w * TILE)
+      expect(reserved[0].rect.h, `seed ${s}`).toBe(reservedRect.rect.h * TILE)
     }
   })
 })

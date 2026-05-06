@@ -157,9 +157,12 @@ export function assignBuildings(
 ): PlacedBuilding[] {
   // Bucket sub-blocks per district, sort each bucket largest-first so
   // large mandatory types (airports) get first dibs on big blocks.
+  // Reserved sub-blocks are routed to a hand-crafted building by spawn.ts;
+  // procgen building assignment skips them.
   const buckets = new Map<string, SubBlock[]>()
   for (const d of districts) buckets.set(d.id, [])
   for (const sb of subBlocks) {
+    if (sb.reservedFor) continue
     const d = pickDistrict(procgenRect, sb, districts)
     if (!d) continue
     if (!buckets.has(d.id)) buckets.set(d.id, [])
