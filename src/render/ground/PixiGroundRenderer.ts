@@ -892,6 +892,7 @@ export class PixiGroundRenderer {
       text: '',
       style: { fill: 0xfacc15, fontSize: 9, fontFamily: FONT_FAMILY, align: 'center' },
     })
+    actionLabelText.anchor.set(0.5, 0)
     const progressBg = new Graphics()
     const progressFill = new Graphics()
     const deadCircle = new Graphics()
@@ -903,6 +904,7 @@ export class PixiGroundRenderer {
       text: '',
       style: { fill: 0xbdbdc6, fontSize: 10, fontFamily: FONT_FAMILY, align: 'center' },
     })
+    nameLabel.anchor.set(0.5, 0)
     const spriteHost = new Container()
     const sprite = makeSpriteState()
 
@@ -973,7 +975,7 @@ export class PixiGroundRenderer {
       else label = actionLabel(kind)
       if (node.actionLabel.text !== label) node.actionLabel.text = label
       node.actionLabel.style.wordWrapWidth = 80
-      node.actionLabel.x = n.x - 40
+      node.actionLabel.x = n.x
       node.actionLabel.y = n.y - 28
       node.actionLabel.visible = true
 
@@ -1023,7 +1025,7 @@ export class PixiGroundRenderer {
     if (node.nameLabel.text !== nameText) node.nameLabel.text = nameText
     node.nameLabel.style.fill = isDead ? 0xef4444 : 0xbdbdc6
     node.nameLabel.style.wordWrapWidth = 80
-    node.nameLabel.x = n.x - 40
+    node.nameLabel.x = n.x
     node.nameLabel.y = n.y + 14
   }
 
