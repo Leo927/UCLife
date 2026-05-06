@@ -526,6 +526,7 @@ export class PixiGroundRenderer {
       text: '',
       style: { fill: 0xbdbdc6, fontSize: 11, fontFamily: FONT_FAMILY, align: 'center' },
     })
+    label.anchor.set(0.5, 0)
     root.addChild(body)
     root.addChild(pillow)
     root.addChild(occupiedX)
@@ -563,28 +564,6 @@ export class PixiGroundRenderer {
         .stroke({ color: 0xef4444, width: 2, alpha: 0.85 })
     }
 
-    // Multiplier label (above bed, only when bed has a non-1.0 sleep multiplier
-    // and is not occupied).
-    const showMult = b.multiplier !== 1.0 && !occupied
-    if (showMult) {
-      if (!node.multLabel) {
-        node.multLabel = new Text({
-          text: '',
-          style: { fill: v.stroke, fontSize: 9, fontFamily: FONT_FAMILY, fontWeight: 'bold', align: 'center' },
-        })
-        node.root.addChild(node.multLabel)
-      }
-      const txt = `×${b.multiplier.toFixed(2)}`
-      if (node.multLabel.text !== txt) node.multLabel.text = txt
-      node.multLabel.style.fill = v.stroke
-      node.multLabel.style.wordWrapWidth = v.w
-      node.multLabel.x = b.x - v.w / 2
-      node.multLabel.y = b.y - v.h / 2 - 11
-      node.multLabel.visible = true
-    } else if (node.multLabel) {
-      node.multLabel.visible = false
-    }
-
     // Fee badge (only when free).
     const showFee = !occupied && b.fee > 0
     if (showFee) {
@@ -592,18 +571,19 @@ export class PixiGroundRenderer {
         node.feeBox = new Graphics()
         node.feeText = new Text({
           text: '',
-          style: { fill: 0x0d0d10, fontSize: 9, fontFamily: FONT_FAMILY, fontWeight: 'bold', align: 'center' },
+          style: { fill: 0x0d0d10, fontSize: 9, fontFamily: FONT_FAMILY, fontWeight: 'bold' },
         })
+        node.feeText.anchor.set(0.5, 0)
         node.root.addChild(node.feeBox)
         node.root.addChild(node.feeText)
       }
-      const fx = b.x + v.w / 2 - 4
+      const fw = 28, fh = 12
+      const fx = b.x - fw / 2
       const fy = b.y - v.h / 2 - 12
-      node.feeBox.clear().roundRect(fx, fy, 28, 12, 3).fill(0xfacc15)
+      node.feeBox.clear().roundRect(fx, fy, fw, fh, 3).fill(0xfacc15)
       const ft = `¥${b.fee}`
       if (node.feeText!.text !== ft) node.feeText!.text = ft
-      node.feeText!.style.wordWrapWidth = 28
-      node.feeText!.x = fx
+      node.feeText!.x = b.x
       node.feeText!.y = fy + 1
       node.feeBox.visible = true
       node.feeText!.visible = true
@@ -612,27 +592,49 @@ export class PixiGroundRenderer {
       if (node.feeText) node.feeText.visible = false
     }
 
+    // Multiplier label (above bed, only when bed has a non-1.0 sleep multiplier
+    // and is not occupied). Stacks above the fee pill if both are shown.
+    const showMult = b.multiplier !== 1.0 && !occupied
+    if (showMult) {
+      if (!node.multLabel) {
+        node.multLabel = new Text({
+          text: '',
+          style: { fill: v.stroke, fontSize: 9, fontFamily: FONT_FAMILY, fontWeight: 'bold' },
+        })
+        node.multLabel.anchor.set(0.5, 0)
+        node.root.addChild(node.multLabel)
+      }
+      const txt = `×${b.multiplier.toFixed(2)}`
+      if (node.multLabel.text !== txt) node.multLabel.text = txt
+      node.multLabel.style.fill = v.stroke
+      node.multLabel.x = b.x
+      node.multLabel.y = b.y - v.h / 2 - (showFee ? 23 : 11)
+      node.multLabel.visible = true
+    } else if (node.multLabel) {
+      node.multLabel.visible = false
+    }
+
     // Occupied/owned tag.
     if (occupied) {
       if (!node.occupiedTag) {
         node.occupiedTag = new Graphics()
         node.occupiedTagText = new Text({
           text: '',
-          style: { fill: 0xfef2f2, fontSize: 9, fontFamily: FONT_FAMILY, fontWeight: 'bold', align: 'center' },
+          style: { fill: 0xfef2f2, fontSize: 9, fontFamily: FONT_FAMILY, fontWeight: 'bold' },
         })
+        node.occupiedTagText.anchor.set(0.5, 0)
         node.root.addChild(node.occupiedTag)
         node.root.addChild(node.occupiedTagText)
       }
       const tw = isPlayerBed ? 28 : 24
-      const tx = b.x - v.w / 2
+      const tx = b.x - tw / 2
       const ty = b.y - v.h / 2 - 12
       node.occupiedTag.clear()
         .roundRect(tx, ty, tw, 12, 3)
         .fill(isPlayerBed ? 0x166534 : 0x7f1d1d)
       const txt = b.ownedByPlayer && isPlayerBed ? '已购' : isPlayerBed ? '你的' : '已租'
       if (node.occupiedTagText!.text !== txt) node.occupiedTagText!.text = txt
-      node.occupiedTagText!.style.wordWrapWidth = tw
-      node.occupiedTagText!.x = tx
+      node.occupiedTagText!.x = b.x
       node.occupiedTagText!.y = ty + 1
       node.occupiedTag.visible = true
       node.occupiedTagText!.visible = true
@@ -643,8 +645,7 @@ export class PixiGroundRenderer {
 
     if (node.label.text !== b.label) node.label.text = b.label
     node.label.style.fill = occupied ? 0x71717a : 0xbdbdc6
-    node.label.style.wordWrapWidth = 72
-    node.label.x = b.x - 36
+    node.label.x = b.x
     node.label.y = b.y + v.h / 2 + 4
   }
 
@@ -739,6 +740,7 @@ export class PixiGroundRenderer {
       text: '',
       style: { fill: 0xcccccc, fontSize: 12, fontFamily: FONT_FAMILY, align: 'center' },
     })
+    label.anchor.set(0.5, 0)
     root.addChild(rect)
     root.addChild(label)
     root.on('pointerdown', (e: FederatedPointerEvent) => {
@@ -853,8 +855,7 @@ export class PixiGroundRenderer {
     const labelText = it.fee > 0 ? `${it.label} · ¥${it.fee}` : it.label
     const finalText = it.benchOccupied ? `${labelText} · 占用中` : labelText
     if (node.label.text !== finalText) node.label.text = finalText
-    node.label.style.wordWrapWidth = 72
-    node.label.x = it.x - 36
+    node.label.x = it.x
     node.label.y = it.y + 18
   }
 
