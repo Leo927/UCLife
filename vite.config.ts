@@ -48,4 +48,27 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  // Pre-warm every dep the entry transitively pulls in so Vite doesn't
+  // re-optimize and force-reload the page mid-first-load. Cold dev start
+  // on Windows used to take minutes because pixi's chunk graph kept
+  // tripping the "new dependencies optimized" branch.
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-dev-runtime',
+      'react/jsx-runtime',
+      'koota',
+      'koota/react',
+      'pixi.js',
+      'pixi-filters',
+      'mistreevous',
+      'rot-js',
+      'superjson',
+      'json5',
+      'idb-keyval',
+      'zustand',
+    ],
+  },
 })

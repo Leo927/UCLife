@@ -14,7 +14,7 @@ License: **GPL-3.0-or-later** (transitively, via the verbatim FC pregmod portrai
 npm run dev                  # Vite dev server, http://localhost:5173 (host:true for LAN)
 npm run build                # tsc -b && vite build (auto-runs build:portrait-cache via prebuild)
 npm run preview              # serve dist/
-npm run build:portrait-cache # rebuild SVG → JSON sprite maps under src/render/portrait/assets/cache/
+npm run build:portrait-cache # rebuild SVG → JSON sprite maps under public/portrait-cache/
 npm run test:unit            # vitest, pure logic, co-located *.test.ts. CI job `unit`.
 npm run lint:arch            # dependency-cruiser — engine boundary + layer direction.
                              # CI job `arch`. Baseline grandfathered; new violations fail.

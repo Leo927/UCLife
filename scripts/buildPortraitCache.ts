@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url'
 const here = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(here, '..')
 const assetsDir = join(repoRoot, 'src', 'render', 'portrait', 'assets')
-const cacheDir = join(assetsDir, 'cache')
+// Emit into public/ so Vite serves the JSON as a static asset rather than
+// rewriting ~28 MB into an ESM module on first portrait load.
+const cacheDir = join(repoRoot, 'public', 'portrait-cache')
 
 async function buildOne(srcDir: string, outFile: string): Promise<{ count: number; bytes: number }> {
   const entries = await readdir(srcDir)

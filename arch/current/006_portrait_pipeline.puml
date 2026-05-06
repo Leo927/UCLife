@@ -43,7 +43,7 @@ package "src/render/portrait/" as P #f3e6ff {
     [Portrait.tsx] as RP
   }
 
-  package "assets/cache (build artifact)" as ASSETS #f8f0ff {
+  package "public/portrait-cache (build artifact)" as ASSETS #f8f0ff {
     [SVG → JSON sprite map\n(scripts/buildPortraitCache.ts)] as JSON_MAP
   }
 
