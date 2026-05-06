@@ -18,14 +18,17 @@
 //                 for the first scene in declaration order.
 //
 // Fields (micro scenes):
-//   procgen     — road-based city generator. Disable with enabled:false.
+//   procgenZones — array of road-based city generators, one per spatially
+//                  distinct sector. Zone rects must not overlap each other
+//                  or any fixedBuilding rect (the road carver doesn't know
+//                  about holes).
 //     enabled     — explicit on/off flag.
 //     seed        — deterministic RNG seed string. Same seed → same layout.
 //     rect        — tile-space area for the road network + buildings
 //                   { x, y, w, h }. Avoid placing fixedBuildings inside.
 //     roads       — Manhattan grid params (avenueSpacingTiles, etc.).
 //     districts   — zoning rectangles in tile-space *relative to the
-//                   procgen rect origin*. Each sub-block picks the district
+//                   zone rect origin*. Each sub-block picks the district
 //                   whose rect contains the sub-block center.
 //       id, rect{x,y,w,h}, types[], buildingsPerBlockMax (default 1)
 //       types[]   — array of `{ id, min?, max? }`. min defaults to 0
@@ -51,93 +54,154 @@
       sceneType: 'micro',
       tilesX: 800,
       tilesY: 520,
-      // West of the procgen rect, on open ground. Player walks east into
-      // the city's road network.
+      // West of the central procgen zone, on open ground. Player walks east
+      // into the city's road network.
       playerSpawnTile: { x: 20, y: 50 },
 
-      procgen: {
-        enabled: true,
-        // 100 × 80 procgen area; aeComplex sits far outside (tile 400,200).
-        seed: 'von-braun-001',
-        rect: { x: 40, y: 4, w: 100, h: 80 },
-        roads: {
-          avenueSpacingTiles: { min: 14, max: 22 },
-          streetSpacingTiles: { min: 12, max: 18 },
-          avenueWidthTiles: 3,
-          streetWidthTiles: 2,
-          alleyChance: 0.55,
-          alleyWidthTiles: 1,
-          alleyMinBlockTiles: 10,
+      procgenZones: [
+        // ── Von Braun central district ────────────────────────────────────
+        {
+          enabled: true,
+          // 100 × 80 procgen area; aeComplex + AE Industrial District sit
+          // ~250 tiles east of here.
+          seed: 'von-braun-001',
+          rect: { x: 40, y: 4, w: 100, h: 80 },
+          roads: {
+            avenueSpacingTiles: { min: 14, max: 22 },
+            streetSpacingTiles: { min: 12, max: 18 },
+            avenueWidthTiles: 3,
+            streetWidthTiles: 2,
+            alleyChance: 0.55,
+            alleyWidthTiles: 1,
+            alleyMinBlockTiles: 10,
+          },
+          // Districts (rects relative to zone rect origin).
+          // Layout: commercial core near spawn (top-center), residential ring
+          // around it, industrial along the south band.
+          districts: [
+            {
+              id: 'commercial',
+              rect: { x: 30, y: 0, w: 40, h: 24 },
+              // Mandatory placements: shop and bar drive NPC behavior trees
+              // (shopCounter / barCounter landmarks); airport drives flights;
+              // transitTerminal hosts the city's main bus stop; hrOffice +
+              // realtor are gameplay anchors; clinic + pharmacy gate the
+              // physiology cure flow (doctor diagnosis + treatment / OTC).
+              // Park is opportunistic.
+              types: [
+                { id: 'airport',         min: 1, max: 1 },
+                { id: 'shop',            min: 1, max: 1 },
+                { id: 'bar',             min: 1, max: 1 },
+                { id: 'hrOffice',        min: 1, max: 1 },
+                { id: 'realtor',         min: 1, max: 1 },
+                { id: 'transitTerminal', min: 1, max: 1 },
+                { id: 'clinic',          min: 1, max: 1 },
+                { id: 'pharmacy',        min: 1, max: 1 },
+                { id: 'park',            min: 0, max: 1 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            {
+              id: 'residential_north',
+              rect: { x: 0, y: 0, w: 30, h: 40 },
+              types: [
+                { id: 'park',      min: 0, max: 1 },
+                { id: 'apartment', min: 0, max: 4 },
+                { id: 'luxury',    min: 0, max: 2 },
+                { id: 'dorm',      min: 0, max: 3 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            {
+              id: 'residential_east',
+              rect: { x: 70, y: 0, w: 30, h: 40 },
+              types: [
+                { id: 'park',      min: 0, max: 1 },
+                { id: 'apartment', min: 0, max: 4 },
+                { id: 'luxury',    min: 0, max: 2 },
+                { id: 'dorm',      min: 0, max: 3 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            {
+              id: 'residential_south',
+              rect: { x: 20, y: 40, w: 60, h: 25 },
+              types: [
+                { id: 'park',      min: 0, max: 1 },
+                { id: 'apartment', min: 0, max: 4 },
+                { id: 'dorm',      min: 0, max: 3 },
+                { id: 'flop',      min: 0, max: 3 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            {
+              id: 'industrial',
+              rect: { x: 0, y: 65, w: 100, h: 15 },
+              types: [
+                { id: 'factory', min: 0, max: 6 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+          ],
         },
-        // Districts (rects relative to procgen.rect origin).
-        // Layout: commercial core near spawn (top-center), residential ring
-        // around it, industrial along the south band.
-        districts: [
-          {
-            id: 'commercial',
-            rect: { x: 30, y: 0, w: 40, h: 24 },
-            // Mandatory placements: shop and bar drive NPC behavior trees
-            // (shopCounter / barCounter landmarks); airport drives flights;
-            // transitTerminal hosts the city's main bus stop; hrOffice +
-            // realtor are gameplay anchors; clinic + pharmacy gate the
-            // physiology cure flow (doctor diagnosis + treatment / OTC).
-            // Park is opportunistic.
-            types: [
-              { id: 'airport',         min: 1, max: 1 },
-              { id: 'shop',            min: 1, max: 1 },
-              { id: 'bar',             min: 1, max: 1 },
-              { id: 'hrOffice',        min: 1, max: 1 },
-              { id: 'realtor',         min: 1, max: 1 },
-              { id: 'transitTerminal', min: 1, max: 1 },
-              { id: 'clinic',          min: 1, max: 1 },
-              { id: 'pharmacy',        min: 1, max: 1 },
-              { id: 'park',            min: 0, max: 1 },
-            ],
-            buildingsPerBlockMax: 1,
+
+        // ── AE Industrial District ────────────────────────────────────────
+        // Self-contained sector built around the AE Complex (fixedBuilding
+        // at tile 400,200, size 28×26). Zone sits west of the complex —
+        // AE's reception door faces west, so workers/visitors step out the
+        // lobby straight into this district. Ends at x=394 to leave a
+        // 6-tile buffer + the aeReceptionStop transit kiosk at (398,213).
+        // Mix of worker-tier residential (apartment/luxury/dorm/flop),
+        // a couple of shops + a bar, and supporting subcontractor factories.
+        {
+          enabled: true,
+          seed: 'ae-industrial-001',
+          rect: { x: 302, y: 180, w: 92, h: 60 },
+          roads: {
+            avenueSpacingTiles: { min: 14, max: 18 },
+            streetSpacingTiles: { min: 10, max: 14 },
+            avenueWidthTiles: 2,
+            streetWidthTiles: 2,
+            alleyChance: 0.5,
+            alleyWidthTiles: 1,
+            alleyMinBlockTiles: 9,
           },
-          {
-            id: 'residential_north',
-            rect: { x: 0, y: 0, w: 30, h: 40 },
-            types: [
-              { id: 'park',      min: 0, max: 1 },
-              { id: 'apartment', min: 0, max: 4 },
-              { id: 'luxury',    min: 0, max: 2 },
-              { id: 'dorm',      min: 0, max: 3 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-          {
-            id: 'residential_east',
-            rect: { x: 70, y: 0, w: 30, h: 40 },
-            types: [
-              { id: 'park',      min: 0, max: 1 },
-              { id: 'apartment', min: 0, max: 4 },
-              { id: 'luxury',    min: 0, max: 2 },
-              { id: 'dorm',      min: 0, max: 3 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-          {
-            id: 'residential_south',
-            rect: { x: 20, y: 40, w: 60, h: 25 },
-            types: [
-              { id: 'park',      min: 0, max: 1 },
-              { id: 'apartment', min: 0, max: 4 },
-              { id: 'dorm',      min: 0, max: 3 },
-              { id: 'flop',      min: 0, max: 3 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-          {
-            id: 'industrial',
-            rect: { x: 0, y: 65, w: 100, h: 15 },
-            types: [
-              { id: 'factory', min: 0, max: 6 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-        ],
-      },
+          districts: [
+            // North band: mixed-tier housing for AE workers.
+            {
+              id: 'aeIndustrial_residential',
+              rect: { x: 0, y: 0, w: 92, h: 24 },
+              types: [
+                { id: 'apartment', min: 0, max: 4 },
+                { id: 'luxury',    min: 0, max: 2 },
+                { id: 'dorm',      min: 0, max: 3 },
+                { id: 'flop',      min: 0, max: 2 },
+                { id: 'park',      min: 0, max: 1 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            // Middle band: convenience commerce for the workforce.
+            {
+              id: 'aeIndustrial_commercial',
+              rect: { x: 0, y: 24, w: 92, h: 14 },
+              types: [
+                { id: 'shop', min: 1, max: 2 },
+                { id: 'bar',  min: 0, max: 1 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            // South band: subcontractor factories supplying the AE plant.
+            {
+              id: 'aeIndustrial_industrial',
+              rect: { x: 0, y: 38, w: 92, h: 22 },
+              types: [
+                { id: 'factory', min: 0, max: 4 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+          ],
+        },
+      ],
 
       fixedBuildings: [
         { type: 'aeComplex', tile: { x: 400, y: 200 } },
@@ -151,58 +215,60 @@
       tilesX: 300,
       tilesY: 300,
 
-      procgen: {
-        enabled: true,
-        seed: 'zum-city-001',
-        // Smaller, denser colony interior — Side 3 is industrial Zeon.
-        rect: { x: 4, y: 4, w: 70, h: 60 },
-        roads: {
-          avenueSpacingTiles: { min: 12, max: 18 },
-          streetSpacingTiles: { min: 10, max: 14 },
-          avenueWidthTiles: 2,
-          streetWidthTiles: 2,
-          alleyChance: 0.7,
-          alleyWidthTiles: 1,
-          alleyMinBlockTiles: 9,
+      procgenZones: [
+        {
+          enabled: true,
+          seed: 'zum-city-001',
+          // Smaller, denser colony interior — Side 3 is industrial Zeon.
+          rect: { x: 4, y: 4, w: 70, h: 60 },
+          roads: {
+            avenueSpacingTiles: { min: 12, max: 18 },
+            streetSpacingTiles: { min: 10, max: 14 },
+            avenueWidthTiles: 2,
+            streetWidthTiles: 2,
+            alleyChance: 0.7,
+            alleyWidthTiles: 1,
+            alleyMinBlockTiles: 9,
+          },
+          districts: [
+            {
+              // Widened so airport (12×8 min) + shop + transitTerminal can
+              // each claim their own sub-block — the prior 30×18 only had
+              // room for 2 super-blocks once the airport ate the bigger one.
+              id: 'commercial',
+              rect: { x: 18, y: 0, w: 38, h: 24 },
+              types: [
+                { id: 'airport',         min: 1, max: 1 },
+                { id: 'shop',            min: 1, max: 1 },
+                { id: 'transitTerminal', min: 1, max: 1 },
+                { id: 'bar',             min: 0, max: 1 },
+                { id: 'hrOffice',        min: 0, max: 1 },
+                { id: 'park',            min: 0, max: 1 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            {
+              id: 'residential',
+              rect: { x: 0, y: 0, w: 70, h: 40 },
+              types: [
+                { id: 'park',      min: 0, max: 2 },
+                { id: 'apartment', min: 0, max: 6 },
+                { id: 'dorm',      min: 0, max: 4 },
+                { id: 'flop',      min: 0, max: 3 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+            {
+              id: 'industrial',
+              rect: { x: 0, y: 40, w: 70, h: 20 },
+              types: [
+                { id: 'factory', min: 0, max: 6 },
+              ],
+              buildingsPerBlockMax: 1,
+            },
+          ],
         },
-        districts: [
-          {
-            // Widened so airport (12×8 min) + shop + transitTerminal can
-            // each claim their own sub-block — the prior 30×18 only had
-            // room for 2 super-blocks once the airport ate the bigger one.
-            id: 'commercial',
-            rect: { x: 18, y: 0, w: 38, h: 24 },
-            types: [
-              { id: 'airport',         min: 1, max: 1 },
-              { id: 'shop',            min: 1, max: 1 },
-              { id: 'transitTerminal', min: 1, max: 1 },
-              { id: 'bar',             min: 0, max: 1 },
-              { id: 'hrOffice',        min: 0, max: 1 },
-              { id: 'park',            min: 0, max: 1 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-          {
-            id: 'residential',
-            rect: { x: 0, y: 0, w: 70, h: 40 },
-            types: [
-              { id: 'park',      min: 0, max: 2 },
-              { id: 'apartment', min: 0, max: 6 },
-              { id: 'dorm',      min: 0, max: 4 },
-              { id: 'flop',      min: 0, max: 3 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-          {
-            id: 'industrial',
-            rect: { x: 0, y: 40, w: 70, h: 20 },
-            types: [
-              { id: 'factory', min: 0, max: 6 },
-            ],
-            buildingsPerBlockMax: 1,
-          },
-        ],
-      },
+      ],
     },
 
     {

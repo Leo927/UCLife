@@ -25,8 +25,24 @@ export interface UseMapViewResult {
 const ZOOM_STEP = 0.65
 const MAX_SCALE = 20
 
-export function useMapView(mapW: number, mapH: number): UseMapViewResult {
-  const [vb, setVb] = useState<MapViewBox>({ x: 0, y: 0, w: mapW, h: mapH })
+export function useMapView(
+  mapW: number,
+  mapH: number,
+  initialBox: MapViewBox | null = null,
+  // Optional snap target for zoom-in. When the current viewBox center sits
+  // outside any meaningful content, MapPanel passes back the closest place
+  // center so repeated clicks always converge on something visible. Without
+  // this, zooming on the centroid of two spatially-separated procgen zones
+  // landed in the empty corridor between them and rendered as black space.
+  resolveZoomPivot: ((vb: MapViewBox) => { x: number; y: number } | null) | null = null,
+): UseMapViewResult {
+  // Fit-to-content view if provided; full scene otherwise. The full-scene
+  // default is fine for tiny maps but useless for the live ones — content
+  // sits in a few procgen zones and the rest of the scene is open ground,
+  // so opening the map and zooming in on the center landed in empty space
+  // and rendered as a flat dark rect.
+  const initial = initialBox ?? { x: 0, y: 0, w: mapW, h: mapH }
+  const [vb, setVb] = useState<MapViewBox>(initial)
   const [isDragging, setIsDragging] = useState(false)
   // Callback ref so the wheel useEffect re-runs when the SVG mounts/unmounts.
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null)
@@ -35,6 +51,12 @@ export function useMapView(mapW: number, mapH: number): UseMapViewResult {
   const vbRef = useRef(vb)
   vbRef.current = vb
 
+  // Pivot resolver is read inside zoom callbacks so we don't need to bust
+  // their identity when MapPanel's place list changes — keep the latest in
+  // a ref. Mid-render write is fine here; refs don't trigger re-renders.
+  const pivotRef = useRef(resolveZoomPivot)
+  pivotRef.current = resolveZoomPivot
+
   const dragRef = useRef<{
     startClientX: number
     startClientY: number
@@ -42,18 +64,31 @@ export function useMapView(mapW: number, mapH: number): UseMapViewResult {
     startVbY: number
   } | null>(null)
 
-  // Reset viewBox when scene dimensions change.
+  // Reset viewBox when scene dimensions or the fit-target rect change.
+  const initialKey = `${initial.x},${initial.y},${initial.w},${initial.h}`
   useEffect(() => {
-    setVb({ x: 0, y: 0, w: mapW, h: mapH })
-  }, [mapW, mapH])
+    setVb(initial)
+    // initial is recomputed from primitive deps each render; key it on the
+    // serialized rect so we don't loop on referentially-new objects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapW, mapH, initialKey])
+
+  // Pre-clamping w/h here matters: callers compute x,y as `pivot - frac * newW`,
+  // and if `clamp` later inflates newW (we hit MAX_SCALE), the offset is no
+  // longer correct and the pivot drifts. Repeated clicks at max zoom slid the
+  // viewBox into the empty SE corner of the scene, which rendered as a flat
+  // black rect with no markers — the "blackscreen" the user reported.
+  const clampSize = useCallback((w: number, h: number) => ({
+    w: Math.max(mapW / MAX_SCALE, Math.min(mapW, w)),
+    h: Math.max(mapH / MAX_SCALE, Math.min(mapH, h)),
+  }), [mapW, mapH])
 
   const clamp = useCallback((next: MapViewBox): MapViewBox => {
-    const w = Math.max(mapW / MAX_SCALE, Math.min(mapW, next.w))
-    const h = Math.max(mapH / MAX_SCALE, Math.min(mapH, next.h))
+    const { w, h } = clampSize(next.w, next.h)
     const x = Math.max(0, Math.min(mapW - w, next.x))
     const y = Math.max(0, Math.min(mapH - h, next.y))
     return { x, y, w, h }
-  }, [mapW, mapH])
+  }, [mapW, mapH, clampSize])
 
   // Non-passive wheel listener so preventDefault actually suppresses page scroll.
   // Depends on svgEl so it re-registers whenever the SVG mounts or unmounts.
@@ -68,8 +103,7 @@ export function useMapView(mapW: number, mapH: number): UseMapViewResult {
       setVb((prev) => {
         const focusX = prev.x + mx * prev.w
         const focusY = prev.y + my * prev.h
-        const newW = prev.w * factor
-        const newH = prev.h * factor
+        const { w: newW, h: newH } = clampSize(prev.w * factor, prev.h * factor)
         return clamp({
           x: focusX - mx * newW,
           y: focusY - my * newH,
@@ -80,21 +114,23 @@ export function useMapView(mapW: number, mapH: number): UseMapViewResult {
     }
     svgEl.addEventListener('wheel', handler, { passive: false })
     return () => svgEl.removeEventListener('wheel', handler)
-  }, [svgEl, clamp])
+  }, [svgEl, clamp, clampSize])
 
-  const zoomAt = useCallback((factor: number) => {
+  const zoomAt = useCallback((factor: number, useSnap: boolean) => {
     setVb((prev) => {
-      const cx = prev.x + prev.w / 2
-      const cy = prev.y + prev.h / 2
-      const newW = prev.w * factor
-      const newH = prev.h * factor
+      const snap = useSnap ? pivotRef.current?.(prev) ?? null : null
+      const cx = snap ? snap.x : prev.x + prev.w / 2
+      const cy = snap ? snap.y : prev.y + prev.h / 2
+      const { w: newW, h: newH } = clampSize(prev.w * factor, prev.h * factor)
       return clamp({ x: cx - newW / 2, y: cy - newH / 2, w: newW, h: newH })
     })
-  }, [clamp])
+  }, [clamp, clampSize])
 
-  const zoomIn = useCallback(() => zoomAt(ZOOM_STEP), [zoomAt])
-  const zoomOut = useCallback(() => zoomAt(1 / ZOOM_STEP), [zoomAt])
-  const reset = useCallback(() => setVb({ x: 0, y: 0, w: mapW, h: mapH }), [mapW, mapH])
+  const zoomIn = useCallback(() => zoomAt(ZOOM_STEP, true), [zoomAt])
+  // Zoom-out keeps the current center so the user can step back to the
+  // overview without the view jumping to a place they weren't looking at.
+  const zoomOut = useCallback(() => zoomAt(1 / ZOOM_STEP, false), [zoomAt])
+  const reset = useCallback(() => setVb(initial), [initialKey])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const onMouseDown = useCallback((e: MouseEvent<SVGSVGElement>) => {
     if (e.button !== 0) return
@@ -110,14 +146,19 @@ export function useMapView(mapW: number, mapH: number): UseMapViewResult {
   }, [])
 
   const onMouseMove = useCallback((e: MouseEvent<SVGSVGElement>) => {
-    if (!dragRef.current) return
+    const drag = dragRef.current
+    if (!drag) return
     const svg = e.currentTarget
     const rect = svg.getBoundingClientRect()
     const cur = vbRef.current
-    const dx = (e.clientX - dragRef.current.startClientX) / rect.width * cur.w
-    const dy = (e.clientY - dragRef.current.startClientY) / rect.height * cur.h
+    const dx = (e.clientX - drag.startClientX) / rect.width * cur.w
+    const dy = (e.clientY - drag.startClientY) / rect.height * cur.h
+    // Capture by value: React may invoke this updater on a later render
+    // after stopDrag has cleared dragRef, which would null-deref here.
+    const startVbX = drag.startVbX
+    const startVbY = drag.startVbY
     setVb((prev) =>
-      clamp({ x: dragRef.current!.startVbX - dx, y: dragRef.current!.startVbY - dy, w: prev.w, h: prev.h })
+      clamp({ x: startVbX - dx, y: startVbY - dy, w: prev.w, h: prev.h })
     )
   }, [clamp])
 

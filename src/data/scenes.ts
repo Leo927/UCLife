@@ -52,7 +52,12 @@ export interface MicroSceneConfig {
   tilesX: number
   tilesY: number
   playerSpawnTile?: { x: number; y: number }
-  procgen?: ProcgenConfig
+  // One or more procgen zones. Each zone is its own road network + district
+  // pool, seeded independently. Use multiple zones for spatially separated
+  // sectors (e.g. a downtown plus an industrial district across the map).
+  // Zone rects must not overlap each other or any fixedBuilding rect — the
+  // road carver still doesn't know about holes.
+  procgenZones?: ProcgenConfig[]
   fixedBuildings?: FixedBuildingRef[]
 }
 

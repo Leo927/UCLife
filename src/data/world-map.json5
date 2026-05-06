@@ -20,11 +20,23 @@
       nameZh: '冯·布劳恩中心区',
       shortZh: '中心区',
       kind: 'district',
-      // Matches scenes.json5 startTown.procgen.rect. Procgen produces the
-      // road network and buildings inside this rect.
+      // Matches startTown.procgenZones[0].rect. Procgen produces the road
+      // network and buildings inside this rect.
       tileX: 40, tileY: 4,
       tileW: 100, tileH: 80,
       description: '商业、居住和工厂集中的城市中心。新人在公寓与廉价旅馆之间的街道上初次降生于此。',
+    },
+    {
+      id: 'aeIndustrialDistrict',
+      sceneId: 'startTown',
+      nameZh: 'AE 工业区',
+      shortZh: 'AE 工业区',
+      kind: 'district',
+      // Covers procgenZones[1] (302,180 92×60) plus the aeComplex footprint
+      // (400,200 28×26) immediately east.
+      tileX: 302, tileY: 180,
+      tileW: 128, tileH: 60,
+      description: '安那海姆电子总部周边的工业区：员工公寓、便利店、酒吧和承包商工厂围绕着 AE 总部展开。',
     },
     {
       id: 'aeComplex',
@@ -34,7 +46,7 @@
       kind: 'complex',
       tileX: 400, tileY: 200,
       tileW: 28, tileH: 26,
-      description: '安那海姆电子的庞大企业园区，位于城东数百格之外。前台面向城市方向，董事会、车间、健身房、休息室都在这一栋楼里。',
+      description: 'AE 工业区的核心：安那海姆电子的庞大企业园区。前台面向工业区，董事会、车间、健身房、休息室都在这一栋楼里。',
     },
     {
       id: 'zumCity',

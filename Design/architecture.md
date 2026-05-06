@@ -233,7 +233,7 @@ See `arch/current/004_save_load_roundtrip.puml`.
 city-generation pipeline. **Same seed → same world**, which is what
 makes the save format viable.
 
-The city generator runs in three stages, gated on `scene.procgen.enabled`:
+The city generator runs in three stages, once per zone listed under `scene.procgenZones`, each gated on its own `enabled` flag:
 
 1. `generateRoadGrid` (`procgen/roads.ts`) — vertical avenues + horizontal
    streets at randomized gaps, recursive split of qualifying super-blocks

@@ -1,15 +1,17 @@
-import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Position } from '../ecs/traits'
+import { useCallback, useMemo } from 'react'
+import { useQueryFirst, useTrait, useQuery } from 'koota/react'
+import { IsPlayer, Position, Building } from '../ecs/traits'
 import { worldConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
+import { getSceneConfig } from '../data/scenes'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
 import { flightHubs } from '../data/flights'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getTransitPlacement } from '../sim/transitPlacements'
 import { transitTerminals } from '../data/transit'
 import { useUI } from './uiStore'
-import { useMapView, visibleTierAt, placeKindTier } from './useMapView'
+import { useMapView, visibleTierAt, placeKindTier, type MapViewBox } from './useMapView'
 
 const TILE = worldConfig.tilePx
 
@@ -92,6 +94,72 @@ function TransitDot({ cx, cy, scale }: TransitDotProps) {
   )
 }
 
+// Initial viewBox = the smallest rect that covers every procgen zone and
+// fixed building, padded a bit so markers near the edges aren't clipped.
+// Falls back to the whole scene when nothing meaningful is declared (ship
+// scenes, the zumCity stub today). Without this the default view of a
+// 800×520 city was 90% open ground with the procgen tucked in a corner —
+// zoom-in on the viewBox center then converged on empty space.
+function fitToContentBox(sceneId: string, tilesX: number, tilesY: number): MapViewBox | null {
+  const cfg = getSceneConfig(sceneId)
+  if (cfg.sceneType !== 'micro') return null
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const z of cfg.procgenZones ?? []) {
+    if (!z.enabled) continue
+    minX = Math.min(minX, z.rect.x)
+    minY = Math.min(minY, z.rect.y)
+    maxX = Math.max(maxX, z.rect.x + z.rect.w)
+    maxY = Math.max(maxY, z.rect.y + z.rect.h)
+  }
+  for (const fb of cfg.fixedBuildings ?? []) {
+    minX = Math.min(minX, fb.tile.x)
+    minY = Math.min(minY, fb.tile.y)
+    // Approximate fixed-building footprint without coupling to buildingTypes.
+    // 30 tiles is larger than any current fixedBuilding (aeComplex is 28×26)
+    // so the bbox always encloses it.
+    maxX = Math.max(maxX, fb.tile.x + 30)
+    maxY = Math.max(maxY, fb.tile.y + 30)
+  }
+  if (!Number.isFinite(minX)) return null
+  const PAD = 8
+  const left = Math.max(0, minX - PAD)
+  const top = Math.max(0, minY - PAD)
+  const right = Math.min(tilesX, maxX + PAD)
+  const bottom = Math.min(tilesY, maxY + PAD)
+  return { x: left, y: top, w: right - left, h: bottom - top }
+}
+
+// As long as any place still overlaps the viewBox the user is looking at
+// content — preserve their pan intent and zoom on the current center.
+// Once every place has scrolled out of view, snap to the closest one so
+// further clicks always converge on something visible.
+function closestPlacePivot(
+  vb: MapViewBox,
+  places: readonly WorldPlace[],
+): { x: number; y: number } | null {
+  if (places.length === 0) return null
+  for (const p of places) {
+    if (vb.x < p.tileX + p.tileW && vb.x + vb.w > p.tileX
+     && vb.y < p.tileY + p.tileH && vb.y + vb.h > p.tileY) {
+      return null
+    }
+  }
+  const cx = vb.x + vb.w / 2
+  const cy = vb.y + vb.h / 2
+  let bestX = cx, bestY = cy, bestD = Infinity
+  for (const p of places) {
+    const px = p.tileX + p.tileW / 2
+    const py = p.tileY + p.tileH / 2
+    const d = Math.hypot(px - cx, py - cy)
+    if (d < bestD) {
+      bestD = d
+      bestX = px
+      bestY = py
+    }
+  }
+  return { x: bestX, y: bestY }
+}
+
 export function MapPanel() {
   const open = useUI((s) => s.mapOpen)
   const setOpen = useUI((s) => s.setMap)
@@ -103,11 +171,28 @@ export function MapPanel() {
   const { tilesX: MAP_TILES_X, tilesY: MAP_TILES_Y } = getActiveSceneDimensions()
   const VIEW_H = Math.round(VIEW_W * (MAP_TILES_Y / MAP_TILES_X))
 
+  const initialBox = useMemo(
+    () => fitToContentBox(activeSceneId, MAP_TILES_X, MAP_TILES_Y),
+    [activeSceneId, MAP_TILES_X, MAP_TILES_Y],
+  )
+  // For startTown the procgen zones are spatially separated, so the centroid
+  // of fit-to-content sits in empty space between them. Without a snap, the
+  // first zoom-in click already converges on dark ground. Ship/space scenes
+  // have no places — return null so zoomIn falls back to viewBox center.
+  const placesForScene = useMemo(
+    () => getPlacesInScene(activeSceneId),
+    [activeSceneId],
+  )
+  const resolveZoomPivot = useCallback(
+    (vb: MapViewBox) => closestPlacePivot(vb, placesForScene),
+    [placesForScene],
+  )
   const {
     viewBoxAttr, scale, isDragging,
     zoomIn, zoomOut, reset,
     svgRef, onMouseDown, onMouseMove, onMouseUp, onMouseLeave,
-  } = useMapView(MAP_TILES_X, MAP_TILES_Y)
+  } = useMapView(MAP_TILES_X, MAP_TILES_Y, initialBox, resolveZoomPivot)
+  const buildingEnts = useQuery(Building)
 
   if (!open) return null
 
@@ -146,6 +231,20 @@ export function MapPanel() {
     }
   }
 
+  const showBuildings = scale >= 4
+  const showBuildingLabels = scale >= 10
+  const buildings = showBuildings
+    ? buildingEnts.flatMap((ent) => {
+        const b = ent.get(Building)
+        if (!b) return []
+        return [{
+          id: ent.id(),
+          x: b.x / TILE, y: b.y / TILE, w: b.w / TILE, h: b.h / TILE,
+          label: b.label,
+        }]
+      })
+    : []
+
   const close = () => setOpen(false)
   const playerTileX = playerPos ? playerPos.x / TILE : null
   const playerTileY = playerPos ? playerPos.y / TILE : null
@@ -181,6 +280,27 @@ export function MapPanel() {
               x={0} y={0} width={MAP_TILES_X} height={MAP_TILES_Y}
               fill="#0a0a0d" stroke="#2a2a32" strokeWidth={2 / scale}
             />
+            {buildings.map((b) => (
+              <g key={b.id}>
+                <rect
+                  x={b.x} y={b.y} width={b.w} height={b.h}
+                  fill="#9ca3af" fillOpacity={0.14}
+                  stroke="#9ca3af" strokeOpacity={0.55}
+                  strokeWidth={0.5 / scale}
+                />
+                {showBuildingLabels && b.label && (
+                  <text
+                    x={b.x + b.w / 2} y={b.y + b.h / 2 + 1.5 / scale}
+                    textAnchor="middle"
+                    fill="#e5e7eb"
+                    fontSize={Math.max(2.5, 7 / scale)}
+                    style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 1 / scale }}
+                  >
+                    {b.label}
+                  </text>
+                )}
+              </g>
+            ))}
             {places.map((p) => (
               <PlaceMarker
                 key={p.id}

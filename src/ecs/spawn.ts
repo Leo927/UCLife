@@ -809,8 +809,6 @@ function spawnFoundingCivilians(scene: MicroSceneConfig): void {
 let roughSpotCounter = 0
 
 function bootstrapMicroScene(scene: MicroSceneConfig): void {
-  const rng = SeededRng.fromString(scene.procgen?.seed ?? 'default')
-
   if (scene.id === initialSceneId && scene.playerSpawnTile) {
     spawnPlayer(world, {
       x: TILE * scene.playerSpawnTile.x,
@@ -818,20 +816,24 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
     })
   }
 
-  if (scene.procgen?.enabled) {
-    const cfg = scene.procgen
-    const grid = generateRoadGrid(cfg.rect, cfg.roads, rng)
+  for (const cfg of scene.procgenZones ?? []) {
+    if (!cfg.enabled) continue
+    const zoneRng = SeededRng.fromString(cfg.seed)
+    const grid = generateRoadGrid(cfg.rect, cfg.roads, zoneRng)
     for (const seg of grid.segments) {
       world.spawn(Road({ x: seg.rect.x, y: seg.rect.y, w: seg.rect.w, h: seg.rect.h, kind: seg.kind }))
     }
-    for (const pb of assignBuildings(cfg.rect, grid.subBlocks, cfg.districts, rng)) {
-      spawnBuilding(pb.typeId, pb.slot, rng, scene.id)
+    for (const pb of assignBuildings(cfg.rect, grid.subBlocks, cfg.districts, zoneRng)) {
+      spawnBuilding(pb.typeId, pb.slot, zoneRng, scene.id)
     }
   }
 
+  // Fixed buildings get their own RNG so adding/removing a procgen zone
+  // doesn't perturb door offsets on hand-placed buildings.
+  const fixedRng = SeededRng.fromString(`${scene.id}:fixed`)
   for (const fb of scene.fixedBuildings ?? []) {
-    const pb = placeFixedBuilding(fb.type, fb.tile, rng)
-    spawnBuilding(pb.typeId, pb.slot, rng, scene.id)
+    const pb = placeFixedBuilding(fb.type, fb.tile, fixedRng)
+    spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
   }
 
   spawnFixedTransitForScene(scene.id)
