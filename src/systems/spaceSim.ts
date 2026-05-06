@@ -14,7 +14,7 @@ import { thrustToward } from '../engine/space/autopilot'
 import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
 import { useEngagement } from '../sim/engagement'
-import { spendFuel, getShipState } from '../sim/ship'
+import { spendFuel, getShipState, getDockedPoiId } from '../sim/ship'
 import { emitSim } from '../sim/events'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -191,11 +191,16 @@ export function spaceSimSystem(world: World, dtSec: number): void {
   // 6. Contact detection — if the player ship comes within
   // aggroContactRadius of an enemy, prompt the engagement modal. Cooldown
   // + "must exit aggro before re-prompting" guards prevent the modal from
-  // re-firing on every frame while inside contact range.
+  // re-firing on every frame while inside contact range. A docked ship
+  // is parked and immune; the modal must never fire while the player is
+  // walking around the city or ship interior.
   let playerPos: { x: number; y: number } | null = null
-  for (const pe of world.query(IsPlayer, ShipBody, Position)) {
-    playerPos = pe.get(Position)!
-    break
+  const playerDocked = !!getDockedPoiId()
+  if (!playerDocked) {
+    for (const pe of world.query(IsPlayer, ShipBody, Position)) {
+      playerPos = pe.get(Position)!
+      break
+    }
   }
   if (playerPos && !useEngagement.getState().open) {
     const contactR = spaceConfig.aggroContactRadius

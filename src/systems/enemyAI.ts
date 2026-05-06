@@ -19,16 +19,23 @@ import { Position, Velocity, Thrust, EnemyAI, IsPlayer, ShipBody } from '../ecs/
 import { thrustToward } from '../engine/space'
 import { spaceConfig } from '../config'
 import { inAggroRadius, distSq } from '../engine/space/engagement'
+import { getDockedPoiId } from '../sim/ship'
 
 const PATROL_WAYPOINT_RADIUS = 40
 const CHASE_HYSTERESIS = 1.5
 const ENEMY_SPEED_FACTOR = 0.85
 
 export function enemyAISystem(world: World): void {
+  // A docked player ship is parked at a POI and not a valid target — pirates
+  // ignore it so they don't path toward Von Braun while the player walks
+  // around the city. Aggro only resumes once the player undocks.
+  const playerDocked = !!getDockedPoiId()
   let playerPos: { x: number; y: number } | null = null
-  for (const e of world.query(IsPlayer, ShipBody, Position)) {
-    playerPos = e.get(Position)!
-    break
+  if (!playerDocked) {
+    for (const e of world.query(IsPlayer, ShipBody, Position)) {
+      playerPos = e.get(Position)!
+      break
+    }
   }
 
   const maxSpeed = spaceConfig.baseShipMaxSpeed * spaceConfig.shipSpeedScale * ENEMY_SPEED_FACTOR
