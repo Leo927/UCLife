@@ -231,7 +231,8 @@ Earth Sphere regions (preserved labels):
 | **6.0.7** | Continuous fuel/supply economy. Take-off cost wired. Mutiny / drift-to-well failure modes. |
 | **6.0.8** | Save/load round-trip; smoke-test rewrite. |
 | **6.1** | Sensor / visibility play. Cloaked POIs (Pezun salvage, hidden caches) require active scanning. |
-| **6.2** | Multi-ship fleet movement. Fleet visibility scales with ship count. |
+| **6.1.5** | Singleton-to-plural ship structural prep — `IsFlagship` marker + `EscortShip` trait + save migration. No new content. See [fleet.md](fleet.md). |
+| **6.2** | Multi-ship fleet movement. Escorts station-keep to flagship at fixed formation offsets (no per-escort `Course`); fleet visibility scales with ship count. See [fleet.md](fleet.md) for roster UI, capacity formula, doctrine slider. |
 | **6.3** | Player-claimed colony POIs persist on the map. |
 | **6.4** | Jupiter expedition: long-burn transit + Jupiter local map. Same engine, different content tables. |
 | **7.0** | Phase 7 trigger flips faction control on contested POIs; Side 4 becomes debris (POI replaced with derelict body). Hostile patrols escalate by region. |
@@ -241,6 +242,7 @@ Earth Sphere regions (preserved labels):
 ## Related
 
 - [combat.md](combat.md) — consumes this scene for tactical encounters
+- [fleet.md](fleet.md) — multi-ship fleet management (Phase 6.1.5+) on top of this campaign map
 - [encounters.md](encounters.md) — text-event form (still relevant for
   POI services and dialogues, just not for transit RNG)
 - [setting.md](setting.md) — UC astrography reference
