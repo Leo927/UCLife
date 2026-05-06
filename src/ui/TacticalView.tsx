@@ -1,12 +1,9 @@
-// Phase 6.0 Starsector-shape tactical combat overlay. Top-down 2D
-// real-time-with-pause view: player flagship, enemy ship(s), projectiles,
-// HUD strips for hull/armor/flux/shields, weapon-charge bars, click-to-
-// move steering for the flagship. Spacebar toggles pause.
-//
-// We don't use koota's useTrait/useQuery here because those bind to the
-// active-scene WorldProvider — and the player may be in city when combat
-// starts. Instead we poll the ship world via a 30Hz interval; combat
-// traits only mutate at frame rate so this is fine.
+// Fullscreen Starsector-shape tactical combat overlay. The Pixi canvas
+// fills the viewport; the HUD is a set of corner overlays (player stats
+// top-left, enemy stats top-right, weapon queue bottom-center, controls
+// top-center). Combat traits are polled at 30Hz off the playerShipInterior
+// world — useTrait/useQuery are bound to the active scene's WorldProvider,
+// which may be elsewhere when combat opens, so we can't use them here.
 
 import { useEffect, useRef, useState } from 'react'
 import type { Application } from 'pixi.js'
@@ -96,43 +93,59 @@ function snapshotEnemy(): EnemySnap | null {
   }
 }
 
+function StatBar(props: { label: string; current: number; max: number; color: string }) {
+  const pct = props.max > 0 ? Math.max(0, Math.min(100, (props.current / props.max) * 100)) : 0
+  return (
+    <div className="tactical-stat">
+      <div className="tactical-stat-row">
+        <span className="tactical-stat-label">{props.label}</span>
+        <span className="tactical-stat-value">{Math.round(props.current)} / {props.max}</span>
+      </div>
+      <div className="tactical-stat-track">
+        <div
+          className="tactical-stat-fill"
+          style={{ width: `${pct}%`, background: props.color }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function ChargeBar(props: { pct: number; ready: boolean }) {
   return (
-    <div className="bridge-charge-bar">
+    <div className="tactical-charge">
       <div
-        className={`bridge-charge-fill${props.ready ? ' is-ready' : ''}`}
+        className={`tactical-charge-fill${props.ready ? ' is-ready' : ''}`}
         style={{ width: `${Math.max(0, Math.min(100, props.pct * 100))}%` }}
       />
     </div>
   )
 }
 
-function StatBar(props: { label: string; current: number; max: number; color: string }) {
-  const pct = props.max > 0 ? Math.max(0, Math.min(100, (props.current / props.max) * 100)) : 0
+function PlayerHud(props: { title: string; snap: PlayerSnap }) {
+  const { title, snap } = props
   return (
-    <div className="bridge-integrity-bar" style={{ position: 'relative' }}>
-      <div
-        className="bridge-integrity-fill"
-        style={{ width: `${pct}%`, background: props.color }}
-      />
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 8px', fontSize: 11, color: '#e6e6ea',
-      }}>
-        <span>{props.label}</span>
-        <span>{Math.round(props.current)} / {props.max}</span>
-      </div>
+    <div className="tactical-hud tactical-hud-player">
+      <div className="tactical-hud-title">{title}</div>
+      <StatBar label="船体" current={snap.hullCurrent} max={snap.hullMax} color="#4ade80" />
+      <StatBar label="装甲" current={snap.armorCurrent} max={snap.armorMax} color="#a3a3a3" />
+      <StatBar label="电荷" current={snap.fluxCurrent} max={snap.fluxMax} color="#3b82f6" />
+      <StatBar label="战备" current={snap.crCurrent} max={snap.crMax} color="#f59e0b" />
     </div>
   )
 }
 
-function ShipHud(props: { side: 'left' | 'right'; title: string; snap: PlayerSnap | EnemySnap }) {
-  const { side, title, snap } = props
+function EnemyHud(props: { title: string; snap: EnemySnap }) {
+  const { title, snap } = props
   return (
-    <div className={`bridge-ship bridge-ship-${side}`}>
-      <div className="bridge-ship-title">{title}</div>
-      <StatBar label="船体" current={snap.hullCurrent} max={snap.hullMax} color="var(--accent)" />
+    <div className="tactical-hud tactical-hud-enemy">
+      <div className="tactical-hud-title">
+        {title}
+        <span className={`tactical-shield-pip${snap.shieldUp ? ' is-up' : ''}`}>
+          {snap.shieldUp ? '护盾·开' : '护盾·关'}
+        </span>
+      </div>
+      <StatBar label="船体" current={snap.hullCurrent} max={snap.hullMax} color="#dc2626" />
       <StatBar label="装甲" current={snap.armorCurrent} max={snap.armorMax} color="#a3a3a3" />
       <StatBar label="电荷" current={snap.fluxCurrent} max={snap.fluxMax} color="#3b82f6" />
     </div>
@@ -140,8 +153,6 @@ function ShipHud(props: { side: 'left' | 'right'; title: string; snap: PlayerSna
 }
 
 function playerVisual(p: PlayerSnap): PixiShipSnap {
-  // Shield alpha falls off as flux saturates so the player can read
-  // shield headroom from the ring fade.
   const shieldHeadroom = p.fluxMax > 0 ? 1 - p.fluxCurrent / p.fluxMax : 0
   return {
     x: p.pos.x, y: p.pos.y,
@@ -181,9 +192,23 @@ export function TacticalView() {
   const lastFlashZh = useCombatStore((s) => s.lastFlashZh)
   const lastFlashAtMs = useCombatStore((s) => s.lastFlashAtMs)
   const [tick, setTick] = useState(0)
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
 
   const rendererRef = useRef<PixiTacticalRenderer | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const sizeRef = useRef(size)
+  sizeRef.current = size
+
+  useEffect(() => {
+    if (!open) return
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [open])
+
+  useEffect(() => {
+    const r = rendererRef.current
+    if (r) r.resize(size.w, size.h)
+  }, [size])
 
   useEffect(() => {
     if (!open) return
@@ -241,7 +266,6 @@ export function TacticalView() {
     if (r) {
       r.destroy()
       rendererRef.current = null
-      canvasRef.current = null
     }
   }, [open])
 
@@ -255,108 +279,81 @@ export function TacticalView() {
   const flashAge = performance.now() - lastFlashAtMs
   const showFlash = lastFlashZh && flashAge < 1500
 
-  // Click on the arena: set the player's move target. Pause-friendly —
-  // queues a destination that the combat tick steers toward. Coords are
-  // converted via the canvas's getBoundingClientRect so CSS scaling works
-  // as it did with the SVG.
+  // Click on the arena: convert screen coords to arena world coords via
+  // the renderer's viewport transform.
   const onArenaClick = (ev: React.MouseEvent<HTMLDivElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    if (rect.width === 0 || rect.height === 0) return
-    const x = ((ev.clientX - rect.left) / rect.width) * ARENA_W
-    const y = ((ev.clientY - rect.top) / rect.height) * ARENA_H
-    useCombatStore.getState().setPlayerTarget({ x, y })
+    const r = rendererRef.current
+    if (!r) return
+    const rect = ev.currentTarget.getBoundingClientRect()
+    const sx = ev.clientX - rect.left
+    const sy = ev.clientY - rect.top
+    const wp = r.screenToWorld(sx, sy)
+    useCombatStore.getState().setPlayerTarget({ x: wp.x, y: wp.y })
   }
 
   const onPixiReady = (app: Application) => {
-    rendererRef.current = new PixiTacticalRenderer(app, ARENA_W, ARENA_H)
-    canvasRef.current = app.canvas as HTMLCanvasElement
+    const sz = sizeRef.current
+    rendererRef.current = new PixiTacticalRenderer(app, sz.w, sz.h, ARENA_W, ARENA_H)
   }
 
   const playerCls = getShipClass(player.classId)
 
   return (
-    <div className="bridge-overlay">
-      <div className="bridge-panel">
-        <header className="bridge-header">
-          <h2>战术指挥</h2>
-          <div className={`bridge-pause-state${paused ? ' is-paused' : ''}`}>
-            {paused ? '已暂停 ⏸' : '运行中 ▶'}
-          </div>
-          <button
-            className="bridge-pause-btn"
-            onClick={() => useCombatStore.getState().togglePause()}
-          >
-            {paused ? '继续 (空格)' : '暂停 (空格)'}
-          </button>
-        </header>
+    <div className="tactical-overlay">
+      <div className="tactical-canvas-host" onClick={onArenaClick}>
+        <PixiCanvas
+          width={size.w}
+          height={size.h}
+          background={0x070710}
+          hostStyle={{ width: '100%', height: '100%' }}
+          onReady={onPixiReady}
+        />
+      </div>
 
-        <div className="bridge-ships">
-          <ShipHud side="left" title={playerCls.nameZh} snap={player} />
-          <div className="bridge-vs">VS</div>
-          <ShipHud side="right" title={enemy.nameZh} snap={enemy} />
+      <div className="tactical-topbar">
+        <div className="tactical-title">战术指挥</div>
+        <div className={`tactical-pause-state${paused ? ' is-paused' : ''}`}>
+          {paused ? '已暂停 ⏸' : '运行中 ▶'}
         </div>
-
-        {/* Tactical arena — top-down 2D Pixi view. Click sets player target.
-            Canvas drawing buffer is native arena size (1000×600); the host
-            div CSS-fits the 360-tall container while preserving aspect ratio
-            (letterbox-equivalent of the previous SVG preserveAspectRatio). */}
-        <div
-          className="tactical-arena"
-          onClick={onArenaClick}
-          style={{
-            width: '100%', height: 360,
-            background: '#070710', border: '1px solid #2a2a30',
-            cursor: 'crosshair', overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
+        <button
+          className="tactical-btn"
+          onClick={() => useCombatStore.getState().togglePause()}
         >
-          <PixiCanvas
-            width={ARENA_W}
-            height={ARENA_H}
-            background={0x070710}
-            hostStyle={{
-              height: '100%',
-              aspectRatio: `${ARENA_W} / ${ARENA_H}`,
-              maxWidth: '100%',
-            }}
-            onReady={onPixiReady}
-          />
-        </div>
+          {paused ? '继续 (空格)' : '暂停 (空格)'}
+        </button>
+      </div>
 
-        {/* Weapon charge queue — shows readiness per mount. Auto-fires when
-            target is in arc and range, so the queue is informational rather
-            than the primary input. Player's main verb is positioning. */}
-        <div className="bridge-weapons">
-          <div className="bridge-section-title">武器队列</div>
-          {player.mounts.map((m) => {
-            if (!m.weaponId) {
-              return (
-                <div key={m.mountIdx} className="bridge-weapon-row is-empty">
-                  <span className="bridge-muted">挂载位 {m.mountIdx + 1} · 空</span>
-                </div>
-              )
-            }
-            const def = getWeapon(m.weaponId)
-            const pct = def.chargeSec > 0 ? m.chargeSec / def.chargeSec : 0
+      <PlayerHud title={playerCls.nameZh} snap={player} />
+      <EnemyHud title={enemy.nameZh} snap={enemy} />
+
+      {showFlash && <div className="tactical-flash">{lastFlashZh}</div>}
+
+      <div className="tactical-weapons">
+        <div className="tactical-section-title">武器队列</div>
+        {player.mounts.map((m) => {
+          if (!m.weaponId) {
             return (
-              <div key={m.mountIdx} className="bridge-weapon-row">
-                <div className="bridge-weapon-name">
-                  {def.nameZh}
-                  {m.ready && <span className="bridge-weapon-ready"> · 就绪</span>}
-                </div>
-                <ChargeBar pct={pct} ready={m.ready} />
+              <div key={m.mountIdx} className="tactical-weapon-row is-empty">
+                <span className="tactical-muted">挂载位 {m.mountIdx + 1} · 空</span>
               </div>
             )
-          })}
-        </div>
+          }
+          const def = getWeapon(m.weaponId)
+          const pct = def.chargeSec > 0 ? m.chargeSec / def.chargeSec : 0
+          return (
+            <div key={m.mountIdx} className="tactical-weapon-row">
+              <div className="tactical-weapon-name">
+                {def.nameZh}
+                {m.ready && <span className="tactical-weapon-ready"> · 就绪</span>}
+              </div>
+              <ChargeBar pct={pct} ready={m.ready} />
+            </div>
+          )
+        })}
+      </div>
 
-        {showFlash && <div className="bridge-flash">{lastFlashZh}</div>}
-
-        <div className="bridge-hint">
-          点击战场为旗舰下达航向 · 武器在敌方进入射程时自动开火 · 空格切换暂停
-        </div>
+      <div className="tactical-hint">
+        点击战场为旗舰下达航向 · 武器在敌方进入射程时自动开火 · 空格切换暂停
       </div>
     </div>
   )

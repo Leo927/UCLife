@@ -1,13 +1,12 @@
-// Phase 2.5 of the Konva → Pixi migration. Tactical-combat arena
-// renderer — replaces the inline SVG in src/ui/TacticalView.tsx. The
-// HUD strips (hull/armor/flux, weapon queue) stay DOM since they're
-// React-state-driven anyway.
+// Tactical-combat arena renderer. The HUD strips (hull/armor/flux,
+// weapon queue) are DOM overlays — only the world (ships, projectiles,
+// beams, target reticle, arena border) lives here.
 //
 // Arena world coordinates are fixed 1000×600 (ARENA_W × ARENA_H from
-// src/systems/combat.ts). The Pixi canvas is created at native arena
-// size and CSS-scaled by the parent container. Click coords are
-// converted via getBoundingClientRect, so the existing input math
-// stays unchanged.
+// src/systems/combat.ts). The Pixi canvas is sized to the viewport;
+// the renderer applies a viewport transform on `root` to letterbox the
+// arena into the visible area at native pixel density. Click coords go
+// through screenToWorld() to convert back to arena units.
 //
 // Perf budget: render <2ms/frame at N=100 projectiles + 2 ships +
 // arena border. Player + enemy DisplayObjects are persistent and
@@ -102,8 +101,17 @@ export class PixiTacticalRenderer {
   private targetMarkerAttached = false
   private playerAttached = false
   private enemyAttached = false
+  private arenaW: number
+  private arenaH: number
+  private viewW: number
+  private viewH: number
 
-  constructor(app: Application, arenaW: number, arenaH: number) {
+  constructor(private app: Application, viewW: number, viewH: number, arenaW: number, arenaH: number) {
+    this.viewW = viewW
+    this.viewH = viewH
+    this.arenaW = arenaW
+    this.arenaH = arenaH
+
     this.root = new Container()
     this.root.label = 'tactical-arena'
     app.stage.addChild(this.root)
@@ -133,6 +141,8 @@ export class PixiTacticalRenderer {
     this.enemyNode = this.makeShipNode()
     this.playerAttached = false
     this.enemyAttached = false
+
+    this.applyFit()
   }
 
   private makeShipNode(): ShipNode {
@@ -141,6 +151,30 @@ export class PixiTacticalRenderer {
     hull.visible = false
     shield.visible = false
     return { hull, shield }
+  }
+
+  resize(viewW: number, viewH: number): void {
+    this.viewW = viewW
+    this.viewH = viewH
+    this.app.renderer.resize(viewW, viewH)
+    this.applyFit()
+  }
+
+  // Letterbox-fit ARENA_W × ARENA_H into the current viewport. Centered;
+  // shorter screen-axis sets the scale so the whole arena always fits.
+  private applyFit(): void {
+    const sx = this.viewW / this.arenaW
+    const sy = this.viewH / this.arenaH
+    const s = Math.min(sx, sy)
+    this.root.scale.set(s, s)
+    this.root.x = Math.round((this.viewW - this.arenaW * s) / 2)
+    this.root.y = Math.round((this.viewH - this.arenaH * s) / 2)
+  }
+
+  // Screen pixel → arena world coords. Inverse of applyFit().
+  screenToWorld(sx: number, sy: number): { x: number; y: number } {
+    const s = this.root.scale.x || 1
+    return { x: (sx - this.root.x) / s, y: (sy - this.root.y) / s }
   }
 
   destroy(): void {

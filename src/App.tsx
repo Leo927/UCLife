@@ -5,6 +5,7 @@ import { Hud } from './ui/Hud'
 import { ActionStatus } from './ui/ActionStatus'
 import { DeathModal } from './ui/DeathModal'
 import { StatusPanel } from './ui/StatusPanel'
+import { InventoryPanel } from './ui/InventoryPanel'
 import { StatusBarFooter } from './ui/StatusBarFooter'
 import { ShopModal } from './ui/ShopModal'
 import { ConditionStrip } from './ui/ConditionStrip'
@@ -17,6 +18,7 @@ import { MapPanel } from './ui/MapPanel'
 import { TransitMap } from './ui/TransitMap'
 import { FlightModal } from './ui/FlightModal'
 import { TacticalView } from './ui/TacticalView'
+import { useCombatStore } from './systems/combat'
 import { EngagementModal } from './ui/EngagementModal'
 import { TransitionOverlay } from './ui/TransitionOverlay'
 import { ShipDealer } from './ui/conversations/ShipDealer'
@@ -28,15 +30,22 @@ import { SpriteTester } from './render/sprite/__debug__/SpriteTester'
 export function App() {
   const activeId = useScene((s) => s.activeId)
   const inSpace = activeId === 'spaceCampaign'
+  // Tactical combat opens its own Pixi Application. Pixi v8's WebGL batcher
+  // null-derefs when a second Pixi Application boots alongside a live one
+  // (filtered as `Cannot read properties of null (reading 'clear')` in
+  // check-space-combat.mjs). Unmounting SpaceView during combat gives the
+  // tactical canvas a clean WebGL context.
+  const combatOpen = useCombatStore((s) => s.open)
   return (
     <div className="app">
       <Hud />
       <ConditionStrip />
       <Game />
-      {inSpace && <SpaceView />}
+      {inSpace && !combatOpen && <SpaceView />}
       <ActionStatus />
       <StatusBarFooter />
       <StatusPanel />
+      <InventoryPanel />
       <ShopModal />
       <EventLogPanel />
       <DebugPanel />
