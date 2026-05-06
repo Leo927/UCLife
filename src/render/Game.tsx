@@ -142,7 +142,7 @@ export function Game() {
         && playerAction.kind !== 'walking'
         && !isWorking
       ) {
-        return
+        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
       }
       const ipos = ent.get(Position)
       if (!ipos) return
@@ -198,7 +198,7 @@ export function Game() {
       && playerAction.kind !== 'walking'
       && !isWorking
     ) {
-      return
+      player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
     if (isWorking) {
       // Off-station background click leaves the job (matches legacy behavior).
