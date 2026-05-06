@@ -191,6 +191,17 @@ export function assignBuildings(
       const door = pickDoorSide(sb.adjacentRoads)
       if (!door) continue
 
+      // Per-sub-block placement counts. Used to break ties towards
+      // unused types so a max-5 strip doesn't degenerate into five
+      // copies of the same building. Lifted out of the inner loop so
+      // every slot sees the in-block history.
+      const placedInBlock = new Map<string, number>()
+      const inBlock = (id: string) => placedInBlock.get(id) ?? 0
+      const leastPlacedInBlock = <T extends { entry: DistrictTypeEntry }>(arr: T[]): T[] => {
+        const minN = Math.min(...arr.map((c) => inBlock(c.entry.id)))
+        return arr.filter((c) => inBlock(c.entry.id) === minN)
+      }
+
       let cursorTiles = 0
       for (let placed = 0; placed < perBlockMax; placed++) {
         type Candidate = {
@@ -211,8 +222,9 @@ export function assignBuildings(
 
         // Prefer types with unmet min. Among those, the one with the
         // largest min footprint goes first, so airport (8×6) claims a big
-        // block before shop (6×4) takes everything for itself. Within the
-        // same footprint band, randomize.
+        // block before shop (6×4) takes everything for itself. Within
+        // the same footprint band, prefer types not yet placed in this
+        // sub-block; among those, randomize.
         const mustPlace = candidates.filter((c) => {
           const placedCnt = placedCount.get(c.entry.id)!
           const min = c.entry.min ?? 0
@@ -225,9 +237,11 @@ export function assignBuildings(
             .sort((a, b) => b.area - a.area)
           const topArea = sized[0].area
           const tied = sized.filter((s) => s.area === topArea).map((s) => s.c)
-          chosen = tied[rng.intRange(0, tied.length - 1)]
+          const fresh = leastPlacedInBlock(tied)
+          chosen = fresh[rng.intRange(0, fresh.length - 1)]
         } else {
-          chosen = candidates[rng.intRange(0, candidates.length - 1)]
+          const fresh = leastPlacedInBlock(candidates)
+          chosen = fresh[rng.intRange(0, fresh.length - 1)]
         }
 
         const wallTiles = (door.side === 'n' || door.side === 's')
@@ -258,6 +272,7 @@ export function assignBuildings(
           slot: { rect: chosen.rect, primaryDoor, extraDoors },
         })
         placedCount.set(chosen.entry.id, (placedCount.get(chosen.entry.id) ?? 0) + 1)
+        placedInBlock.set(chosen.entry.id, inBlock(chosen.entry.id) + 1)
         cursorTiles += chosen.frontageTiles
       }
     }

@@ -143,4 +143,28 @@ describe('assignBuildings — buildingsPerBlockMax', () => {
       expect(buildings.length, `seed=${seed}`).toBeLessThanOrEqual(1)
     }
   })
+
+  it('cycles through all candidate types in a sub-block before repeating any', () => {
+    // 3 small types (5×3 minimum each) on a 30×16 wide strip with
+    // buildingsPerBlockMax=3 — at most 3 buildings fit (3 × ~9 frontage).
+    // With anti-repeat, every seed should yield a hand of 3 distinct types.
+    const district: DistrictConfig = {
+      id: 'test',
+      rect: { x: 0, y: 0, w: 100, h: 100 },
+      types: [{ id: 'bar' }, { id: 'hrOffice' }, { id: 'realtor' }],
+      buildingsPerBlockMax: 3,
+    }
+    for (let seed = 0; seed < 30; seed++) {
+      const buildings = assignBuildings(
+        procgenRect, [wideSouthSb], [district], SeededRng.fromNumber(seed),
+      )
+      if (buildings.length < 2) continue
+      const types = buildings.map((b) => b.typeId)
+      const uniq = new Set(types)
+      expect(
+        uniq.size,
+        `seed=${seed}: expected each placed type to be unique while alternatives exist, got ${types.join(',')}`,
+      ).toBe(types.length)
+    }
+  })
 })
