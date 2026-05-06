@@ -10,6 +10,7 @@ import {
   pickFreshName, pickRandomColor,
   getAnonymousCounter, setAnonymousCounter, resetNameGen,
 } from '../character/nameGen'
+import { initialSceneId } from '../data/scenes'
 
 const TILE = worldConfig.tilePx
 
@@ -53,7 +54,9 @@ export function setPopulationState(s: {
   immigrantCounter = s.immigrantCounter
 }
 
-export function populationSystem(world: World, gameDate: Date): void {
+export function populationSystem(world: World, gameDate: Date, sceneId: string): void {
+  if (sceneId !== initialSceneId) return
+
   const target = populationConfig.target
 
   let alive = 0

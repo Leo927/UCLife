@@ -135,7 +135,7 @@ function frame(now: number) {
       releaseStaleBarSeats(world)
       releaseStaleRoughSpots(world)
       attributesSystem(world, useClock.getState().gameDate)
-      populationSystem(world, useClock.getState().gameDate)
+      populationSystem(world, useClock.getState().gameDate, getActiveSceneId())
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
