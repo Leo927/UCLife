@@ -99,7 +99,11 @@ export function interactionSystem(world: World) {
     const occupant = nearestEnt ? findNPCAtStation(world, nearestPos) : null
 
     if (nearestKind === 'manager') {
-      // NPC-only role; the desk is render-only.
+      if (!occupant) {
+        emitSim('toast', { textZh: '经理不在 · 请稍后再来' })
+        continue
+      }
+      emitSim('ui:open-dialog-npc', { entity: occupant })
       continue
     }
     if (nearestKind === 'shop') {
@@ -111,8 +115,19 @@ export function interactionSystem(world: World) {
       continue
     }
     if (nearestKind === 'clinic') {
-      // Clinic is always open in Phase 4.0 — no occupancy gate yet.
-      emitSim('ui:open-clinic', {})
+      if (!occupant) {
+        emitSim('toast', { textZh: '医生不在 · 诊所暂停接诊' })
+        continue
+      }
+      emitSim('ui:open-dialog-npc', { entity: occupant })
+      continue
+    }
+    if (nearestKind === 'pharmacy') {
+      if (!occupant) {
+        emitSim('toast', { textZh: '药剂师不在 · 药店暂停营业' })
+        continue
+      }
+      emitSim('ui:open-dialog-npc', { entity: occupant })
       continue
     }
     if (nearestKind === 'hr') {

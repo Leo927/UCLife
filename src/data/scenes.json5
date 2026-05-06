@@ -79,7 +79,9 @@
             // Mandatory placements: shop and bar drive NPC behavior trees
             // (shopCounter / barCounter landmarks); airport drives flights;
             // transitTerminal hosts the city's main bus stop; hrOffice +
-            // realtor are gameplay anchors. Park is opportunistic.
+            // realtor are gameplay anchors; clinic + pharmacy gate the
+            // physiology cure flow (doctor diagnosis + treatment / OTC).
+            // Park is opportunistic.
             types: [
               { id: 'airport',         min: 1, max: 1 },
               { id: 'shop',            min: 1, max: 1 },
@@ -87,6 +89,8 @@
               { id: 'hrOffice',        min: 1, max: 1 },
               { id: 'realtor',         min: 1, max: 1 },
               { id: 'transitTerminal', min: 1, max: 1 },
+              { id: 'clinic',          min: 1, max: 1 },
+              { id: 'pharmacy',        min: 1, max: 1 },
               { id: 'park',            min: 0, max: 1 },
             ],
             buildingsPerBlockMax: 1,

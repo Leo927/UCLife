@@ -15,6 +15,7 @@ export type InteractableKind =
   | 'tap' | 'scavenge' | 'rough'
   | 'aeReception'
   | 'clinic'
+  | 'pharmacy'
   | 'gym'
   | 'transit'
   | 'ticketCounter'

@@ -7,10 +7,11 @@ export type ActionDef = {
 }
 
 // transit/ticketCounter open UI overlays rather than committing to an
-// action, so they're excluded alongside shop/HR/manager. Clinic is in
-// the same UI-overlay bucket — interactionSystem dispatches a
-// ui:open-clinic event without setting an Action.
-type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'aeReception' | 'clinic' | 'transit' | 'ticketCounter' | 'buyShip' | 'boardShip' | 'disembarkShip' | 'helm'>
+// action, so they're excluded alongside shop/HR/manager. Clinic and
+// pharmacy are in the same UI-overlay bucket — interactionSystem
+// dispatches ui:open-dialog-npc and the doctor / pharmacist's inline
+// conversation extension renders the actual options.
+type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'aeReception' | 'clinic' | 'pharmacy' | 'transit' | 'ticketCounter' | 'buyShip' | 'boardShip' | 'disembarkShip' | 'helm'>
 
 // Durations here are defaults — interaction.ts overrides at runtime for
 // sleep/bar/work.

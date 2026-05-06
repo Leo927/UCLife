@@ -47,9 +47,15 @@ export const Building = trait({
 // (e.g. shop counter has a morning + evening shift). Static job data
 // (title, wage, shift, skill, requirements, description) lives in
 // config/jobs.json5 keyed by specId; resolve via getJobSpec(specId).
+//
+// `managerStation`: when non-null, this station's hires go through that
+// manager's desk dialog instead of the public city HR window. Set at spawn
+// time when a building contains both a kind:'manager' supervisor and one or
+// more role:'worker' stations (see ecs/spawn.ts).
 export const Workstation = trait({
   specId: '',
   occupant: null as Entity | null,
+  managerStation: null as Entity | null,
 })
 
 export const BarSeat = trait({

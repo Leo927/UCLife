@@ -6,27 +6,25 @@ import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../character/skill
 import { dowLabel, getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
 
-export function HRConversation() {
+export function FactoryManagerConversation({ managerStation }: { managerStation: Entity }) {
   const player = useQueryFirst(IsPlayer, Attributes, Job)
   // Subscribe to Attributes so the skill-requirement chips refresh as XP grows.
   void useTrait(player, Attributes)
   const job = useTrait(player, Job)
   const allStations = useQuery(Workstation, Position)
 
-  // Faction-affiliated specs (spec.employer set) are excluded — they have
-  // their own gated entry point (e.g. AE reception → AEConversation), and
-  // surfacing them here would let the player skip the intended faction flow.
-  // Stations with a managerStation are managed locally — applications go
-  // through that manager's desk dialog, not the public city HR window.
+  // Only stations whose manager-of-record is this manager's desk. No employer
+  // gate here — the desk owns the local hierarchy regardless of corporate
+  // affiliation, and the spawn linker only sets managerStation when there's
+  // a kind:'manager' supervisor in the same building.
   const openings: { ws: Entity; spec: JobSpec }[] = []
   for (const ws of allStations) {
     const w = ws.get(Workstation)!
     if (!w) continue
+    if (w.managerStation !== managerStation) continue
     if (w.occupant !== null && w.occupant !== player) continue
-    if (w.managerStation !== null) continue
     const spec = getJobSpec(w.specId)
     if (!spec || !spec.playerHireable) continue
-    if (spec.employer) continue
     openings.push({ ws, spec })
   }
 
@@ -48,7 +46,6 @@ export function HRConversation() {
       if (pw && pw.occupant === player) prev.set(Workstation, { ...pw, occupant: null })
     }
     ws.set(Workstation, { ...w, occupant: player })
-    // Mirror claimJob's contract: hiring resets the unemployment grace timer.
     player.set(Job, { workstation: ws, unemployedSinceMs: 0 })
     useUI.getState().setDialogNPC(null)
   }
@@ -57,8 +54,8 @@ export function HRConversation() {
 
   return (
     <section className="status-section conversation-extension">
-      <h3>招聘 · 选择岗位</h3>
-      {openings.length === 0 && <p className="hr-intro">暂无空缺职位。</p>}
+      <h3>本厂招聘</h3>
+      {openings.length === 0 && <p className="hr-intro">本厂目前没有空缺岗位。</p>}
       {openings.map(({ ws, spec }) => {
         const qualified = meets(spec)
         const current = isCurrent(ws)

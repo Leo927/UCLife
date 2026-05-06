@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useTrait, useQueryFirst } from 'koota/react'
+import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import type { Entity } from 'koota'
 import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance } from '../ecs/traits'
 import type { ActionKind, Gender } from '../ecs/traits'
@@ -12,6 +12,9 @@ import { Portrait } from '../render/portrait/react/Portrait'
 import { HRConversation } from './conversations/HRConversation'
 import { RealtorConversation } from './conversations/RealtorConversation'
 import { AEConversation } from './conversations/AEConversation'
+import { ClinicConversation } from './conversations/ClinicConversation'
+import { PharmacyConversation } from './conversations/PharmacyConversation'
+import { FactoryManagerConversation } from './conversations/FactoryManagerConversation'
 
 function pickGreeting(title: string, employed: boolean): string {
   if (!employed) return '"嗯。"'
@@ -20,6 +23,8 @@ function pickGreeting(title: string, employed: boolean): string {
   if (title.includes('中介')) return '"您好，租房还是买房？"'
   if (title.includes('经理')) return '"你好。"'
   if (title.includes('调酒')) return '"想喝点什么？"'
+  if (title.includes('医生')) return '"哪里不舒服？"'
+  if (title.includes('药剂师')) return '"需要什么药？"'
   if (title.includes('工程')) return '"你好。我是Anaheim的技术员。"'
   if (title.includes('工人')) return '"嘿，朋友。"'
   return '"你好。"'
@@ -32,6 +37,8 @@ function pickSmallTalk(title: string, employed: boolean): string {
   if (title.includes('中介')) return '"最近房源紧俏，看中了赶紧定。"'
   if (title.includes('经理')) return '"工厂里事情多，闲不下来。"'
   if (title.includes('调酒')) return '"夜班嘛，常客都是工人和零工。"'
+  if (title.includes('医生')) return '"最近来咳嗽和肠胃的多。"'
+  if (title.includes('药剂师')) return '"市面上的非处方药基本都齐了。"'
   if (title.includes('工程')) return '"AE那边压力大，最近经常加班到深夜。"'
   if (title.includes('工人')) return '"工厂的活累，但工资按时发。"'
   return '"嗯。"'
@@ -80,6 +87,14 @@ export function NPCDialog() {
   const isRealtorOnDuty = wsTrait?.specId === 'realtor' && onShift
   const isHROnDuty = wsTrait?.specId === 'city_hr_clerk' && onShift
   const isAEOnDuty = wsTrait?.specId === 'ae_director' && onShift
+  const isDoctorOnDuty = wsTrait?.specId === 'civilian_doctor' && onShift
+  const isPharmacistOnDuty = wsTrait?.specId === 'civilian_pharmacist' && onShift
+
+  // A recruiting manager is any NPC whose workstation is referenced as
+  // `managerStation` by ≥1 worker station — keeps factory_manager (and any
+  // future analogue) generic without specId hard-coding.
+  const allStations = useQuery(Workstation)
+  const isRecruitingManagerOnDuty = !!ws && onShift && allStations.some((s) => s.get(Workstation)?.managerStation === ws)
 
   const greet = () => setResponse(pickGreeting(title, employed))
   const smallTalk = () => setResponse(pickSmallTalk(title, employed))
@@ -119,6 +134,9 @@ export function NPCDialog() {
         {isHROnDuty && <HRConversation />}
         {isRealtorOnDuty && <RealtorConversation />}
         {isAEOnDuty && <AEConversation />}
+        {isDoctorOnDuty && <ClinicConversation />}
+        {isPharmacistOnDuty && <PharmacyConversation />}
+        {isRecruitingManagerOnDuty && ws && <FactoryManagerConversation managerStation={ws} />}
         {DEBUG_AVAILABLE && (
           <section className="status-section faded">
             <h3>DEV</h3>

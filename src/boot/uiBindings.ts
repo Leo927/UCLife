@@ -31,7 +31,6 @@ export function bindUi(): void {
     if (!useUI.getState().ambitionsOpen) useUI.getState().setAmbitions(true)
   })
   onSim('ui:open-shop', () => useUI.getState().setShop(true))
-  onSim('ui:open-clinic', () => useUI.getState().setClinic(true))
   onSim('ui:open-flight', ({ hubId }) => useUI.getState().openFlight(hubId))
   onSim('ui:open-transit', ({ terminalId }) => useUI.getState().openTransit(terminalId))
   onSim('ui:open-dialog-npc', ({ entity }) => useUI.getState().setDialogNPC(entity))

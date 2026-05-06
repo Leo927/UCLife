@@ -7,7 +7,6 @@ import { DeathModal } from './ui/DeathModal'
 import { StatusPanel } from './ui/StatusPanel'
 import { StatusBarFooter } from './ui/StatusBarFooter'
 import { ShopModal } from './ui/ShopModal'
-import { ClinicModal } from './ui/ClinicModal'
 import { ConditionStrip } from './ui/ConditionStrip'
 import { EventLogPanel } from './ui/EventLogPanel'
 import { Toasts } from './ui/Toasts'
@@ -39,7 +38,6 @@ export function App() {
       <StatusBarFooter />
       <StatusPanel />
       <ShopModal />
-      <ClinicModal />
       <EventLogPanel />
       <DebugPanel />
       <SystemMenu />
