@@ -30,7 +30,7 @@ console.log('Map place names:', mapNames)
 const expectedPlaces = ['冯·布劳恩中心区', '安那海姆电子总部', '冯·布劳恩航天港']
 const allPresent = expectedPlaces.every((p) => mapNames.includes(p))
 if (allPresent) {
-  console.log('PASS · startTown places on map')
+  console.log('PASS · vonBraunCity places on map')
 } else {
   failures.push('missing place(s) on map')
   console.log('FAIL · missing place(s)')
@@ -39,7 +39,7 @@ if (allPresent) {
 await page.screenshot({ path: 'scripts/out/flight-map.png', fullPage: false })
 await page.evaluate(() => window.uclifeUI.getState().setMap(false))
 
-await page.evaluate(() => window.uclifeUI.getState().openFlight('startTownAirport'))
+await page.evaluate(() => window.uclifeUI.getState().openFlight('vonBraunCityAirport'))
 await page.waitForTimeout(300)
 
 const startModal = await page.evaluate(() => {
@@ -52,7 +52,7 @@ const startModal = await page.evaluate(() => {
   }))
   return { headerH2, rows }
 })
-console.log('Start town airport modal:')
+console.log('Von Braun airport modal:')
 console.log(JSON.stringify(startModal, null, 2))
 await page.screenshot({ path: 'scripts/out/flight-modal-starttown.png', fullPage: false })
 
@@ -64,10 +64,10 @@ const startOk =
   startModal.rows[0].disabled === true &&  // player starts with ¥30 < ¥800 fare
   startModal.rows[0].btn === '钱不够'
 if (startOk) {
-  console.log('PASS · start town modal correct')
+  console.log('PASS · Von Braun modal correct')
 } else {
-  failures.push('start town modal mismatch')
-  console.log('FAIL · start town modal mismatch')
+  failures.push('Von Braun modal mismatch')
+  console.log('FAIL · Von Braun modal mismatch')
 }
 
 await page.evaluate(() => window.uclifeUI.getState().closeFlight())

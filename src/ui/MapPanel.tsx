@@ -178,7 +178,7 @@ export function MapPanel() {
     () => fitToContentBox(activeSceneId, MAP_TILES_X, MAP_TILES_Y),
     [activeSceneId, MAP_TILES_X, MAP_TILES_Y],
   )
-  // For startTown the procgen zones are spatially separated, so the centroid
+  // For vonBraunCity the procgen zones are spatially separated, so the centroid
   // of fit-to-content sits in empty space between them. Without a snap, the
   // first zoom-in click already converges on dark ground. Ship/space scenes
   // have no places — return null so zoomIn falls back to viewBox center.

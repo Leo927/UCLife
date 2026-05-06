@@ -524,7 +524,7 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   // Boarding kiosk one tile away from the counter, perpendicular to the
   // door axis. Slice H gates the actual board on the player's shipOwned
   // flag at click time.
-  if (hub.sceneId === 'startTown') {
+  if (hub.sceneId === 'vonBraunCity') {
     let boardX = counterX, boardY = counterY
     if (primaryDoor.side === 'n' || primaryDoor.side === 's') boardX = counterX + TILE
     else                                                       boardY = counterY + TILE

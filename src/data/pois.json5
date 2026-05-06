@@ -31,7 +31,7 @@
       factionControlPre: 'civilian',
       factionControlPost: 'civilian',
       services: ['refuel', 'repair', 'store', 'hire'],
-      sceneId: 'startTown',
+      sceneId: 'vonBraunCity',
       bodyId: 'moon',
       orbitRadius: 180,
       orbitPeriodDays: 0.5,

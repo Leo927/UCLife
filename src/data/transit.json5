@@ -18,18 +18,18 @@
 
 {
   terminals: [
-    // ── startTown ────────────────────────────────────────────────────────
+    // ── vonBraunCity ────────────────────────────────────────────────────────
     {
-      id: 'startTownPlaza',
-      sceneId: 'startTown',
+      id: 'vonBraunCityPlaza',
+      sceneId: 'vonBraunCity',
       placement: 'building',
       nameZh: '市中心广场站',
       shortZh: '中心区站',
       description: '通往各地的公共交通站点。冯·布劳恩中心区的主要换乘点。',
     },
     {
-      id: 'startTownAirportStop',
-      sceneId: 'startTown',
+      id: 'vonBraunCityAirportStop',
+      sceneId: 'vonBraunCity',
       placement: 'airport',
       nameZh: '冯·布劳恩航天港站',
       shortZh: '航天港站',
@@ -37,7 +37,7 @@
     },
     {
       id: 'aeIndustrialStop',
-      sceneId: 'startTown',
+      sceneId: 'vonBraunCity',
       placement: 'building',
       nameZh: 'AE 工业区站',
       shortZh: 'AE 工业区站',

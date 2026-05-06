@@ -43,7 +43,7 @@ const expectedArrival = Object.fromEntries(
     .map((a) => [a.hubId, a.placement.arrivalPx]),
 )
 const zumArrival = expectedArrival.zumCityAirport
-const startArrival = expectedArrival.startTownAirport
+const startArrival = expectedArrival.vonBraunCityAirport
 if (!zumArrival || !startArrival) {
   console.log('FAIL · missing airport placement(s):', expectedArrival)
   await browser.close()
@@ -59,13 +59,13 @@ await page.evaluate(async () => {
   player.set(traitsMod.Money, { amount: 2000 })
 })
 
-await page.evaluate(() => window.uclifeUI.getState().openFlight('startTownAirport'))
+await page.evaluate(() => window.uclifeUI.getState().openFlight('vonBraunCityAirport'))
 await page.waitForTimeout(300)
 
 const startBtnText = await page.evaluate(() => {
   return document.querySelector('.transit-terminal-go')?.textContent ?? null
 })
-console.log('Start town buy button:', startBtnText)
+console.log('Von Braun buy button:', startBtnText)
 if (startBtnText !== '购票') {
   console.log('FAIL · expected buy button to read 购票 after money top-up')
   await browser.close()
@@ -87,7 +87,7 @@ const afterFly1 = await page.evaluate(async () => {
     playerPos: pos ? { x: pos.x, y: pos.y } : null,
   }
 })
-console.log('After leg 1 (startTown → zumCity):', afterFly1, 'expected arrival:', zumArrival)
+console.log('After leg 1 (vonBraunCity → zumCity):', afterFly1, 'expected arrival:', zumArrival)
 const leg1Ok =
   afterFly1.activeId === 'zumCity' &&
   afterFly1.playerPos?.x === zumArrival.x &&
@@ -145,12 +145,12 @@ const afterFly2 = await page.evaluate(async () => {
     playerPos: pos ? { x: pos.x, y: pos.y } : null,
   }
 })
-console.log('After leg 2 (zumCity → startTown):', afterFly2, 'expected arrival:', startArrival)
+console.log('After leg 2 (zumCity → vonBraunCity):', afterFly2, 'expected arrival:', startArrival)
 const leg2Ok =
-  afterFly2.activeId === 'startTown' &&
+  afterFly2.activeId === 'vonBraunCity' &&
   afterFly2.playerPos?.x === startArrival.x &&
   afterFly2.playerPos?.y === startArrival.y
-console.log(leg2Ok ? 'PASS · scene swapped back to startTown at startTownAirport arrival tile' : 'FAIL · leg 2 mismatch')
+console.log(leg2Ok ? 'PASS · scene swapped back to vonBraunCity at vonBraunCityAirport arrival tile' : 'FAIL · leg 2 mismatch')
 
 await page.screenshot({ path: 'scripts/out/scene-swap-starttown.png', fullPage: false })
 

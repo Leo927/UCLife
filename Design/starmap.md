@@ -236,7 +236,7 @@ Earth Sphere regions (preserved labels):
 - **Not a Hohmann simulator.** Ships fly straight at variable thrust;
   bodies orbit but the player's ship doesn't follow Kepler.
 - **Not visited only abstractly.** Some POIs are dockable into a
-  walkable scene (Von Braun → `startTown`, Side 3 → `zumCity`). Those
+  walkable scene (Von Braun → `vonBraunCity`, Side 3 → `zumCity`). Those
   bindings live in `pois.json5` as `sceneId`.
 
 ## Phasing

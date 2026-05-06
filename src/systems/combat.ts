@@ -259,8 +259,8 @@ const DEFEAT_SURVIVOR_MONEY = 200
 // Ground scenes the rescue transport might drop a defeated player at,
 // alongside the POI that scene's port maps to (used to keep ship state
 // internally consistent should the player re-acquire a ship later).
-const DEFEAT_DROP_OPTIONS: { sceneId: 'startTown' | 'zumCity'; airportHubId: string; poiId: string }[] = [
-  { sceneId: 'startTown', airportHubId: 'startTownAirport', poiId: 'vonBraun' },
+const DEFEAT_DROP_OPTIONS: { sceneId: 'vonBraunCity' | 'zumCity'; airportHubId: string; poiId: string }[] = [
+  { sceneId: 'vonBraunCity', airportHubId: 'vonBraunCityAirport', poiId: 'vonBraun' },
   { sceneId: 'zumCity',   airportHubId: 'zumCityAirport',   poiId: 'side3' },
 ]
 
@@ -331,11 +331,11 @@ function applyDefeatConsequence(): void {
   const placement = getAirportPlacement(drop.airportHubId)
   const arrival = placement
     ? { x: placement.arrivalPx.x, y: placement.arrivalPx.y }
-    : { x: 20 * 20, y: 50 * 20 }   // startTown spawn fallback in tile px (TILE=20)
+    : { x: 20 * 20, y: 50 * 20 }   // vonBraunCity spawn fallback in tile px (TILE=20)
   migratePlayerToScene(drop.sceneId, arrival)
 
   emitSim('toast', { textZh: '飞船被毁 · 救援运输船把你丢在了另一颗殖民地' })
-  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'startTown' ? '冯·布劳恩' : '祖姆市'}`)
+  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'}`)
 }
 
 export function endCombat(outcome: CombatOutcome): void {

@@ -15,10 +15,10 @@
 {
   hubs: [
     {
-      id: 'startTownAirport',
+      id: 'vonBraunCityAirport',
       nameZh: '冯·布劳恩航天港',
       shortZh: '航天港',
-      sceneId: 'startTown',
+      sceneId: 'vonBraunCity',
       // Maps this hub onto a Phase 6 starmap POI. Passenger flights are a
       // thin booking modal over the same continuous-space data layer that
       // captain burns walk; both share POI ids.
@@ -38,14 +38,14 @@
   // Round-trip pair: 6 game-hours (360 min) each way, ¥800 fare.
   routes: [
     {
-      from: 'startTownAirport',
+      from: 'vonBraunCityAirport',
       to: 'zumCityAirport',
       durationMin: 360,
       fare: 800,
     },
     {
       from: 'zumCityAirport',
-      to: 'startTownAirport',
+      to: 'vonBraunCityAirport',
       durationMin: 360,
       fare: 800,
     },

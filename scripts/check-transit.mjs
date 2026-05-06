@@ -29,7 +29,7 @@ const list = await page.evaluate(() => window.__uclife__.listTransitTerminals())
 console.log('Transit terminals (from app-side helper):')
 console.log(JSON.stringify(list, null, 2))
 
-const probe = { startTown: { declared: [] }, zumCity: { declared: [] } }
+const probe = { vonBraunCity: { declared: [] }, zumCity: { declared: [] } }
 for (const t of list) {
   if (!probe[t.sceneId]) continue
   probe[t.sceneId].declared.push({
@@ -38,15 +38,15 @@ for (const t of list) {
 }
 
 // Expectations:
-//   startTown: 3 terminals, all live + registered
-//     - startTownPlaza      (placement: building, central commercial district)
-//     - startTownAirportStop(placement: airport)
+//   vonBraunCity: 3 terminals, all live + registered
+//     - vonBraunCityPlaza      (placement: building, central commercial district)
+//     - vonBraunCityAirportStop(placement: airport)
 //     - aeIndustrialStop    (placement: building, AE industrial district)
 //   zumCity:   2 terminals, all live + registered
 //     - zumCityPlaza        (placement: building)
 //     - zumCityAirportStop  (placement: airport)
 const expect = {
-  startTown: ['startTownPlaza', 'startTownAirportStop', 'aeIndustrialStop'],
+  vonBraunCity: ['vonBraunCityPlaza', 'vonBraunCityAirportStop', 'aeIndustrialStop'],
   zumCity:   ['zumCityPlaza', 'zumCityAirportStop'],
 }
 
@@ -65,7 +65,7 @@ for (const [sceneId, ids] of Object.entries(expect)) {
 
 // Now drive the UI: open the central terminal's transit modal and check
 // it lists all in-scene destinations.
-await page.evaluate(() => window.uclifeUI.getState().openTransit('startTownPlaza'))
+await page.evaluate(() => window.uclifeUI.getState().openTransit('vonBraunCityPlaza'))
 await page.waitForTimeout(300)
 
 const modal = await page.evaluate(() => {
@@ -76,7 +76,7 @@ const modal = await page.evaluate(() => {
   }))
   return { headerH2, rows }
 })
-console.log('startTownPlaza modal:')
+console.log('vonBraunCityPlaza modal:')
 console.log(JSON.stringify(modal, null, 2))
 
 // AmbitionPanel may sit on top of the transit panel on first launch (it's
@@ -87,7 +87,7 @@ const wantNames = ['市中心广场站', '冯·布劳恩航天港站', 'AE 工�
 // Strip the trailing "所在地" badge if present (the source row appends it).
 const gotNames = modal.rows.map((r) => (r.name ?? '').replace('所在地', '').trim())
 for (const want of wantNames) {
-  if (!gotNames.includes(want)) failures.push(`startTownPlaza modal missing terminal "${want}"`)
+  if (!gotNames.includes(want)) failures.push(`vonBraunCityPlaza modal missing terminal "${want}"`)
 }
 
 await page.screenshot({ path: 'scripts/out/transit-modal-starttown.png', fullPage: false })
