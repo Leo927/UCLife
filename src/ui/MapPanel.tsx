@@ -6,13 +6,15 @@ import { useScene } from '../sim/scene'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
 import { flightHubs } from '../data/flights'
 import { getAirportPlacement } from '../sim/airportPlacements'
+import { getTransitPlacement } from '../sim/transitPlacements'
+import { transitTerminals } from '../data/transit'
 import { useUI } from './uiStore'
+import { useMapView, visibleTierAt, placeKindTier } from './useMapView'
 
 const TILE = worldConfig.tilePx
 
 const VIEW_W = 480
 
-// Floor marker size so single-tile POIs don't disappear.
 const MIN_MARKER_TILES = 6
 
 function placeColor(kind: WorldPlace['kind']): string {
@@ -26,9 +28,10 @@ function placeColor(kind: WorldPlace['kind']): string {
 interface PlaceMarkerProps {
   place: WorldPlace
   labelAbove: boolean
+  scale: number
 }
 
-function PlaceMarker({ place, labelAbove }: PlaceMarkerProps) {
+function PlaceMarker({ place, labelAbove, scale }: PlaceMarkerProps) {
   const w = Math.max(place.tileW, MIN_MARKER_TILES)
   const h = Math.max(place.tileH, MIN_MARKER_TILES)
   const x = place.tileX - (w - place.tileW) / 2
@@ -36,22 +39,54 @@ function PlaceMarker({ place, labelAbove }: PlaceMarkerProps) {
   const cx = x + w / 2
   const labelY = labelAbove ? y - 4 : y + h + 14
   const color = placeColor(place.kind)
+  const fontSize = Math.max(4, Math.round(11 / scale))
   return (
     <g>
       <rect
         x={x} y={y} width={w} height={h}
         fill={color} fillOpacity={0.18}
-        stroke={color} strokeWidth={1.5}
-        rx={2}
+        stroke={color} strokeWidth={1.5 / scale}
+        rx={2 / scale}
       />
       <text
         x={cx} y={labelY}
         textAnchor="middle"
         fill={color}
-        fontSize={11}
-        style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 3 }}
+        fontSize={fontSize}
+        style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 3 / scale }}
       >
         {place.shortZh}
+      </text>
+    </g>
+  )
+}
+
+interface TransitDotProps {
+  cx: number
+  cy: number
+  scale: number
+}
+
+function TransitDot({ cx, cy, scale }: TransitDotProps) {
+  const r = Math.max(1.5, 5 / scale)
+  const fontSize = Math.max(3, 8 / scale)
+  return (
+    <g>
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="#134e4a"
+        stroke="#2dd4bf"
+        strokeWidth={1 / scale}
+      />
+      <circle cx={cx} cy={cy} r={r * 0.4} fill="#2dd4bf" />
+      <text
+        x={cx} y={cy - r - 1.5 / scale}
+        textAnchor="middle"
+        fill="#2dd4bf"
+        fontSize={fontSize}
+        style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 2 / scale }}
+      >
+        T
       </text>
     </g>
   )
@@ -64,12 +99,19 @@ export function MapPanel() {
   const playerPos = useTrait(player, Position)
   const activeSceneId = useScene((s) => s.activeId)
 
-  if (!open) return null
-
+  // Resolve map dimensions before any early return so hooks stay unconditional.
   const { tilesX: MAP_TILES_X, tilesY: MAP_TILES_Y } = getActiveSceneDimensions()
   const VIEW_H = Math.round(VIEW_W * (MAP_TILES_Y / MAP_TILES_X))
-  // Airports are procgen-placed, so their markers come from the runtime
-  // placement registry rather than world-map.json5.
+
+  const {
+    viewBoxAttr, scale, isDragging,
+    zoomIn, zoomOut, reset,
+    svgRef, onMouseDown, onMouseMove, onMouseUp, onMouseLeave,
+  } = useMapView(MAP_TILES_X, MAP_TILES_Y)
+
+  if (!open) return null
+
+  // Airports are procgen-placed; pull from the runtime registry.
   const airportPlaces: WorldPlace[] = []
   for (const h of flightHubs) {
     if (h.sceneId !== activeSceneId) continue
@@ -88,11 +130,26 @@ export function MapPanel() {
       description: h.description,
     })
   }
-  const places = [...getPlacesInScene(activeSceneId), ...airportPlaces]
+  const allPlaces = [...getPlacesInScene(activeSceneId), ...airportPlaces]
+
+  const maxTier = visibleTierAt(scale)
+  const places = allPlaces.filter((p) => placeKindTier(p.kind) <= maxTier)
+
+  // At high zoom, show transit terminal icons (tier 3).
+  const transitDots: Array<{ id: string; cx: number; cy: number }> = []
+  if (maxTier >= 3) {
+    for (const t of transitTerminals) {
+      if (t.sceneId !== activeSceneId) continue
+      const pl = getTransitPlacement(t.id)
+      if (!pl) continue
+      transitDots.push({ id: t.id, cx: pl.terminalPx.x / TILE, cy: pl.terminalPx.y / TILE })
+    }
+  }
 
   const close = () => setOpen(false)
   const playerTileX = playerPos ? playerPos.x / TILE : null
   const playerTileY = playerPos ? playerPos.y / TILE : null
+  const playerR = Math.max(2, 6 / scale)
 
   return (
     <div className="status-overlay" onClick={close}>
@@ -102,36 +159,51 @@ export function MapPanel() {
           <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
+          <div className="map-controls">
+            <button className="map-zoom-btn" onClick={zoomIn} aria-label="放大">＋</button>
+            <button className="map-zoom-btn" onClick={zoomOut} aria-label="缩小">－</button>
+            <button className="map-zoom-btn map-zoom-reset" onClick={reset} aria-label="复位">⊙</button>
+            <span className="map-zoom-level">{Math.round(scale * 100)}%</span>
+          </div>
           <svg
-            className="map-svg"
-            viewBox={`0 0 ${MAP_TILES_X} ${MAP_TILES_Y}`}
+            ref={svgRef}
+            className={`map-svg${isDragging ? ' is-dragging' : ''}`}
+            viewBox={viewBoxAttr}
             width={VIEW_W}
             height={VIEW_H}
             preserveAspectRatio="xMidYMid meet"
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
           >
             <rect
               x={0} y={0} width={MAP_TILES_X} height={MAP_TILES_Y}
-              fill="#0a0a0d" stroke="#2a2a32" strokeWidth={2}
+              fill="#0a0a0d" stroke="#2a2a32" strokeWidth={2 / scale}
             />
             {places.map((p) => (
               <PlaceMarker
                 key={p.id}
                 place={p}
+                scale={scale}
                 labelAbove={p.tileY + p.tileH > MAP_TILES_Y - 30}
               />
+            ))}
+            {transitDots.map((d) => (
+              <TransitDot key={d.id} cx={d.cx} cy={d.cy} scale={scale} />
             ))}
             {playerTileX !== null && playerTileY !== null && (
               <g>
                 <circle
-                  cx={playerTileX} cy={playerTileY} r={6}
-                  fill="#ef4444" stroke="#0d0d10" strokeWidth={1.5}
+                  cx={playerTileX} cy={playerTileY} r={playerR}
+                  fill="#ef4444" stroke="#0d0d10" strokeWidth={1.5 / scale}
                 />
                 <circle
-                  cx={playerTileX} cy={playerTileY} r={14}
-                  fill="none" stroke="#ef4444" strokeWidth={1} opacity={0.6}
+                  cx={playerTileX} cy={playerTileY} r={playerR * 2.5}
+                  fill="none" stroke="#ef4444" strokeWidth={1 / scale} opacity={0.6}
                 >
                   <animate
-                    attributeName="r" from={8} to={20}
+                    attributeName="r" from={playerR} to={playerR * 3.5}
                     dur="1.6s" repeatCount="indefinite"
                   />
                   <animate
@@ -152,6 +224,11 @@ export function MapPanel() {
             <span className="map-legend-item">
               <span className="map-legend-dot" style={{ background: '#facc15' }} /> 企业园区
             </span>
+            {maxTier >= 3 && (
+              <span className="map-legend-item">
+                <span className="map-legend-dot" style={{ background: '#2dd4bf' }} /> 换乘站
+              </span>
+            )}
           </div>
         </section>
         <section className="status-section">

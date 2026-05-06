@@ -4,10 +4,13 @@ import { worldConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
+import { flightHubs } from '../data/flights'
+import { getAirportPlacement } from '../sim/airportPlacements'
 import { getTransitTerminal, getTransitDestinationsFor, type TransitTerminal } from '../data/transit'
 import { getTransitPlacement } from '../sim/transitPlacements'
 import { useUI } from './uiStore'
 import { runTransition, useTransition } from '../sim/transition'
+import { useMapView, placeKindTier, visibleTierAt } from './useMapView'
 
 const TILE = worldConfig.tilePx
 
@@ -26,9 +29,10 @@ function placeColor(kind: WorldPlace['kind']): string {
 interface PlaceMarkerProps {
   place: WorldPlace
   labelAbove: boolean
+  scale: number
 }
 
-function PlaceMarker({ place, labelAbove }: PlaceMarkerProps) {
+function PlaceMarker({ place, labelAbove, scale }: PlaceMarkerProps) {
   const w = Math.max(place.tileW, MIN_MARKER_TILES)
   const h = Math.max(place.tileH, MIN_MARKER_TILES)
   const x = place.tileX - (w - place.tileW) / 2
@@ -36,20 +40,21 @@ function PlaceMarker({ place, labelAbove }: PlaceMarkerProps) {
   const cx = x + w / 2
   const labelY = labelAbove ? y - 4 : y + h + 14
   const color = placeColor(place.kind)
+  const fontSize = Math.max(4, Math.round(11 / scale))
   return (
     <g>
       <rect
         x={x} y={y} width={w} height={h}
         fill={color} fillOpacity={0.18}
-        stroke={color} strokeWidth={1.5}
-        rx={2}
+        stroke={color} strokeWidth={1.5 / scale}
+        rx={2 / scale}
       />
       <text
         x={cx} y={labelY}
         textAnchor="middle"
         fill={color}
-        fontSize={11}
-        style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 3 }}
+        fontSize={fontSize}
+        style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 3 / scale }}
       >
         {place.shortZh}
       </text>
@@ -61,11 +66,12 @@ interface TerminalMarkerProps {
   cxTile: number
   cyTile: number
   isSource: boolean
+  scale: number
   onClick: () => void
 }
 
-function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, onClick }: TerminalMarkerProps) {
-  const r = 7
+function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, scale, onClick }: TerminalMarkerProps) {
+  const r = Math.max(2, 7 / scale)
   return (
     <g
       className={`transit-terminal-marker${isSource ? ' is-source' : ''}`}
@@ -75,7 +81,7 @@ function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, onClick }: TerminalM
         cx={cx} cy={cy} r={r}
         fill="#134e4a"
         stroke="#2dd4bf"
-        strokeWidth={1.5}
+        strokeWidth={1.5 / scale}
       />
       <circle
         cx={cx} cy={cy} r={r * 0.45}
@@ -86,11 +92,11 @@ function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, onClick }: TerminalM
           cx={cx} cy={cy} r={r}
           fill="none"
           stroke="#2dd4bf"
-          strokeWidth={1}
+          strokeWidth={1 / scale}
           opacity={0.5}
         >
           <animate
-            attributeName="r" from={r} to={r + 6}
+            attributeName="r" from={r} to={r + 6 / scale}
             dur="2s" repeatCount="indefinite"
           />
           <animate
@@ -111,17 +117,47 @@ export function TransitMap() {
   const inTransition = useTransition((s) => s.inProgress)
   const activeSceneId = useScene((s) => s.activeId)
 
+  // Resolve map dimensions before any early return so hooks stay unconditional.
+  const { tilesX: MAP_TILES_X, tilesY: MAP_TILES_Y } = getActiveSceneDimensions()
+  const VIEW_H = Math.round(VIEW_W * (MAP_TILES_Y / MAP_TILES_X))
+
+  const {
+    viewBoxAttr, scale, isDragging,
+    zoomIn, zoomOut, reset,
+    svgRef, onMouseDown, onMouseMove, onMouseUp, onMouseLeave,
+  } = useMapView(MAP_TILES_X, MAP_TILES_Y)
+
   if (!sourceId) return null
   const source = getTransitTerminal(sourceId)
   if (!source) return null
 
-  const { tilesX: MAP_TILES_X, tilesY: MAP_TILES_Y } = getActiveSceneDimensions()
-  const VIEW_H = Math.round(VIEW_W * (MAP_TILES_Y / MAP_TILES_X))
-  const places = getPlacesInScene(activeSceneId)
+  // Include airports from the runtime registry (same as MapPanel).
+  const airportPlaces: WorldPlace[] = []
+  for (const h of flightHubs) {
+    if (h.sceneId !== activeSceneId) continue
+    const p = getAirportPlacement(h.id)
+    if (!p) continue
+    airportPlaces.push({
+      id: h.id,
+      sceneId: h.sceneId,
+      nameZh: h.nameZh,
+      shortZh: h.shortZh,
+      kind: 'complex',
+      tileX: p.rectTile.x,
+      tileY: p.rectTile.y,
+      tileW: p.rectTile.w,
+      tileH: p.rectTile.h,
+      description: h.description,
+    })
+  }
+  const allPlaces = [...getPlacesInScene(activeSceneId), ...airportPlaces]
   const terminals = getTransitDestinationsFor(sourceId)
 
   const playerTileX = playerPos ? playerPos.x / TILE : null
   const playerTileY = playerPos ? playerPos.y / TILE : null
+
+  const maxTier = visibleTierAt(scale)
+  const places = allPlaces.filter((p) => placeKindTier(p.kind) <= maxTier)
 
   // Close before runTransition so the panel doesn't flash through the
   // fade-out — the cover still needs a frame to mount.
@@ -147,6 +183,8 @@ export function TransitMap() {
     })
   }
 
+  const playerR = Math.max(2, 4 / scale)
+
   return (
     <div className="status-overlay" onClick={close}>
       <div className="status-panel map-panel" onClick={(e) => e.stopPropagation()}>
@@ -155,21 +193,33 @@ export function TransitMap() {
           <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
+          <div className="map-controls">
+            <button className="map-zoom-btn" onClick={zoomIn} aria-label="放大">＋</button>
+            <button className="map-zoom-btn" onClick={zoomOut} aria-label="缩小">－</button>
+            <button className="map-zoom-btn map-zoom-reset" onClick={reset} aria-label="复位">⊙</button>
+            <span className="map-zoom-level">{Math.round(scale * 100)}%</span>
+          </div>
           <svg
-            className="map-svg"
-            viewBox={`0 0 ${MAP_TILES_X} ${MAP_TILES_Y}`}
+            ref={svgRef}
+            className={`map-svg${isDragging ? ' is-dragging' : ''}`}
+            viewBox={viewBoxAttr}
             width={VIEW_W}
             height={VIEW_H}
             preserveAspectRatio="xMidYMid meet"
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
           >
             <rect
               x={0} y={0} width={MAP_TILES_X} height={MAP_TILES_Y}
-              fill="#0a0a0d" stroke="#2a2a32" strokeWidth={2}
+              fill="#0a0a0d" stroke="#2a2a32" strokeWidth={2 / scale}
             />
             {places.map((p) => (
               <PlaceMarker
                 key={p.id}
                 place={p}
+                scale={scale}
                 labelAbove={p.tileY + p.tileH > MAP_TILES_Y - 30}
               />
             ))}
@@ -182,6 +232,7 @@ export function TransitMap() {
                   cxTile={placement.terminalPx.x / TILE}
                   cyTile={placement.terminalPx.y / TILE}
                   isSource={t.id === source.id}
+                  scale={scale}
                   onClick={() => travel(t)}
                 />
               )
@@ -189,8 +240,8 @@ export function TransitMap() {
             {playerTileX !== null && playerTileY !== null && (
               <g>
                 <circle
-                  cx={playerTileX} cy={playerTileY} r={4}
-                  fill="#ef4444" stroke="#0d0d10" strokeWidth={1}
+                  cx={playerTileX} cy={playerTileY} r={playerR}
+                  fill="#ef4444" stroke="#0d0d10" strokeWidth={1 / scale}
                 />
               </g>
             )}
