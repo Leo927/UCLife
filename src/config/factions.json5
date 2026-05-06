@@ -55,6 +55,16 @@
       repPerShift: 0,
       seniorPromotionMinOpinion: 0,
     },
+
+    // Pirate coalition. Reputation bucket for space-layer enemies; no jobs
+    // or NPC affiliation in 6.0 — the combat rep delta hook lands in 6.1+.
+    pirate: {
+      nameZh: '海盗联合',
+      shortZh: '海盗',
+      accentColor: '#dc2626',
+      repPerShift: 0,
+      seniorPromotionMinOpinion: 0,
+    },
   },
 
   // Reputation -> letter-grade thresholds for StatusPanel display. The grade

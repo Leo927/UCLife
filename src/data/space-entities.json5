@@ -69,6 +69,66 @@
       fleeHullPct: 0.25,
     },
 
+    // Near-moon orbit pirates — patrol the lunar shell east of Earth. At game
+    // start the Moon sits at (19000, 12000); these ships linger within ~2000 px
+    // of that position so the player encounters them on the first departure
+    // from Von Braun. pirate_skirmisher entries are weaker patrol craft;
+    // pirate_raider is the fleet anchor.
+    {
+      id: 'pirate-lunar-1',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 19600, y: 11400 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 19600, y: 11400 },
+        { x: 20400, y: 12000 },
+        { x: 19800, y: 13000 },
+        { x: 18800, y: 12200 },
+      ],
+      aggroRadius: 650,
+      fleeHullPct: 0.20,
+    },
+    {
+      id: 'pirate-lunar-2',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 18400, y: 10800 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 18400, y: 10800 },
+        { x: 19200, y: 11200 },
+        { x: 18600, y: 11800 },
+        { x: 17800, y: 11200 },
+      ],
+      aggroRadius: 600,
+      fleeHullPct: 0.20,
+    },
+    {
+      id: 'pirate-lunar-3',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_skirmisher',
+      spawn: { x: 20000, y: 13200 },
+      aiMode: 'idle',
+      aggroRadius: 500,
+      fleeHullPct: 0.20,
+    },
+    {
+      id: 'pirate-lunar-4',
+      kind: 'enemyShip',
+      shipClassId: 'pirate_raider',
+      spawn: { x: 19400, y: 12600 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 19400, y: 12600 },
+        { x: 20600, y: 13000 },
+        { x: 21000, y: 12000 },
+        { x: 20000, y: 11200 },
+      ],
+      aggroRadius: 750,
+      fleeHullPct: 0.15,
+    },
+
     // Outer-belt raiders — heavier, near Axis/Pezun radii.
     {
       id: 'pirate-outer-1',

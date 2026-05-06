@@ -23,19 +23,7 @@ interface EngagementState {
   dismiss: () => void
 }
 
-// Maps space-entities shipClassIds to the available combat blueprints in
-// enemyShips.json5. The space-entities data uses Phase-6.0-spine names
-// (pirate_skirmisher / pirate_raider) but combat currently only ships the
-// pirateLight blueprint — slice 7+ will broaden the roster. Falls back to
-// pirateLight for any unmapped id.
-const COMBAT_CLASS_MAP: Record<string, string> = {
-  pirate_skirmisher: 'pirateLight',
-  pirate_raider: 'pirateLight',
-}
-
 function resolveCombatClassId(spaceClassId: string): string {
-  const mapped = COMBAT_CLASS_MAP[spaceClassId]
-  if (mapped && isEnemyShipId(mapped)) return mapped
   if (isEnemyShipId(spaceClassId)) return spaceClassId
   return 'pirateLight'
 }

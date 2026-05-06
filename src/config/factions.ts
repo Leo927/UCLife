@@ -7,7 +7,7 @@ import raw from './factions.json5?raw'
 // faction queries return a meaningful set. 'federation' and 'zeon'
 // currently exist only as reputation buckets — no jobs or NPC
 // affiliation in 5.0; ambition stages reference them.
-export type FactionId = 'anaheim' | 'civilian' | 'federation' | 'zeon'
+export type FactionId = 'anaheim' | 'civilian' | 'federation' | 'zeon' | 'pirate'
 
 export type FactionTier = 'S' | 'A' | 'B' | 'C' | 'D' | 'E'
 
