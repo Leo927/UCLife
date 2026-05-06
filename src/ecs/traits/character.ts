@@ -246,8 +246,9 @@ export const FactionRole = trait({
 //
 // `active` holds every ambition the player is currently pursuing. There
 // is no cap on simultaneous ambitions (per the Sims-pivot in
-// Design/social/ambitions.md). Length 0 = not yet picked — AmbitionPanel
-// forces open in picker mode until at least one is selected.
+// Design/social/ambitions.md). spawnPlayer pre-seeds a placeholder slot;
+// the eventual character-creation flow (deferred) replaces it with the
+// player's pick.
 //
 // `apBalance` is unspent Ambition Points; `apEarned` is lifetime total
 // (used for UI display + history). Stage payoffs grant AP; perks are

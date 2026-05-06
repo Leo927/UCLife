@@ -47,6 +47,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Faction management (Phase 6) | [social/faction-management.md](social/faction-management.md) |
 | Combat (Starsector-shape with MS-as-fighter, Phase 6+) | [combat.md](combat.md) |
 | Macro-geography & campaign map (Earth Sphere continuous-space + Jupiter, Phase 6+) | [starmap.md](starmap.md) |
+| Fleet management (Phase 6.1.5+ — singleton-to-plural, captains, doctrine) | [fleet.md](fleet.md) |
 | Encounter form (text-event-first, blue options, Phase 6+) | [encounters.md](encounters.md) |
 | Mobile worker minigame (Phase 5.4) | [mobile-worker.md](mobile-worker.md) |
 | World generation | [worldgen.md](worldgen.md) |

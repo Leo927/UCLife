@@ -10,7 +10,6 @@ export interface Toast {
 interface UIState {
   statusOpen: boolean
   shopOpen: boolean
-  clinicOpen: boolean
   systemOpen: boolean
   mapOpen: boolean
   ambitionsOpen: boolean
@@ -25,7 +24,6 @@ interface UIState {
   toggleStatus: () => void
   setStatus: (open: boolean) => void
   setShop: (open: boolean) => void
-  setClinic: (open: boolean) => void
   setSystem: (open: boolean) => void
   toggleSystem: () => void
   setMap: (open: boolean) => void
@@ -56,7 +54,6 @@ if (typeof window !== 'undefined' && (import.meta as unknown as { env?: { DEV?: 
 export const useUI = create<UIState>((set) => ({
   statusOpen: false,
   shopOpen: false,
-  clinicOpen: false,
   systemOpen: false,
   mapOpen: false,
   ambitionsOpen: false,
@@ -69,7 +66,6 @@ export const useUI = create<UIState>((set) => ({
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
   setStatus: (open) => set({ statusOpen: open }),
   setShop: (open) => set({ shopOpen: open }),
-  setClinic: (open) => set({ clinicOpen: open }),
   setSystem: (open) => set({ systemOpen: open }),
   toggleSystem: () => set((s) => ({ systemOpen: !s.systemOpen })),
   setMap: (open) => set({ mapOpen: open }),

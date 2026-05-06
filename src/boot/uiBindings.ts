@@ -24,14 +24,7 @@ export function bindUi(): void {
   onSim('toast', ({ textZh, durationMs, action }) => {
     useUI.getState().showToast(textZh, durationMs, action)
   })
-  // Edge-triggered: sim has already done the transition check (active.length
-  // went from non-zero to 0). The guard against the modal already being open
-  // lives here, not in sim — that's the whole point of the inversion.
-  onSim('ambitions:slot-empty', () => {
-    if (!useUI.getState().ambitionsOpen) useUI.getState().setAmbitions(true)
-  })
   onSim('ui:open-shop', () => useUI.getState().setShop(true))
-  onSim('ui:open-clinic', () => useUI.getState().setClinic(true))
   onSim('ui:open-flight', ({ hubId }) => useUI.getState().openFlight(hubId))
   onSim('ui:open-transit', ({ terminalId }) => useUI.getState().openTransit(terminalId))
   onSim('ui:open-dialog-npc', ({ entity }) => useUI.getState().setDialogNPC(entity))

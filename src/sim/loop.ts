@@ -1,5 +1,5 @@
 import { getWorld, getActiveSceneId } from '../ecs/world'
-import { useClock, gameDayNumber } from './clock'
+import { useClock, gameDayNumber, setPartialMinute } from './clock'
 import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
 import { interactionSystem } from '../systems/interaction'
@@ -21,7 +21,7 @@ import { spaceSimSystem } from '../systems/spaceSim'
 import { supplyDrainSystem } from '../systems/supplyDrain'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
-import { IsPlayer, Action, Vitals, Health, Ambitions, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
+import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -55,11 +55,6 @@ let running = false
 let lastFrame = 0
 let tickAccum = 0
 let prevDayInGame = 0
-// Edge-trigger guard for the first-run ambition picker. The check is per-
-// frame but we only want to *fire* the open-event when the player's active
-// slot count transitions to 0 — boot/uiBindings.ts owns the modal-open
-// decision (and dedupes against ambitionsOpen).
-let prevAmbitionActiveCount = -1
 
 function effectiveSpeed(): number {
   const { speed, mode } = useClock.getState()
@@ -116,6 +111,9 @@ function frame(now: number) {
       tickAccum -= 1
       ticks++
     }
+    // Expose the sub-minute remainder so visualization code (orbit positions)
+    // can advance smoothly between integer-minute clock ticks.
+    setPartialMinute(tickAccum)
     if (ticks > 0) {
       useClock.getState().advance(ticks)
       // A single tick can span midnight, so compare day numbers rather than
@@ -141,23 +139,6 @@ function frame(now: number) {
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
-    }
-
-    // First-run forced picker: emit `ambitions:slot-empty` only on the
-    // edge — when the active slot count transitions from non-zero (or its
-    // unknown initial sentinel) to 0. boot/uiBindings.ts owns the modal-
-    // open decision and dedupes against the current `ambitionsOpen` flag,
-    // so sim no longer reads ui state.
-    {
-      const p = world.queryFirst(IsPlayer, Ambitions)
-      if (p) {
-        const a = p.get(Ambitions)!
-        const count = a.active.length
-        if (count === 0 && prevAmbitionActiveCount !== 0) {
-          emitSim('ambitions:slot-empty', {})
-        }
-        prevAmbitionActiveCount = count
-      }
     }
 
     const player = world.queryFirst(IsPlayer, Action)
@@ -249,9 +230,6 @@ export function startLoop() {
   // Anchor day tracking to the current game date so the first tick after a
   // load doesn't fire a spurious autosave.
   prevDayInGame = gameDayNumber(useClock.getState().gameDate)
-  // Sentinel so the first frame post-start fires `ambitions:slot-empty` if
-  // the player has no slots, without depending on the previous run.
-  prevAmbitionActiveCount = -1
   raf = requestAnimationFrame(frame)
 }
 

@@ -66,25 +66,21 @@ export function AmbitionPanel() {
   const gameMs = useClock((s) => s.gameDate.getTime())
   const logEntries = useEventLog((s) => s.entries)
 
-  const forcePicker = !!amb && amb.active.length === 0
   const [pickerMode, setPickerMode] = useState(false)
   const [perkStoreMode, setPerkStoreMode] = useState(false)
-  const inPicker = forcePicker || pickerMode
 
-  if (!open && !forcePicker) return null
+  if (!open) return null
   if (!player || !amb) return null
 
   const activeIds = new Set(amb.active.map((s) => s.id))
 
   const close = () => {
-    if (forcePicker) return
     setPickerMode(false)
     setPerkStoreMode(false)
     setOpen(false)
   }
 
   const onOverlayClick = () => {
-    if (forcePicker) return
     close()
   }
 
@@ -112,7 +108,7 @@ export function AmbitionPanel() {
     }
   }
 
-  if (inPicker) {
+  if (pickerMode) {
     const conflictIds = (id: string): string[] => {
       const def = getAmbition(id)
       if (!def) return []
@@ -131,14 +127,12 @@ export function AmbitionPanel() {
       <div
         className="status-overlay"
         onClick={onOverlayClick}
-        data-ambition-picker={forcePicker ? 'forced' : 'manage'}
+        data-ambition-picker="manage"
       >
         <div className="status-panel" onClick={(e) => e.stopPropagation()}>
           <header className="status-header">
-            <h2>{forcePicker ? '选择一个志向开始' : '管理志向'}</h2>
-            {!forcePicker && (
-              <button className="status-close" onClick={() => setPickerMode(false)} aria-label="关闭">✕</button>
-            )}
+            <h2>管理志向</h2>
+            <button className="status-close" onClick={() => setPickerMode(false)} aria-label="关闭">✕</button>
           </header>
           <section className="status-section">
             <p className="status-meta">

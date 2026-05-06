@@ -10,6 +10,7 @@ import {
   Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance,
   type Gender,
 } from '../ecs/traits'
+import { ambitions as ambitionDefs } from './ambitions'
 import type { FactionId } from '../data/factions'
 import { setSkillXp, type SkillId } from './skills'
 import { getAppearanceOverride } from './appearance'
@@ -104,7 +105,13 @@ export function spawnPlayer(world: World, spec: PlayerSpec): Entity {
     Conditions,
     Reputation,
     JobTenure,
-    Ambitions,
+    Ambitions({
+      active: [{ id: ambitionDefs[0].id, currentStage: 0, streakAnchorMs: null }],
+      history: [],
+      apBalance: 0,
+      apEarned: 0,
+      perks: [],
+    }),
     Flags,
     EntityKey({ key: 'player' }),
   )

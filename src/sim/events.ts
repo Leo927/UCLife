@@ -24,11 +24,8 @@ export interface SimEventPayloads {
   // ── Generic event-log + toast ────────────────────────────────────────
   'log':                { textZh: string; atMs: number }
   'toast':              { textZh: string; durationMs?: number; action?: { label: string; onClick: () => void } }
-  // ── Edge-triggered sim facts the UI subscribes to ────────────────────
-  'ambitions:slot-empty': Record<string, never>
   // ── Semantic UI intents (no other way for sim to express these) ──────
   'ui:open-shop':              Record<string, never>
-  'ui:open-clinic':            Record<string, never>
   'ui:open-flight':            { hubId: string }
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }

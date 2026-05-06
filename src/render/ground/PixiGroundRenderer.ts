@@ -82,6 +82,7 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   manager:         { fill: 0x3f3f46, stroke: 0xa1a1aa },
   aeReception:     { fill: 0x7c5614, stroke: 0xc9a047 },
   clinic:          { fill: 0x064e3b, stroke: 0x10b981 },
+  pharmacy:        { fill: 0x14532d, stroke: 0x4ade80 },
   gym:             { fill: 0x3a2c0a, stroke: 0xc9a047 },
   tap:             { fill: 0x1e293b, stroke: 0x64748b },
   scavenge:        { fill: 0x3a2e1a, stroke: 0xa3a3a3 },

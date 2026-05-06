@@ -1,3 +1,4 @@
+import type { Entity } from 'koota'
 import { world, setActiveSceneId, getWorld, SCENE_IDS, type SceneId } from './world'
 import {
   scenes, initialSceneId,
@@ -172,6 +173,11 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
   const counters: Record<string, number> = {}
   let counterPos: { x: number; y: number } | undefined
 
+  // Workers in a building with a kind:'manager' supervisor get their hires
+  // routed through that manager's desk. Collect refs in pass 1, link in pass 2.
+  let managerStation: Entity | null = null
+  const workerStations: Entity[] = []
+
   for (const pi of placedItems) {
     if (pi.item.type === 'workstation') {
       const role = (pi.item as ProcgenWorkstationItem).role
@@ -179,7 +185,22 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
         counterPos = { x: pi.x, y: pi.y }
       }
     }
-    spawnProcgenItem(pi, counters)
+    const ent = spawnProcgenItem(pi, counters)
+    if (ent && pi.item.type === 'workstation') {
+      const wsItem = pi.item as ProcgenWorkstationItem
+      if (wsItem.role === 'supervisor' && wsItem.kind === 'manager') {
+        managerStation = ent
+      } else if (wsItem.role === 'worker') {
+        workerStations.push(ent)
+      }
+    }
+  }
+
+  if (managerStation) {
+    for (const w of workerStations) {
+      const cur = w.get(Workstation)!
+      w.set(Workstation, { ...cur, managerStation })
+    }
   }
 
   // Shop setup: shop_rect + 4 landmarks derived from door/counter positions.
@@ -208,31 +229,29 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
 function spawnProcgenItem(
   pi: { x: number; y: number; item: ProcgenItem; specId?: string },
   counters: Record<string, number>,
-): void {
+): Entity | null {
   const { x, y, item, specId } = pi
 
   switch (item.type) {
     case 'workstation': {
       const sid = specId
-      if (!sid) break
+      if (!sid) return null
       const wsItem = item as ProcgenWorkstationItem
       const idx = counters[sid] ?? 0
       counters[sid] = idx + 1
       if (wsItem.noInteractable) {
-        world.spawn(
+        return world.spawn(
           Position({ x, y }),
-          Workstation({ specId: sid, occupant: null }),
-          EntityKey({ key: `ws-${sid}` }),
-        )
-      } else {
-        world.spawn(
-          Position({ x, y }),
-          Interactable({ kind: (wsItem.kind ?? 'work') as InteractableKind, label: wsItem.labelZh ?? '工位' }),
           Workstation({ specId: sid, occupant: null }),
           EntityKey({ key: `ws-${sid}` }),
         )
       }
-      break
+      return world.spawn(
+        Position({ x, y }),
+        Interactable({ kind: (wsItem.kind ?? 'work') as InteractableKind, label: wsItem.labelZh ?? '工位' }),
+        Workstation({ specId: sid, occupant: null }),
+        EntityKey({ key: `ws-${sid}` }),
+      )
     }
 
     case 'bar_seat': {
@@ -244,7 +263,7 @@ function spawnProcgenItem(
         BarSeat({ occupant: null }),
         EntityKey({ key: `barseat-${idx}` }),
       )
-      break
+      return null
     }
 
     case 'bed': {
@@ -258,18 +277,19 @@ function spawnProcgenItem(
         Bed({ tier, nightlyRent: rent, occupant: null, rentPaidUntilMs: 0 }),
         EntityKey({ key: `bed-${tier}-${idx}` }),
       )
-      break
+      return null
     }
 
     case 'queue_point': {
       setLandmark('barQueue', { x, y })
-      break
+      return null
     }
 
     case 'landmark':
     case 'partition':
-      break  // handled separately in spawnOpenFloor
+      return null  // handled separately in spawnOpenFloor
   }
+  return null
 }
 
 // ── CELL ALGORITHM ───────────────────────────────────────────────────────────
@@ -658,27 +678,6 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
   }
 }
 
-// ── PHASE 4 PHYSIOLOGY — fixed civilian clinic kiosk ─────────────────────────
-//
-// Hand-placed outside procgen.rect (per CLAUDE.md procgen-gotcha — hand
-// tiles inside the rect risk colliding with generated roads/buildings).
-// One kiosk per micro-scene; the design's AE clinic is a separate
-// faction-gated building deferred to Phase 4.2.
-function spawnFixedClinicForScene(sceneId: string): void {
-  // Tile coords: outside the procgen rect on the west side, near the
-  // startTown player-spawn corridor (procgen.rect = {x:40,y:4,w:100,h:80}).
-  const FIXED_CLINIC_TILES: Record<string, { x: number; y: number }> = {
-    startTown: { x: 22, y: 60 },
-    zumCity:   { x: 78, y: 30 },
-  }
-  const t = FIXED_CLINIC_TILES[sceneId]
-  if (!t) return
-  world.spawn(
-    Position({ x: t.x * TILE + TILE / 2, y: t.y * TILE + TILE / 2 }),
-    Interactable({ kind: 'clinic', label: '公共诊所' }),
-  )
-}
-
 // ── TRANSIT ──────────────────────────────────────────────────────────────────
 
 // Fixed-coord terminals (e.g. the AE-complex stop). Procgen building +
@@ -836,7 +835,6 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   }
 
   spawnFixedTransitForScene(scene.id)
-  spawnFixedClinicForScene(scene.id)
 
   // Special NPCs (AE board/managers/reception) and the AE workforce only
   // make sense in the scene that hosts aeComplex. Founding civilians spawn

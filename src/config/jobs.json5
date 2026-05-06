@@ -140,6 +140,38 @@
       playerHireable: false,
     },
 
+    // NPC-only role. Doctor at the civilian clinic. Player walks up and
+    // uses the doctor's dialog (ClinicConversation) to diagnose + commit
+    // treatment tiers for active conditions.
+    civilian_doctor: {
+      jobTitle: '医生',
+      wage: 220,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 18,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '为市民提供诊断与治疗服务。',
+      playerHireable: false,
+    },
+
+    // NPC-only role. Pharmacist behind the pharmacy counter. Player walks
+    // up and uses the pharmacist's dialog (PharmacyConversation) to buy
+    // over-the-counter pharmacy-tier treatment for diagnosed conditions.
+    civilian_pharmacist: {
+      jobTitle: '药剂师',
+      wage: 130,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 22,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '提供处方与非处方药品。',
+      playerHireable: false,
+    },
+
     // NPC-only role. The realtor at the agency desk; the player walks up
     // and uses the realtor menu (rent + buy across all building tiers).
     realtor: {

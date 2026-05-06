@@ -403,7 +403,8 @@ The Starsector-shape calls are now locked. Specifically:
 | **5.4c** | Cockpit minigame primitives ship in **simulator-only** form. AE MS-handling sim, Federation reservist drills. No real combat, no hostile NPCs, no ship. The player is still in Von Braun. |
 | **6.0** | Starsector-shape tactical foundation. Single-ship pre-war merc work. Walkable flagship as scene. Tactical view (top-down 2D, real-time + pause). Hardpoint weapons, flux, shields, hull. Encounter generator. Player buys their first ship as a Phase 6.0 capstone. |
 | **6.1** | Bridge ↔ hangar walkable transit. Player pilots an MS personally; cockpit primitives now have hostile counterparts (Engage/Evade/Suppress/Breach against NPC pilots with their own piloting/reflex stats). MS wings AI-piloted while player is at bridge. Walking-transit cost on flagship AI. |
-| **6.2** | Multi-ship fleet. Ship Command / Tactics / Leadership gate capacity. Escort ships as tactical assets with their own NPC crew. Fleet orders. Persistent fleet damage between encounters. |
+| **6.1.5** | Singleton-to-plural ship structural prep (no player-visible content). See [fleet.md](fleet.md). |
+| **6.2** | Multi-ship fleet. Ship Command / Tactics / Leadership gate capacity (linear formula in [fleet.md](fleet.md)). Escort ships as tactical assets with their own NPC crew (full Character entities). Fleet roster screen, hire-officer dialogue branch, doctrine slider, mothballing. Persistent fleet damage between encounters. Promote-to-flagship deferred to 6.2.5. |
 | **6.3** | Colony establishment. Player can claim an asteroid POI or build a new colony from scratch. Walkable colony scenes (smaller than cities, reusing scene/building/cell procgen with industrial pool). See [social/faction-management.md](social/faction-management.md). |
 | **6.4** | Faction-tier features: large-scale recruitment, governance choices, faction reputation as actor (player-faction has its own faction rep with NPC factions). Phase 7 hostile-expedition mechanic foundations. |
 | **7.0** | Phase 7 trigger fires. Strategic war model goes live. Newsfeed wartime mode. Conscription. Wartime ambitions. Civilian-war content (TV, prices, refugees, departing friends). |
@@ -435,6 +436,7 @@ The Starsector-shape calls are now locked. Specifically:
 ## Related
 
 - [starmap.md](starmap.md) — Earth Sphere continuous campaign map + Jupiter expedition; the geography this Starsector-shape combat is drawn against
+- [fleet.md](fleet.md) — multi-ship fleet roster, captains, capacity formula, doctrine — the layer this combat doc's "no hard cap" commitment resolves into
 - [encounters.md](encounters.md) — form of node events; combat is reached through them, not directly
 - [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun

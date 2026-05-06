@@ -7,6 +7,14 @@
 // `await app.init(...)`. The async init means StrictMode's
 // double-mount-in-dev needs a cancelled flag, otherwise the first
 // pending init resolves into a unmounted host and leaks.
+//
+// Resizes route through `renderer.resize()` rather than recreating the
+// Application. Recreating would destroy the stage Container that the
+// outside renderer (PixiGroundRenderer) attached its scene graph to,
+// invalidating its reference until the async re-init finished — the
+// per-frame loop would then crash setting `.x` on a destroyed
+// Container as soon as any UI element shifted the canvas size (e.g.
+// the ActionStatus row appearing when the player commits to a sleep).
 
 import { useEffect, useRef } from 'react'
 import { Application } from 'pixi.js'
@@ -31,22 +39,27 @@ interface Props {
 
 export function PixiCanvas(props: Props): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
+  const appRef = useRef<Application | null>(null)
   // Latest-callback ref so passing an inline lambda doesn't churn the effect.
   const onReadyRef = useRef(props.onReady)
   onReadyRef.current = props.onReady
+  // Hold latest size in a ref so a resize that lands before async init
+  // completes still takes effect once the renderer is alive.
+  const sizeRef = useRef({ w: props.width, h: props.height })
+  sizeRef.current = { w: props.width, h: props.height }
+  const backgroundRef = useRef(props.background)
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
     let cancelled = false
-    let app: Application | null = null
 
     void (async () => {
       const a = new Application()
       await a.init({
-        width: props.width,
-        height: props.height,
-        background: props.background ?? 0x000000,
+        width: sizeRef.current.w,
+        height: sizeRef.current.h,
+        background: backgroundRef.current ?? 0x000000,
         antialias: false,
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
@@ -64,18 +77,30 @@ export function PixiCanvas(props: Props): JSX.Element {
       canvasEl.style.height = '100%'
       canvasEl.style.display = 'block'
       host.appendChild(canvasEl)
-      app = a
+      appRef.current = a
+      // A resize prop that landed during init was deferred — apply now so
+      // the renderer matches the latest size before onReady configures it.
+      if (sizeRef.current.w !== a.renderer.width || sizeRef.current.h !== a.renderer.height) {
+        a.renderer.resize(sizeRef.current.w, sizeRef.current.h)
+      }
       onReadyRef.current?.(a)
     })()
 
     return () => {
       cancelled = true
-      if (app) {
-        app.destroy({ removeView: true }, { children: true, texture: true })
-        app = null
+      const a = appRef.current
+      if (a) {
+        a.destroy({ removeView: true }, { children: true, texture: true })
+        appRef.current = null
       }
     }
-  }, [props.width, props.height, props.background])
+  }, [])
+
+  useEffect(() => {
+    const a = appRef.current
+    if (!a) return
+    a.renderer.resize(props.width, props.height)
+  }, [props.width, props.height])
 
   const style: React.CSSProperties = props.hostStyle
     ?? { width: props.width, height: props.height }

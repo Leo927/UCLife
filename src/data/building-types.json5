@@ -36,6 +36,36 @@
     },
   },
 
+  // Civilian clinic. Doctor at the supervisor desk runs the diagnose +
+  // treatment-tier flow inline in NPCDialog (ClinicConversation). The
+  // 'clinic' interactable kind opens that dialog if the doctor is on shift,
+  // mirroring how 'hr' / 'aeReception' open theirs.
+  clinic: {
+    labelZh: '诊所',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'civilian_doctor', role: 'supervisor', kind: 'clinic', labelZh: '诊台' },
+      ],
+    },
+  },
+
+  // Civilian pharmacy. Pharmacist at the supervisor desk sells
+  // pharmacy-tier (tier 1) treatment for already-diagnosed conditions
+  // through PharmacyConversation. No diagnosis here — players who want
+  // a diagnosis must visit the clinic first.
+  pharmacy: {
+    labelZh: '药店',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'civilian_pharmacist', role: 'supervisor', kind: 'pharmacy', labelZh: '药品柜台' },
+      ],
+    },
+  },
+
   // South exit (primary), north entry (extra) for one-way patron traffic.
   shop: {
     labelZh: '便利店',
