@@ -22,7 +22,11 @@
 //   be smaller than the mount size.
 //
 // Walkable interior:
-//   rooms[]   — list of room rectangles in ship-local tile space
+//   rooms[]   — list of room rectangles in ship-local tile space.
+//               Each room may declare interactables[] — kiosks the
+//               player clicks (kind matches the InteractableKind union;
+//               label is zh-CN; offset is in tiles relative to room
+//               center, default {0,0}).
 //   doors[]   — adjacencies between rooms (procgen/ship.ts converts to
 //               Wall + Door entities). The walkable layer survives the
 //               Starsector pivot because it carries downtime, mode-
@@ -57,12 +61,22 @@
       defaultWeapons: ['beamMk1'],
       priceFiat: 80000,
       rooms: [
-        { id: 'bridge',     nameZh: '舰桥',     bounds: { x: 0, y: 0, w: 2, h: 2 } },
+        {
+          id: 'bridge', nameZh: '舰桥', bounds: { x: 0, y: 0, w: 2, h: 2 },
+          interactables: [
+            { kind: 'helm', label: '操舵 / 航行', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
         { id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 0, w: 2, h: 2 } },
         { id: 'mess',       nameZh: '餐厅',     bounds: { x: 4, y: 0, w: 2, h: 2 } },
         { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 2, w: 2, h: 2 } },
         { id: 'medbay',     nameZh: '医务室',   bounds: { x: 2, y: 2, w: 2, h: 2 } },
-        { id: 'hangarBay',  nameZh: '机库',     bounds: { x: 4, y: 2, w: 2, h: 2 } },
+        {
+          id: 'hangarBay', nameZh: '机库', bounds: { x: 4, y: 2, w: 2, h: 2 },
+          interactables: [
+            { kind: 'disembarkShip', label: '下船', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
       ],
       doors: [
         { roomA: 'bridge',     roomB: 'crewQ',      side: 'east' },

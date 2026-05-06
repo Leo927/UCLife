@@ -1,6 +1,7 @@
 import json5 from 'json5'
 import raw from './ships.json5?raw'
 import { isWeaponId, getWeapon } from './weapons'
+import type { InteractableKind } from '../config/kinds'
 
 // Player ship blueprints (Starsector-shape). See ships.json5 for schema.
 // Validation is deliberate — silent typos here cause silent ship-fitout
@@ -12,10 +13,20 @@ export type DoorSide = 'north' | 'south' | 'east' | 'west'
 
 export type MountSize = 'small' | 'medium' | 'large'
 
+// Authored kiosk inside a ship room. `offset` is in tiles, relative to
+// the room's center (positive y = south, matching world axes). Default
+// offset is the room center.
+export interface ShipRoomInteractableDef {
+  kind: InteractableKind
+  label: string
+  offset?: { dx: number; dy: number }
+}
+
 export interface ShipRoomDef {
   id: string
   nameZh: string
   bounds: { x: number; y: number; w: number; h: number }
+  interactables?: ShipRoomInteractableDef[]
 }
 
 export interface ShipDoorDef {
@@ -145,6 +156,21 @@ for (const ship of parsed.ships) {
     roomIds.add(room.id)
     if (room.bounds.w <= 0 || room.bounds.h <= 0) {
       throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" non-positive size`)
+    }
+    if (room.interactables) {
+      for (const k of room.interactables) {
+        if (typeof k.kind !== 'string' || !k.kind) {
+          throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" interactable missing kind`)
+        }
+        if (typeof k.label !== 'string' || !k.label) {
+          throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" missing label`)
+        }
+        if (k.offset !== undefined) {
+          if (typeof k.offset.dx !== 'number' || typeof k.offset.dy !== 'number') {
+            throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" offset must be {dx,dy} numbers`)
+          }
+        }
+      }
     }
   }
 

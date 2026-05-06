@@ -914,24 +914,19 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   // as a lightweight defaultWeapons existence check at boot time.
   for (const wid of cls.defaultWeapons) if (wid) getWeapon(wid)
 
-  // Bridge gets the helm kiosk; hangar gets the disembark kiosk.
   for (const room of cls.rooms) {
-    if (room.id !== 'bridge' && room.id !== 'hangarBay') continue
+    if (!room.interactables) continue
     const cx = (room.bounds.x + room.bounds.w / 2) * TILE
     const cy = (room.bounds.y + room.bounds.h / 2) * TILE
-    if (room.id === 'bridge') {
+    room.interactables.forEach((k, i) => {
+      const dx = (k.offset?.dx ?? 0) * TILE
+      const dy = (k.offset?.dy ?? 0) * TILE
       world.spawn(
-        Position({ x: cx, y: cy - TILE * 0.5 }),
-        Interactable({ kind: 'helm', label: '操舵 / 航行', fee: 0 }),
-        EntityKey({ key: 'ship-helm' }),
+        Position({ x: cx + dx, y: cy + dy }),
+        Interactable({ kind: k.kind, label: k.label, fee: 0 }),
+        EntityKey({ key: `ship-kiosk-${room.id}-${i}` }),
       )
-    } else {
-      world.spawn(
-        Position({ x: cx, y: cy - TILE * 0.5 }),
-        Interactable({ kind: 'disembarkShip', label: '下船', fee: 0 }),
-        EntityKey({ key: 'ship-disembark' }),
-      )
-    }
+    })
   }
 }
 
