@@ -1,6 +1,6 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Position, MoveTarget, Action, Path } from '../ecs/traits'
-import { worldConfig } from '../config'
+import { IsPlayer, Position, MoveTarget, Action, Path, Money } from '../ecs/traits'
+import { worldConfig, economyConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
@@ -66,12 +66,14 @@ interface TerminalMarkerProps {
   cxTile: number
   cyTile: number
   isSource: boolean
+  fare: number | null
   scale: number
   onClick: () => void
 }
 
-function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, scale, onClick }: TerminalMarkerProps) {
+function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, fare, scale, onClick }: TerminalMarkerProps) {
   const r = Math.max(2, 7 / scale)
+  const fontSize = Math.max(3.5, 9 / scale)
   return (
     <g
       className={`transit-terminal-marker${isSource ? ' is-source' : ''}`}
@@ -105,15 +107,37 @@ function TerminalMarker({ cxTile: cx, cyTile: cy, isSource, scale, onClick }: Te
           />
         </circle>
       )}
+      {fare !== null && (
+        <text
+          x={cx} y={cy - r - 2 / scale}
+          textAnchor="middle"
+          fill="#2dd4bf"
+          fontSize={fontSize}
+          style={{ paintOrder: 'stroke', stroke: '#0d0d10', strokeWidth: 2.5 / scale }}
+        >
+          ¥{fare}
+        </text>
+      )}
     </g>
   )
+}
+
+function transitFareBetween(srcPx: { x: number; y: number }, dstPx: { x: number; y: number }): number {
+  const dxTiles = (dstPx.x - srcPx.x) / TILE
+  const dyTiles = (dstPx.y - srcPx.y) / TILE
+  const distTiles = Math.hypot(dxTiles, dyTiles)
+  const { farePerTile, minFare } = economyConfig.transit
+  const raw = Math.round(distTiles * farePerTile)
+  return Math.max(minFare, raw)
 }
 
 export function TransitMap() {
   const sourceId = useUI((s) => s.transitSourceId)
   const close = useUI((s) => s.closeTransit)
+  const showToast = useUI((s) => s.showToast)
   const player = useQueryFirst(IsPlayer, Position)
   const playerPos = useTrait(player, Position)
+  const money = useTrait(player, Money)
   const inTransition = useTransition((s) => s.inProgress)
   const activeSceneId = useScene((s) => s.activeId)
 
@@ -152,12 +176,22 @@ export function TransitMap() {
   }
   const allPlaces = [...getPlacesInScene(activeSceneId), ...airportPlaces]
   const terminals = getTransitDestinationsFor(sourceId)
+  const sourcePlacement = getTransitPlacement(sourceId)
+  const playerMoney = money?.amount ?? 0
 
   const playerTileX = playerPos ? playerPos.x / TILE : null
   const playerTileY = playerPos ? playerPos.y / TILE : null
 
   const maxTier = visibleTierAt(scale)
   const places = allPlaces.filter((p) => placeKindTier(p.kind) <= maxTier)
+
+  const fareForTerminal = (destId: string): number | null => {
+    if (destId === sourceId) return null
+    if (!sourcePlacement) return null
+    const dp = getTransitPlacement(destId)
+    if (!dp) return null
+    return transitFareBetween(sourcePlacement.terminalPx, dp.terminalPx)
+  }
 
   // Close before runTransition so the panel doesn't flash through the
   // fade-out — the cover still needs a frame to mount.
@@ -166,6 +200,15 @@ export function TransitMap() {
     if (inTransition) return
     const destPlacement = getTransitPlacement(dest.id)
     if (!destPlacement) return
+    const fare = fareForTerminal(dest.id) ?? 0
+    const m = player.get(Money)
+    if (!m || m.amount < fare) {
+      showToast(`金钱不足 · 需 ¥${fare}`)
+      return
+    }
+    // Charge fare up-front so a mid-transition cancel still reflects the
+    // commitment. Same pattern as flights and bed claims.
+    if (fare > 0) player.set(Money, { amount: m.amount - fare })
     close()
     runTransition({
       midpoint: () => {
@@ -232,6 +275,7 @@ export function TransitMap() {
                   cxTile={placement.terminalPx.x / TILE}
                   cyTile={placement.terminalPx.y / TILE}
                   isSource={t.id === source.id}
+                  fare={fareForTerminal(t.id)}
                   scale={scale}
                   onClick={() => travel(t)}
                 />
@@ -256,8 +300,11 @@ export function TransitMap() {
           </div>
         </section>
         <section className="status-section">
+          <div className="status-meta">现金 · ¥{playerMoney}</div>
           {terminals.map((t) => {
             const isSrc = t.id === source.id
+            const fare = fareForTerminal(t.id)
+            const canAfford = fare === null || playerMoney >= fare
             return (
               <div key={t.id} className="transit-terminal-row">
                 <div className="transit-terminal-info">
@@ -265,6 +312,9 @@ export function TransitMap() {
                     {t.nameZh}
                     {isSrc && <span className="transit-terminal-here">所在地</span>}
                   </div>
+                  {!isSrc && fare !== null && (
+                    <p className="transit-terminal-desc">票价 ¥{fare}</p>
+                  )}
                   {t.description && (
                     <p className="transit-terminal-desc">{t.description}</p>
                   )}
@@ -272,9 +322,10 @@ export function TransitMap() {
                 <button
                   className="transit-terminal-go"
                   onClick={() => travel(t)}
-                  disabled={isSrc || inTransition}
+                  disabled={isSrc || inTransition || !canAfford}
+                  title={!canAfford && fare !== null ? `金钱不足 · 需 ¥${fare}` : undefined}
                 >
-                  {isSrc ? '当前' : '前往'}
+                  {isSrc ? '当前' : canAfford ? '前往' : '钱不够'}
                 </button>
               </div>
             )

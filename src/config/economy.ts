@@ -17,6 +17,10 @@ export interface EconomyConfig {
     flopBedHours: number
     apartmentDepositMult: number
   }
+  transit: {
+    farePerTile: number
+    minFare: number
+  }
   purchase: {
     apartmentMonthsRent: number
     luxuryMonthsRent: number

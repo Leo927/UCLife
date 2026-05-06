@@ -16,6 +16,15 @@
     luxuryBed:    300,
   },
 
+  // Public-transit fare. Charged when teleporting between in-scene transit
+  // terminals. Fare = round(Euclidean tile distance × farePerTile), then
+  // clamped to at least minFare for any non-zero hop. Cross-scene travel
+  // uses the flight system, which has its own per-route fare.
+  transit: {
+    farePerTile: 0.05,
+    minFare:     1,
+  },
+
   rent: {
     // Length of the rent window for non-flop beds (apartment / dorm /
     // luxury). Flop has its own (much shorter) window below.
