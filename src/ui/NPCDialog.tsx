@@ -61,6 +61,7 @@ export function NPCDialog() {
   const action = useTrait(target, Action)
   const job = useTrait(target, Job)
   const player = useQueryFirst(IsPlayer)
+  const allStations = useQuery(Workstation)
   const [response, setResponse] = useState<string | null>(null)
   const [showDebug, setShowDebug] = useState(false)
 
@@ -92,8 +93,8 @@ export function NPCDialog() {
 
   // A recruiting manager is any NPC whose workstation is referenced as
   // `managerStation` by ≥1 worker station — keeps factory_manager (and any
-  // future analogue) generic without specId hard-coding.
-  const allStations = useQuery(Workstation)
+  // future analogue) generic without specId hard-coding. `allStations` is
+  // queried at the top of the component so the hook order stays stable.
   const isRecruitingManagerOnDuty = !!ws && onShift && allStations.some((s) => s.get(Workstation)?.managerStation === ws)
 
   const greet = () => setResponse(pickGreeting(title, employed))
