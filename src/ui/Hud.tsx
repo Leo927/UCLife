@@ -32,25 +32,55 @@ export function Hud() {
   const playerPos = useTrait(player, Position)
   const activeSceneId = useScene((s) => s.activeId)
 
-  // M toggles the ground map. Skipped in the space-campaign scene — SpaceView
-  // owns M there for the starmap fit-mode overview.
+  // City-view hotkeys: M toggles map, C toggles status, I toggles inventory.
+  // All three are skipped in the space-campaign scene — SpaceView owns M
+  // there, and status/inventory aren't part of the helm UX. ESC closes the
+  // topmost modal in any scene; PortraitModal/EngagementModal own their own
+  // ESC handlers, so we bail when those are showing to avoid closing two
+  // layers at once.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'KeyM') return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
-      if (activeSceneId === SPACE_SCENE_ID) return
       const ui = useUI.getState()
-      const blocked = ui.statusOpen || ui.inventoryOpen || ui.shopOpen || ui.systemOpen
-        || ui.ambitionsOpen || ui.shipDealerOpen
+      const anyModal = ui.statusOpen || ui.inventoryOpen || ui.shopOpen || ui.systemOpen
+        || ui.mapOpen || ui.ambitionsOpen || ui.shipDealerOpen
         || ui.transitSourceId !== null || ui.flightHubId !== null
-        || ui.dialogNPC !== null || ui.enlargedPortrait !== null
-      if (blocked) return
-      e.preventDefault()
-      ui.toggleMap()
+        || ui.dialogNPC !== null
+
+      if (e.key === 'Escape') {
+        if (ui.enlargedPortrait !== null) return
+        if (!anyModal) return
+        e.preventDefault()
+        // Capture-phase + stopImmediatePropagation suppresses SpaceView's ESC
+        // (which would leave-helm) when we're really just closing a UI modal.
+        e.stopImmediatePropagation()
+        if (ui.dialogNPC !== null) ui.setDialogNPC(null)
+        else if (ui.shipDealerOpen) ui.setShipDealer(false)
+        else if (ui.shopOpen) ui.setShop(false)
+        else if (ui.flightHubId !== null) ui.closeFlight()
+        else if (ui.transitSourceId !== null) ui.closeTransit()
+        else if (ui.ambitionsOpen) ui.setAmbitions(false)
+        else if (ui.mapOpen) ui.setMap(false)
+        else if (ui.systemOpen) ui.setSystem(false)
+        else if (ui.inventoryOpen) ui.setInventory(false)
+        else if (ui.statusOpen) ui.setStatus(false)
+        return
+      }
+
+      if (e.code === 'KeyM' || e.code === 'KeyC' || e.code === 'KeyI') {
+        if (activeSceneId === SPACE_SCENE_ID) return
+        if (anyModal && !((e.code === 'KeyC' && ui.statusOpen)
+          || (e.code === 'KeyI' && ui.inventoryOpen)
+          || (e.code === 'KeyM' && ui.mapOpen))) return
+        e.preventDefault()
+        if (e.code === 'KeyM') ui.toggleMap()
+        else if (e.code === 'KeyC') ui.toggleStatus()
+        else if (e.code === 'KeyI') ui.toggleInventory()
+      }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [activeSceneId])
 
   return (

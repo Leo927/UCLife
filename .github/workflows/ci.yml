@@ -96,6 +96,8 @@ jobs:
       - if: always()
         run: node scripts/check-systemmenu.mjs
       - if: always()
+        run: node scripts/check-hotkeys.mjs
+      - if: always()
         run: node scripts/check-sprite-ingame.mjs
       - if: always()
         run: node scripts/check-portrait.mjs
