@@ -14,7 +14,7 @@ License: **GPL-3.0-or-later** (transitively, via the verbatim FC pregmod portrai
 npm run dev                  # Vite dev server, http://localhost:5173 (host:true for LAN)
 npm run build                # tsc -b && vite build (auto-runs build:portrait-cache via prebuild)
 npm run preview              # serve dist/
-npm run build:portrait-cache # rebuild SVG → JSON sprite maps under src/render/portrait/assets/cache/
+npm run build:portrait-cache # rebuild SVG → JSON sprite maps under public/portrait-cache/
 npm run test:unit            # vitest, pure logic, co-located *.test.ts. CI job `unit`.
 npm run lint:arch            # dependency-cruiser — engine boundary + layer direction.
                              # CI job `arch`. Baseline grandfathered; new violations fail.
@@ -43,21 +43,21 @@ Follow *Clean Code* (Robert C. Martin) discipline: small intention-revealing nam
 
 ### Smoke-test reliability — non-negotiable
 
-A flaky smoke test is worse than no smoke test: it teaches the team to ignore CI red, and the next real regression slips through. **Reliability is the primary acceptance criterion for any new check-*.mjs / playwright scenario, ranked above coverage breadth.**
+A flaky smoke test is worse than no smoke test: it teaches the team to ignore CI red, and the next real regression slips through. **Smoke tests must be deterministic by construction — not statistically reliable.** A correctly-built test passes 1/1 under any CI load. If yours doesn't, the test is broken, not unlucky.
 
-Required before a new smoke test can be marked done:
+Reliability is the primary acceptance criterion for any new `check-*.mjs` / playwright scenario, ranked above coverage breadth.
+
+**Construction rules** — every new smoke test must obey all of these:
 
 1. **Drive through `__uclife__`, not the DOM.** Read state from the deterministic debug handle. Don't assert on rendered text, sprite positions, or Pixi canvas pixels unless the test is explicitly *about* the renderer.
 2. **No fixed `sleep` / `waitForTimeout`.** Wait on a *condition* (`page.waitForFunction(() => __uclife__.something)`). If you reach for `setTimeout(2000)`, expose a deterministic signal on `__uclife__` instead.
-3. **Drive sim time, not real time.** Advance the clock via the debug handle (or `superSpeed` / `alwaysHyperspeed` overrides).
+3. **Drive sim time, not real time.** Advance the clock via the debug handle (or `superSpeed` / `alwaysHyperspeed` overrides). Never click a speed button and wait for the wall clock to catch up.
 4. **Seeded determinism only.** Same `WORLD_SEED` → same world. If a scenario depends on a specific spawn, pin it via `special-npcs.json5` / `scenes.json5` rather than fishing for a procedural NPC.
-5. **Soak before merging.** Run the new check 20× back-to-back via `npm run ci:local -- --workers 4`. **20/20 green is the bar.** A 19/20 test will fail every weekday in CI — delete it or fix the root cause.
+5. **No dynamic `await import('/src/...')` from inside the page.** Vite hands the test a different module instance than the running app, so trait-identity queries (`world.queryFirst(traitsMod.IsPlayer)`) silently match nothing. Expose helpers on `__uclife__` instead (see `src/main.tsx`).
 6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** If a check needs retries to stay green, the underlying signal is wrong — fix the signal.
 7. **Fail loud, fail fast.** Every assertion must produce a message that points at the broken invariant. On failure, dump relevant `__uclife__` state to the log.
 
-Do **not** dynamically `await import('/src/ecs/traits.ts')` from a smoke test — it returns a different module instance than the running app. Expose helpers on `__uclife__` instead (see `src/main.tsx`).
-
-If you can't meet these bars for a scenario, **don't add the test** — file the gap as a TODO.
+If you can't meet rules 1–7 for a scenario, **don't add the test** — file the gap as a TODO.
 
 ### Perf budgets — non-negotiable
 
@@ -121,6 +121,9 @@ When an isolated agent finishes:
 4. After merge: `git worktree remove <worktreePath>` and `git branch -d <branch>`.
 
 Send N parallel `Agent` calls in a single message — each gets its own worktree, conflicts surface at PR-merge time. Caveats: worktrees don't isolate dev server ports / browser localStorage / files outside the repo; each gets its own `node_modules` (factor the install cost in); if B depends on A's output, **sequence them**.
+
+### No magic number
+No number shall be present in code (*.ts). Every single number must be in a config file (json5). Unless given explicit permission by the user.
 
 ## Conventions
 
