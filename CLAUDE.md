@@ -124,6 +124,8 @@ Send N parallel `Agent` calls in a single message — each gets its own worktree
 
 ### No magic number
 No number shall be present in code (*.ts). Every single number must be in a config file (json5). Unless given explicit permission by the user.
+### Prefer Diegetic
+When possible, design game objects to be Diegetic. They should be visible, touchable object inside the game. As oppose to just putting them in menu.
 
 ## Conventions
 
