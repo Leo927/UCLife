@@ -14,6 +14,14 @@ export interface WorldConfig {
     npcArrive: number
     npcCounter: number
   }
+  mapClickFeedback: {
+    durationSec: number
+    startRadiusTiles: number
+    endRadiusTiles: number
+    strokeWidthBase: number
+    startAlpha: number
+    colorCss: string
+  }
   activeZone: {
     activeRadiusTiles: number
     hysteresisTiles: number

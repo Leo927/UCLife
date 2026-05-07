@@ -45,6 +45,25 @@
     npcCounter: 6,
   },
 
+  // Click-feedback ripple shown at the right-click navigate point on the
+  // map panel (src/ui/MapPanel.tsx). Pure UI feedback so the player sees
+  // their click registered before they close the panel and their avatar
+  // starts walking on the ground scene.
+  mapClickFeedback: {
+    // SVG <animate> dur in seconds.
+    durationSec: 0.5,
+    // Ripple ring radii in tile units; max() with 1/scale-derived floors
+    // is applied at render time so it stays visible at every zoom.
+    startRadiusTiles: 1.5,
+    endRadiusTiles: 7,
+    // Stroke width baseline (divided by scale at render time).
+    strokeWidthBase: 1.6,
+    // Initial alpha; ends at 0.
+    startAlpha: 0.95,
+    // Hex color (CSS string). Matches the ground-scene destination ring.
+    colorCss: '#ffaa00',
+  },
+
   // Active-zone optimization. NPCs whose Position lies within
   // activeRadiusTiles of the player are "Active": rendered, BT at full
   // cadence, vitals at full per-tick rate. Outside, they're "Inactive": no

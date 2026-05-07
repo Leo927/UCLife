@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useQueryFirst, useTrait, useQuery } from 'koota/react'
 import { IsPlayer, Position, Building, MoveTarget, QueuedInteract, Action } from '../ecs/traits'
 import { worldConfig } from '../config'
@@ -203,6 +203,16 @@ export function MapPanel() {
   // a movement threshold to reject accidental swipes).
   const pressRef = useRef<{ x: number; y: number } | null>(null)
 
+  // Transient ripple shown at the most recent navigate-click. Keyed by an
+  // ever-increasing id so consecutive clicks remount the <g> and replay the
+  // SVG <animate>. Auto-clears after the animation duration.
+  const [clickFx, setClickFx] = useState<{ cx: number; cy: number; key: number } | null>(null)
+  useEffect(() => {
+    if (!clickFx) return
+    const t = setTimeout(() => setClickFx(null), worldConfig.mapClickFeedback.durationSec * 1000)
+    return () => clearTimeout(t)
+  }, [clickFx])
+
   if (!open) return null
 
   // Airports are procgen-placed; pull from the runtime registry.
@@ -287,6 +297,7 @@ export function MapPanel() {
     }
     player.set(MoveTarget, { x: px, y: py })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    setClickFx({ cx: u.x, cy: u.y, key: performance.now() })
   }
 
   return (
@@ -374,6 +385,32 @@ export function MapPanel() {
                 </circle>
               </g>
             )}
+            {clickFx && (() => {
+              const fx = worldConfig.mapClickFeedback
+              const r0 = Math.max(fx.startRadiusTiles, 4 / scale)
+              const r1 = Math.max(fx.endRadiusTiles, 16 / scale)
+              const dur = `${fx.durationSec}s`
+              return (
+                <g key={clickFx.key}>
+                  <circle
+                    cx={clickFx.cx} cy={clickFx.cy} r={r0}
+                    fill="none"
+                    stroke={fx.colorCss}
+                    strokeWidth={fx.strokeWidthBase / scale}
+                    opacity={fx.startAlpha}
+                  >
+                    <animate
+                      attributeName="r" from={r0} to={r1}
+                      dur={dur} repeatCount="1" fill="freeze"
+                    />
+                    <animate
+                      attributeName="opacity" from={fx.startAlpha} to={0}
+                      dur={dur} repeatCount="1" fill="freeze"
+                    />
+                  </circle>
+                </g>
+              )
+            })()}
           </svg>
           <div className="map-legend">
             <span className="map-legend-item">
