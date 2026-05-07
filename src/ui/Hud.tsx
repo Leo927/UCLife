@@ -7,16 +7,17 @@ import { IsPlayer, Position } from '../ecs/traits'
 import { getSceneTitle } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { worldConfig } from '../config'
+import { playUi } from '../audio/player'
 
 const SPACE_SCENE_ID = 'spaceCampaign'
 
 const TILE = worldConfig.tilePx
 
-const SPEEDS: { value: Speed; label: string }[] = [
-  { value: 0, label: '暂停' },
-  { value: 1, label: '1×' },
-  { value: 2, label: '2×' },
-  { value: 4, label: '4×' },
+const SPEEDS: { value: Speed; label: string; sfxId: 'ui.hud.speed-pause' | 'ui.hud.speed-1x' | 'ui.hud.speed-2x' | 'ui.hud.speed-4x' }[] = [
+  { value: 0, label: '暂停', sfxId: 'ui.hud.speed-pause' },
+  { value: 1, label: '1×',   sfxId: 'ui.hud.speed-1x' },
+  { value: 2, label: '2×',   sfxId: 'ui.hud.speed-2x' },
+  { value: 4, label: '4×',   sfxId: 'ui.hud.speed-4x' },
 ]
 
 export function Hud() {
@@ -98,7 +99,7 @@ export function Hud() {
         {DEBUG_AVAILABLE && (
           <button
             className={`hud-dev ${debugActive ? 'active' : ''}`}
-            onClick={toggleDebug}
+            onClick={() => { playUi('ui.hud.debug-toggle'); toggleDebug() }}
             title="Debug"
           >
             DEV
@@ -106,7 +107,7 @@ export function Hud() {
         )}
         <button
           className="hud-map"
-          onClick={toggleMap}
+          onClick={() => { playUi('ui.hud.map-toggle'); toggleMap() }}
           title="地图"
           aria-label="地图"
         >
@@ -114,7 +115,7 @@ export function Hud() {
         </button>
         <button
           className="hud-system"
-          onClick={toggleSystem}
+          onClick={() => { playUi('ui.hud.system-toggle'); toggleSystem() }}
           title="系统菜单"
           aria-label="系统菜单"
         >
@@ -123,7 +124,7 @@ export function Hud() {
         {SPEEDS.map((s) => (
           <button
             key={s.value}
-            onClick={() => setSpeed(s.value)}
+            onClick={() => { playUi(s.sfxId); setSpeed(s.value) }}
             className={speed === s.value ? 'active' : ''}
           >
             {s.label}

@@ -13,6 +13,7 @@ import {
   SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR,
 } from '../character/conditions'
 import { useUI } from './uiStore'
+import { playUi } from '../audio/player'
 
 const FAMILY_GLYPH: Record<string, string> = {
   acute: '🤒',
@@ -33,7 +34,7 @@ export function ConditionStrip() {
   if (visible.length === 0) return null
 
   return (
-    <div className="condition-strip" onClick={() => setStatus(true)}>
+    <div className="condition-strip" onClick={() => { playUi('ui.condition-strip.click'); setStatus(true) }}>
       {visible.slice(0, 6).map((inst) => {
         const template = getConditionTemplate(inst.templateId)
         if (!template) return null

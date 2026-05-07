@@ -4,13 +4,14 @@ import { useUI } from '../uiStore'
 import { getShipClass } from '../../data/ships'
 import { getWeapon, isWeaponId } from '../../data/weapons'
 import { getSkillXp } from '../../character/skills'
+import { playUi } from '../../audio/player'
 
 const SHIP_ID = 'lightFreighter'
 const PILOTING_REQUIRED = 10
 
 export function ShipDealer() {
   const open = useUI((s) => s.shipDealerOpen)
-  const close = () => useUI.getState().setShipDealer(false)
+  const close = () => { playUi('ui.ship-dealer.close'); useUI.getState().setShipDealer(false) }
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
   // Subscribe to Attributes so the piloting display refreshes as XP grows.
@@ -43,6 +44,7 @@ export function ShipDealer() {
     }
     const m = player.get(Money)
     if (!m || m.amount < cls.priceFiat) return
+    playUi('ui.ship-dealer.buy')
     player.set(Money, { amount: m.amount - cls.priceFiat })
     const f = player.get(Flags)
     const next = f ? { flags: { ...f.flags, shipOwned: true } } : { flags: { shipOwned: true } }

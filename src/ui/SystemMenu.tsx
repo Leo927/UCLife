@@ -3,6 +3,7 @@ import { useDebug } from '../debug/store'
 import { useUI } from './uiStore'
 import { saveGame, loadGame, deleteSave, listSaves, MANUAL_SLOTS, type SlotId, type SaveMeta } from '../save'
 import { formatUC } from '../sim/clock'
+import { playUi } from '../audio/player'
 
 function slotLabel(slot: SlotId): string {
   if (slot === 'auto') return '自动存档'
@@ -49,9 +50,9 @@ function SlotRow({ slot, meta, busy, onSave, onLoad, onDelete }: SlotRowProps) {
       <span className="debug-row-label">{slotLabel(slot)}</span>
       <span className="debug-row-desc">{desc}</span>
       <span style={{ display: 'flex', gap: 6, gridColumn: 2, gridRow: '1 / span 2' }}>
-        {onSave && <button className="debug-action" onClick={onSave} disabled={busy}>保存</button>}
-        <button className="debug-action" onClick={onLoad} disabled={busy || empty}>读档</button>
-        <button className="debug-action" onClick={onDelete} disabled={busy || empty}>删除</button>
+        {onSave && <button className="debug-action" onClick={() => { playUi('ui.system.save'); onSave() }} disabled={busy}>保存</button>}
+        <button className="debug-action" onClick={() => { playUi('ui.system.load'); onLoad() }} disabled={busy || empty}>读档</button>
+        <button className="debug-action" onClick={() => { playUi('ui.system.delete'); onDelete() }} disabled={busy || empty}>删除</button>
       </span>
     </div>
   )
@@ -83,7 +84,7 @@ export function SystemMenu() {
 
   if (!open) return null
 
-  const close = () => setOpen(false)
+  const close = () => { playUi('ui.system.close'); setOpen(false) }
 
   const onSave = (slot: 1 | 2 | 3) => async () => {
     if (busy) return
@@ -154,7 +155,7 @@ export function SystemMenu() {
               className="debug-toggle"
               type="checkbox"
               checked={playerAutoAI}
-              onChange={(e) => setPlayerAutoAI(e.target.checked)}
+              onChange={(e) => { playUi('ui.system.player-auto-toggle'); setPlayerAutoAI(e.target.checked) }}
             />
           </label>
         </section>

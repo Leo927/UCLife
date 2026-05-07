@@ -2,6 +2,7 @@ import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Health } from '../ecs/traits'
 import { resetWorld } from '../ecs/spawn'
 import { useClock } from '../sim/clock'
+import { playUi } from '../audio/player'
 
 export function DeathModal() {
   const player = useQueryFirst(IsPlayer, Health)
@@ -9,6 +10,7 @@ export function DeathModal() {
   if (!health || !health.dead) return null
 
   const onRestart = () => {
+    playUi('ui.death.restart')
     resetWorld()
     useClock.getState().reset()
   }

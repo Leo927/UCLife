@@ -6,6 +6,7 @@ import { useUI } from './uiStore'
 import { runTransition, useTransition } from '../sim/transition'
 import { useClock } from '../sim/clock'
 import { migratePlayerToScene } from '../sim/scene'
+import { playUi } from '../audio/player'
 
 function formatDuration(min: number): string {
   if (min < 60) return `${min} 分钟`
@@ -30,6 +31,8 @@ export function FlightModal() {
   const routes = getRoutesFrom(sourceId)
   const playerMoney = money?.amount ?? 0
 
+  const onClose = () => { playUi('ui.flight.close'); close() }
+
   const fly = (route: FlightRoute) => {
     if (!player) return
     if (inTransition) return
@@ -45,6 +48,7 @@ export function FlightModal() {
       showToast(`金钱不足 · 需 ¥${route.fare}`)
       return
     }
+    playUi('ui.flight.purchase')
     // Charge fare up-front so a mid-transition cancel still reflects the
     // commitment. Same pattern as bed claims in interaction.ts.
     player.set(Money, { amount: m.amount - route.fare })
@@ -58,11 +62,11 @@ export function FlightModal() {
   }
 
   return (
-    <div className="status-overlay" onClick={close}>
+    <div className="status-overlay" onClick={onClose}>
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>售票处 · {source.nameZh}</h2>
-          <button className="status-close" onClick={close} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={onClose} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
           <div className="status-meta">现金 · ¥{playerMoney}</div>

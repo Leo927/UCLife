@@ -1,4 +1,5 @@
 import { useUI } from './uiStore'
+import { playUi } from '../audio/player'
 
 export function Toasts() {
   const toasts = useUI((s) => s.toasts)
@@ -7,13 +8,14 @@ export function Toasts() {
   return (
     <div className="toasts">
       {toasts.map((t) => (
-        <div key={t.id} className="toast" onClick={() => dismiss(t.id)}>
+        <div key={t.id} className="toast" onClick={() => { playUi('ui.toast.dismiss'); dismiss(t.id) }}>
           <span>{t.text}</span>
           {t.action && (
             <button
               className="toast-action"
               onClick={(e) => {
                 e.stopPropagation()
+                playUi('ui.toast.action')
                 t.action!.onClick()
                 dismiss(t.id)
               }}

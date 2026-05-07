@@ -10,6 +10,7 @@ import { world } from '../../ecs/world'
 import { bedActiveOccupant } from '../../systems/bed'
 import { economyConfig } from '../../config'
 import { getStat } from '../../stats/sheet'
+import { playUi } from '../../audio/player'
 
 // Lounge couches are auto-claimed inside the AE complex (employee perk),
 // not rentable through the realtor — kept out of TIER_ORDER.
@@ -89,6 +90,7 @@ export function RealtorConversation() {
     if (!player) return
     const pos = bedEnt.get(Position)
     if (!pos) return
+    playUi('ui.realtor.preview')
     player.set(MoveTarget, { x: pos.x, y: pos.y })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
     close()
@@ -111,6 +113,7 @@ export function RealtorConversation() {
       useUI.getState().showToast('该房源已被人租下')
       return
     }
+    playUi('ui.realtor.rent')
     // claimHome charges adjustedRent itself; deduct only the deposit here.
     if (deposit > 0) {
       player.set(Money, { amount: money.amount - deposit })
@@ -139,6 +142,7 @@ export function RealtorConversation() {
       useUI.getState().showToast(`金钱不足 · 需 ¥${price.toLocaleString()}`)
       return
     }
+    playUi('ui.realtor.buy')
     if (buyHome(world, player, bedEnt, price)) {
       useUI.getState().showToast(`房产过户成功 · 共支付 ¥${price.toLocaleString()}`)
       close()

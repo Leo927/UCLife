@@ -5,6 +5,7 @@
 
 import { useState } from 'react'
 import { useEventLog } from './EventLog'
+import { playUi } from '../audio/player'
 
 export function EventLogPanel() {
   const [open, setOpen] = useState(false)
@@ -15,7 +16,7 @@ export function EventLogPanel() {
       <button
         type="button"
         className="event-log-toggle"
-        onClick={() => setOpen(true)}
+        onClick={() => { playUi('ui.event-log.open'); setOpen(true) }}
         title="打开日志"
         data-testid="event-log-toggle"
       >
@@ -31,7 +32,7 @@ export function EventLogPanel() {
     <div className="event-log-panel" data-testid="event-log-panel">
       <div className="event-log-panel-head">
         <span>事件日志</span>
-        <button type="button" className="status-close" onClick={() => setOpen(false)} aria-label="关闭">✕</button>
+        <button type="button" className="status-close" onClick={() => { playUi('ui.event-log.close'); setOpen(false) }} aria-label="关闭">✕</button>
       </div>
       {reversed.length === 0 ? (
         <div className="event-log-panel-empty">暂无记录。</div>

@@ -4,6 +4,7 @@ import { Character, Workstation, Job } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { Portrait } from '../render/portrait/react/Portrait'
 import { getJobSpec } from '../data/jobs'
+import { playUi } from '../audio/player'
 
 export function PortraitModal() {
   const target = useUI((s) => s.enlargedPortrait)
@@ -26,7 +27,7 @@ export function PortraitModal() {
   const wsSpec = wsTrait ? getJobSpec(wsTrait.specId) : null
   const title = wsSpec?.jobTitle ?? info.title
 
-  const close = () => setEnlarged(null)
+  const close = () => { playUi('ui.portrait.close'); setEnlarged(null) }
 
   return (
     <div className="portrait-modal-overlay" onClick={close}>

@@ -11,6 +11,7 @@ import { useClock, gameDayNumber } from '../../sim/clock'
 import { getConditionTemplate } from '../../character/conditions'
 import { commitTreatment } from '../../systems/physiology'
 import { emitSim } from '../../sim/events'
+import { playUi } from '../../audio/player'
 
 const PHARMACY_COST = 20
 
@@ -28,6 +29,7 @@ export function PharmacyConversation() {
   const buy = () => {
     if (!money || diagnosed.length === 0) return
     if (money.amount < PHARMACY_COST) return
+    playUi('ui.pharmacy.buy')
     player.set(Money, { amount: money.amount - PHARMACY_COST })
     const day = gameDayNumber(useClock.getState().gameDate)
     for (const inst of diagnosed) commitTreatment(player, inst.instanceId, 1, day + 5)

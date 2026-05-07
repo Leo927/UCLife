@@ -10,6 +10,7 @@ import { getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
 import { jobsConfig, factionsConfig } from '../../config'
 import { clearPromotionNoticeForFamily } from '../../systems/promotion'
+import { playUi } from '../../audio/player'
 
 interface RankRow {
   specId: string
@@ -110,6 +111,7 @@ export function AEConversation() {
     const w = row.ws.get(Workstation)
     if (!w || (w.occupant !== null && w.occupant !== player)) return
 
+    playUi('ui.ae.accept')
     const prev = job?.workstation ?? null
     if (prev && prev !== row.ws) {
       const pw = prev.get(Workstation)

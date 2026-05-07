@@ -22,6 +22,7 @@ import {
   type EnemyShipSnap as PixiEnemyShipSnap,
   type BeamFlashVisual,
 } from '../render/space/PixiTacticalRenderer'
+import { playUi } from '../audio/player'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -407,7 +408,7 @@ export function TacticalView() {
         </div>
         <button
           className="tactical-btn"
-          onClick={() => useCombatStore.getState().togglePause()}
+          onClick={() => { playUi('ui.tactical.toggle-pause'); useCombatStore.getState().togglePause() }}
         >
           {paused ? '继续 (空格)' : '暂停 (空格)'}
         </button>

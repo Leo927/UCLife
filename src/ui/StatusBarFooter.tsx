@@ -1,6 +1,7 @@
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Vitals, Health, Inventory } from '../ecs/traits'
 import { useUI } from './uiStore'
+import { playUi } from '../audio/player'
 
 export function StatusBarFooter() {
   const toggleStatus = useUI((s) => s.toggleStatus)
@@ -13,11 +14,11 @@ export function StatusBarFooter() {
 
   return (
     <div className="status-footer">
-      <button className="status-footer-btn" onClick={toggleStatus}>
+      <button className="status-footer-btn" onClick={() => { playUi('ui.footer.toggle-status'); toggleStatus() }}>
         <span className="status-footer-label">状态</span>
         <span className="status-footer-cta">›</span>
       </button>
-      <button className="status-footer-btn" onClick={toggleInventory}>
+      <button className="status-footer-btn" onClick={() => { playUi('ui.footer.toggle-inventory'); toggleInventory() }}>
         <span className="status-footer-label">物品</span>
         {invCount > 0 && <span className="status-footer-count">{invCount}</span>}
         <span className="status-footer-cta">›</span>

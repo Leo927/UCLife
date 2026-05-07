@@ -1,0 +1,145 @@
+// UI audio. Each interaction has its own slot so any single one can be
+// replaced without touching neighbors. Currently every clip points at the
+// same dummy placeholder; the player tolerates the file 404'ing in dev.
+{
+  master: {
+    volume: 1.0,
+    enabled: true,
+  },
+  // Path resolved relative to the Vite base URL (public/<clip>). Volume is
+  // multiplied with master.volume at playback time.
+  clips: {
+    // ── HUD ─────────────────────────────────────────────────────────
+    'ui.hud.debug-toggle':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.hud.map-toggle':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.hud.system-toggle':        { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.hud.speed-pause':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.hud.speed-1x':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.hud.speed-2x':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.hud.speed-4x':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Status bar footer ───────────────────────────────────────────
+    'ui.footer.toggle-status':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.footer.toggle-inventory':  { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── System menu ─────────────────────────────────────────────────
+    'ui.system.close':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.system.save':              { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.system.load':              { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.system.delete':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.system.player-auto-toggle':{ clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Status panel ────────────────────────────────────────────────
+    'ui.status.close':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.status.open-ambitions':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.status.walk-home':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.status.walk-job':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Inventory panel ─────────────────────────────────────────────
+    'ui.inventory.close':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.inventory.read':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.inventory.drink-water':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.inventory.eat-meal':       { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.inventory.eat-premium-meal':{ clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Map panel ───────────────────────────────────────────────────
+    'ui.map.close':                { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.map.zoom-in':              { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.map.zoom-out':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.map.zoom-reset':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.map.right-click-navigate': { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Transit map ─────────────────────────────────────────────────
+    'ui.transit.close':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.transit.zoom-in':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.transit.zoom-out':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.transit.zoom-reset':       { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.transit.travel':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Flight modal ────────────────────────────────────────────────
+    'ui.flight.close':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.flight.purchase':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Shop modal ──────────────────────────────────────────────────
+    'ui.shop.close':               { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.shop.buy':                 { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Ambition panel ──────────────────────────────────────────────
+    'ui.ambition.close':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ambition.manage-open':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ambition.manage-close':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ambition.perk-store-open': { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ambition.perk-store-close':{ clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ambition.toggle-pursue':   { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ambition.buy-perk':        { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Engagement modal ────────────────────────────────────────────
+    'ui.engagement.dismiss':       { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.engagement.negotiate':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.engagement.flee':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.engagement.engage':        { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Portrait modal ──────────────────────────────────────────────
+    'ui.portrait.close':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Death modal ─────────────────────────────────────────────────
+    'ui.death.restart':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Toasts ──────────────────────────────────────────────────────
+    'ui.toast.dismiss':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.toast.action':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Event log panel ─────────────────────────────────────────────
+    'ui.event-log.open':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.event-log.close':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Condition strip ─────────────────────────────────────────────
+    'ui.condition-strip.click':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Action status ───────────────────────────────────────────────
+    'ui.action.cancel':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── NPC dialog ──────────────────────────────────────────────────
+    'ui.npc.close':                { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.npc.greet':                { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.npc.smalltalk':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.npc.farewell':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.npc.toggle-debug':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Space view ──────────────────────────────────────────────────
+    'ui.space.leave-helm':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.menu-navigate':      { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.menu-dock':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.right-navigate':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.left-poi':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.left-empty':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Tactical view ───────────────────────────────────────────────
+    'ui.tactical.toggle-pause':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Conversations ───────────────────────────────────────────────
+    'ui.hr.accept':                { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.realtor.preview':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.realtor.rent':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.realtor.buy':              { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ae.accept':                { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.clinic.diagnose':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.clinic.confirm':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.clinic.tier-select':       { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.pharmacy.buy':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.factory-manager.accept':   { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ship-dealer.close':        { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.ship-dealer.buy':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
+    // ── Debug panel ─────────────────────────────────────────────────
+    'ui.debug.close':                  { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.toggle-hyperspeed':      { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.toggle-freeze-needs':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.toggle-infinite-fuel':   { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.give-money':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.give-skills':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.give-rep':               { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.befriend-all':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.debug.give-and-launch-ship':   { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+  },
+}

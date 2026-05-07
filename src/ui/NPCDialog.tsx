@@ -15,6 +15,7 @@ import { AEConversation } from './conversations/AEConversation'
 import { ClinicConversation } from './conversations/ClinicConversation'
 import { PharmacyConversation } from './conversations/PharmacyConversation'
 import { FactoryManagerConversation } from './conversations/FactoryManagerConversation'
+import { playUi } from '../audio/player'
 
 function pickGreeting(title: string, employed: boolean): string {
   if (!employed) return '"嗯。"'
@@ -73,6 +74,7 @@ export function NPCDialog() {
   const playerTier = playerEdge ? tierOf(playerEdge.opinion, playerEdge.familiarity) : 'stranger'
 
   const close = () => {
+    playUi('ui.npc.close')
     setTarget(null)
     setResponse(null)
     setShowDebug(false)
@@ -97,9 +99,10 @@ export function NPCDialog() {
   // queried at the top of the component so the hook order stays stable.
   const isRecruitingManagerOnDuty = !!ws && onShift && allStations.some((s) => s.get(Workstation)?.managerStation === ws)
 
-  const greet = () => setResponse(pickGreeting(title, employed))
-  const smallTalk = () => setResponse(pickSmallTalk(title, employed))
+  const greet = () => { playUi('ui.npc.greet'); setResponse(pickGreeting(title, employed)) }
+  const smallTalk = () => { playUi('ui.npc.smalltalk'); setResponse(pickSmallTalk(title, employed)) }
   const farewell = () => {
+    playUi('ui.npc.farewell')
     setResponse(pickFarewell(title))
     setTimeout(close, 800)
   }
@@ -141,7 +144,7 @@ export function NPCDialog() {
         {DEBUG_AVAILABLE && (
           <section className="status-section faded">
             <h3>DEV</h3>
-            <button className="dialog-option" onClick={() => setShowDebug((s) => !s)}>
+            <button className="dialog-option" onClick={() => { playUi('ui.npc.toggle-debug'); setShowDebug((s) => !s) }}>
               {showDebug ? '隐藏状态' : '查看状态'}
             </button>
             {showDebug && <NPCDebugView entity={target} />}

@@ -12,6 +12,7 @@ import { addRep } from '../systems/reputation'
 import { boardShip } from '../sim/scene'
 import { takeHelm } from '../sim/helm'
 import { refillFuelAndSupplies, getShipState } from '../sim/ship'
+import { playUi } from '../audio/player'
 
 export function DebugPanel() {
   const open = useDebug((s) => s.panelOpen)
@@ -38,12 +39,14 @@ export function DebugPanel() {
     if (!player) return
     const m = player.get(Money)
     if (!m) return
+    playUi('ui.debug.give-money')
     player.set(Money, { amount: m.amount + moneyGift })
     useUI.getState().showToast(`+ ¥${moneyGift.toLocaleString()}`)
   }
 
   const giveSkills = () => {
     if (!player) return
+    playUi('ui.debug.give-skills')
     const bumpXp = skillLevelGift * skillsConfig.xpPerLevel
     for (const id of SKILL_ORDER) {
       addSkillXp(player, id as SkillId, bumpXp)
@@ -55,6 +58,7 @@ export function DebugPanel() {
   // with a +S 平民 chip the player can't act on.
   const giveReputation = () => {
     if (!player) return
+    playUi('ui.debug.give-rep')
     let count = 0
     for (const fid of Object.keys(factionsConfig.catalog) as FactionId[]) {
       if (fid === 'civilian') continue
@@ -73,6 +77,7 @@ export function DebugPanel() {
   // the button is naturally disabled there.
   const giveAndLaunchShip = () => {
     if (!player) return
+    playUi('ui.debug.give-and-launch-ship')
     const f = player.get(Flags) ?? { flags: {} }
     const next = { flags: { ...f.flags, shipOwned: true } }
     if (player.has(Flags)) player.set(Flags, next)
@@ -89,6 +94,7 @@ export function DebugPanel() {
   // same edge data so symmetric checks elsewhere stay consistent.
   const befriendAll = () => {
     if (!player) return
+    playUi('ui.debug.befriend-all')
     const nowMs = useClock.getState().gameDate.getTime()
     const opinionMax = aiConfig.relations.opinionMax
     const familiarityMax = aiConfig.relations.familiarityMax
@@ -113,11 +119,11 @@ export function DebugPanel() {
   }
 
   return (
-    <div className="status-overlay" onClick={() => setOpen(false)}>
+    <div className="status-overlay" onClick={() => { playUi('ui.debug.close'); setOpen(false) }}>
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>调试模式 · DEV</h2>
-          <button className="status-close" onClick={() => setOpen(false)} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={() => { playUi('ui.debug.close'); setOpen(false) }} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
           <label className="debug-row">
@@ -127,7 +133,7 @@ export function DebugPanel() {
               className="debug-toggle"
               type="checkbox"
               checked={alwaysHyperspeed}
-              onChange={(e) => setAlways(e.target.checked)}
+              onChange={(e) => { playUi('ui.debug.toggle-hyperspeed'); setAlways(e.target.checked) }}
             />
           </label>
           <label className="debug-row">
@@ -137,7 +143,7 @@ export function DebugPanel() {
               className="debug-toggle"
               type="checkbox"
               checked={freezeNeeds}
-              onChange={(e) => setFreeze(e.target.checked)}
+              onChange={(e) => { playUi('ui.debug.toggle-freeze-needs'); setFreeze(e.target.checked) }}
             />
           </label>
           <label className="debug-row">
@@ -148,6 +154,7 @@ export function DebugPanel() {
               type="checkbox"
               checked={infiniteFuelSupply}
               onChange={(e) => {
+                playUi('ui.debug.toggle-infinite-fuel')
                 const next = e.target.checked
                 setInfiniteFuelSupply(next)
                 if (next && getShipState()) {

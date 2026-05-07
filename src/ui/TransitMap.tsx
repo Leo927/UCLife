@@ -11,6 +11,7 @@ import { getTransitPlacement } from '../sim/transitPlacements'
 import { useUI } from './uiStore'
 import { runTransition, useTransition } from '../sim/transition'
 import { useMapView, placeKindTier, visibleTierAt } from './useMapView'
+import { playUi } from '../audio/player'
 
 const TILE = worldConfig.tilePx
 
@@ -206,6 +207,7 @@ export function TransitMap() {
       showToast(`金钱不足 · 需 ¥${fare}`)
       return
     }
+    playUi('ui.transit.travel')
     // Charge fare up-front so a mid-transition cancel still reflects the
     // commitment. Same pattern as flights and bed claims.
     if (fare > 0) player.set(Money, { amount: m.amount - fare })
@@ -227,19 +229,20 @@ export function TransitMap() {
   }
 
   const playerR = Math.max(2, 4 / scale)
+  const onClose = () => { playUi('ui.transit.close'); close() }
 
   return (
-    <div className="status-overlay" onClick={close}>
+    <div className="status-overlay" onClick={onClose}>
       <div className="status-panel map-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>公共交通 · {source.nameZh}</h2>
-          <button className="status-close" onClick={close} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={onClose} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
           <div className="map-controls">
-            <button className="map-zoom-btn" onClick={zoomIn} aria-label="放大">＋</button>
-            <button className="map-zoom-btn" onClick={zoomOut} aria-label="缩小">－</button>
-            <button className="map-zoom-btn map-zoom-reset" onClick={reset} aria-label="复位">⊙</button>
+            <button className="map-zoom-btn" onClick={() => { playUi('ui.transit.zoom-in'); zoomIn() }} aria-label="放大">＋</button>
+            <button className="map-zoom-btn" onClick={() => { playUi('ui.transit.zoom-out'); zoomOut() }} aria-label="缩小">－</button>
+            <button className="map-zoom-btn map-zoom-reset" onClick={() => { playUi('ui.transit.zoom-reset'); reset() }} aria-label="复位">⊙</button>
             <span className="map-zoom-level">{Math.round(scale * 100)}%</span>
           </div>
           <svg

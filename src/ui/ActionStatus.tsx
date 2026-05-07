@@ -2,6 +2,7 @@ import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Action, Job, JobPerformance, Workstation } from '../ecs/traits'
 import { actionLabel } from '../data/actions'
 import { getJobSpec } from '../data/jobs'
+import { playUi } from '../audio/player'
 
 export function ActionStatus() {
   const player = useQueryFirst(IsPlayer, Action)
@@ -12,6 +13,7 @@ export function ActionStatus() {
   if (action.kind === 'idle' || action.kind === 'walking') return null
 
   const cancel = () => {
+    playUi('ui.action.cancel')
     player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
   }
 

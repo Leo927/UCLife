@@ -5,6 +5,7 @@ import { useUI } from '../uiStore'
 import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../character/skills'
 import { dowLabel, getJobSpec } from '../../data/jobs'
 import type { JobSpec } from '../../config'
+import { playUi } from '../../audio/player'
 
 export function HRConversation() {
   const player = useQueryFirst(IsPlayer, Attributes, Job)
@@ -42,6 +43,7 @@ export function HRConversation() {
     if (!player || !meets(spec)) return
     const w = ws.get(Workstation)!
     if (w.occupant !== null && w.occupant !== player) return
+    playUi('ui.hr.accept')
     const prev = job?.workstation ?? null
     if (prev && prev !== ws) {
       const pw = prev.get(Workstation)

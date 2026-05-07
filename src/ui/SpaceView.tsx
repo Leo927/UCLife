@@ -17,6 +17,7 @@ import { leaveHelm } from '../sim/helm'
 import { getShipState } from '../sim/ship'
 import { navigateTo, dockAt } from '../sim/navigation'
 import { emitSim } from '../sim/events'
+import { playUi } from '../audio/player'
 
 const SPACE_SCENE_ID = 'spaceCampaign'
 
@@ -279,6 +280,7 @@ export function SpaceView() {
         emitSim('toast', { textZh: '燃料耗尽 · 需返回补给站' })
         return
       }
+      playUi('ui.space.right-navigate')
       const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
       const res = near
         ? navigateTo({ kind: 'poi', poiId: near.id })
@@ -291,8 +293,10 @@ export function SpaceView() {
     // Left-click. Hits a POI ⇒ open context menu; empty space ⇒ close.
     const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
     if (near) {
+      playUi('ui.space.left-poi')
       setMenu({ poiId: near.id, screenX: e.clientX, screenY: e.clientY })
     } else {
+      playUi('ui.space.left-empty')
       setMenu(null)
     }
   }
@@ -304,12 +308,14 @@ export function SpaceView() {
   const menuPoi = menu ? poiDataById.get(menu.poiId) ?? null : null
   const onNavigate = () => {
     if (!menu) return
+    playUi('ui.space.menu-navigate')
     const res = navigateTo({ kind: 'poi', poiId: menu.poiId })
     if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
     setMenu(null)
   }
   const onDock = () => {
     if (!menu) return
+    playUi('ui.space.menu-dock')
     const res = dockAt(menu.poiId)
     if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
     setMenu(null)
@@ -348,7 +354,7 @@ export function SpaceView() {
         )
       })()}
       <button
-        onClick={() => leaveHelm()}
+        onClick={() => { playUi('ui.space.leave-helm'); leaveHelm() }}
         style={{
           position: 'absolute', bottom: 12, right: 12,
           background: 'rgba(15, 23, 42, 0.92)', border: '1px solid #475569',

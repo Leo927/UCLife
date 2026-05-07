@@ -2,6 +2,7 @@ import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Vitals, Health, Inventory, Action } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { READING_DURATION_MIN, EATING_DURATION_MIN, DRINKING_DURATION_MIN } from '../data/actions'
+import { playUi } from '../audio/player'
 
 export function InventoryPanel() {
   const open = useUI((s) => s.inventoryOpen)
@@ -17,6 +18,7 @@ export function InventoryPanel() {
 
   const startReading = () => {
     if (!player || !canRead) return
+    playUi('ui.inventory.read')
     player.set(Action, { kind: 'reading', remaining: READING_DURATION_MIN, total: READING_DURATION_MIN })
     setOpen(false)
   }
@@ -24,6 +26,7 @@ export function InventoryPanel() {
   const drinkWater = () => {
     if (!player || !inventory || inventory.water === 0) return
     if (isBusyAction) return
+    playUi('ui.inventory.drink-water')
     player.set(Action, { kind: 'drinking', remaining: DRINKING_DURATION_MIN, total: DRINKING_DURATION_MIN })
     setOpen(false)
   }
@@ -31,6 +34,7 @@ export function InventoryPanel() {
   const eatMeal = () => {
     if (!player || !inventory || inventory.meal === 0) return
     if (isBusyAction) return
+    playUi('ui.inventory.eat-meal')
     player.set(Action, { kind: 'eating', remaining: EATING_DURATION_MIN, total: EATING_DURATION_MIN })
     setOpen(false)
   }
@@ -40,18 +44,21 @@ export function InventoryPanel() {
   const eatPremiumMeal = () => {
     if (!player || !inventory || inventory.premiumMeal === 0) return
     if (isBusyAction) return
+    playUi('ui.inventory.eat-premium-meal')
     player.set(Action, { kind: 'eating', remaining: EATING_DURATION_MIN, total: EATING_DURATION_MIN })
     setOpen(false)
   }
 
+  const close = () => { playUi('ui.inventory.close'); setOpen(false) }
+
   const hasInv = inventory && (inventory.water > 0 || inventory.meal > 0 || inventory.premiumMeal > 0 || inventory.books > 0)
 
   return (
-    <div className="status-overlay" onClick={() => setOpen(false)}>
+    <div className="status-overlay" onClick={close}>
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>物品</h2>
-          <button className="status-close" onClick={() => setOpen(false)} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
 
         <section className="status-section">

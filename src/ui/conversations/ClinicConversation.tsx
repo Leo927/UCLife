@@ -13,6 +13,7 @@ import { useClock, gameDayNumber } from '../../sim/clock'
 import { getConditionTemplate, TREATMENT_TIER_ZH } from '../../character/conditions'
 import { diagnoseCondition, commitTreatment } from '../../systems/physiology'
 import { emitSim } from '../../sim/events'
+import { playUi } from '../../audio/player'
 
 const DIAGNOSIS_FEE = 8
 const PHARMACY_COST = 20
@@ -32,6 +33,7 @@ export function ClinicConversation() {
 
   const payDiagnosis = () => {
     if (!money || money.amount < DIAGNOSIS_FEE || undiagnosed.length === 0) return
+    playUi('ui.clinic.diagnose')
     player.set(Money, { amount: money.amount - DIAGNOSIS_FEE })
     const day = gameDayNumber(useClock.getState().gameDate)
     for (const inst of undiagnosed) diagnoseCondition(player, inst.instanceId, day)
@@ -55,6 +57,7 @@ export function ClinicConversation() {
     if (!money || diagnosed.length === 0) return
     const cost = treatmentCost(tier)
     if (money.amount < cost) return
+    playUi('ui.clinic.confirm')
     if (cost > 0) player.set(Money, { amount: money.amount - cost })
     const day = gameDayNumber(useClock.getState().gameDate)
     for (const inst of diagnosed) commitTreatment(player, inst.instanceId, tier, day + 5)
@@ -104,7 +107,7 @@ export function ClinicConversation() {
               <div
                 key={t}
                 className={`clinic-treatment-row ${tier === t ? 'selected' : ''} ${(money?.amount ?? 0) < treatmentCost(t) ? 'disabled' : ''}`}
-                onClick={() => { if ((money?.amount ?? 0) >= treatmentCost(t)) setTier(t) }}
+                onClick={() => { if ((money?.amount ?? 0) >= treatmentCost(t)) { playUi('ui.clinic.tier-select'); setTier(t) } }}
                 data-testid={`clinic-tier-${t}`}
               >
                 <div>

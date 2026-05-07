@@ -34,4 +34,7 @@ export type { FactionsConfig, FactionSpec, FactionId, FactionTier } from './fact
 export { spaceConfig } from './space'
 export type { SpaceConfig } from './space'
 
+export { audioConfig } from './audio'
+export type { AudioConfig, AudioClipSpec, UiAudioId } from './audio'
+
 export type { BedTier, RoadKind, InteractableKind, ActionKind, RoughKind } from './kinds'

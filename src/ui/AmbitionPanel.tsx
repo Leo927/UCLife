@@ -8,6 +8,7 @@ import { useClock } from '../sim/clock'
 import { readStageProgress } from '../systems/ambitions'
 import { syncPerkModifiers } from '../character/perkSync'
 import { useEventLog } from './EventLog'
+import { playUi } from '../audio/player'
 
 const REQUIREMENT_LABELS: Record<string, string> = {
   strength: '力量',
@@ -75,6 +76,7 @@ export function AmbitionPanel() {
   const activeIds = new Set(amb.active.map((s) => s.id))
 
   const close = () => {
+    playUi('ui.ambition.close')
     setPickerMode(false)
     setPerkStoreMode(false)
     setOpen(false)
@@ -88,6 +90,7 @@ export function AmbitionPanel() {
   // Per the Sims pivot, no cap on simultaneously-pursued ambitions and
   // conflicts surface as informational warnings, not blockers.
   const togglePursue = (id: string) => {
+    playUi('ui.ambition.toggle-pursue')
     const cur = amb.active.find((s) => s.id === id)
     if (cur) {
       // Drop. History records the partial progress.
@@ -132,7 +135,7 @@ export function AmbitionPanel() {
         <div className="status-panel" onClick={(e) => e.stopPropagation()}>
           <header className="status-header">
             <h2>管理志向</h2>
-            <button className="status-close" onClick={() => setPickerMode(false)} aria-label="关闭">✕</button>
+            <button className="status-close" onClick={() => { playUi('ui.ambition.manage-close'); setPickerMode(false) }} aria-label="关闭">✕</button>
           </header>
           <section className="status-section">
             <p className="status-meta">
@@ -179,6 +182,7 @@ export function AmbitionPanel() {
       const def = getPerk(perkId)
       if (!def) return
       if (amb.apBalance < def.apCost) return
+      playUi('ui.ambition.buy-perk')
       const newPerks = [...amb.perks, perkId]
       player.set(Ambitions, {
         active: amb.active, history: amb.history,
@@ -204,7 +208,7 @@ export function AmbitionPanel() {
         <div className="status-panel" onClick={(e) => e.stopPropagation()}>
           <header className="status-header">
             <h2>天赋商店</h2>
-            <button className="status-close" onClick={() => setPerkStoreMode(false)} aria-label="关闭">✕</button>
+            <button className="status-close" onClick={() => { playUi('ui.ambition.perk-store-close'); setPerkStoreMode(false) }} aria-label="关闭">✕</button>
           </header>
           <section className="status-section">
             <div className="status-meta">
@@ -315,14 +319,14 @@ export function AmbitionPanel() {
             </div>
             <button
               className="transit-terminal-go"
-              onClick={() => setPickerMode(true)}
+              onClick={() => { playUi('ui.ambition.manage-open'); setPickerMode(true) }}
               data-ambition-manage
             >
               管理志向
             </button>
             <button
               className="transit-terminal-go"
-              onClick={() => setPerkStoreMode(true)}
+              onClick={() => { playUi('ui.ambition.perk-store-open'); setPerkStoreMode(true) }}
               data-perk-store
               style={{ marginLeft: 8 }}
             >

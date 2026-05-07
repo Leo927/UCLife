@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useEngagement } from '../sim/engagement'
+import { playUi } from '../audio/player'
 
 const SHIP_CLASS_NAMES_ZH: Record<string, string> = {
   pirate_skirmisher: '海盗游击艇',
@@ -40,7 +41,7 @@ export function EngagementModal() {
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>遭遇敌方舰队</h2>
-          <button className="status-close" onClick={dismiss} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={() => { playUi('ui.engagement.dismiss'); dismiss() }} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
           <p className="map-place-desc">
@@ -49,9 +50,9 @@ export function EngagementModal() {
           {escortLine && <p className="map-place-desc">{escortLine}</p>}
         </section>
         <section className="status-section" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-          <button onClick={() => resolve('negotiate')}>尝试谈判</button>
-          <button onClick={() => resolve('flee')}>脱离</button>
-          <button onClick={() => resolve('engage')}>交战</button>
+          <button onClick={() => { playUi('ui.engagement.negotiate'); resolve('negotiate') }}>尝试谈判</button>
+          <button onClick={() => { playUi('ui.engagement.flee'); resolve('flee') }}>脱离</button>
+          <button onClick={() => { playUi('ui.engagement.engage'); resolve('engage') }}>交战</button>
         </section>
       </div>
     </div>

@@ -12,6 +12,7 @@ import { getTransitPlacement } from '../sim/transitPlacements'
 import { transitTerminals } from '../data/transit'
 import { useUI } from './uiStore'
 import { useMapView, visibleTierAt, placeKindTier, type MapViewBox } from './useMapView'
+import { playUi } from '../audio/player'
 
 const TILE = worldConfig.tilePx
 
@@ -277,7 +278,7 @@ export function MapPanel() {
       })
     : []
 
-  const close = () => setOpen(false)
+  const close = () => { playUi('ui.map.close'); setOpen(false) }
   const playerTileX = playerPos ? playerPos.x / TILE : null
   const playerTileY = playerPos ? playerPos.y / TILE : null
   const playerR = Math.max(2, 6 / scale)
@@ -307,6 +308,7 @@ export function MapPanel() {
     if (action && action.kind !== 'idle' && action.kind !== 'walking') {
       player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
+    playUi('ui.map.right-click-navigate')
     player.set(MoveTarget, { x: px, y: py })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
     setClickFx({ cx: u.x, cy: u.y, key: performance.now(), t: 0 })
@@ -321,9 +323,9 @@ export function MapPanel() {
         </header>
         <section className="status-section map-body">
           <div className="map-controls">
-            <button className="map-zoom-btn" onClick={zoomIn} aria-label="放大">＋</button>
-            <button className="map-zoom-btn" onClick={zoomOut} aria-label="缩小">－</button>
-            <button className="map-zoom-btn map-zoom-reset" onClick={reset} aria-label="复位">⊙</button>
+            <button className="map-zoom-btn" onClick={() => { playUi('ui.map.zoom-in'); zoomIn() }} aria-label="放大">＋</button>
+            <button className="map-zoom-btn" onClick={() => { playUi('ui.map.zoom-out'); zoomOut() }} aria-label="缩小">－</button>
+            <button className="map-zoom-btn map-zoom-reset" onClick={() => { playUi('ui.map.zoom-reset'); reset() }} aria-label="复位">⊙</button>
             <span className="map-zoom-level">{Math.round(scale * 100)}%</span>
             <span className="map-hint">右键地图前往该地点</span>
           </div>

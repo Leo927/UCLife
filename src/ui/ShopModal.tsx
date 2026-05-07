@@ -3,6 +3,7 @@ import { IsPlayer, Money, Inventory, Attributes } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { SHOP_ITEMS, type ShopItem } from '../data/shop'
 import { getStat } from '../stats/sheet'
+import { playUi } from '../audio/player'
 
 export function ShopModal() {
   const open = useUI((s) => s.shopOpen)
@@ -16,11 +17,14 @@ export function ShopModal() {
 
   const priceOf = (item: ShopItem) => Math.max(1, Math.round(item.price * shopMul))
 
+  const close = () => { playUi('ui.shop.close'); setShop(false) }
+
   const buy = (item: ShopItem) => {
     if (!player || !money) return
     const price = priceOf(item)
     if (money.amount < price) return
 
+    playUi('ui.shop.buy')
     player.set(Money, { amount: money.amount - price })
 
     const inv = player.get(Inventory)
@@ -43,11 +47,11 @@ export function ShopModal() {
   }
 
   return (
-    <div className="status-overlay" onClick={() => setShop(false)}>
+    <div className="status-overlay" onClick={close}>
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>便利店</h2>
-          <button className="status-close" onClick={() => setShop(false)} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
 
         <section className="status-section">

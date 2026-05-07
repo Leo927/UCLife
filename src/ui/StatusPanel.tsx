@@ -16,6 +16,7 @@ import { getStat } from '../stats/sheet'
 import { attributesConfig, jobsConfig, vitalsConfig } from '../config'
 import { tierOf as factionTierOf, factionMeta, type FactionId } from '../data/factions'
 import { getAmbition } from '../character/ambitions'
+import { playUi } from '../audio/player'
 
 const TIER_LABEL: Record<BedTier, string> = {
   flop: '投币床',
@@ -56,6 +57,7 @@ export function StatusPanel() {
   // if they want to rent/sleep they can click the bed.
   const walkHome = () => {
     if (!player || !homeBedPos) return
+    playUi('ui.status.walk-home')
     player.set(MoveTarget, { x: homeBedPos.x, y: homeBedPos.y })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
     setOpen(false)
@@ -63,17 +65,25 @@ export function StatusPanel() {
 
   const walkToJob = () => {
     if (!player || !wsPos) return
+    playUi('ui.status.walk-job')
     player.set(MoveTarget, { x: wsPos.x, y: wsPos.y })
     if (!player.has(QueuedInteract)) player.add(QueuedInteract)
     setOpen(false)
   }
 
+  const close = () => { playUi('ui.status.close'); setOpen(false) }
+  const openAmbitions = () => {
+    playUi('ui.status.open-ambitions')
+    setOpen(false)
+    useUI.getState().setAmbitions(true)
+  }
+
   return (
-    <div className="status-overlay" onClick={() => setOpen(false)}>
+    <div className="status-overlay" onClick={close}>
       <div className="status-panel status-panel--wide" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>状态</h2>
-          <button className="status-close" onClick={() => setOpen(false)} aria-label="关闭">✕</button>
+          <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
 
         <div className="status-body">
@@ -116,10 +126,7 @@ export function StatusPanel() {
                 <button
                   type="button"
                   className="status-link"
-                  onClick={() => {
-                    setOpen(false)
-                    useUI.getState().setAmbitions(true)
-                  }}
+                  onClick={openAmbitions}
                   data-open-ambitions
                 >
                   查看与切换志向
@@ -131,10 +138,7 @@ export function StatusPanel() {
               <button
                 type="button"
                 className="status-link"
-                onClick={() => {
-                  setOpen(false)
-                  useUI.getState().setAmbitions(true)
-                }}
+                onClick={openAmbitions}
                 data-open-ambitions
               >
                 选择志向
