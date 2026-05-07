@@ -54,10 +54,18 @@ export const ShipRoom = trait({
 // `targetIdx` indexes into the active EnemyShip list during combat
 // (-1 = no target, default = nearest hostile). Charge tick is in seconds
 // of charge accumulated; `ready` flips true at chargeSec >= weapon.chargeSec.
+//
+// `firingArcRad` is the total firing arc width (radians) — combat checks
+// whether the target is within ±firingArcRad/2 of the mount centerline.
+// `facingRad` is the mount centerline direction relative to ship heading
+// (0 = forward, +π/2 = starboard). Each turret can declare its own arc
+// independently of other mounts on the same ship.
 export const WeaponMount = trait({
   mountIdx: 0,
   weaponId: '',
   size: 'small' as 'small' | 'medium' | 'large',
+  firingArcRad: Math.PI,
+  facingRad: 0,
   chargeSec: 0,
   ready: false,
   targetIdx: -1,
@@ -112,6 +120,10 @@ export const EnemyAI = trait(() => ({
   // Carried by enemy ships in spaceCampaign. Mode + patrol path live
   // here; aggro state is computed each tick from spatial queries.
   shipClassId: '',
+  // Escort ship class IDs deployed alongside this lead ship when the
+  // engagement triggers. Empty = solo. Each escort spawns its own
+  // EnemyShipState in the tactical arena.
+  escorts: [] as string[],
   mode: 'patrol' as 'patrol' | 'idle' | 'chase' | 'flee',
   patrolPath: [] as { x: number; y: number }[],
   patrolIdx: 0,
@@ -148,8 +160,10 @@ export const EnemyShipState = trait(() => ({
   weapons: [] as {
     weaponId: string
     size: 'small' | 'medium' | 'large'
+    firingArcRad: number
+    facingRad: number
     chargeSec: number
     ready: boolean
   }[],
-  ai: { aggression: 0.5, retreatThreshold: 0.2 },
+  ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 160 },
 }))

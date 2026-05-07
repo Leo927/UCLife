@@ -1,5 +1,6 @@
 import json5 from 'json5'
 import raw from './space-entities.json5?raw'
+import { isEnemyShipId } from './enemyShips'
 
 // Hand-placed persistent enemies in the campaign sector. Pure data + types
 // — slice 5 reads this to spawn koota entities at world boot. There is
@@ -18,6 +19,10 @@ export interface SpaceEntity {
   id: string
   kind: SpaceEntityKind
   shipClassId: string
+  // Optional escort ship class IDs that join the lead in tactical
+  // combat. Empty/missing = solo encounter. Each escort spawns its
+  // own EnemyShipState in the arena alongside the lead.
+  escorts?: string[]
   spawn: SpacePos
   aiMode: EnemyAiMode
   patrolPath?: SpacePos[]
@@ -59,6 +64,19 @@ for (const e of parsed.entities) {
   }
   if (e.aiMode !== 'patrol' && e.aiMode !== 'idle') {
     throw new Error(`space-entities.json5: entity "${e.id}" has unknown aiMode "${e.aiMode}"`)
+  }
+  if (!isEnemyShipId(e.shipClassId)) {
+    throw new Error(`space-entities.json5: entity "${e.id}" references unknown shipClassId "${e.shipClassId}"`)
+  }
+  if (e.escorts !== undefined) {
+    if (!Array.isArray(e.escorts)) {
+      throw new Error(`space-entities.json5: entity "${e.id}" escorts must be an array`)
+    }
+    for (const esc of e.escorts) {
+      if (typeof esc !== 'string' || !isEnemyShipId(esc)) {
+        throw new Error(`space-entities.json5: entity "${e.id}" escort "${esc}" not in enemyShips.json5`)
+      }
+    }
   }
   if (e.aiMode === 'patrol' && (!e.patrolPath || e.patrolPath.length < 2)) {
     throw new Error(`space-entities.json5: entity "${e.id}" patrol path needs >= 2 points`)

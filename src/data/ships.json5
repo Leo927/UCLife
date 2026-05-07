@@ -22,10 +22,14 @@
 //   crewMax               — hard cap on crew aboard
 //
 // Hardpoints (`mounts`):
-//   array of `{ idx, size: 'small' | 'medium' | 'large', arc: number,
-//   facing: number }`. `arc` is total firing arc in radians; `facing`
-//   is mount center angle (0 = +x, π/2 = +y). Weapons must match or
-//   be smaller than the mount size.
+//   array of `{ idx, size: 'small' | 'medium' | 'large', firingArcDeg,
+//   facingDeg }`. `firingArcDeg` is the total firing arc in degrees
+//   (e.g. 30 = ±15° around the mount centerline). `facingDeg` is the
+//   mount center direction in degrees relative to ship heading
+//   (0 = forward, +90 = starboard). Each turret on a ship can declare
+//   its own arc — different mounts on the same ship can cover
+//   different angles. Weapons must match or be smaller than the mount
+//   size.
 //
 // Walkable interior:
 //   rooms[]   — list of room rectangles in ship-local tile space.
@@ -65,9 +69,9 @@
       suppliesMax: 40,
       crewMax: 4,
       mounts: [
-        // Two forward-facing small hardpoints with overlapping arcs.
-        { idx: 0, size: 'small', arc: 1.0, facing: 0 },
-        { idx: 1, size: 'small', arc: 1.0, facing: 0 },
+        // Two forward small hardpoints, both narrow ±15° arcs.
+        { idx: 0, size: 'small', firingArcDeg: 30, facingDeg: 0 },
+        { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
       ],
       defaultWeapons: ['beamMk1'],
       priceFiat: 80000,

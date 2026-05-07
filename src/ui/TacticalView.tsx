@@ -12,13 +12,14 @@ import {
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
 } from '../systems/combat'
 import { getWorld } from '../ecs/world'
-import { Ship, WeaponMount, EnemyShipState } from '../ecs/traits'
+import { Ship, WeaponMount, EnemyShipState, EntityKey } from '../ecs/traits'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
 import { PixiCanvas } from '../render/pixi'
 import {
   PixiTacticalRenderer,
   type ShipSnap as PixiShipSnap,
+  type EnemyShipSnap as PixiEnemyShipSnap,
   type BeamFlashVisual,
 } from '../render/space/PixiTacticalRenderer'
 
@@ -38,6 +39,11 @@ interface PlayerSnap {
 }
 
 interface EnemySnap {
+  /** Stable key from EntityKey trait — drives the renderer's per-ship
+   *  Pixi node map and the HUD list keys. */
+  key: string
+  /** Numeric id derived from the key for renderer node tracking. */
+  id: number
   shipClassId: string
   nameZh: string
   pos: { x: number; y: number }
@@ -79,22 +85,38 @@ function snapshotPlayer(): PlayerSnap | null {
   }
 }
 
-function snapshotEnemy(): EnemySnap | null {
+// Hash an EntityKey string into a stable numeric id for renderer
+// bookkeeping. Different keys collide rarely enough that the renderer's
+// per-id Map lookup stays correct; collisions would just cause two
+// nodes to share Pixi state, not a crash.
+function hashKey(key: string): number {
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0
+  return h
+}
+
+function snapshotEnemies(): EnemySnap[] {
   const w = getWorld(SHIP_SCENE_ID)
-  const e = w.queryFirst(EnemyShipState)
-  if (!e) return null
-  const s = e.get(EnemyShipState)!
-  return {
-    shipClassId: s.shipClassId,
-    nameZh: s.nameZh,
-    pos: { x: s.pos.x, y: s.pos.y },
-    heading: s.heading,
-    hullCurrent: s.hullCurrent, hullMax: s.hullMax,
-    armorCurrent: s.armorCurrent, armorMax: s.armorMax,
-    fluxCurrent: s.fluxCurrent, fluxMax: s.fluxMax,
-    hasShield: s.hasShield,
-    shieldUp: s.shieldUp,
+  const out: EnemySnap[] = []
+  for (const e of w.query(EnemyShipState)) {
+    const s = e.get(EnemyShipState)!
+    const ek = e.get(EntityKey)
+    const key = ek ? ek.key : `enemy-${out.length}`
+    out.push({
+      key,
+      id: hashKey(key),
+      shipClassId: s.shipClassId,
+      nameZh: s.nameZh,
+      pos: { x: s.pos.x, y: s.pos.y },
+      heading: s.heading,
+      hullCurrent: s.hullCurrent, hullMax: s.hullMax,
+      armorCurrent: s.armorCurrent, armorMax: s.armorMax,
+      fluxCurrent: s.fluxCurrent, fluxMax: s.fluxMax,
+      hasShield: s.hasShield,
+      shieldUp: s.shieldUp,
+    })
   }
+  return out
 }
 
 function StatBar(props: { label: string; current: number; max: number; color: string }) {
@@ -170,9 +192,10 @@ function playerVisual(p: PlayerSnap): PixiShipSnap {
   }
 }
 
-function enemyVisual(e: EnemySnap): PixiShipSnap {
+function enemyVisual(e: EnemySnap): PixiEnemyShipSnap {
   const shieldHeadroom = e.fluxMax > 0 ? 1 - e.fluxCurrent / e.fluxMax : 0
   return {
+    id: e.id,
     x: e.pos.x, y: e.pos.y,
     heading: e.heading,
     hullRadius: 16,
@@ -227,12 +250,12 @@ export function TacticalView() {
         const r = rendererRef.current
         if (r) {
           const p = snapshotPlayer()
-          const e = snapshotEnemy()
+          const enemies = snapshotEnemies()
           const projectiles = useCombatStore.getState().getProjectiles()
           r.update({
             arenaW: ARENA_W, arenaH: ARENA_H,
             player: p ? playerVisual(p) : null,
-            enemy: e ? enemyVisual(e) : null,
+            enemies: enemies.map(enemyVisual),
             projectiles: projectiles.map((pj) => ({
               id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
             })),
@@ -338,15 +361,15 @@ export function TacticalView() {
   void tick
 
   const player = snapshotPlayer()
-  const enemy = snapshotEnemy()
-  if (!player || !enemy) return null
+  const enemies = snapshotEnemies()
+  if (!player || enemies.length === 0) return null
 
   const flashAge = performance.now() - lastFlashAtMs
   const showFlash = lastFlashZh && flashAge < 1500
 
   // Mouse over arena: track cursor in arena world coords. The combat tick
   // only consults this when shift is held (aimAtMouse=true); otherwise the
-  // helm auto-faces the enemy.
+  // helm holds its current orientation — there is no auto-face fallback.
   const onArenaMouseMove = (ev: React.MouseEvent<HTMLDivElement>) => {
     const r = rendererRef.current
     if (!r) return
@@ -390,7 +413,11 @@ export function TacticalView() {
       </div>
 
       <PlayerHud title={playerCls.nameZh} snap={player} />
-      <EnemyHud title={enemy.nameZh} snap={enemy} />
+      <div className="tactical-enemy-stack">
+        {enemies.map((en) => (
+          <EnemyHud key={en.key} title={en.nameZh} snap={en} />
+        ))}
+      </div>
 
       {showFlash && <div className="tactical-flash">{lastFlashZh}</div>}
 
@@ -419,7 +446,7 @@ export function TacticalView() {
       </div>
 
       <div className="tactical-hint">
-        WASD 操控旗舰 · 按住 Shift 让船头追随鼠标 · 武器在敌方进入射程时自动开火 · 空格切换暂停
+        WASD 操控旗舰 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停
       </div>
     </div>
   )

@@ -19,7 +19,10 @@ interface EngagementState {
   open: boolean
   enemyKey: string | null
   enemyShipClassId: string | null
-  prompt: (enemyKey: string, shipClassId: string) => void
+  // Lead ship's wingmen — joins the lead in the tactical arena. Empty
+  // = solo encounter.
+  enemyEscorts: string[]
+  prompt: (enemyKey: string, shipClassId: string, escorts: string[]) => void
   resolve: (choice: EngagementChoice) => void
   dismiss: () => void
 }
@@ -33,18 +36,24 @@ export const useEngagement = create<EngagementState>((set, get) => ({
   open: false,
   enemyKey: null,
   enemyShipClassId: null,
-  prompt(enemyKey, shipClassId) {
+  enemyEscorts: [],
+  prompt(enemyKey, shipClassId, escorts) {
     if (get().open) return
-    set({ open: true, enemyKey, enemyShipClassId: shipClassId })
+    set({ open: true, enemyKey, enemyShipClassId: shipClassId, enemyEscorts: escorts })
   },
   resolve(choice) {
     const s = get()
     if (!s.open) return
     const classId = s.enemyShipClassId
+    const escorts = s.enemyEscorts
     const key = s.enemyKey
-    set({ open: false, enemyKey: null, enemyShipClassId: null })
+    set({ open: false, enemyKey: null, enemyShipClassId: null, enemyEscorts: [] })
     if (choice === 'engage') {
-      if (classId) startCombat(resolveCombatClassId(classId), key)
+      if (classId) {
+        const escortClassIds = escorts
+          .map((id) => (isEnemyShipId(id) ? id : 'pirateLight'))
+        startCombat(resolveCombatClassId(classId), escortClassIds, key)
+      }
     } else if (choice === 'flee') {
       // Modal-flee disengages without committing to combat — applies the
       // flee penalty (hull/armor scuff + CR drain) since pulling away
@@ -55,7 +64,7 @@ export const useEngagement = create<EngagementState>((set, get) => ({
     }
   },
   dismiss() {
-    set({ open: false, enemyKey: null, enemyShipClassId: null })
+    set({ open: false, enemyKey: null, enemyShipClassId: null, enemyEscorts: [] })
   },
 }))
 
@@ -64,5 +73,10 @@ export const useEngagement = create<EngagementState>((set, get) => ({
 // resetSpaceSimFlags(); this companion call drops the modal store itself so a
 // load taken with the engagement modal open doesn't leave a ghost prompt.
 export function resetEngagementCooldowns(): void {
-  useEngagement.setState({ open: false, enemyKey: null, enemyShipClassId: null })
+  useEngagement.setState({
+    open: false,
+    enemyKey: null,
+    enemyShipClassId: null,
+    enemyEscorts: [],
+  })
 }

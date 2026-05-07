@@ -107,7 +107,8 @@ pass(`engaging ${target.key} at (${target.pos.x.toFixed(0)}, ${target.pos.y.toFi
 await page.evaluate((key) => {
   // pirateLight matches what enemyShips.json5 declares for the freighter
   // engagement; the smoke just needs a real entry that startCombat accepts.
-  window.__uclife__.startCombatCheat('pirateLight', key)
+  // No escorts — keep the smoke arena 1v1 so fastWinCombat is deterministic.
+  window.__uclife__.startCombatCheat('pirateLight', [], key)
 }, target.key)
 
 await waitFor(

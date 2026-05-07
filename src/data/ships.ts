@@ -38,8 +38,8 @@ export interface ShipDoorDef {
 export interface ShipMountDef {
   idx: number
   size: MountSize
-  arc: number       // total firing arc in radians
-  facing: number    // mount center angle in radians (0 = +x)
+  firingArcDeg: number    // total firing arc in degrees (e.g. 30 = ±15°)
+  facingDeg: number       // mount center direction in degrees (0 = forward, +90 = starboard)
 }
 
 export interface ShipClassDef {
@@ -127,8 +127,11 @@ for (const ship of parsed.ships) {
     if (!VALID_MOUNT_SIZES.has(m.size)) {
       throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} invalid size "${m.size}"`)
     }
-    if (m.arc <= 0 || m.arc > Math.PI * 2) {
-      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} arc must be in (0, 2π]`)
+    if (typeof m.firingArcDeg !== 'number' || m.firingArcDeg <= 0 || m.firingArcDeg > 360) {
+      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} firingArcDeg must be in (0, 360]`)
+    }
+    if (typeof m.facingDeg !== 'number') {
+      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} facingDeg must be a number`)
     }
   }
 

@@ -9,8 +9,8 @@ import type { MountSize } from './weapons'
 export interface EnemyMountDef {
   idx: number
   size: MountSize
-  arc: number
-  facing: number
+  firingArcDeg: number    // total firing arc in degrees
+  facingDeg: number       // mount center direction in degrees relative to ship
 }
 
 export interface EnemyShipBlueprint {
@@ -80,6 +80,12 @@ for (const ship of parsed.ships) {
     mountIdxSeen.add(m.idx)
     if (!VALID_SIZES.has(m.size)) {
       throw new Error(`enemyShips.json5: ship "${ship.id}" mount ${m.idx} invalid size`)
+    }
+    if (typeof m.firingArcDeg !== 'number' || m.firingArcDeg <= 0 || m.firingArcDeg > 360) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" mount ${m.idx} firingArcDeg must be in (0, 360]`)
+    }
+    if (typeof m.facingDeg !== 'number') {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" mount ${m.idx} facingDeg must be a number`)
     }
   }
 

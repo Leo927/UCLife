@@ -15,6 +15,7 @@ function shipClassLabel(id: string | null): string {
 export function EngagementModal() {
   const open = useEngagement((s) => s.open)
   const enemyShipClassId = useEngagement((s) => s.enemyShipClassId)
+  const enemyEscorts = useEngagement((s) => s.enemyEscorts)
   const resolve = useEngagement((s) => s.resolve)
   const dismiss = useEngagement((s) => s.dismiss)
 
@@ -29,6 +30,11 @@ export function EngagementModal() {
 
   if (!open) return null
 
+  const fleetCount = 1 + enemyEscorts.length
+  const escortLine = enemyEscorts.length > 0
+    ? `护航: ${enemyEscorts.map(shipClassLabel).join(' · ')}`
+    : null
+
   return (
     <div className="status-overlay">
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
@@ -37,7 +43,10 @@ export function EngagementModal() {
           <button className="status-close" onClick={dismiss} aria-label="关闭">✕</button>
         </header>
         <section className="status-section">
-          <p className="map-place-desc">敌方: {shipClassLabel(enemyShipClassId)}</p>
+          <p className="map-place-desc">
+            旗舰: {shipClassLabel(enemyShipClassId)} · 共 {fleetCount} 艘
+          </p>
+          {escortLine && <p className="map-place-desc">{escortLine}</p>}
         </section>
         <section className="status-section" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
           <button onClick={() => resolve('negotiate')}>尝试谈判</button>

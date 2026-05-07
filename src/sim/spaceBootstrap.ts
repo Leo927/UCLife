@@ -117,6 +117,7 @@ export function bootstrapSpaceCampaign(): void {
       Thrust({ ax: 0, ay: 0 }),
       EnemyAI({
         shipClassId: e.shipClassId,
+        escorts: [...(e.escorts ?? [])],
         mode: e.aiMode,
         patrolPath: [...(e.patrolPath ?? [])],
         patrolIdx: 0,

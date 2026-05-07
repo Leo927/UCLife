@@ -50,11 +50,17 @@ export interface BeamFlashVisual {
   ownerSide: 'player' | 'enemy'
 }
 
+export interface EnemyShipSnap extends ShipSnap {
+  /** Stable id used to keep the same Pixi node attached across frames
+   *  (so hull/shield Graphics aren't rebuilt every tick). */
+  id: number
+}
+
 export interface TacticalSnapshot {
   arenaW: number
   arenaH: number
   player: ShipSnap | null
-  enemy: ShipSnap | null
+  enemies: EnemyShipSnap[]
   projectiles: ProjectileVisual[]
   beams: BeamFlashVisual[]
 }
@@ -88,14 +94,14 @@ export class PixiTacticalRenderer {
   private root: Container
   private border: Graphics
   private playerNode: ShipNode
-  private enemyNode: ShipNode
+  private enemyNodes = new Map<number, ShipNode>()
+  private enemyShipLayer: Container
   private projectileLayer: Container
   private beamLayer: Graphics
   private projectileNodes = new Map<number, Graphics>()
   private destroyed = false
   private beamLayerAttached = false
   private playerAttached = false
-  private enemyAttached = false
   private arenaW: number
   private arenaH: number
   private viewW: number
@@ -129,9 +135,9 @@ export class PixiTacticalRenderer {
     // Ships rendered above projectiles, so projectile streams don't
     // visually intersect ship cores. Same lazy-attach pattern.
     this.playerNode = this.makeShipNode()
-    this.enemyNode = this.makeShipNode()
+    this.enemyShipLayer = new Container()
+    this.root.addChild(this.enemyShipLayer)
     this.playerAttached = false
-    this.enemyAttached = false
 
     this.applyFit()
   }
@@ -187,8 +193,8 @@ export class PixiTacticalRenderer {
     const PROF = tacticalStats.enabled
     const t0 = PROF ? performance.now() : 0
 
-    this.syncShip(this.playerNode, snap.player)
-    this.syncShip(this.enemyNode, snap.enemy)
+    this.syncPlayer(snap.player)
+    this.syncEnemies(snap.enemies)
     this.syncProjectiles(snap.projectiles)
     this.syncBeams(snap.beams)
 
@@ -199,23 +205,44 @@ export class PixiTacticalRenderer {
     }
   }
 
-  private syncShip(node: ShipNode, snap: ShipSnap | null): void {
+  private syncPlayer(snap: ShipSnap | null): void {
+    const node = this.playerNode
     if (!snap) {
       node.hull.visible = false
       node.shield.visible = false
       return
     }
-    // Lazy-attach: only add to stage once we have geometry to show.
-    const isPlayer = node === this.playerNode
-    if (isPlayer && !this.playerAttached) {
+    if (!this.playerAttached) {
       this.root.addChild(node.shield)
       this.root.addChild(node.hull)
       this.playerAttached = true
-    } else if (!isPlayer && !this.enemyAttached) {
-      this.root.addChild(node.shield)
-      this.root.addChild(node.hull)
-      this.enemyAttached = true
     }
+    this.drawShip(node, snap)
+  }
+
+  private syncEnemies(snaps: EnemyShipSnap[]): void {
+    const seen = new Set<number>()
+    for (const s of snaps) {
+      seen.add(s.id)
+      let node = this.enemyNodes.get(s.id)
+      if (!node) {
+        node = this.makeShipNode()
+        this.enemyShipLayer.addChild(node.shield)
+        this.enemyShipLayer.addChild(node.hull)
+        this.enemyNodes.set(s.id, node)
+      }
+      this.drawShip(node, s)
+    }
+    for (const [id, node] of this.enemyNodes) {
+      if (!seen.has(id)) {
+        node.hull.destroy()
+        node.shield.destroy()
+        this.enemyNodes.delete(id)
+      }
+    }
+  }
+
+  private drawShip(node: ShipNode, snap: ShipSnap): void {
     node.hull.visible = true
     node.shield.visible = snap.shieldAlpha > 0.05
 

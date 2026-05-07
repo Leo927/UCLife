@@ -894,6 +894,8 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
         mountIdx: m.idx,
         weaponId: wid,
         size: m.size,
+        firingArcRad: (m.firingArcDeg * Math.PI) / 180,
+        facingRad: (m.facingDeg * Math.PI) / 180,
         chargeSec: 0,
         ready: false,
         targetIdx: 0,

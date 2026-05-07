@@ -18,20 +18,27 @@ registerDebugHandle('useEngagement', useEngagement)
 
 // Skip the contact-detection + modal flow for smoke tests / dev poking —
 // jump straight into a tactical engagement against the named enemy class.
-// The optional second arg is the campaign-world EntityKey of the enemy
-// (so victory can clean up the right pirate); omit for synthetic combat.
-registerDebugHandle('startCombatCheat', (enemyShipId: string, campaignEnemyKey: string | null = null) => {
-  startCombat(enemyShipId, campaignEnemyKey)
+// The optional escortIds arg lists wingmen that join the lead in the arena.
+// The campaignEnemyKey arg is the spaceCampaign EntityKey of the lead (so
+// victory can clean up the right pirate); omit for synthetic combat.
+registerDebugHandle('startCombatCheat', (
+  enemyShipId: string,
+  escortIds: string[] = [],
+  campaignEnemyKey: string | null = null,
+) => {
+  startCombat(enemyShipId, escortIds, campaignEnemyKey)
   return true
 })
 
 registerDebugHandle('fastWinCombat', () => {
   const w = getWorld('playerShipInterior')
-  const enemy = w.queryFirst(EnemyShipState)
-  if (!enemy) return false
-  const cur = enemy.get(EnemyShipState)!
-  enemy.set(EnemyShipState, { ...cur, hullCurrent: 0 })
-  return true
+  let touched = false
+  for (const enemy of w.query(EnemyShipState)) {
+    const cur = enemy.get(EnemyShipState)!
+    enemy.set(EnemyShipState, { ...cur, hullCurrent: 0 })
+    touched = true
+  }
+  return touched
 })
 
 registerDebugHandle('listEnemies', () => {

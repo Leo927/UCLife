@@ -5,10 +5,10 @@
 // encounter rolls — every threat the player meets is one of these
 // entities, visible on the map at all times.
 //
-// shipClassId references src/data/ships.json5. Slice 1 only stores the
-// id; slice 5 wires it through the ship spawner. If the id doesn't exist
-// in ships.json5 yet, the loader still accepts the entry (the spawner
-// will be the place to bind hull stats).
+// shipClassId references src/data/enemyShips.json5; it's the lead ship
+// of the fleet. `escorts` is an optional list of additional ship class
+// IDs that appear alongside the lead in the tactical engagement —
+// combat resolves 1 vs (1 + escorts.length).
 //
 // Coordinates are absolute world px in a 30000 × 24000 sector. The shoal
 // zone sits between Sides 5/6 around the lunar shell (y≈12000); the
@@ -16,10 +16,13 @@
 {
   entities: [
     // Shoal-zone pirate skirmishers — patrol loops between Sides 5/6 area.
+    // Each patrol cell rolls with one wingman, so a Von Braun graduate
+    // hits 1v2 from the very first run.
     {
       id: 'pirate-shoal-1',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 9500, y: 11200 },
       aiMode: 'patrol',
       patrolPath: [
@@ -35,6 +38,7 @@
       id: 'pirate-shoal-2',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 11800, y: 12600 },
       aiMode: 'patrol',
       patrolPath: [
@@ -49,6 +53,7 @@
       id: 'pirate-shoal-3',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 10200, y: 13800 },
       aiMode: 'idle',
       aggroRadius: 500,
@@ -58,6 +63,7 @@
       id: 'pirate-shoal-4',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 8400, y: 13200 },
       aiMode: 'patrol',
       patrolPath: [
@@ -78,6 +84,7 @@
       id: 'pirate-lunar-1',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 19600, y: 11400 },
       aiMode: 'patrol',
       patrolPath: [
@@ -93,6 +100,7 @@
       id: 'pirate-lunar-2',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 18400, y: 10800 },
       aiMode: 'patrol',
       patrolPath: [
@@ -108,15 +116,19 @@
       id: 'pirate-lunar-3',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 20000, y: 13200 },
       aiMode: 'idle',
       aggroRadius: 500,
       fleeHullPct: 0.20,
     },
+    // Lunar raider with two skirmisher wingmen — heaviest near-moon
+    // engagement, 1v3.
     {
       id: 'pirate-lunar-4',
       kind: 'enemyShip',
       shipClassId: 'pirate_raider',
+      escorts: ['pirate_skirmisher', 'pirate_skirmisher'],
       spawn: { x: 19400, y: 12600 },
       aiMode: 'patrol',
       patrolPath: [
@@ -134,6 +146,7 @@
       id: 'pirate-outer-1',
       kind: 'enemyShip',
       shipClassId: 'pirate_raider',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 27000, y: 8400 },
       aiMode: 'patrol',
       patrolPath: [
@@ -148,6 +161,7 @@
       id: 'pirate-outer-2',
       kind: 'enemyShip',
       shipClassId: 'pirate_raider',
+      escorts: ['pirate_skirmisher'],
       spawn: { x: 4200, y: 18800 },
       aiMode: 'idle',
       aggroRadius: 800,

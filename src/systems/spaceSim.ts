@@ -280,7 +280,7 @@ export function spaceSimSystem(world: World, dtSec: number): void {
       }
       enemyOutOfAggro.delete(ek)
       engagementCooldownByKey.set(ek, nowMs + ENGAGEMENT_COOLDOWN_MS)
-      useEngagement.getState().prompt(ek, ai.shipClassId)
+      useEngagement.getState().prompt(ek, ai.shipClassId, ai.escorts)
       break
     }
   }
