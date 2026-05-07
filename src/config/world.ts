@@ -7,6 +7,7 @@ export interface WorldConfig {
   movePxPerGameMin: number
   arriveEpsPx: number
   waypointEpsPx: number
+  holdMoveRetargetPx: number
   ranges: {
     playerInteract: number
     counterStaffed: number
@@ -24,6 +25,7 @@ export interface WorldConfig {
   }
   activeZone: {
     activeRadiusTiles: number
+    viewportBleedTiles: number
     hysteresisTiles: number
     membershipTickMin: number
     inactiveSlowFactor: number

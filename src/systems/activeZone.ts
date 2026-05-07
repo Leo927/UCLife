@@ -1,12 +1,15 @@
-// Active = within activeRadiusTiles of the player's Position. Hysteresis:
-// demotion uses a wider square (activeRadiusTiles + hysteresisTiles) so
-// edge-walkers don't flap. Demote-to-teleport: an NPC with an outside
-// MoveTarget jumps straight to it on demote rather than paying per-frame A*
-// across I. Inactive→teleport on BT-set MoveTarget is in agent.setMoveTarget.
+// Active = inside the player-centered active rect. The rect is the larger
+// of (a) a sim-domain floor sized by activeRadiusTiles and (b) the renderer
+// viewport (pushed each layout effect via setViewportHint), padded on every
+// edge by viewportBleedTiles so NPCs flip Active before they cross into
+// view. Per-axis: a wide-but-short window stays wide on x and floor-bound
+// on y. Headless callers never push a hint, so the rect stays at the floor
+// and `npm run test:unit` matches the pre-renderer-aware behavior.
 //
-// "Active" is a sim-domain question — NPCs alive near the player. The
-// partitioner reads the player's Position from the world, not the camera
-// viewport, so the sim runs identically headless and on the renderer.
+// Hysteresis: demotion uses a wider rect (active + hysteresisTiles on each
+// side) so edge-walkers don't flap. Demote-to-teleport: an NPC with an
+// outside MoveTarget jumps straight to it rather than paying per-frame A*
+// across I. Inactive→teleport on BT-set MoveTarget is in agent.setMoveTarget.
 
 import { trait } from 'koota'
 import type { Entity, World } from 'koota'
@@ -18,7 +21,8 @@ import { worldConfig } from '../config'
 import { worldSingleton } from '../ecs/resources'
 
 const TILE = worldConfig.tilePx
-const RADIUS_PX = worldConfig.activeZone.activeRadiusTiles * TILE
+const FLOOR_HALF_PX = worldConfig.activeZone.activeRadiusTiles * TILE
+const BLEED_PX = worldConfig.activeZone.viewportBleedTiles * TILE
 const HYST_PX = worldConfig.activeZone.hysteresisTiles * TILE
 const TICK_MS = worldConfig.activeZone.membershipTickMin * 60 * 1000
 
@@ -30,29 +34,58 @@ type Bounds = { x0: number; y0: number; x1: number; y1: number }
 // whichever scene wasn't ticked last).
 const ActiveZoneState = trait({ lastTickGameMs: -Infinity })
 
+// Renderer-pushed viewport hint, in CSS pixels. Zero means "no hint" — the
+// active zone falls back to the floor radius. The renderer rewrites this on
+// every canvas resize (Game.tsx), so the value reflects the real viewport
+// not the world dimensions.
+const ViewportHint = trait({ widthPx: 0, heightPx: 0 })
+
 function stateOf(world: World): Entity {
   const e = worldSingleton(world)
   if (!e.has(ActiveZoneState)) e.add(ActiveZoneState)
   return e
 }
 
+function viewportOf(world: World): { widthPx: number; heightPx: number } {
+  const e = worldSingleton(world)
+  if (!e.has(ViewportHint)) return { widthPx: 0, heightPx: 0 }
+  return e.get(ViewportHint)!
+}
+
+export function setViewportHint(world: World, widthPx: number, heightPx: number): void {
+  const e = worldSingleton(world)
+  if (!e.has(ViewportHint)) e.add(ViewportHint)
+  e.set(ViewportHint, { widthPx, heightPx })
+}
+
 export function resetActiveZone(world: World): void {
   const e = stateOf(world)
   e.set(ActiveZoneState, { lastTickGameMs: -Infinity })
+  if (e.has(ViewportHint)) e.set(ViewportHint, { widthPx: 0, heightPx: 0 })
+}
+
+function effectiveHalfExtents(world: World): { halfWidthPx: number; halfHeightPx: number } {
+  const v = viewportOf(world)
+  const fromViewportW = v.widthPx > 0 ? v.widthPx / 2 + BLEED_PX : 0
+  const fromViewportH = v.heightPx > 0 ? v.heightPx / 2 + BLEED_PX : 0
+  return {
+    halfWidthPx: Math.max(FLOOR_HALF_PX, fromViewportW),
+    halfHeightPx: Math.max(FLOOR_HALF_PX, fromViewportH),
+  }
 }
 
 // Returns null when the world has no player entity yet — callers treat that
 // as "be permissive" (e.g. headless boot, between scene swaps).
-function bounds(world: World, halfExtentPx: number): Bounds | null {
+function bounds(world: World, halfWidthPx: number, halfHeightPx: number): Bounds | null {
   const player = world.queryFirst(IsPlayer, Position)
   if (!player) return null
   const pos = player.get(Position)
   if (!pos) return null
   return {
-    x0: pos.x - halfExtentPx,
-    y0: pos.y - halfExtentPx,
-    x1: pos.x + halfExtentPx,
-    y1: pos.y + halfExtentPx,
+    x0: pos.x - halfWidthPx,
+    y0: pos.y - halfHeightPx,
+    x1: pos.x + halfWidthPx,
+    y1: pos.y + halfHeightPx,
   }
 }
 
@@ -62,7 +95,8 @@ const inside = (x: number, y: number, b: Bounds): boolean =>
 // Permissive (returns true) when no player entity exists, so callers don't
 // teleport prematurely during headless boot or scene transitions.
 export function isPointInActiveZone(world: World, x: number, y: number): boolean {
-  const b = bounds(world, RADIUS_PX)
+  const { halfWidthPx, halfHeightPx } = effectiveHalfExtents(world)
+  const b = bounds(world, halfWidthPx, halfHeightPx)
   if (!b) return true
   return inside(x, y, b)
 }
@@ -95,7 +129,8 @@ export function activeZoneSystem(world: World, gameMs: number): void {
   if (gameMs - s.lastTickGameMs < TICK_MS) return
   e.set(ActiveZoneState, { lastTickGameMs: gameMs })
 
-  const promoteBox = bounds(world, RADIUS_PX)
+  const { halfWidthPx, halfHeightPx } = effectiveHalfExtents(world)
+  const promoteBox = bounds(world, halfWidthPx, halfHeightPx)
   if (!promoteBox) {
     // Headless / no-player: mark every Character Active so BT and render
     // filters behave like the pre-active-zone version.
@@ -104,7 +139,7 @@ export function activeZoneSystem(world: World, gameMs: number): void {
     }
     return
   }
-  const demoteBox = bounds(world, RADIUS_PX + HYST_PX)!
+  const demoteBox = bounds(world, halfWidthPx + HYST_PX, halfHeightPx + HYST_PX)!
 
   for (const entity of world.query(Character, Position)) {
     if (entity.has(IsPlayer)) {

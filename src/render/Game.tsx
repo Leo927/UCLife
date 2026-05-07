@@ -45,17 +45,19 @@ import {
 import { useCamera } from './cameraStore'
 import { useCombatStore } from '../systems/combat'
 import { BED_MULTIPLIERS, bedActiveOccupant } from '../systems/bed'
+import { setViewportHint } from '../systems/activeZone'
 import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
 import { useUI } from '../ui/uiStore'
 import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
-import { getActiveSceneDimensions, world } from '../ecs/world'
+import { getActiveSceneDimensions, getActiveSceneId, getWorld, world } from '../ecs/world'
 import { startAnimTicker, useAnimTick } from './sprite/animTick'
 import type { LpcDirection } from './sprite/types'
 import type { BedTier } from '../ecs/traits'
 
 const TILE = worldConfig.tilePx
+const HOLD_RETARGET_PX = worldConfig.holdMoveRetargetPx
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x))
 
@@ -111,8 +113,10 @@ export function Game() {
   // The HUD overlay also needs the player ring color, but that's computed
   // per-frame in the renderer below from a fresh ECS read.
 
-  // Mirror viewport into the camera store for activeZoneSystem. Effect-based
+  // Mirror viewport into the camera store and active-zone hint. Effect-based
   // to avoid a side-effect during render; the store coalesces no-op writes.
+  // The active-zone hint goes to the active scene's un-proxied world so the
+  // worldSingleton WeakMap doesn't cache against the cross-scene proxy.
   const playerPosForCam = useTrait(useQueryFirst(IsPlayer, Position) ?? null, Position)
   const camX = playerPosForCam ? clamp(playerPosForCam.x - canvas.w / 2, 0, Math.max(0, W - canvas.w)) : 0
   const camY = playerPosForCam ? clamp(playerPosForCam.y - canvas.h / 2, 0, Math.max(0, H - canvas.h)) : 0
@@ -120,6 +124,9 @@ export function Game() {
     useCamera.getState().setCamera({ canvasW: canvas.w, canvasH: canvas.h, camX, camY })
     camRef.current = { x: camX, y: camY }
   }, [canvas.w, canvas.h, camX, camY])
+  useEffect(() => {
+    setViewportHint(getWorld(getActiveSceneId()), canvas.w, canvas.h)
+  }, [canvas.w, canvas.h])
 
   // Snapshot-and-render loop. RAF-paced; cheap to drive every frame because
   // the renderer is incremental.
@@ -302,6 +309,32 @@ export function Game() {
 
   // Background click → move-to. Pixi's per-DisplayObject events stopPropagation
   // when an NPC/interactable is hit, so this only fires on empty space.
+  // Press-and-hold keeps re-issuing MoveTarget at the cursor while held, so
+  // the player follows a dragged pointer without repeated clicks. The Pixi
+  // node handlers already stopPropagation on pointerdown, so pressingRef only
+  // flips for true background presses — dragging *after* an NPC click won't
+  // yank the player.
+  const pressingRef = useRef(false)
+  const lastHoldTargetRef = useRef({ x: 0, y: 0 })
+
+  const pointerToWorld = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const sx = e.clientX - rect.left
+    const sy = e.clientY - rect.top
+    return {
+      x: clamp(sx + camRef.current.x, 0, W),
+      y: clamp(sy + camRef.current.y, 0, H),
+    }
+  }
+
+  const issueMoveTarget = (x: number, y: number) => {
+    const player = world.queryFirst(IsPlayer, Position)
+    if (!player) return
+    player.set(MoveTarget, { x, y })
+    if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    lastHoldTargetRef.current = { x, y }
+  }
+
   const onCanvasPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     const player = world.queryFirst(IsPlayer, Position)
     if (!player) return
@@ -319,15 +352,26 @@ export function Game() {
       // Off-station background click leaves the job (matches legacy behavior).
       player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
-    const rect = e.currentTarget.getBoundingClientRect()
-    const sx = e.clientX - rect.left
-    const sy = e.clientY - rect.top
-    const lx = sx + camRef.current.x
-    const ly = sy + camRef.current.y
-    const x = clamp(lx, 0, W)
-    const y = clamp(ly, 0, H)
-    player.set(MoveTarget, { x, y })
-    if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    const { x, y } = pointerToWorld(e)
+    issueMoveTarget(x, y)
+    pressingRef.current = true
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onCanvasPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pressingRef.current) return
+    const { x, y } = pointerToWorld(e)
+    const last = lastHoldTargetRef.current
+    if (Math.hypot(x - last.x, y - last.y) < HOLD_RETARGET_PX) return
+    issueMoveTarget(x, y)
+  }
+
+  const endHold = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pressingRef.current) return
+    pressingRef.current = false
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
   }
 
   return (
@@ -336,6 +380,9 @@ export function Game() {
         className="game-stage"
         style={{ width: canvas.w, height: canvas.h, position: 'relative' }}
         onPointerDown={onCanvasPointerDown}
+        onPointerMove={onCanvasPointerMove}
+        onPointerUp={endHold}
+        onPointerCancel={endHold}
       >
         <div className="game-canvas" style={{ width: canvas.w, height: canvas.h }}>
           <PixiCanvas

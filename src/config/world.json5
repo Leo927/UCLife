@@ -26,6 +26,12 @@
   arriveEpsPx: 0.5,
   waypointEpsPx: 2,
 
+  // Press-and-hold ground-click drives the player to the cursor every move
+  // event; this threshold avoids re-running findPath() for sub-tile mouse
+  // jitter. Re-target only fires when the cursor has moved at least this
+  // many world pixels from the last issued destination.
+  holdMoveRetargetPx: 16,
+
   // Range checks (in pixels). Each describes a different relationship —
   // edit independently if you want, e.g., to make the player able to use
   // distant interactables without making NPCs count as "at" their station.
@@ -64,22 +70,29 @@
     colorCss: '#ffaa00',
   },
 
-  // Active-zone optimization. NPCs whose Position lies within
-  // activeRadiusTiles of the player are "Active": rendered, BT at full
-  // cadence, vitals at full per-tick rate. Outside, they're "Inactive": no
-  // graphics, BT at coarse cadence, vitals scaled by inactiveSlowFactor.
-  // Only matters at scale — on a small map every NPC is always Active. Tune
-  // when enlarging the map.
+  // Active-zone optimization. NPCs whose Position lies within the player's
+  // active half-extents are "Active": rendered, BT at full cadence, vitals
+  // at full per-tick rate. Outside, they're "Inactive": no graphics, BT at
+  // coarse cadence, vitals scaled by inactiveSlowFactor. Only matters at
+  // scale — on a small map every NPC is always Active.
   activeZone: {
-    // Square half-extent (in tiles) around the player's Position that still
-    // counts as Active. Sim-domain — independent of the camera viewport, so
-    // the sim can run headless. Bigger = more NPCs to fully simulate but
-    // less risk of edge NPCs (combat, chat partners) freezing just past the
-    // visible area.
+    // Floor square half-extent (in tiles) around the player's Position.
+    // Used when no renderer viewport hint is available (headless tests, the
+    // brief gap during scene swaps). When Game.tsx is mounted, it pushes the
+    // canvas dimensions via setViewportHint() and the effective half-extents
+    // become max(this floor, viewport/2 + viewportBleedTiles) per axis — the
+    // zone may grow above the floor but never shrink below it. Keep the floor
+    // generous enough that headless sims behave like the player-facing build.
     activeRadiusTiles: 24,
-    // Extra tiles past activeRadiusTiles that an Active NPC must exit before
-    // being demoted to Inactive. Hysteresis — prevents render/cadence flap
-    // for NPCs walking the boundary.
+    // Extra tiles past the visible viewport edge that count as Active.
+    // Promotion buffer — NPCs flip to Active slightly before they cross into
+    // view, giving the membership tick time to fire before the player can see
+    // the popped state. Should be at least a few NPC walking-tiles per
+    // membership tick at the highest game speed the renderer is mounted at.
+    viewportBleedTiles: 4,
+    // Extra tiles past the active half-extent that an Active NPC must exit
+    // before being demoted to Inactive. Hysteresis — prevents render/cadence
+    // flap for NPCs walking the boundary.
     hysteresisTiles: 2,
     // Game-minutes between active/inactive recomputations. The player's
     // camera can't move enough in one game-minute to matter; checking

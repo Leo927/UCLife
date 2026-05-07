@@ -3,11 +3,12 @@ import { createWorld } from 'koota'
 import {
   Action, Active, Character, Health, IsPlayer, MoveTarget, Position,
 } from '../ecs/traits'
-import { activeZoneSystem, isPointInActiveZone } from './activeZone'
+import { activeZoneSystem, isPointInActiveZone, setViewportHint } from './activeZone'
 import { worldConfig } from '../config'
 
 const TILE = worldConfig.tilePx
 const RADIUS_PX = worldConfig.activeZone.activeRadiusTiles * TILE
+const BLEED_PX = worldConfig.activeZone.viewportBleedTiles * TILE
 const HYST_PX = worldConfig.activeZone.hysteresisTiles * TILE
 const TICK_MS = worldConfig.activeZone.membershipTickMin * 60 * 1000
 
@@ -148,6 +149,41 @@ describe('activeZoneSystem (player-radius model)', () => {
     // per-world, not shared with w1's huge timestamp).
     activeZoneSystem(w2, 0)
     expect(npc2.has(Active)).toBe(false)
+  })
+})
+
+describe('activeZoneSystem (viewport-driven half-extents)', () => {
+  it('viewport hint above the floor expands the zone, with bleed past the viewport edge and a hard cutoff beyond', () => {
+    const world = createWorld()
+    spawnPlayer(world, 1000, 1000)
+    // Viewport wide enough that viewport/2 dominates over the floor on x.
+    const halfViewportPx = RADIUS_PX + TILE * 8
+    setViewportHint(world, halfViewportPx * 2, TILE * 4)
+    // (a) Outside floor radius, inside viewport — must be Active.
+    const insideViewport = spawnNpc(world, 1000 + RADIUS_PX + TILE * 5, 1000)
+    // (b) Just past the viewport edge but inside the bleed band — must be Active.
+    const insideBleed = spawnNpc(world, 1000 + halfViewportPx + Math.floor(BLEED_PX / 2), 1000)
+    // (c) Well past viewport + bleed + hysteresis — must be Inactive.
+    const beyond = spawnNpc(world, 1000 + halfViewportPx + BLEED_PX + HYST_PX + TILE * 4, 1000)
+
+    activeZoneSystem(world, 0)
+
+    expect(insideViewport.has(Active)).toBe(true)
+    expect(insideBleed.has(Active)).toBe(true)
+    expect(beyond.has(Active)).toBe(false)
+  })
+
+  it('viewport hint smaller than the floor does not shrink the active zone', () => {
+    const world = createWorld()
+    spawnPlayer(world, 1000, 1000)
+    setViewportHint(world, TILE * 4, TILE * 4)
+    // Inside the floor radius but well outside the tiny viewport — the floor
+    // is the lower bound, so must still be Active.
+    const npc = spawnNpc(world, 1000 + RADIUS_PX - 5, 1000)
+
+    activeZoneSystem(world, 0)
+
+    expect(npc.has(Active)).toBe(true)
   })
 })
 
