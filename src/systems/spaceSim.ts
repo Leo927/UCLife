@@ -146,7 +146,7 @@ export function spaceSimSystem(world: World, dtSec: number): void {
         { x: tx, y: ty },
         spaceConfig.thrustAccel,
         maxSpeed,
-        spaceConfig.dockSnapRadius,
+        spaceConfig.autopilotArriveRadiusPx,
       )
       e.set(Thrust, { ax: r.thrust.ax, ay: r.thrust.ay })
       if (r.arrived) {

@@ -47,4 +47,11 @@
   // of a POI's derived position targets the POI specifically; outside
   // this, clicks resolve to free-space coordinates.
   dockSnapRadius: 80,
+
+  // Autopilot arrival tolerance, in world px. The ship declares the
+  // course complete once it is within this distance and below
+  // arrivalSpeed. Keep small so free-space "go here" clicks land at the
+  // actual cursor — POI auto-dock courses still snap Position to the live
+  // POI on arrival, so this doesn't affect docking accuracy.
+  autopilotArriveRadiusPx: 4,
 }

@@ -13,6 +13,7 @@ export interface SpaceConfig {
   aggroContactRadius: number
   fitSystemPaddingPx: number
   dockSnapRadius: number
+  autopilotArriveRadiusPx: number
 }
 
 export const spaceConfig = json5.parse(raw) as SpaceConfig
