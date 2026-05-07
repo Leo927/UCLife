@@ -1,6 +1,5 @@
-// Trait-identity quirks with dynamic imports under Vite mean we can't
-// reliably drive the full transition (player teleport + clock advance) from
-// outside the running app — that path is exercised by manual playthrough.
+// Map + flight-modal contents only — the actual scene-swap round-trip
+// is exercised by check-scene-swap.
 
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
@@ -27,13 +26,17 @@ const mapNames = await page.evaluate(() =>
 )
 console.log('Map place names:', mapNames)
 
-const expectedPlaces = ['冯·布劳恩中心区', '安那海姆电子总部', '冯·布劳恩航天港']
-const allPresent = expectedPlaces.every((p) => mapNames.includes(p))
+// Default zoom shows tier-1 places (districts) only. Complexes + airports
+// are revealed at higher zoom — they're covered separately by the tier
+// math in useMapView. Asserting on the district list is the right
+// granularity for the smoke surface.
+const expectedDistricts = ['冯·布劳恩中心区', 'AE 工业区']
+const allPresent = expectedDistricts.every((p) => mapNames.includes(p))
 if (allPresent) {
-  console.log('PASS · vonBraunCity places on map')
+  console.log('PASS · vonBraunCity districts on map')
 } else {
-  failures.push('missing place(s) on map')
-  console.log('FAIL · missing place(s)')
+  failures.push(`missing district(s) on map; got ${JSON.stringify(mapNames)}`)
+  console.log('FAIL · missing district(s)')
 }
 
 await page.screenshot({ path: 'scripts/out/flight-map.png', fullPage: false })

@@ -1,3 +1,8 @@
+// Save → advance sim time → load → verify the clock round-tripped.
+// Driven entirely through __uclife__: pause via useClock.setSpeed(0),
+// save/load via the saveGame/loadGame handles (same code path as the
+// system menu), advance via advanceGameDays — no real-time waits.
+
 import { chromium } from 'playwright'
 
 const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
@@ -8,57 +13,57 @@ const page = await ctx.newPage()
 
 const errors = []
 page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
-page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
+page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+
+await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(
+  () => typeof globalThis.__uclife__?.saveGame === 'function'
+    && typeof globalThis.__uclife__?.loadGame === 'function'
+    && typeof globalThis.__uclife__?.advanceGameDays === 'function'
+    && typeof globalThis.__uclife__?.useClock?.getState === 'function',
+  null,
+  { timeout: 30_000 },
+)
+
+const readClock = () => page.evaluate(() => globalThis.__uclife__.useClock.getState().gameDate.getTime())
+
+await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+
+const savedClock = await readClock()
+const saveResult = await page.evaluate(async () => {
+  await globalThis.__uclife__.saveGame(1)
+  return true
 })
+if (!saveResult) errors.push('saveGame returned falsy')
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(800)
+await page.evaluate(() => globalThis.__uclife__.advanceGameDays(2))
+const advancedClock = await readClock()
 
-// Pause first so save captures a stable clock.
-await page.locator('.hud-controls button', { hasText: '暂停' }).click()
-await page.waitForTimeout(200)
-
-const openSystem = async () => {
-  await page.locator('button.hud-system').click()
-  await page.waitForTimeout(300)
+const loadResult = await page.evaluate(async () => globalThis.__uclife__.loadGame(1))
+if (!loadResult || loadResult.ok !== true) {
+  errors.push(`loadGame failed: ${JSON.stringify(loadResult)}`)
 }
-const closeSystem = async () => {
-  await page.locator('.status-overlay').click({ position: { x: 5, y: 5 } }).catch(() => {})
-  await page.waitForTimeout(200)
-}
-const slotRow = (label) => page.locator('.debug-row', { has: page.locator('.debug-row-label', { hasText: label }) })
 
-await openSystem()
-await slotRow('存档 1').locator('button.debug-action', { hasText: '保存' }).click()
-await page.waitForTimeout(800)
+const reloadedClock = await readClock()
 
-const savedClock = await page.locator('.hud-title').textContent()
+console.log('saved   :', new Date(savedClock).toISOString())
+console.log('advanced:', new Date(advancedClock).toISOString())
+console.log('reloaded:', new Date(reloadedClock).toISOString())
 
-await closeSystem()
-await page.locator('.hud-controls button', { hasText: '4×' }).click()
-await page.waitForTimeout(2500)
-
-const advancedClock = await page.locator('.hud-title').textContent()
-
-await openSystem()
-await slotRow('存档 1').locator('button.debug-action', { hasText: '读档' }).click()
-await page.waitForTimeout(1500)
-await closeSystem()
-
-const reloadedClock = await page.locator('.hud-title').textContent()
-
-console.log('saved   :', savedClock)
-console.log('advanced:', advancedClock)
-console.log('reloaded:', reloadedClock)
+const failures = []
+if (savedClock === advancedClock) failures.push('advanceGameDays did not advance the clock')
+if (savedClock !== reloadedClock) failures.push(`reloaded clock ${reloadedClock} != saved ${savedClock}`)
 
 if (errors.length) {
   console.log('\nERRORS:')
   errors.forEach((e) => console.log('  ' + e))
 }
-
-const ok = savedClock === reloadedClock && savedClock !== advancedClock && errors.length === 0
-console.log(ok ? '\nOK: round-trip restored clock.' : '\nFAIL: round-trip did not pass.')
-if (!ok) process.exitCode = 1
+if (failures.length) {
+  console.log('\nFAILURES:')
+  failures.forEach((f) => console.log('  ' + f))
+}
 
 await browser.close()
+
+if (errors.length || failures.length) process.exit(1)
+console.log('\nOK: save/load round-trip restored the clock.')
