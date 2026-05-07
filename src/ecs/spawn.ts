@@ -855,6 +855,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       armorCurrent: cls.armorMax, armorMax: cls.armorMax,
       fluxMax: cls.fluxMax, fluxCurrent: 0,
       fluxDissipation: cls.fluxDissipation,
+      hasShield: cls.hasShield,
       shieldEfficiency: cls.shieldEfficiency,
       topSpeed: cls.topSpeed,
       maneuverability: cls.maneuverability,

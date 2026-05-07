@@ -2,11 +2,16 @@
 //
 // Schema (see enemyShips.ts):
 //   id, nameZh, descZh
-//   hullMax, armorMax, fluxMax, fluxDissipation, shieldEfficiency
+//   hullMax, armorMax, fluxMax, fluxDissipation, hasShield, shieldEfficiency
 //   topSpeed, maneuverability
 //   mounts[]   — same hardpoint shape as ships.json5
 //   defaultWeapons[] — ordered list bound to mounts
 //   ai — { aggression: 0..1, retreatThresholdPct: 0..1, maintainRange: number }
+//
+// Ship-level energy shields don't exist in UC, so all ship classes here
+// declare hasShield=false. Damage routes straight to armor + hull. Flux
+// still gates weapon power output. The shield mechanism stays reachable
+// in code for end-game MS that earn shield generators.
 //
 // Phase 6.0 spine ships three classes. pirateLight is the baseline learner;
 // pirate_skirmisher and pirate_raider are the campaign-map roster referenced
@@ -22,7 +27,8 @@
       armorMax: 100,
       fluxMax: 1000,
       fluxDissipation: 50,
-      shieldEfficiency: 1.2,    // worse-than-neutral; takes more flux per damage
+      hasShield: false,
+      shieldEfficiency: 1.0,
       topSpeed: 70,
       maneuverability: 0.65,
       mounts: [
@@ -51,7 +57,8 @@
       armorMax: 110,
       fluxMax: 1100,
       fluxDissipation: 50,
-      shieldEfficiency: 1.15,
+      hasShield: false,
+      shieldEfficiency: 1.0,
       topSpeed: 80,
       maneuverability: 0.70,
       mounts: [
@@ -78,6 +85,7 @@
       armorMax: 200,
       fluxMax: 1700,
       fluxDissipation: 68,
+      hasShield: false,
       shieldEfficiency: 1.0,
       topSpeed: 55,
       maneuverability: 0.45,

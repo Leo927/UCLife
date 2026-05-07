@@ -226,8 +226,9 @@ export function startCombat(enemyShipId: string, campaignEnemyKey?: string | nul
       hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
       armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
       fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
+      hasShield: blueprint.hasShield,
       shieldEfficiency: blueprint.shieldEfficiency,
-      shieldUp: true,
+      shieldUp: blueprint.hasShield,
       topSpeed: blueprint.topSpeed,
       maneuverability: blueprint.maneuverability,
       weapons: blueprint.defaultWeapons.map((id, i) => ({
@@ -402,7 +403,7 @@ function applyDamageToEnemy(
   let hullCurrent = e.hullCurrent
 
   const damage = weapon.damage
-  if (shieldUp && fluxCurrent < fluxMax) {
+  if (e.hasShield && shieldUp && fluxCurrent < fluxMax) {
     const fluxAdd = damage * weapon.shieldDamage * shieldEfficiency
     fluxCurrent = Math.min(fluxMax, fluxCurrent + fluxAdd)
     if (fluxCurrent >= fluxMax) {
@@ -429,12 +430,16 @@ function applyDamageToEnemy(
 // per-active-scene only: there is exactly one player ship; module-local
 // flux/shield model mirrors the enemy structure on the same per-encounter
 // scope as projectiles[].
-const playerShield = { fluxCurrent: 0, shieldUp: true, fluxMax: 0, shieldEfficiency: 1 }
+const playerShield = {
+  fluxCurrent: 0, shieldUp: true, fluxMax: 0, shieldEfficiency: 1,
+  hasShield: false,
+}
 
 function refreshPlayerFluxFromShip(ship: Entity): void {
   const s = ship.get(Ship)!
   playerShield.fluxMax = s.fluxMax
   playerShield.shieldEfficiency = s.shieldEfficiency
+  playerShield.hasShield = s.hasShield
   // Sync fluxCurrent into the trait so the UI can read it.
   ship.set(Ship, { ...s, fluxCurrent: playerShield.fluxCurrent })
 }
@@ -445,7 +450,7 @@ function applyDamageToPlayer(weapon: WeaponDef): { absorbed: boolean; destroyed:
   const s = ship.get(Ship)!
   const damage = weapon.damage
 
-  if (playerShield.shieldUp && playerShield.fluxCurrent < playerShield.fluxMax) {
+  if (playerShield.hasShield && playerShield.shieldUp && playerShield.fluxCurrent < playerShield.fluxMax) {
     const fluxAdd = damage * weapon.shieldDamage * playerShield.shieldEfficiency
     playerShield.fluxCurrent = Math.min(playerShield.fluxMax, playerShield.fluxCurrent + fluxAdd)
     if (playerShield.fluxCurrent >= playerShield.fluxMax) {
@@ -626,7 +631,11 @@ export function combatSystem(_world: World, dtMs: number): void {
     fluxCurrent: Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec),
   })
   playerShield.fluxCurrent = Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec)
-  if (!playerShield.shieldUp && playerShield.fluxCurrent < playerShield.fluxMax * 0.5) {
+  if (
+    playerShield.hasShield
+    && !playerShield.shieldUp
+    && playerShield.fluxCurrent < playerShield.fluxMax * 0.5
+  ) {
     playerShield.shieldUp = true
   }
 
@@ -692,7 +701,7 @@ export function combatSystem(_world: World, dtMs: number): void {
   // -- 5. Enemy flux dissipation + shield recovery -------------------------
   let enemyFlux = Math.max(0, e2.fluxCurrent - e2.fluxDissipation * dtSec)
   let enemyShieldUp = e2.shieldUp
-  if (!enemyShieldUp && enemyFlux < e2.fluxMax * 0.5) enemyShieldUp = true
+  if (e2.hasShield && !enemyShieldUp && enemyFlux < e2.fluxMax * 0.5) enemyShieldUp = true
 
   // Persist enemy-side mutations.
   enemyEnt.set(EnemyShipState, {

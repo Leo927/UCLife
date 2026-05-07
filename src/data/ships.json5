@@ -4,10 +4,16 @@
 //   hullMax           — total hull integrity (HP). 0 = destroyed.
 //   armorMax          — armor before hull damage. Reduces incoming damage
 //                       proportionally to remaining armor pct.
-//   fluxMax           — capacitor budget for shields + weapon firing
+//   fluxMax           — capacitor budget for weapon firing (and, where
+//                       installed, shields).
 //   fluxDissipation   — flux/sec the ship vents passively
+//   hasShield         — whether the ship mounts an energy shield generator.
+//                       UC default is false: ship-level energy shields don't
+//                       exist in UC. The flux/shield mechanism is reserved
+//                       for end-game MS that earn shield generators.
 //   shieldEfficiency  — multiplier on incoming-damage flux conversion
 //                       when shields are up. 1 = neutral; <1 = better.
+//                       Irrelevant when hasShield = false.
 //   topSpeed          — tactical-arena units/sec at full throttle
 //   maneuverability   — 0..1 multiplier on turn rate
 //
@@ -47,6 +53,10 @@
       armorMax: 200,
       fluxMax: 1500,
       fluxDissipation: 75,
+      // No shield — ship-level energy shields don't exist in UC; armor +
+      // hull is the entire defensive budget. Flux still gates weapon power
+      // output. The shield mechanism is preserved in code for end-game MS.
+      hasShield: false,
       shieldEfficiency: 1.0,
       topSpeed: 60,
       maneuverability: 0.55,

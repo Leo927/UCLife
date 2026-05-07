@@ -33,6 +33,7 @@ interface PlayerSnap {
   fluxCurrent: number; fluxMax: number
   crCurrent: number; crMax: number
   topSpeed: number
+  hasShield: boolean
   mounts: { mountIdx: number; weaponId: string; chargeSec: number; ready: boolean }[]
 }
 
@@ -44,6 +45,7 @@ interface EnemySnap {
   hullCurrent: number; hullMax: number
   armorCurrent: number; armorMax: number
   fluxCurrent: number; fluxMax: number
+  hasShield: boolean
   shieldUp: boolean
 }
 
@@ -72,6 +74,7 @@ function snapshotPlayer(): PlayerSnap | null {
     fluxCurrent: s.fluxCurrent, fluxMax: s.fluxMax,
     crCurrent: s.crCurrent, crMax: s.crMax,
     topSpeed: s.topSpeed,
+    hasShield: s.hasShield,
     mounts,
   }
 }
@@ -89,6 +92,7 @@ function snapshotEnemy(): EnemySnap | null {
     hullCurrent: s.hullCurrent, hullMax: s.hullMax,
     armorCurrent: s.armorCurrent, armorMax: s.armorMax,
     fluxCurrent: s.fluxCurrent, fluxMax: s.fluxMax,
+    hasShield: s.hasShield,
     shieldUp: s.shieldUp,
   }
 }
@@ -141,9 +145,11 @@ function EnemyHud(props: { title: string; snap: EnemySnap }) {
     <div className="tactical-hud tactical-hud-enemy">
       <div className="tactical-hud-title">
         {title}
-        <span className={`tactical-shield-pip${snap.shieldUp ? ' is-up' : ''}`}>
-          {snap.shieldUp ? '护盾·开' : '护盾·关'}
-        </span>
+        {snap.hasShield && (
+          <span className={`tactical-shield-pip${snap.shieldUp ? ' is-up' : ''}`}>
+            {snap.shieldUp ? '护盾·开' : '护盾·关'}
+          </span>
+        )}
       </div>
       <StatBar label="船体" current={snap.hullCurrent} max={snap.hullMax} color="#dc2626" />
       <StatBar label="装甲" current={snap.armorCurrent} max={snap.armorMax} color="#a3a3a3" />
@@ -160,7 +166,7 @@ function playerVisual(p: PlayerSnap): PixiShipSnap {
     hullRadius: 18,
     shieldRadius: 32,
     color: 0x4ade80,
-    shieldAlpha: 0.15 + 0.55 * Math.max(0, shieldHeadroom),
+    shieldAlpha: p.hasShield ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
   }
 }
 
@@ -172,7 +178,7 @@ function enemyVisual(e: EnemySnap): PixiShipSnap {
     hullRadius: 16,
     shieldRadius: 28,
     color: 0xdc2626,
-    shieldAlpha: e.shieldUp ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
+    shieldAlpha: e.hasShield && e.shieldUp ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
   }
 }
 

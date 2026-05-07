@@ -23,6 +23,9 @@ export const Ship = trait({
   armorMax: 0, armorCurrent: 0,
   fluxMax: 0, fluxCurrent: 0,
   fluxDissipation: 0,
+  // UC default: ships don't carry energy shields (the flux/shield damage
+  // path is end-game MS only). Flux still gates weapon power output.
+  hasShield: false,
   shieldEfficiency: 1,    // multiplier on flux-per-damage (1 = neutral)
   topSpeed: 0,            // map-units/sec equivalent for tactical movement
   maneuverability: 0,     // 0..1, scales turn rate
@@ -133,6 +136,7 @@ export const EnemyShipState = trait(() => ({
   hullCurrent: 0, hullMax: 0,
   armorCurrent: 0, armorMax: 0,
   fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
+  hasShield: false,
   shieldEfficiency: 1,
   shieldUp: true,
   topSpeed: 0,

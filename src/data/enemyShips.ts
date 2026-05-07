@@ -21,6 +21,7 @@ export interface EnemyShipBlueprint {
   armorMax: number
   fluxMax: number
   fluxDissipation: number
+  hasShield: boolean
   shieldEfficiency: number
   topSpeed: number
   maneuverability: number
@@ -60,6 +61,12 @@ for (const ship of parsed.ships) {
   if (ship.armorMax < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" armorMax must be >= 0`)
   if (ship.fluxMax < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" fluxMax must be >= 0`)
   if (ship.fluxDissipation < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" fluxDissipation must be >= 0`)
+  if (typeof ship.hasShield !== 'boolean') {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" hasShield must be a boolean`)
+  }
+  if (ship.shieldEfficiency < 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" shieldEfficiency must be >= 0`)
+  }
   if (ship.topSpeed < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" topSpeed must be >= 0`)
   if (ship.maneuverability < 0 || ship.maneuverability > 2) {
     throw new Error(`enemyShips.json5: ship "${ship.id}" maneuverability must be in [0,2]`)
