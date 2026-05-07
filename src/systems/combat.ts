@@ -29,6 +29,10 @@ import { useClock } from '../sim/clock'
 import { setInCombat, damageHull } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim } from '../sim/events'
+import { leaveHelm } from '../sim/helm'
+import { migratePlayerToScene } from '../sim/scene'
+import { scenes, type MicroSceneConfig } from '../data/scenes'
+import { worldConfig } from '../config'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -222,13 +226,26 @@ export function endCombat(outcome: CombatOutcome): void {
     }
     logEvent(`战斗胜利 · 缴获 ¥${reward}`)
   } else if (outcome === 'defeat') {
-    // Spine: defeat is non-game-over. Slice 6.2 wires permadeath / POW.
     const ship = getPlayerShip()
     if (ship) {
       const s = ship.get(Ship)!
       ship.set(Ship, { ...s, hullCurrent: Math.max(1, s.hullCurrent) })
     }
     logEvent('战斗失败 · 飞船重创')
+
+    // Non-permadeath: teleport the player character to a random city.
+    // leaveHelm() restores the active scene to playerShipInterior where the
+    // character entity lives (distinct from the spaceCampaign ship proxy).
+    const cityScenes = scenes.filter(
+      (s): s is MicroSceneConfig => s.sceneType === 'micro' && s.playerSpawnTile != null,
+    )
+    if (cityScenes.length > 0) {
+      const dest = cityScenes[Math.floor(Math.random() * cityScenes.length)]
+      const tile = dest.playerSpawnTile!
+      const arrivalPx = { x: tile.x * worldConfig.tilePx, y: tile.y * worldConfig.tilePx }
+      leaveHelm()
+      migratePlayerToScene(dest.id, arrivalPx)
+    }
   } else {
     logEvent('战斗脱离')
   }
