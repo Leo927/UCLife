@@ -12,6 +12,16 @@ above ship deployments, the player establishes a persistent
 multi-ship, multi-colony presence in the Earth Sphere — a small
 faction with assets, subordinates, and reputation in its own right.
 
+The **Faction abstraction itself** (members, leader, fund, owned
+properties, relations, war edges) and the **Owner = Character |
+Faction** ownership model are introduced earlier, in
+[facilities-and-ownership.md](facilities-and-ownership.md) — the
+Phase 5.5 *civilian* prelude that lets the player run a small
+faction-of-one out of Von Braun without ever buying a ship. Phase 6
+inherits those abstractions; it does not redefine them. Read that
+file first if you arrive here looking for ownership, payroll,
+recruitment-from-cities, or the realtor pattern.
+
 This is the Starsector capstone. Done well, it pays off years of
 relationship work (your bartender becomes your bridge officer; your AE
 co-worker captains your second ship), gives the war event real
@@ -183,7 +193,7 @@ The arc:
    chair in the candidate's command center is the claim verb. Walk to
    it, sit, install your first hire. That action seals ownership.
 
-Faster, lower establishment cost, smaller starting building stock —
+Faster, lower establishment cost, smaller starting facility stock —
 but layout and faction context are fixed by what you found.
 
 ### Build path
@@ -196,13 +206,13 @@ The arc:
 2. **One freighter trip, not a logistics chain.** Buy a "colony
    establishment package" — a physical cargo item bundling capital +
    supplies + a tagged construction crew — at a major shipyard. Fly
-   it to the chosen point. Subsequent buildings each need *a* trip +
+   it to the chosen point. Subsequent facilities each need *a* trip +
    *a* credit cost but never a multi-shipment supply chain. We are
    not X4.
 3. **The first walkable scene is one hab pod.** Drop the
    establishment package; the scene starts as a single life-support
    module with construction NPCs sleeping on cots. Each authorized
-   building extends the scene over game-time; the colony grows
+   facility extends the scene over game-time; the colony grows
    visibly under the player's feet across months.
 4. **Construction time has interrupts.** Worker injury, faction
    inspector visit, contested supply shipment — small events that
@@ -211,22 +221,30 @@ The arc:
    with extra steps.
 
 Slower, more capital-intensive, fully customizable layout because the
-player authored each building.
+player authored each facility.
 
 In both cases the resulting colony is a **walkable koota scene**,
 sized smaller than Von Braun (one or two districts of a city, not the
-full thing), reusing the existing scene/building/cell procgen pipeline
-with a new building-type pool tilted industrial:
+full thing), reusing the existing scene/facility/cell procgen pipeline
+with a new facility-type pool tilted industrial. Established cities
+(Von Braun, Zum) only sell *existing* facility stock through the
+realtor; **colonies are the only place the player can build new
+facilities that don't already exist on the map** — that is the
+colony arc's mechanical reason to exist.
 
 - **Refinery** — converts raw materials to refined goods (income)
 - **Hydroponics / agro-dome** — produces food (consumed by crew + sells)
 - **Habitation** — population capacity
-- **Hangar / shipyard** — small repair facility; large-scale yards
-  require Phase 6.4 investment
+- **Hangar / repair facility** — small MS repair / retrofit
+- **Warship slipway** — **colony-only**; the Phase 6 capital ship
+  production pipeline does not exist in established cities
+- **Large MS factory** — **colony-only**; small-scale retrofit and
+  repair are available at city hangar facilities, but at-scale MS
+  production is gated to colonies
 - **Barracks** — garrison capacity (defends against expeditions)
 - **Command center** — stability + administration
 - **Mining drill** (asteroid only) — raw material output
-- **Bar / market / clinic** — civilian quality-of-life buildings
+- **Bar / market / clinic** — civilian quality-of-life facilities
   (NPCs migrate in if these exist; otherwise stability suffers)
 
 NPCs in colonies are mostly procedural (background population), with
@@ -363,7 +381,7 @@ scale of *mechanical reward* does not.
 | **6.2** | Multi-ship fleet MVP (ships only, no retrofit). Ship-template/instance split. Per-ship + crew supply economics (Starsector model). Two more ship classes (escort + small freighter). Captain assignment + fleet orders in tactical. Persistent fleet damage. Debug "grant fleet" populates a 2-ship fleet + ~30 hired NPCs for testing. See [../fleet.md](../fleet.md). |
 | **6.2.5** | MS + pilot + retrofit layer in fleet (per-MS supply, hangar UI, pilot roster, MS retrofit panel). The customization-depth phase. |
 | **6.2.7** | CP / DP wired into tactical combat. |
-| **6.3** | Colony establishment (claim or build). Walkable colony scenes. Industrial building pool. Colony stability + threats. Pirate raids. |
+| **6.3** | Colony establishment (claim or build). Walkable colony scenes. Industrial facility pool, including colony-only classes (warship slipway, large MS factory). Colony stability + threats. Pirate raids. |
 | **6.4** | Faction-tier features: faction reputation slot, recruitment scale, governance choices, diplomacy, faction-leader perks. |
 | **7.0+** | Hostile faction expeditions vs player colonies. Wartime recruitment shifts. Player-faction can ally with / against canon factions. |
 
@@ -377,5 +395,6 @@ scale of *mechanical reward* does not.
 - [../npc-ai.md](../npc-ai.md) — subordinate NPCs reuse player-as-NPC architecture; player authors their drive weights
 - [../characters/skills.md](../characters/skills.md) — Ship Command + Tactics feed CP cap and doctrine effectiveness; Leadership gates colony administrative load; `piloting` (existing unified skill) gates MS pilot quality
 - [../fleet.md](../fleet.md) — fleet roster, MS + pilot layer, supply / CP / DP economics, debug "grant fleet"
-- [../worldgen.md](../worldgen.md) — colony interiors reuse city procgen with industrial building pool
+- [../worldgen.md](../worldgen.md) — colony interiors reuse city procgen with industrial facility pool
+- [facilities-and-ownership.md](facilities-and-ownership.md) — Phase 5.5 civilian prelude that introduces the Faction abstraction, Owner = Character | Faction model, daily payroll/maintenance, and the realtor / HR-office / faction-office surfaces this file's Phase 6 ladder builds on
 - [../phasing.md](../phasing.md) — Phase 6 sub-phasing

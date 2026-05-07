@@ -302,7 +302,7 @@ propagate to:
 - **NPC drives** (fear, patriotism, despair)
 - **Conscription pressure** on player and NPCs
 - **Population churn** (named NPCs drafted/killed/missing; refugees arrive)
-- **Building access** (consulates close, military zones lock)
+- **Facility access** (consulates close, military zones lock)
 - **Encounter generation** for combat-mode players (which regions
   see action; which fronts you're pressured into)
 - **Player-faction pressure** — if the player owns colonies, hostile
@@ -320,7 +320,7 @@ is delivered through:
 - **Job market shifts** — AE pivots to military contracts; civilian-track positions thin; military-track positions surge
 - **Friends disappear** — named NPCs drafted, fled, or killed (offscreen, surfaced via newsfeed / log)
 - **Refugees arrive** — new procedural NPCs in flop-tier housing
-- **Building access changes** — consulates restricted, zones locked
+- **Facility access changes** — consulates restricted, zones locked
 - **Conscription** — draft notice with stat-checked refusal roll
 - **Ambitions adapt** — `earth_migration` harder, `lazlos_owner`
   becomes about staying open under rationing, etc.
@@ -339,7 +339,7 @@ Single hard global flag flip. On transition:
 5. Wartime ambitions unlock (deferred — Phase 7+ design)
 6. Economy parameters shift
 7. NPCs with combatant backstories leave; refugees spawn
-8. Some buildings transition state
+8. Some facilities transition state
 9. Player-faction colonies become target-eligible for hostile
    expeditions
 
@@ -431,7 +431,7 @@ The Starsector-shape calls are now locked. Specifically:
 | **6.2** | Multi-ship fleet MVP. Two more ship classes (escort + small freighter). Per-ship + crew supply economics (Starsector model). Fleet roster + crew assignment screens. Hire-as-captain / hire-as-crew dialogue branches (stub; full hire flow in faction-management). Buy-ship dialog at brokers. Mothballing. Doctrine slider per ship. Persistent fleet damage between encounters. Debug "grant fleet" populates a 2-ship fleet + ~30 hired NPCs. See [fleet.md](fleet.md). |
 | **6.2.5** | MS + pilot layer. `ms-classes.json5`, MS runtime entity, hangar UI, pilot roster + assignment, per-MS + per-MS-repair supply economics. |
 | **6.2.7** | Command points + deployment points wired into tactical. Doctrine sliders fully active; out-of-CP standing-orders behavior. |
-| **6.3** | Colony establishment. Player can claim an asteroid POI or build a new colony from scratch. Walkable colony scenes (smaller than cities, reusing scene/building/cell procgen with industrial pool). See [social/faction-management.md](social/faction-management.md). |
+| **6.3** | Colony establishment. Player can claim an asteroid POI or build a new colony from scratch. Walkable colony scenes (smaller than cities, reusing scene/facility/cell procgen with industrial pool, plus colony-only classes — warship slipway, large MS factory). See [social/faction-management.md](social/faction-management.md). |
 | **6.4** | Faction-tier features: large-scale recruitment, governance choices, faction reputation as actor (player-faction has its own faction rep with NPC factions). Phase 7 hostile-expedition mechanic foundations. |
 | **7.0** | Phase 7 trigger fires. Strategic war model goes live. Newsfeed wartime mode. Conscription. Wartime ambitions. Civilian-war content (TV, prices, refugees, departing friends). |
 | **7.1** | Wartime deployment: `mw_pilot` / `zeon_volunteer` players assigned to NPC-captained ships. Sector-based campaign structure. Real MS combat under real stakes. Player-faction colonies become target-eligible for hostile expeditions. |
@@ -471,5 +471,5 @@ The Starsector-shape calls are now locked. Specifically:
 - [characters/index.md](characters/index.md) — permadeath toggle interaction; crew death is independent of toggle
 - [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership feed CP cap and doctrine effectiveness; Leadership still gates colony administrative load; `piloting` (existing unified skill) gates MS pilot quality
 - [npc-ai.md](npc-ai.md) — crew BT extends with combat-station drives
-- [worldgen.md](worldgen.md) — flagship interior + colony interior reuse scene-procgen building / cell pipelines
+- [worldgen.md](worldgen.md) — flagship interior + colony interior reuse scene-procgen facility / cell pipelines
 - [phasing.md](phasing.md) — combat phasing relative to overall plan

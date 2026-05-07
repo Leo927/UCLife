@@ -202,7 +202,7 @@ the game hands the player on first symptomatic onset (*"市政医保为新市民
 提供一次免费就诊"*). Teaches the verb without making subsequent visits
 feel taxed; folds civilian-welfare flavor into the world.
 
-**AE clinic** is a separate building. Its door carries a faction badge
+**AE clinic** is a separate facility. Its door carries a faction badge
 visible from outside. Below rep threshold the door reads *"安那海姆员工
 通道 — 凭证不足"* — a self-explaining locked gate, clearable through the
 existing AE rep loop. Inside, the modal is identical in shape; the

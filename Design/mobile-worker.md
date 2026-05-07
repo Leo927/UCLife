@@ -29,10 +29,10 @@ Reflex change how the cockpit feels.
 Four entry points, gated by ambition progress. Each is a **diegetic place
 in the city** the player walks to — never a raw menu button.
 
-| Entry | Building | Unlock | Session shape | Cost / payout |
+| Entry | Facility | Unlock | Session shape | Cost / payout |
 |---|---|---|---|---|
-| **Sim Pod** | MW Academy (fixed building, commercial district near AE complex) | Day 1 | 1 task, ~60s | Player pays ¥150–¥800 per session |
-| **MW Operator job** | Spaceport Dock (fixed building) | After `mw_pilot` stage 2 (qualification) — listed at HR Office | 3–5 tasks per shift, full work-shift commit | Wage scales with mean session score |
+| **Sim Pod** | MW Academy (fixed facility, commercial district near AE complex) | Day 1 | 1 task, ~60s | Player pays ¥150–¥800 per session |
+| **MW Operator job** | Spaceport Dock (fixed facility) | After `mw_pilot` stage 2 (qualification) — listed at HR Office | 3–5 tasks per shift, full work-shift commit | Wage scales with mean session score |
 | **AE Test Range** | Inside AE Complex | After `mw_pilot` stage 3 (simulator training) | T3–T4. Per session pick *civilian engineering* or *MS-handling sim* track. | Free; AE rep + piloting XP |
 | **Federation MW Trial** | Federation consulate annex | After `mw_pilot` stage 4 (real-machine evaluation) | T4–T5 reservist drills: live-fire snap-targets, evade-cone, formation waypoints. | Federation rep + piloting XP; failure costs Federation rep |
 
@@ -217,7 +217,7 @@ job listings, which is exactly the integration phase 5.0 designed for.
 
 | Phase | Scope |
 |---|---|
-| **5.4a** | Sim Pod fixed building + minigame engine (input model + Lift primitive only) + T1 tier + XP wiring. Demo: a player walks to the academy, plays a T1 lift, gains piloting XP. |
+| **5.4a** | Sim Pod fixed facility + minigame engine (input model + Lift primitive only) + T1 tier + XP wiring. Demo: a player walks to the academy, plays a T1 lift, gains piloting XP. |
 | **5.4b** | Stack, Weld, Salvage primitives. T2/T3 tiers. MW Operator job listing gated on `mw_school_dialogue`. Hyperspeed-equivalent auto-resolve. |
 | **5.4c** | AE Test Range + Federation Trial entry points. T4/T5 tiers. Endurance fatigue overlay. AE Test Range ships both civilian-engineering and MS-handling-sim tracks. Federation Trial is reservist drill content. |
 | **5.4d** | Tuning pass: rebalance XP yields, tolerance curves, money cost/payout against playtest data. |

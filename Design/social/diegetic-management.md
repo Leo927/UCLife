@@ -30,7 +30,10 @@ The faction has a small, fixed set of physical hubs. Every management verb maps 
 | **Hangar deck** | The walkable hangar of whichever ship has hangar capacity | Hangar boss (a hired NPC, role-tagged); pilots stand near their assigned MS | Walk up to an MS → retrofit panel; walk up to a pilot → reassign / talk; walk up to the hangar boss → set repair priorities, scrap an MS |
 | **Officer's quarters / wardroom** | Bunks + wardroom on the flagship | The officer themselves, off-duty | Long-form talk, friendship deepening, loyalty management — the existing city talk-verb surface, ported aboard |
 | **Recruitment post** | A booth at a colony bar / port | Recruitment officer (hired NPC) | Set recruitment criteria *as a conversation*; inspect / approve / reject queued applicants who walk up to the post over game-time |
-| **Colony command center** | The walkable command center building of each owned colony | Colony administrator (hired NPC) | Set colony policies, review status, trigger raid response |
+| **Colony command center** | The walkable command center facility of each owned colony | Colony administrator (hired NPC) | Set colony policies, review status, trigger raid response |
+| **Realty office** | A civic facility in each district | District realtor (NPC) | Browse on-sale facilities (residential / commercial / faction-misc); close state and foreclosed sales directly at her desk; for private listings, the realtor names the seller and points at where they sit — the player walks there to negotiate. See [facilities-and-ownership.md](facilities-and-ownership.md). |
+| **HR office** | A facility class the player or an NPC faction owns | Recruiter (worker on the job site) | Set recruitment criteria as conversation; inspect / approve / reject the procgen NPC applicants who walk into the lobby. The applicants are *real entities*, not menu rows — the player can right-click them, talk to them, walk past them on the street. |
+| **Faction office** | A facility class the player can buy in any city; multiple are allowed | Secretary (worker on the job site) | Roster idle members and assign in batch; read the books; surface the day's warning loop; (post-creation) run diplomacy / war-declaration verbs as Phase-6.4 stand-ins. The secretary is a *consultative delegate*, not a wrapper around five tabs — anything denser routes to the relevant hub. |
 | **Council chamber** | A meeting room at the player's largest colony (Phase 6.4) | Senior officers + colony administrators in attendance | Faction-wide governance — taxation, alignment, diplomacy. Each NPC argues a position from their persona, skills, loyalty; the player resolves the room by speaking. |
 
 What's deliberately not on this list: there is no fleet roster *room*, no pilot roster *room*, no crew assignment *room*. The roster is the union of what's walkably present at each hub.
@@ -88,24 +91,35 @@ This converts an otherwise spreadsheet-tier feature (a slider grid of policies) 
 ## Acquisition is part of the surface
 
 Hubs do not just appear when the player has enough credits. The act of
-*acquiring* a hub — the first ship, the first colony — is itself a
-diegetic arc, not a click. A click that produces a colony has the same
-shape as a slider that sets a doctrine: a feature with no body and no
-place.
+*acquiring* a hub — the first ship, the first colony, the first
+owned facility in town — is itself a diegetic arc, not a click. A
+click that produces a colony has the same shape as a slider that sets
+a doctrine: a feature with no body and no place.
 
 The acquisition pattern: **find a candidate** in the world (a POI on
-the campaign map, a hull at a broker), **resolve the human factor**
-on-site (an NPC obstacle — pirates to clear, an owner to buy out, a
-survivor to hire, a permits clerk to talk to), then **take possession
-in a walked moment** (the first walk onto your bridge, the first sit
-in the empty administrator's chair). Each step has a body and a place;
-none is a transaction dialog the player skips through.
+the campaign map, a hull at a broker, a listing at the district
+realty office), **resolve the human factor** on-site (an NPC obstacle
+— pirates to clear, an owner to buy out, a survivor to hire, a
+permits clerk to talk to), then **take possession in a walked
+moment** (the first walk onto your bridge, the first sit in the empty
+administrator's chair, the first night-close at your new bar). Each
+step has a body and a place; none is a transaction dialog the player
+skips through.
 
-Per-acquisition detail (named candidates, charter NPCs, establishment
-package, construction interrupts) lives in
-[faction-management.md](faction-management.md#colony-claim-or-build).
-This file just establishes the surface principle: the moment of
-acquiring is itself a diegetic arc.
+The realty office (Phase 5.5) is the canonical city-side application.
+The realtor lists the candidates and closes state / foreclosed sales
+herself — but private sales route the player to the embodied seller
+in the world for the negotiation. Apartments are the standing
+exception: residential leases are allowed to be one-step at the
+realtor's desk regardless of prior ownership, because the emotional
+weight of "where I live" is in the experience, not the signing.
+
+Per-acquisition detail lives in the topic files:
+[faction-management.md](faction-management.md#colony-claim-or-build)
+for the colony arc, and
+[facilities-and-ownership.md](facilities-and-ownership.md#acquisition-the-realtor-with-embodied-sellers)
+for city-side facility purchase. This file just establishes the
+surface principle: the moment of acquiring is itself a diegetic arc.
 
 ## What this constrains
 
@@ -120,6 +134,7 @@ This discipline is a real constraint on what features can ship. Specifically:
 
 | Phase | Scope |
 |---|---|
+| **5.5** | Realty office in each district as the acquisition hub for existing-facility purchase. Faction office + secretary delegate. HR office + recruiter as the city-side recruitment surface (procgen applicants in the lobby; auto-accept filter as conversation). Job-site interaction panel opened by walking to the workplace. Bed assignment via walking to the bed. See [facilities-and-ownership.md](facilities-and-ownership.md). |
 | **6.0–6.1** | Diegetic recruitment via talk-verb hire on city NPCs. Walkable bridge + walkable hangar. No comm panel needed yet (single ship). |
 | **6.2** | Multi-ship fleet → comm panel as physical object on the bridge. War-room artifact on the bridge for formation + DP commit. Hired captains stand on the flagship bridge when their ships are docked with the fleet. Doctrine + standing-order verbs surfaced as captain conversations. Fleet roster panel demoted to projection. |
 | **6.2.5** | Hangar boss NPC owns hangar-wide verbs (repair priority, scrap). Pilots stand near their assigned MS in the hangar. Retrofit panel opened by walking to an MS, not from a menu. |
@@ -128,7 +143,8 @@ This discipline is a real constraint on what features can ship. Specifically:
 
 ## Related
 
-- [faction-management.md](faction-management.md) — what is being managed; this file says how the player physically interacts with it
+- [faction-management.md](faction-management.md) — what is being managed at Phase 6 (fleet, colony, faction-tier); this file says how the player physically interacts with it
+- [facilities-and-ownership.md](facilities-and-ownership.md) — the Phase 5.5 city-side surface (realty office, faction office, HR office) where this file's discipline lands first
 - [../fleet.md](../fleet.md) — the data model under the diegetic surface; the player-facing surfaces table is reinterpreted by this file
 - [../npc-ai.md](../npc-ai.md) — officers' personas + memory feed council debate and comm-panel reactions
 - [relationships.md](relationships.md) — first-touch hires extend the talk-verb relationship surface aboard

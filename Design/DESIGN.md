@@ -57,6 +57,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Ambitions (Phase 5.0) | [social/ambitions.md](social/ambitions.md) |
 | ↳ Newsfeed (Phase 5.1) | [social/newsfeed.md](social/newsfeed.md) |
 | ↳ Relationships & faction reputation | [social/relationships.md](social/relationships.md) |
+| ↳ Facilities and ownership (Phase 5.5 — Civilian Faction) | [social/facilities-and-ownership.md](social/facilities-and-ownership.md) |
 | ↳ Faction management (Phase 6) | [social/faction-management.md](social/faction-management.md) |
 | ↳ Diegetic management surfaces (Phase 6) | [social/diegetic-management.md](social/diegetic-management.md) |
 | Combat (Starsector-shape with MS-as-fighter, Phase 6+) | [combat.md](combat.md) |
