@@ -15,6 +15,7 @@ import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
 import { leaveHelm } from '../sim/helm'
 import { getShipState } from '../sim/ship'
+import { navigateTo, dockAt } from '../sim/navigation'
 import { emitSim } from '../sim/events'
 
 const SPACE_SCENE_ID = 'spaceCampaign'
@@ -118,7 +119,15 @@ function findNearbyPoi(pois: PoiSnapshot[], wx: number, wy: number): Poi | null 
   return best
 }
 
-interface PanelState { poiId: string }
+// Starsector-style: a small floating menu anchored at the cursor when the
+// player left-clicks a POI. screenX/screenY are the click coords, used to
+// position the absolute-div; poiId names the target. Closing the menu just
+// nulls this state — clicking a menu item commits the action then closes.
+interface ContextMenuState {
+  poiId: string
+  screenX: number
+  screenY: number
+}
 
 interface FuelHud { current: number; max: number }
 
@@ -131,15 +140,15 @@ const FUEL_EMPTY_THRESHOLD = 0.05
 export function SpaceView() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [fitMode, setFitMode] = useState(false)
-  const [panel, setPanel] = useState<PanelState | null>(null)
+  const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [fuelHud, setFuelHud] = useState<FuelHud | null>(null)
 
-  // Latest panel/fitMode in refs so the render loop can read them without
-  // restarting the loop on every state change.
+  // Latest menu/fitMode in refs so the render loop and key handlers can
+  // read them without restarting the loop on every state change.
   const fitModeRef = useRef(fitMode)
   fitModeRef.current = fitMode
-  const panelRef = useRef<PanelState | null>(panel)
-  panelRef.current = panel
+  const menuRef = useRef<ContextMenuState | null>(menu)
+  menuRef.current = menu
 
   const rendererRef = useRef<PixiSpaceRenderer | null>(null)
   const sizeRef = useRef(size)
@@ -205,7 +214,7 @@ export function SpaceView() {
           fitMode: fitOn,
           fit,
           coursePreview,
-          hoveredPoiId: panelRef.current?.poiId ?? null,
+          hoveredPoiId: menuRef.current?.poiId ?? null,
           dtSec,
         })
       }
@@ -223,7 +232,7 @@ export function SpaceView() {
         e.preventDefault()
         setFitMode((m) => !m)
       } else if (e.key === 'Escape') {
-        if (panelRef.current) setPanel(null)
+        if (menuRef.current) setMenu(null)
         else if (fitModeRef.current) setFitMode(false)
         else leaveHelm()
       }
@@ -241,6 +250,12 @@ export function SpaceView() {
   // events would force POI hit-testing to round-trip through Pixi's hit
   // tree, but we already have a screen→world transform + linear scan that
   // honors the snap-radius semantics — keep it simple.
+  //
+  // Left-click on a POI opens the Starsector-style context menu near the
+  // cursor (Navigate / Dock). Left-click on empty space closes any open
+  // menu. Right-click anywhere is the quick-navigate shortcut: targets a
+  // POI if hovered, otherwise the raw click point. Both navigation paths
+  // funnel through navigateTo()/dockAt() so takeoff is paid exactly once.
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = rendererRef.current
     if (!r) return
@@ -249,41 +264,36 @@ export function SpaceView() {
     const sy = e.clientY - rect.top
     const wp = r.screenToWorld(sx, sy)
     const isRight = e.button === 2
+
+    // Empty-fuel guard: spaceSim drops thrust whenever a frame's fuel
+    // demand exceeds Ship.fuelCurrent (well before strict zero), which
+    // would silently ignore any course committed below.
+    const fuelEmpty = (() => {
+      const ship = getShipState()
+      return ship && ship.fuelCurrent < FUEL_EMPTY_THRESHOLD
+    })()
+
     if (isRight) {
       e.preventDefault()
-      const w = getWorld(SPACE_SCENE_ID)
-      const player = w.queryFirst(IsPlayer, Course)
-      if (!player) return
-      // Without this guard, the click silently sets a Course the
-      // autopilot can't act on (spaceSim drops thrust whenever a frame's
-      // fuel demand exceeds Ship.fuelCurrent, which fires well before the
-      // value reaches strict zero), which the player perceives as
-      // "navigation ignored."
-      const ship = getShipState()
-      if (ship && ship.fuelCurrent < FUEL_EMPTY_THRESHOLD) {
+      if (fuelEmpty) {
         emitSim('toast', { textZh: '燃料耗尽 · 需返回补给站' })
         return
       }
       const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
-      if (near) {
-        let targetX = wp.x
-        let targetY = wp.y
-        for (const pe of w.query(PoiTag, Position)) {
-          if (pe.get(PoiTag)!.poiId === near.id) {
-            const tp = pe.get(Position)!
-            targetX = tp.x
-            targetY = tp.y
-            break
-          }
-        }
-        player.set(Course, { tx: targetX, ty: targetY, destPoiId: near.id, active: true })
-      } else {
-        player.set(Course, { tx: wp.x, ty: wp.y, destPoiId: null, active: true })
-      }
+      const res = near
+        ? navigateTo({ kind: 'poi', poiId: near.id })
+        : navigateTo({ kind: 'point', x: wp.x, y: wp.y })
+      if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
+      setMenu(null)
+      return
+    }
+
+    // Left-click. Hits a POI ⇒ open context menu; empty space ⇒ close.
+    const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
+    if (near) {
+      setMenu({ poiId: near.id, screenX: e.clientX, screenY: e.clientY })
     } else {
-      const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
-      if (near) setPanel({ poiId: near.id })
-      else setPanel(null)
+      setMenu(null)
     }
   }
 
@@ -291,7 +301,19 @@ export function SpaceView() {
     e.preventDefault()
   }
 
-  const panelPoi = panel ? poiDataById.get(panel.poiId) ?? null : null
+  const menuPoi = menu ? poiDataById.get(menu.poiId) ?? null : null
+  const onNavigate = () => {
+    if (!menu) return
+    const res = navigateTo({ kind: 'poi', poiId: menu.poiId })
+    if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
+    setMenu(null)
+  }
+  const onDock = () => {
+    if (!menu) return
+    const res = dockAt(menu.poiId)
+    if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
+    setMenu(null)
+  }
 
   return (
     <div
@@ -337,28 +359,55 @@ export function SpaceView() {
       >
         离开操舵台 (ESC)
       </button>
-      {panelPoi && (
-        <div
-          style={{
-            position: 'absolute', top: 12, right: 12, width: 280,
-            background: 'rgba(15, 23, 42, 0.92)', border: '1px solid #334155',
-            color: '#e2e8f0', padding: '12px 14px',
-            fontFamily: 'system-ui, sans-serif', fontSize: 13, borderRadius: 4,
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{panelPoi.nameZh}</div>
-          <div style={{ color: '#94a3b8', marginBottom: 4 }}>类型: {panelPoi.type}</div>
-          <div style={{ color: '#94a3b8', marginBottom: 4 }}>母星: {bodyDataById.get(panelPoi.bodyId)?.nameZh ?? panelPoi.bodyId}</div>
-          <div style={{ color: '#94a3b8', marginBottom: 4 }}>势力: {panelPoi.factionControlPre}</div>
-          <div style={{ color: '#94a3b8', marginBottom: 6 }}>服务: {panelPoi.services.join(', ') || '无'}</div>
-          {panelPoi.description && (
-            <div style={{ color: '#cbd5e1', marginTop: 8, lineHeight: 1.5 }}>{panelPoi.description}</div>
-          )}
-          <div style={{ marginTop: 10, fontSize: 11, color: '#64748b' }}>
-            右键空间 = 设置航向 · M = 缩放至全景 · ESC = 关闭
+      {menu && menuPoi && (() => {
+        // Clamp the menu inside the viewport so a click near the right/bottom
+        // edge doesn't push half the menu off-screen. 180×~92 covers the
+        // current item set; refresh if the menu grows.
+        const W = 180
+        const H = 92
+        const left = Math.min(menu.screenX + 6, window.innerWidth - W - 8)
+        const top = Math.min(menu.screenY + 6, window.innerHeight - H - 8)
+        return (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed', left, top, width: W,
+              background: 'rgba(15, 23, 42, 0.96)', border: '1px solid #475569',
+              color: '#e2e8f0', borderRadius: 4,
+              fontFamily: 'system-ui, sans-serif', fontSize: 13,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{
+              padding: '6px 10px', borderBottom: '1px solid #334155',
+              color: '#cbd5e1', fontSize: 12, fontWeight: 600,
+            }}>
+              {menuPoi.nameZh}
+            </div>
+            <ContextMenuItem label="前往" onClick={onNavigate} />
+            <ContextMenuItem label="停泊" onClick={onDock} />
           </div>
-        </div>
-      )}
+        )
+      })()}
+    </div>
+  )
+}
+
+function ContextMenuItem({ label, onClick }: { label: string; onClick: () => void }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      onClick={onClick}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      style={{
+        padding: '6px 10px',
+        background: hover ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      {label}
     </div>
   )
 }

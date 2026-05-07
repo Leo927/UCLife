@@ -65,10 +65,12 @@ export function DebugPanel() {
   }
 
   // Sets the shipOwned flag, walks the player into the ship interior, then
-  // launches via takeHelm. Equivalent to: AE buy → board kiosk → helm tile,
-  // collapsed into one click. Skips when already in space — the city player
-  // (which carries Money and is what useQueryFirst picks up) doesn't exist
-  // in the spaceCampaign world, so the button is naturally disabled there.
+  // opens the bridge via takeHelm. Equivalent to: AE buy → board kiosk →
+  // helm tile, collapsed into one click. The ship stays docked at vonBraun
+  // until the player commits a course in the starmap. Skips when already
+  // in space — the city player (which carries Money and is what
+  // useQueryFirst picks up) doesn't exist in the spaceCampaign world, so
+  // the button is naturally disabled there.
   const giveAndLaunchShip = () => {
     if (!player) return
     const f = player.get(Flags) ?? { flags: {} }
@@ -79,9 +81,8 @@ export function DebugPanel() {
     if (useScene.getState().activeId !== 'playerShipInterior') {
       boardShip()
     }
-    const r = takeHelm()
-    if (r.ok) useUI.getState().showToast('飞船已获得 · 已起航')
-    else useUI.getState().showToast(`起航失败: ${r.message ?? '未知原因'}`)
+    takeHelm()
+    useUI.getState().showToast('飞船已获得 · 操舵台开启')
   }
 
   // Mirrors relationsSystem's bidirectional write — both A→B and B→A get the

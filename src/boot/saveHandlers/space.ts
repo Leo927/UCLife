@@ -17,7 +17,10 @@ interface SpaceBlock {
   player: {
     pos: { x: number; y: number }
     vel: { vx: number; vy: number }
-    course: { tx: number; ty: number; destPoiId: string | null; active: boolean }
+    course: {
+      tx: number; ty: number; destPoiId: string | null; active: boolean
+      autoDock?: boolean
+    }
     atHelm: boolean
   }
   enemies: {
@@ -59,7 +62,10 @@ function snapshotSpace(): SpaceBlock | undefined {
     player: {
       pos: { x: pos.x, y: pos.y },
       vel: { vx: vel.vx, vy: vel.vy },
-      course: { tx: course.tx, ty: course.ty, destPoiId: course.destPoiId, active: course.active },
+      course: {
+        tx: course.tx, ty: course.ty, destPoiId: course.destPoiId,
+        active: course.active, autoDock: course.autoDock,
+      },
       atHelm,
     },
     enemies,
@@ -78,6 +84,7 @@ function restoreSpace(block: SpaceBlock): void {
       ty: block.player.course.ty,
       destPoiId: block.player.course.destPoiId,
       active: block.player.course.active,
+      autoDock: block.player.course.autoDock ?? false,
     })
     if (block.player.atHelm && !player.has(AtHelm)) player.add(AtHelm)
     else if (!block.player.atHelm && player.has(AtHelm)) player.remove(AtHelm)

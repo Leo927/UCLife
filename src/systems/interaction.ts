@@ -209,8 +209,7 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '操舵台仅在飞船舰桥内可用' })
         continue
       }
-      const result = takeHelm()
-      if (!result.ok) emitSim('toast', { textZh: result.message ?? '无法操舵' })
+      takeHelm()
       continue
     }
     if (nearestKind === 'work') {

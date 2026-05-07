@@ -14,7 +14,7 @@ import { thrustToward } from '../engine/space/autopilot'
 import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
 import { useEngagement } from '../sim/engagement'
-import { spendFuel, getShipState, getDockedPoiId } from '../sim/ship'
+import { spendFuel, getShipState, getDockedPoiId, setDockedPoi, setFleetPos } from '../sim/ship'
 import { emitSim } from '../sim/events'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -105,6 +105,21 @@ export function spaceSimSystem(world: World, dtSec: number): void {
     poiPosById.set(poiId, pos)
   }
 
+  // Pin a docked player ship to the live POI position. Without this the
+  // POI orbits its parent each frame while the ship stays put in absolute
+  // space, reading as drift even though the player issued no command.
+  const dockedPoiId = getDockedPoiId()
+  if (dockedPoiId) {
+    const dp = poiPosById.get(dockedPoiId)
+    if (dp) {
+      for (const pe of world.query(IsPlayer, ShipBody, Position, Velocity)) {
+        pe.set(Position, { x: dp.x, y: dp.y })
+        pe.set(Velocity, { vx: 0, vy: 0 })
+        setFleetPos(dp)
+      }
+    }
+  }
+
   // 3. Enemy AI fills Thrust on EnemyAI entities before integration.
   enemyAISystem(world)
 
@@ -134,7 +149,23 @@ export function spaceSimSystem(world: World, dtSec: number): void {
         spaceConfig.dockSnapRadius,
       )
       e.set(Thrust, { ax: r.thrust.ax, ay: r.thrust.ay })
-      if (r.arrived) e.set(Course, { ...course, active: false })
+      if (r.arrived) {
+        e.set(Course, { ...course, active: false, autoDock: false })
+        // autoDock courses (set by dockAt() in navigation.ts) snap the
+        // dock binding when the ship reaches the destination POI. Pure
+        // navigate-to-point arrivals just halt — no dock side effect.
+        if (course.autoDock && course.destPoiId) {
+          setDockedPoi(course.destPoiId, { x: tx, y: ty })
+          setFleetPos({ x: tx, y: ty })
+          e.set(Position, { x: tx, y: ty })
+          e.set(Velocity, { vx: 0, vy: 0 })
+          const poi = poiById.get(course.destPoiId)
+          emitSim('log', {
+            textZh: `已停泊 · ${poi?.nameZh ?? course.destPoiId}`,
+            atMs: useClock.getState().gameDate.getTime(),
+          })
+        }
+      }
     }
 
     const thrust = e.get(Thrust)!

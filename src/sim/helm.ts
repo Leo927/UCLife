@@ -1,17 +1,23 @@
-// Helm transitions: takeHelm() launches the player ship from a docked POI
-// (debits fuel, snaps fleetPos to the live derived POI position, clears the
-// dock binding, marks AtHelm) and switches to the spaceCampaign scene.
+// Helm transitions: takeHelm() opens the spaceCampaign view (the bridge),
+// adds AtHelm to the player ship, and — if the ship is currently docked —
+// snaps the campaign-world Position to the live POI orbit so the camera
+// doesn't open onto a t=0 stale location. No fuel cost, no validation;
+// the helm key is a pure view toggle.
+//
+// Launching from a dock (debit takeoff fuel + clearDocked + 起航 log)
+// happens in sim/navigation.ts the moment a course is committed.
+//
 // leaveHelm() removes AtHelm and switches back to the ship interior. The
 // ship continues moving in space because spaceSimSystem ticks every frame
 // regardless of which scene the camera is on (see loop.ts).
 
-import { getShipState, spendFuel, clearDocked, setFleetPos } from './ship'
+import { getShipState, setFleetPos } from './ship'
 import { getPoi } from '../data/pois'
 import { getBody } from '../data/celestialBodies'
 import { getWorld } from '../ecs/world'
 import { useScene } from './scene'
 import {
-  IsPlayer, AtHelm, Course, ShipBody, Position, Velocity,
+  IsPlayer, AtHelm, ShipBody, Position,
 } from '../ecs/traits'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { derivedPos } from '../engine/space/orbits'
@@ -47,7 +53,7 @@ export function takeoffFuelCostFor(poiId: string): number {
   return 0
 }
 
-function derivedPoiPos(poiId: string): { x: number; y: number } | null {
+export function derivedPoiPos(poiId: string): { x: number; y: number } | null {
   const poi = getPoi(poiId)
   if (!poi) return null
   const gameMs = useClock.getState().gameDate.getTime()
@@ -61,45 +67,19 @@ function derivedPoiPos(poiId: string): { x: number; y: number } | null {
   return derivedPos(params, tDays, resolveBody)
 }
 
-export function takeHelm(): { ok: boolean; message?: string } {
+export function takeHelm(): { ok: true } {
   const ship = getShipState()
-  if (!ship) return { ok: false, message: '未检测到飞船' }
-
-  const dockedPoiId = ship.dockedAtPoiId
-  if (!dockedPoiId) return { ok: false, message: '飞船当前未停泊于任何坐标' }
-
-  const poi = getPoi(dockedPoiId)
-  if (!poi) return { ok: false, message: '停泊坐标无效' }
-
-  const fuelCost = takeoffFuelCostFor(dockedPoiId)
-  if (ship.fuelCurrent < fuelCost) {
-    return { ok: false, message: `燃料不足 · 起航需 ${fuelCost}` }
-  }
-
-  const launchPos = derivedPoiPos(dockedPoiId)
-  if (!launchPos) return { ok: false, message: '无法解算坐标' }
-
-  if (fuelCost > 0) {
-    if (!spendFuel(fuelCost)) return { ok: false, message: '燃料扣除失败' }
-  }
-  setFleetPos(launchPos)
-  clearDocked()
-
   const space = getWorld('spaceCampaign')
   const player = space.queryFirst(IsPlayer, ShipBody)
-  if (player) {
-    // Snap the campaign-world Position to the live POI; the bootstrap
-    // value is t=0 and would leave the ship floating thousands of px
-    // from any body once orbits have rotated. Velocity reset prevents
-    // a leftover course from a prior launch carrying momentum forward.
-    player.set(Position, { x: launchPos.x, y: launchPos.y })
-    player.set(Velocity, { vx: 0, vy: 0 })
-    player.set(Course, { tx: 0, ty: 0, destPoiId: null, active: false })
-    if (!player.has(AtHelm)) player.add(AtHelm)
+  if (player && ship?.dockedAtPoiId) {
+    const livePos = derivedPoiPos(ship.dockedAtPoiId)
+    if (livePos) {
+      player.set(Position, { x: livePos.x, y: livePos.y })
+      setFleetPos(livePos)
+    }
   }
-
+  if (player && !player.has(AtHelm)) player.add(AtHelm)
   useScene.getState().setActive('spaceCampaign')
-  emitSim('log', { textZh: `起航 · 自 ${poi.nameZh}`, atMs: useClock.getState().gameDate.getTime() })
   return { ok: true }
 }
 

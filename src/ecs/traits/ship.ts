@@ -97,11 +97,15 @@ export const Thrust = trait({
 
 export const Course = trait({
   // Autopilot target. tx/ty in world px. destPoiId optional — when set,
-  // an arrival snaps the ship to that POI's derived position and docks.
+  // the autopilot retargets to the POI's live derived position each
+  // frame (orbits move). autoDock = "park at this POI on arrival" (dock
+  // intent from the starmap context menu); otherwise the ship just
+  // halts in space at the destination.
   tx: 0,
   ty: 0,
   destPoiId: null as string | null,
   active: false,
+  autoDock: false,
 })
 
 export const EnemyAI = trait(() => ({
