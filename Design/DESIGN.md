@@ -58,6 +58,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Newsfeed (Phase 5.1) | [social/newsfeed.md](social/newsfeed.md) |
 | ↳ Relationships & faction reputation | [social/relationships.md](social/relationships.md) |
 | ↳ Faction management (Phase 6) | [social/faction-management.md](social/faction-management.md) |
+| ↳ Diegetic management surfaces (Phase 6) | [social/diegetic-management.md](social/diegetic-management.md) |
 | Combat (Starsector-shape with MS-as-fighter, Phase 6+) | [combat.md](combat.md) |
 | Macro-geography & campaign map (Earth Sphere continuous-space + Jupiter, Phase 6+) | [starmap.md](starmap.md) |
 | Fleet management (Phase 6.1.5+ — singleton-to-plural, captains, doctrine) | [fleet.md](fleet.md) |

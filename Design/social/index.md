@@ -8,6 +8,7 @@ Four sub-systems that together make UC Life Sim a *life* sim and not just a surv
 | [newsfeed.md](newsfeed.md) | Date-keyed events surfaced through diegetic channels | 5.1 |
 | [relationships.md](relationships.md) | Talk verb, per-NPC opinion, faction reputation | 5.2 |
 | [faction-management.md](faction-management.md) | Player grows from one ship to a fleet to a colony to a small faction (Starsector layer) | 6 |
+| [diegetic-management.md](diegetic-management.md) | Surface-design discipline for Phase 6: management lives on bodies and in places, not in menus | 6 |
 
 ## Why this order
 

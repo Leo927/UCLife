@@ -49,6 +49,18 @@ single ship and one short merc career has played a complete Phase 6
 arc. A player who pushes through to Phase 6.4 has played a different,
 longer Phase 6 arc. Both are valid.
 
+## Surface design: read this first
+
+Every management verb described below — hire, fire, assign, retrofit,
+set doctrine, set policy, declare diplomacy — happens on a body or in
+a place. The discipline is in [diegetic-management.md](diegetic-management.md);
+it defines the physical hubs (bridge, war room, hangar deck,
+recruitment post, colony command center, council chamber), the
+first-touch + comm-panel pattern that lets order-as-conversation scale
+past 20 ships, and the rule that roster panels are *projections* of
+the diegetic surface, not the primary verb. Read that file before
+extending this one.
+
 ## Fleet: economics-gated, no skill formula on fleet size
 
 There is **no hard fleet-size cap and no skill formula gating ship
@@ -230,15 +242,18 @@ private citizen.
 
 Mechanically this opens:
 
-- **Recruitment scale** — hire NPCs en masse, not one by one. Define
-  hiring criteria (skill, faction loyalty, etc.) and run an open call
-  on a colony.
-- **Governance choices** — set faction-wide policies (taxation, alignment,
-  trade priorities) that affect colony output, stability, and
-  diplomatic standing.
+- **Recruitment scale** — hire NPCs en masse via a recruitment officer
+  at a colony recruitment post (see Recruitment, above, and
+  [diegetic-management.md](diegetic-management.md#recruitment-scale-via-diegetic-delegation)).
+- **Governance choices** — set faction-wide policies (taxation,
+  alignment, trade priorities) by **calling a council** at the largest
+  owned colony. Senior officers and colony administrators attend in
+  person and argue from their personas; the player resolves the room
+  by speaking. See [diegetic-management.md](diegetic-management.md#governance-is-a-council-not-a-menu).
 - **Diplomacy** — formal relationships with other factions: nonaggression,
   trade agreements, mutual defense. Pre-war: low stakes, mostly
   flavor. Post-war: real consequences (treaties trigger faction wars).
+  Diplomacy verbs surface as council scenes alongside governance.
 - **Faction-leader perks** — ambition perks unlock at this tier (see
   [ambitions.md](ambitions.md)) that affect faction-wide stats.
 
@@ -250,15 +265,23 @@ that, not over it.
 
 ## Recruitment
 
-NPC recruitment scales across phases:
+NPC recruitment scales across phases, but every tier routes through
+embodied verbs — see [diegetic-management.md](diegetic-management.md#recruitment-scale-via-diegetic-delegation)
+for the surface details:
 
 - **Phase 6.0–6.1** — recruit named NPCs from city relationships one by
   one via talk-verb interactions. Loyalty is per-NPC, built through prior
   friendship or paid for via signing bonus.
 - **Phase 6.2–6.3** — recruit from the broader city population (named +
-  procedural). Recruitment offer can be weighted by skills or faction.
-- **Phase 6.4+** — open recruitment calls on colonies; NPCs flow in based
-  on filters; faction-wide loyalty modifiers apply.
+  procedural). The talk-verb hire path scales by being available on more
+  NPCs, not by acquiring a filter UI.
+- **Phase 6.4+** — the player hires a **recruitment officer** at a
+  colony recruitment post. The player sets criteria *as a conversation*
+  with that officer; applicants then walk up to the post over game-time
+  and the player can inspect / approve / reject, or trust the officer's
+  Leadership skill to do it for them. There is no filter dialog that
+  spawns a list of names; there is a booth, an officer, and a queue of
+  bodies.
 
 The Phase 5 talk-verb opinion system feeds directly into early
 recruitment quality. NPCs with high opinion of the player accept lower
@@ -300,6 +323,7 @@ scale of *mechanical reward* does not.
 
 ## Related
 
+- [diegetic-management.md](diegetic-management.md) — surface-design discipline: physical hubs, comm panel, council chamber, recruitment post; how every verb in this file is presented to the player
 - [../combat.md](../combat.md) — Starsector tactical layer where fleets fight; current-ship walkability
 - [../starmap.md](../starmap.md) — campaign map where colonies persist as POIs
 - [ambitions.md](ambitions.md) — fleet/colony/faction-tier ambitions feed AP; perk catalog

@@ -206,6 +206,8 @@ DP is a per-engagement budget. Each ship class has `dpCost`; each MS has `dpCost
 
 ## Player-facing surfaces
 
+The table below describes the **data projections** the fleet system needs to expose. The *primary* verb model — where in the world the player physically stands and who they speak to — is in [social/diegetic-management.md](social/diegetic-management.md). Read that first; the panels below are read-mostly notebooks that pop open from the bridge for at-a-glance status, not the way the player issues writes. Roster cells route writes through the diegetic surface (walk to the captain, or click their face on the comm panel).
+
 UI scope is broader than the previous draft because MS + pilot + retrofit management is core UC content. Note the asymmetry: ships have *one* management surface (the roster); MS have *three* (bay, pilot roster, retrofit) — that asymmetry is the design.
 
 | Screen | Question | Verb |
@@ -312,6 +314,7 @@ The proper hire flow (hire-as-captain / hire-as-pilot / hire-as-crew dialog bran
 - [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership feed CP cap and doctrine effectiveness; `piloting` (existing unified skill) gates MS pilot quality
 - [characters/index.md](characters/index.md) — captains, pilots, and crew are full Character entities, including death pipeline
 - [social/faction-management.md](social/faction-management.md) — full hire flow + Phase 6.3+ colony layer
+- [social/diegetic-management.md](social/diegetic-management.md) — physical hubs + comm panel + council pattern that the surfaces above are projections of
 - [phasing.md](phasing.md) — Phase 6 phasing
 - `src/ecs/traits/ship.ts` — `Ship` singleton today; splits into template-lookup + instance traits at 6.1.5
 - `src/sim/ship.ts` — singleton helpers (`getPlayerShipEntity`) rename to flagship helpers + add `getFleetEntities`
