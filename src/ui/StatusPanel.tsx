@@ -13,7 +13,7 @@ import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP } from '../c
 import { dowLabel, getJobSpec } from '../data/jobs'
 import { STAT_ORDER, STATS } from '../character/stats'
 import { getStat } from '../stats/sheet'
-import { attributesConfig, jobsConfig } from '../config'
+import { attributesConfig, jobsConfig, vitalsConfig } from '../config'
 import { tierOf as factionTierOf, factionMeta, type FactionId } from '../data/factions'
 import { getAmbition } from '../character/ambitions'
 
@@ -237,13 +237,9 @@ export function StatusPanel() {
           )}
         </section>
 
-        <section className="status-section">
-          <h3>生命</h3>
-          {health && <StatusBar label="健康" value={health.hp} invert />}
-        </section>
-
         <section className="status-section" data-testid="conditions-section">
           <h3>健康</h3>
+          {health && <StatusBar label="生命" value={health.hp} invert />}
           {conditions && conditions.list.filter((c) => c.phase !== 'incubating').length === 0 && (
             <p className="status-muted">目前没有任何身体不适。</p>
           )}
@@ -395,15 +391,17 @@ function ConditionCard({
 function StatusBar({ label, value, invert = false }: { label: string; value: number; invert?: boolean }) {
   const filled = Math.max(0, Math.min(100, value))
   const goodness = invert ? filled : 100 - filled
-  const color = goodness > 60 ? '#4ade80' : goodness > 30 ? '#facc15' : '#ef4444'
-  const desc = describe(value, invert)
+  const baseColor = goodness > 60 ? '#4ade80' : goodness > 30 ? '#facc15' : '#ef4444'
+  const flavor = describe(value, invert)
+  const color = flavor.critical ? vitalsConfig.flavor.criticalColor : baseColor
+  const rowClass = flavor.critical ? 'status-bar-row status-bar-row--critical' : 'status-bar-row'
   return (
-    <div className="status-bar-row">
+    <div className={rowClass}>
       <span className="status-bar-label">{label}</span>
       <div className="status-bar-track">
         <div className="status-bar-fill" style={{ width: `${filled}%`, background: color }} />
       </div>
-      <span className="status-bar-desc" style={{ color }}>{desc}</span>
+      <span className="status-bar-desc" style={{ color }}>{flavor.label}</span>
     </div>
   )
 }
@@ -438,16 +436,17 @@ function perfMeterColor(perf: number): string {
   return '#ef4444'
 }
 
-function describe(value: number, invertedHp: boolean): string {
+function describe(value: number, invertedHp: boolean): { label: string; critical: boolean } {
   if (invertedHp) {
-    if (value >= 80) return '良好'
-    if (value >= 50) return '轻伤'
-    if (value >= 25) return '重伤'
-    return '濒死'
+    for (const band of vitalsConfig.flavor.hpBands) {
+      if (value >= band.atLeast) return { label: band.label, critical: false }
+    }
+    const tail = vitalsConfig.flavor.hpBands[vitalsConfig.flavor.hpBands.length - 1]
+    return { label: tail.label, critical: false }
   }
-  if (value < 25) return '良好'
-  if (value < 50) return '微感'
-  if (value < 75) return '明显'
-  if (value < 90) return '严重'
-  return '极限'
+  for (const band of vitalsConfig.flavor.vitalBands) {
+    if (value < band.under) return { label: band.label, critical: !!band.critical }
+  }
+  const tail = vitalsConfig.flavor.vitalBands[vitalsConfig.flavor.vitalBands.length - 1]
+  return { label: tail.label, critical: !!tail.critical }
 }

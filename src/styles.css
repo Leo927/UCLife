@@ -683,6 +683,16 @@ html, body, #root {
   transition: width 0.2s linear, background 0.3s;
 }
 
+.status-bar-row--critical .status-bar-fill,
+.status-bar-row--critical .status-bar-desc {
+  animation: vital-critical-flash 0.7s ease-in-out infinite;
+}
+
+@keyframes vital-critical-flash {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
 .status-bar-desc {
   width: 40px;
   text-align: right;
@@ -1277,6 +1287,11 @@ html, body, #root {
 .warn-fill {
   height: 100%;
   transition: width 0.2s linear, background 0.3s;
+}
+
+.warn-bar--critical .warn-fill,
+.warn-bar--critical .warn-desc {
+  animation: vital-critical-flash 0.7s ease-in-out infinite;
 }
 
 .warn-desc {

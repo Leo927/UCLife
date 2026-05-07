@@ -1,5 +1,6 @@
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Vitals, Health } from '../ecs/traits'
+import { vitalsConfig } from '../config'
 
 const VITAL_WARN = 50
 const HP_WARN = 50
@@ -31,26 +32,32 @@ export function MapWarnings() {
 function WarnBar({ label, value, invert }: { label: string; value: number; invert: boolean }) {
   const filled = Math.max(0, Math.min(100, value))
   const goodness = invert ? filled : 100 - filled
-  const color = goodness > 30 ? '#facc15' : goodness > 10 ? '#f97316' : '#ef4444'
-  const desc = describe(value, invert)
+  const baseColor = goodness > 30 ? '#facc15' : goodness > 10 ? '#f97316' : '#ef4444'
+  const flavor = describe(value, invert)
+  const color = flavor.critical ? vitalsConfig.flavor.criticalColor : baseColor
+  const cls = flavor.critical ? 'warn-bar warn-bar--critical' : 'warn-bar'
   return (
-    <div className="warn-bar">
+    <div className={cls}>
       <span className="warn-label">{label}</span>
       <div className="warn-track">
         <div className="warn-fill" style={{ width: `${filled}%`, background: color }} />
       </div>
-      <span className="warn-desc" style={{ color }}>{desc}</span>
+      <span className="warn-desc" style={{ color }}>{flavor.label}</span>
     </div>
   )
 }
 
-function describe(value: number, invertedHp: boolean): string {
+function describe(value: number, invertedHp: boolean): { label: string; critical: boolean } {
   if (invertedHp) {
-    if (value >= 50) return '轻伤'
-    if (value >= 25) return '重伤'
-    return '濒死'
+    for (const band of vitalsConfig.flavor.hpBands) {
+      if (value >= band.atLeast) return { label: band.label, critical: false }
+    }
+    const tail = vitalsConfig.flavor.hpBands[vitalsConfig.flavor.hpBands.length - 1]
+    return { label: tail.label, critical: false }
   }
-  if (value < 75) return '明显'
-  if (value < 90) return '严重'
-  return '极限'
+  for (const band of vitalsConfig.flavor.vitalBands) {
+    if (value < band.under) return { label: band.label, critical: !!band.critical }
+  }
+  const tail = vitalsConfig.flavor.vitalBands[vitalsConfig.flavor.vitalBands.length - 1]
+  return { label: tail.label, critical: !!tail.critical }
 }

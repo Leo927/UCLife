@@ -57,4 +57,32 @@
     hunger:  0.02,
     fatigue: 0.005,
   },
+
+  // Status-panel flavor-text bands. Boundaries match the player-facing
+  // labels in `src/ui/StatusPanel.tsx`. `critical` is the urgency tier —
+  // the player should only see it when intervention is required *now*; it
+  // gets its own deeper red and a flashing animation so it cannot be
+  // mistaken for the merely-severe band below it.
+  flavor: {
+    // Vital bars (hunger/thirst/fatigue/hygiene/boredom): higher = worse.
+    // Pick the first label whose `under` is greater than the value; the
+    // tail catches everything ≥ critical.
+    vitalBands: [
+      { under: 25,  label: '良好' },
+      { under: 50,  label: '微感' },
+      { under: 75,  label: '明显' },
+      { under: 95,  label: '严重' },
+      { under: 101, label: '极限', critical: true },
+    ],
+    // HP bar (inverted): higher = better.
+    hpBands: [
+      { atLeast: 80, label: '良好' },
+      { atLeast: 50, label: '轻伤' },
+      { atLeast: 25, label: '重伤' },
+      { atLeast: 0,  label: '濒死' },
+    ],
+    // Distinct deep red for the critical band so 极限 never reads as a
+    // saturated 严重.
+    criticalColor: '#b91c1c',
+  },
 }

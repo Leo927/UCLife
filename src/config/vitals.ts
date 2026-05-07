@@ -38,6 +38,11 @@ export interface VitalsConfig {
     hunger: number
     fatigue: number
   }
+  flavor: {
+    vitalBands: ReadonlyArray<{ under: number; label: string; critical?: boolean }>
+    hpBands: ReadonlyArray<{ atLeast: number; label: string }>
+    criticalColor: string
+  }
 }
 
 export const vitalsConfig = json5.parse(raw) as VitalsConfig
