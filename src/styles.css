@@ -1732,6 +1732,31 @@ html, body, #root {
   font-weight: 500;
   font-size: 13px;
 }
+.realtor-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 4px 0;
+}
+.realtor-tab {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.realtor-tab:hover {
+  color: var(--text);
+  border-color: #3a3a44;
+}
+.realtor-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d0d10;
+}
 
 /* Ship dealer kiosk — Phase 6.0 single-ship buy. */
 .ship-dealer-stats {

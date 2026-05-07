@@ -1,0 +1,83 @@
+// Phase 5.5.1 realtor configuration. Drives the listing + purchase surface
+// at the district realty office.
+//
+// Each row in `types` describes how a building-types.json5 entry presents
+// to the realtor:
+//   category       — listing band ('residential' | 'commercial' | 'factionMisc')
+//                    or 'civic' (visible-but-not-for-sale) or 'hidden'
+//                    (omitted from the listing entirely; e.g. aeComplex,
+//                    realtor itself).
+//   labelZh        — short zh-CN noun for the listing entry; falls back to
+//                    the building type's labelZh.
+//   buyable        — true if a fresh state-owned facility can be purchased
+//                    outright. Apartments use 'lease' instead — the bed-tier
+//                    rent flow stays the canonical surface, the realtor
+//                    surface lists the *building* but routes the bed-row
+//                    UI underneath.
+//   buildingPriceTilesMul — base sale price = wTiles × hTiles × this.
+//                    Multiplied by `state` and `private` modifiers below to
+//                    produce the listed asking price.
+//
+// Pricing modifiers — all multiplicative on the base, all in [0.0, ∞):
+//   listingMul.state   — direct-seller (state / foreclosed) sales markup.
+//                        ~0.6 = state liquidates cheap.
+//   listingMul.private — flagger/seller-direct minimum asking. The seller
+//                        moves the price within ±band based on opinion +
+//                        rep — see talkSale.priceBand.
+//
+// talkSale.priceBand — opinion → price modifier. Opinion is the seller's
+// edge value in src/systems/relations.ts (-100..+100). Min/max set the
+// outer bracket. Linear interpolation in between.
+//
+// playerWalletMode — ownership transfer rules:
+//   'merge' — Phase 5.5.5+ moves wallet → playerFaction.fund. Until then,
+//             we just debit Money on player purchases.
+{
+  // Multiplier on (wTiles × hTiles) for the per-type base price. Tuned so
+  // a small bar (5×3 = 15 tiles) lands in the low thousands and a luxury
+  // residence (12×14 = 168 tiles) lands in the mid five-figures.
+  types: {
+    bar:       { category: 'commercial',   buyable: true,  buildingPriceTilesMul: 220 },
+    factory:   { category: 'commercial',   buyable: true,  buildingPriceTilesMul: 380 },
+    shop:      { category: 'commercial',   buyable: true,  buildingPriceTilesMul: 260 },
+
+    // Apartment + luxury fall through to the bed-row leasing UI; the
+    // building-level price is the sum of remaining bed buyout values.
+    apartment: { category: 'residential',  buyable: false, lease: true,  buildingPriceTilesMul: 0 },
+    luxury:    { category: 'residential',  buyable: false, lease: true,  buildingPriceTilesMul: 0 },
+    dorm:      { category: 'residential',  buyable: true,  buildingPriceTilesMul: 120 },
+    flop:      { category: 'residential',  buyable: true,  lease: true,  buildingPriceTilesMul: 90 },
+
+    hrOffice:  { category: 'factionMisc',  buyable: true,  buildingPriceTilesMul: 320 },
+
+    // Civic — listed for legibility but not for sale. State-owned is the
+    // permanent footing; the realtor desk wouldn't actually move these.
+    park:            { category: 'civic',  buyable: false },
+    clinic:          { category: 'civic',  buyable: false },
+    pharmacy:        { category: 'civic',  buyable: false },
+    airport:         { category: 'civic',  buyable: false },
+    transitTerminal: { category: 'civic',  buyable: false },
+    realtor:         { category: 'hidden', buyable: false },
+
+    // Faction-misc with a canonical-faction owner (AE complex). Hidden from
+    // the realtor; players don't buy AE's HQ from a desk clerk.
+    aeComplex:       { category: 'hidden', buyable: false },
+  },
+
+  listingMul: {
+    state:   0.6,
+    private: 1.0,
+  },
+
+  // Seller-direct (flagger) sales: asking price band scaled by the seller's
+  // opinion of the player. -100 → min (refusal-tier markup); +100 → max
+  // (friendship discount). Interpolated linearly. Edge cases: a seller
+  // with no Knows() edge to the player reads as 0.
+  talkSale: {
+    priceBand: { min: 1.6, max: 0.7 },
+    // factionRep delta added to opinion before the band lookup. AE-rep
+    // doesn't help bargain a bar away from a civilian, but matters when
+    // the seller is faction-affiliated. Civilian sellers ignore this.
+    factionRepWeight: 0.5,
+  },
+}

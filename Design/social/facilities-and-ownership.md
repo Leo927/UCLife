@@ -413,7 +413,7 @@ nudge that makes the colony arc earn its weight.
 | Phase | Scope |
 |---|---|
 | **5.5.0** | Facility rename in code + data. Owner abstraction (Character \| Faction) under the hood. Existing shops/clinics/parks switch to state-owned default. No new player-facing surface yet. |
-| **5.5.1** | Realtor NPC + listing UI. Sale of existing facilities (private + state inventory). Apartment lease. |
+| **5.5.1** | Realtor NPC + tabbed listing UI (residential / commercial / faction-misc). Direct-seller close for state / foreclosed inventory. Flagger mode for private sales — realtor names the seller and walks the player to them; closes via a `SellerConversation` branch on the owner's NPC dialog. Apartment + luxury lease/buy stay on the bed-row surface. Seeded NPC owners on bars / factories / private residences from day one (`seedPrivateOwners`). Owner serializer + per-Building EntityKey persist player purchases across save/load. |
 | **5.5.2** | Daily economics (revenue / salary / maintenance). 3-day insolvency with embodied warning loop. |
 | **5.5.3** | Faction office + secretary delegate. Job-site interaction panel. Bed assignment + housing-pressure relationship drift. |
 | **5.5.4** | HR office + recruiter NPC. Procgen applicants in the lobby. Auto-accept filter as conversation. Talk-verb hire from `faction-management.md` extended with gating. |

@@ -13,7 +13,7 @@ import {
   Ship, ShipRoom, WeaponMount,
   type InteractableKind,
 } from './traits'
-import { bootstrapFactions, defaultOwnerFor } from './ownership'
+import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
@@ -98,11 +98,25 @@ function enclose(b: { x: number; y: number; w: number; h: number }, doors: DoorP
 
 // ── GENERIC BUILDING SPAWNER ─────────────────────────────────────────────────
 
-function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId: SceneId): void {
+// Building EntityKey is `bld-<sceneId>-<typeId>-<n>`, where n increments per
+// (scene, type) tuple. Stable across runs for a given seed because the
+// procgen + fixed-spawn order is deterministic. The realtor's listings and
+// the Owner serializer both round-trip through this key.
+const buildingKeyCounters: Record<string, number> = {}
+function nextBuildingKey(sceneId: SceneId, typeId: string): string {
+  const k = `${sceneId}:${typeId}`
+  const n = buildingKeyCounters[k] ?? 0
+  buildingKeyCounters[k] = n + 1
+  return `bld-${sceneId}-${typeId}-${n}`
+}
+
+function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId: SceneId): Entity {
   const btype = getBuildingType(typeId)
-  world.spawn(
-    Building({ ...slot.rect, label: btype.labelZh }),
+  const buildingKey = nextBuildingKey(sceneId, typeId)
+  const buildingEnt = world.spawn(
+    Building({ ...slot.rect, label: btype.labelZh, typeId }),
     Owner(defaultOwnerFor(world, typeId)),
+    EntityKey({ key: buildingKey }),
   )
 
   const layout = btype.layout
@@ -133,6 +147,8 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
       EntityKey({ key: 'buyship-aeComplex' }),
     )
   }
+
+  return buildingEnt
 }
 
 // Point one tile outside `door`, in the direction perpendicular to its wall.
@@ -841,6 +857,11 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
     spawnAeWorkforce()
     spawnFoundingCivilians(scene)
   }
+
+  // Now that the candidate NPC pool exists, re-stamp every 'private' building
+  // with a named owner so the realtor has private-inventory listings from
+  // day one. Civic and faction-owned buildings stay untouched.
+  seedPrivateOwners(world, scene.id)
 }
 
 // Ship interior bootstrap. Spawns the walkable flagship: Ship singleton
@@ -972,6 +993,7 @@ export function setupWorld() {
   roughSpotCounter = 0
   airportHubsBound.clear()
   transitTerminalsBound.clear()
+  for (const k of Object.keys(buildingKeyCounters)) delete buildingKeyCounters[k]
   clearAirportPlacements()
   clearTransitPlacements()
 

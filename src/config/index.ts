@@ -31,8 +31,11 @@ export type { PopulationConfig } from './population'
 export { factionsConfig } from './factions'
 export type { FactionsConfig, FactionSpec, FactionId, FactionTier } from './factions'
 
-export { ownershipConfig } from './ownership'
+export { ownershipConfig, isPrivateBuildingType } from './ownership'
 export type { OwnershipConfig, OwnershipDefault } from './ownership'
+
+export { realtyConfig, getRealtyType } from './realty'
+export type { RealtyConfig, RealtyTypeSpec, ListingCategory } from './realty'
 
 export { spaceConfig } from './space'
 export type { SpaceConfig } from './space'

@@ -2,18 +2,21 @@
 //
 //   kind: 'state'                          — civic / state-supported. No payroll
 //                                            modeling; the city eats the cost.
-//                                            Realtor (5.5.1) lists these in the
+//                                            Realtor lists these in the
 //                                            state-inventory band.
 //   kind: 'faction', factionId: <id>       — owned by a canonical NPC faction.
 //                                            Owner.entity resolves to the
 //                                            spawned Faction entity at boot.
+//   kind: 'private'                        — privately owned by an NPC.
+//                                            spawnBuilding seats kind='state'
+//                                            as a holding pattern; the post-
+//                                            spawn seedPrivateOwners pass
+//                                            re-stamps each building with a
+//                                            named NPC drawn from the
+//                                            founding civilians.
 //
 // 'character' ownership has no default — the player or a named NPC takes a
-// facility through the realtor surface (5.5.1) or via inheritance (later).
-//
-// Phase 5.5.1 will layer seeded NPC owners onto the 'private' commercial /
-// residential rows below, replacing the temporary 'state' default. The
-// civic rows stay 'state' permanently.
+// facility through the realtor surface or via inheritance (later).
 {
   defaults: {
     // ── Civic / state-supported ───────────────────────────────────────────
@@ -29,12 +32,12 @@
     // ── Faction-misc ──────────────────────────────────────────────────────
     aeComplex: { kind: 'faction', factionId: 'anaheim' },
 
-    // ── Private (temporary state-default; Phase 5.5.1 replaces) ───────────
-    bar:       { kind: 'state' },
-    factory:   { kind: 'state' },
-    apartment: { kind: 'state' },
-    luxury:    { kind: 'state' },
-    flop:      { kind: 'state' },
-    dorm:      { kind: 'state' },
+    // ── Private (seeded NPC owners) ───────────────────────────────────────
+    bar:       { kind: 'private' },
+    factory:   { kind: 'private' },
+    apartment: { kind: 'private' },
+    luxury:    { kind: 'private' },
+    flop:      { kind: 'private' },
+    dorm:      { kind: 'private' },
   },
 }

@@ -45,9 +45,14 @@ export const Interactable = trait({
   fee: 0,
 })
 
+// `typeId` matches a row in `data/building-types.json5` — the realtor uses
+// it to look up category + pricing in `realty.json5`. Reset to '' for legacy
+// non-listable buildings (e.g. ship interior rooms reuse the Building trait
+// for room bounds — see bootstrapShipScene).
 export const Building = trait({
   x: 0, y: 0, w: 0, h: 0,
   label: '',
+  typeId: '',
 })
 
 // One shift slot at a workplace. Multiple Workstations may share a Position

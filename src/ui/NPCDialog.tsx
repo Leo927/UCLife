@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import type { Entity } from 'koota'
-import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance } from '../ecs/traits'
+import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building } from '../ecs/traits'
 import type { ActionKind, Gender } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { actionLabel } from '../data/actions'
@@ -11,6 +11,7 @@ import { tierOf, TIER_LABEL_ZH, topRelationsFor } from '../systems/relations'
 import { Portrait } from '../render/portrait/react/Portrait'
 import { HRConversation } from './conversations/HRConversation'
 import { RealtorConversation } from './conversations/RealtorConversation'
+import { SellerConversation } from './conversations/SellerConversation'
 import { AEConversation } from './conversations/AEConversation'
 import { ClinicConversation } from './conversations/ClinicConversation'
 import { PharmacyConversation } from './conversations/PharmacyConversation'
@@ -63,10 +64,26 @@ export function NPCDialog() {
   const job = useTrait(target, Job)
   const player = useQueryFirst(IsPlayer)
   const allStations = useQuery(Workstation)
+  // Subscribe to Owner so the seller branch refreshes after a transaction.
+  const allBuildings = useQuery(Building, Owner)
   const [response, setResponse] = useState<string | null>(null)
   const [showDebug, setShowDebug] = useState(false)
 
   if (!target || !info) return null
+
+  // True if this NPC owns ≥1 private facility — gates the SellerConversation
+  // branch. Read directly from the world rather than walking allBuildings
+  // every render — the array is captured above to keep koota re-renders
+  // hooked up; the loop is short (≤ a few buildings per owner).
+  let ownsPrivateFacility = false
+  for (const b of allBuildings) {
+    const o = b.get(Owner)
+    if (!o) continue
+    if (o.kind === 'character' && o.entity === target) {
+      ownsPrivateFacility = true
+      break
+    }
+  }
 
   // Reverse direction (target's opinion of player) is intentionally hidden
   // so it can carry social surprise later.
@@ -137,6 +154,7 @@ export function NPCDialog() {
         </section>
         {isHROnDuty && <HRConversation />}
         {isRealtorOnDuty && <RealtorConversation />}
+        {ownsPrivateFacility && <SellerConversation seller={target} />}
         {isAEOnDuty && <AEConversation />}
         {isDoctorOnDuty && <ClinicConversation />}
         {isPharmacistOnDuty && <PharmacyConversation />}
