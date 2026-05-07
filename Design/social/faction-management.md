@@ -154,18 +154,64 @@ skill ones anticipate and adjust.
 
 ## Colony: claim or build
 
-At Phase 6.3 the player can establish their first colony. Two paths,
-both produce a walkable scene that becomes a persistent POI on the
-Earth Sphere campaign map:
+At Phase 6.3 the player can establish their first colony. Two
+acquisition arcs, both diegetic, both producing a walkable scene that
+becomes a persistent POI on the Earth Sphere campaign map. Per the
+[diegetic-management.md](diegetic-management.md#acquisition-is-part-of-the-surface)
+discipline, neither arc is a click — both have on-site verbs, embodied
+NPC obstacles, and a walked moment of taking possession.
 
-1. **Claim an asteroid base** — small uninhabited or abandoned
-   asteroid POIs scatter the procedural minor-POI table. Some are
-   claimable (cleared of hostiles, sufficient infrastructure). Faster
-   to start, smaller starting building stock.
-2. **Build a new colony from scratch** — pick an unoccupied asteroid
-   or LaGrange position, pay the establishment cost (significant
-   capital + supplies + crew), bootstrap basic life support. Slower
-   to start, fully customizable layout.
+### Claim path
+
+Worldgen seeds **3–5 authored, named claimable POIs** at game start
+(abandoned helium-3 refinery, pirate-occupied salvage yard, bankrupt
+mining concern), each carrying backstory in the [newsfeed](newsfeed.md).
+New candidates surface monthly as news events generate them. Pure
+procgen alone makes "claim X vs Y" feel arbitrary; named candidates
+with character make it a real choice.
+
+The arc:
+1. **Spot a candidate** on the [starmap](../starmap.md), flagged with
+   its newsfeed hook ("the Mariko Concern collapsed last week").
+2. **Dock and resolve the human factor on-site.** The obstacle is an
+   NPC, not a stat check — pirates to clear in tactical, a bankrupt
+   owner to negotiate with via talk-verb, or a squatting survivor-
+   administrator the player can hire as their first colony admin. A
+   player with city relationships may discover the bankrupt owner is
+   someone they already know.
+3. **Take possession in a walked moment.** The empty administrator's
+   chair in the candidate's command center is the claim verb. Walk to
+   it, sit, install your first hire. That action seals ownership.
+
+Faster, lower establishment cost, smaller starting building stock —
+but layout and faction context are fixed by what you found.
+
+### Build path
+
+The arc:
+1. **File a charter in person.** Walk to a Federation, Zeon, or AE
+   permits official at a major POI. Faction rep gates fee and
+   approval; building in unclaimed asteroid space skips the charter
+   entirely but draws pirate attention.
+2. **One freighter trip, not a logistics chain.** Buy a "colony
+   establishment package" — a physical cargo item bundling capital +
+   supplies + a tagged construction crew — at a major shipyard. Fly
+   it to the chosen point. Subsequent buildings each need *a* trip +
+   *a* credit cost but never a multi-shipment supply chain. We are
+   not X4.
+3. **The first walkable scene is one hab pod.** Drop the
+   establishment package; the scene starts as a single life-support
+   module with construction NPCs sleeping on cots. Each authorized
+   building extends the scene over game-time; the colony grows
+   visibly under the player's feet across months.
+4. **Construction time has interrupts.** Worker injury, faction
+   inspector visit, contested supply shipment — small events that
+   pull the player out of hyperspeed. Without these the player skips
+   weeks and arrives at a finished base, which is the menu pattern
+   with extra steps.
+
+Slower, more capital-intensive, fully customizable layout because the
+player authored each building.
 
 In both cases the resulting colony is a **walkable koota scene**,
 sized smaller than Von Braun (one or two districts of a city, not the

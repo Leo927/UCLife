@@ -85,6 +85,28 @@ The player resolves the room by speaking ("税率从 8% 升到 12%。"). The cho
 
 This converts an otherwise spreadsheet-tier feature (a slider grid of policies) into a recurring *event* the player walks into and witnesses opinions colliding. The room is the system.
 
+## Acquisition is part of the surface
+
+Hubs do not just appear when the player has enough credits. The act of
+*acquiring* a hub — the first ship, the first colony — is itself a
+diegetic arc, not a click. A click that produces a colony has the same
+shape as a slider that sets a doctrine: a feature with no body and no
+place.
+
+The acquisition pattern: **find a candidate** in the world (a POI on
+the campaign map, a hull at a broker), **resolve the human factor**
+on-site (an NPC obstacle — pirates to clear, an owner to buy out, a
+survivor to hire, a permits clerk to talk to), then **take possession
+in a walked moment** (the first walk onto your bridge, the first sit
+in the empty administrator's chair). Each step has a body and a place;
+none is a transaction dialog the player skips through.
+
+Per-acquisition detail (named candidates, charter NPCs, establishment
+package, construction interrupts) lives in
+[faction-management.md](faction-management.md#colony-claim-or-build).
+This file just establishes the surface principle: the moment of
+acquiring is itself a diegetic arc.
+
 ## What this constrains
 
 This discipline is a real constraint on what features can ship. Specifically:
