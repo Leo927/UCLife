@@ -5,7 +5,7 @@ import {
   type SceneConfig, type MicroSceneConfig, type ShipSceneConfig,
 } from '../data/scenes'
 import {
-  Position, Interactable, Building,
+  Position, Interactable, Building, Owner,
   Job, Workstation,
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
@@ -13,6 +13,7 @@ import {
   Ship, ShipRoom, WeaponMount,
   type InteractableKind,
 } from './traits'
+import { bootstrapFactions, defaultOwnerFor } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
@@ -99,7 +100,10 @@ function enclose(b: { x: number; y: number; w: number; h: number }, doors: DoorP
 
 function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId: SceneId): void {
   const btype = getBuildingType(typeId)
-  world.spawn(Building({ ...slot.rect, label: btype.labelZh }))
+  world.spawn(
+    Building({ ...slot.rect, label: btype.labelZh }),
+    Owner(defaultOwnerFor(world, typeId)),
+  )
 
   const layout = btype.layout
   // Park has no exterior walls and no doors — skip enclose entirely.
@@ -791,6 +795,10 @@ function spawnFoundingCivilians(scene: MicroSceneConfig): void {
 let roughSpotCounter = 0
 
 function bootstrapMicroScene(scene: MicroSceneConfig): void {
+  // Faction entities first — Building spawns below resolve their default
+  // Owner.entity against this set.
+  bootstrapFactions(world)
+
   if (scene.id === initialSceneId && scene.playerSpawnTile) {
     spawnPlayer(world, {
       x: TILE * scene.playerSpawnTile.x,

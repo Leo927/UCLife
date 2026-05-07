@@ -9,6 +9,13 @@ import type { FactionId, BedTier, InteractableKind, RoadKind } from '../../confi
 // callers keep working. Canonical declarations live in config/kinds.ts.
 export type { BedTier, InteractableKind, RoadKind }
 
+// Ownership kind for the Owner trait. 'state' has no entity ref — civic
+// facilities operate at baseline with no payroll model. 'faction' and
+// 'character' both reference an entity in the same world via Owner.entity.
+// Phase 5.5 introduces this abstraction; Phase 5.5.1+ surfaces it through
+// the realtor and daily-economics systems.
+export type OwnerKind = 'state' | 'faction' | 'character'
+
 export const Wall = trait({ x: 0, y: 0, w: 0, h: 0 })
 
 // Procgen road surface — purely visual + semantic; the pathfinder treats
@@ -90,4 +97,23 @@ export const Helm = trait({
   // An interact tile in playerShipInterior that, when pressed E, takes
   // helm. Slice 5 wires the actual interaction; this trait is the
   // anchor a slice-5 'helm' Interactable kind will reference.
+})
+
+// Phase 5.5 ownership tag. Sits on every Building and (later) ownable
+// entity. `entity` is null for kind='state', the Faction entity for
+// kind='faction', and the Character entity for kind='character'. Save
+// round-trip resolves the ref via EntityKey, so faction/character entity
+// must carry one to be persistable.
+export const Owner = trait({
+  kind: 'state' as OwnerKind,
+  entity: null as Entity | null,
+})
+
+// First-class Faction entity. Phase 5.5.0 ships the bare minimum:
+// canonical id + a fund. Members continue to be tracked via the
+// FactionRole trait on character entities until Phase 5.5.5's
+// player-faction migration introduces an explicit MemberOf relation.
+export const Faction = trait({
+  id: 'civilian' as FactionId,
+  fund: 0,
 })

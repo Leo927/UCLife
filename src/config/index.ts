@@ -31,6 +31,9 @@ export type { PopulationConfig } from './population'
 export { factionsConfig } from './factions'
 export type { FactionsConfig, FactionSpec, FactionId, FactionTier } from './factions'
 
+export { ownershipConfig } from './ownership'
+export type { OwnershipConfig, OwnershipDefault } from './ownership'
+
 export { spaceConfig } from './space'
 export type { SpaceConfig } from './space'
 

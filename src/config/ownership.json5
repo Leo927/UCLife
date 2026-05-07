@@ -1,0 +1,40 @@
+// Phase 5.5 default ownership map. Keyed by building-types.json5 id.
+//
+//   kind: 'state'                          — civic / state-supported. No payroll
+//                                            modeling; the city eats the cost.
+//                                            Realtor (5.5.1) lists these in the
+//                                            state-inventory band.
+//   kind: 'faction', factionId: <id>       — owned by a canonical NPC faction.
+//                                            Owner.entity resolves to the
+//                                            spawned Faction entity at boot.
+//
+// 'character' ownership has no default — the player or a named NPC takes a
+// facility through the realtor surface (5.5.1) or via inheritance (later).
+//
+// Phase 5.5.1 will layer seeded NPC owners onto the 'private' commercial /
+// residential rows below, replacing the temporary 'state' default. The
+// civic rows stay 'state' permanently.
+{
+  defaults: {
+    // ── Civic / state-supported ───────────────────────────────────────────
+    park:            { kind: 'state' },
+    airport:         { kind: 'state' },
+    transitTerminal: { kind: 'state' },
+    clinic:          { kind: 'state' },
+    pharmacy:        { kind: 'state' },
+    shop:            { kind: 'state' },
+    realtor:         { kind: 'state' },
+    hrOffice:        { kind: 'state' },
+
+    // ── Faction-misc ──────────────────────────────────────────────────────
+    aeComplex: { kind: 'faction', factionId: 'anaheim' },
+
+    // ── Private (temporary state-default; Phase 5.5.1 replaces) ───────────
+    bar:       { kind: 'state' },
+    factory:   { kind: 'state' },
+    apartment: { kind: 'state' },
+    luxury:    { kind: 'state' },
+    flop:      { kind: 'state' },
+    dorm:      { kind: 'state' },
+  },
+}
