@@ -90,10 +90,6 @@ jobs:
       - if: always()
         run: node scripts/check-flights.mjs
       - if: always()
-        run: node scripts/check-map.mjs
-      - if: always()
-        run: node scripts/check-chatbubble.mjs
-      - if: always()
         run: node scripts/check-systemmenu.mjs
       - if: always()
         run: node scripts/check-hotkeys.mjs

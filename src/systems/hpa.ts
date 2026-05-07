@@ -110,7 +110,9 @@ export function markHpaDirty(sceneId?: SceneId): void {
   h.clusters = []
 }
 
-// perf-survive flips `enabled` on. Negligible overhead when disabled.
+// Flip `enabled` on from devtools (`__uclife__.world` won't reach this; do
+// `import('/src/systems/hpa').then(m => m.hpaStats.enabled = true)` from the
+// console) when you need the per-query counters. Negligible overhead off.
 export const hpaStats = {
   enabled: false,
   queries: 0,
