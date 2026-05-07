@@ -37,6 +37,13 @@ export type { OwnershipConfig, OwnershipDefault } from './ownership'
 export { realtyConfig, getRealtyType } from './realty'
 export type { RealtyConfig, RealtyTypeSpec, ListingCategory } from './realty'
 
+export {
+  economicsConfig, facilityRevenuePerShift, facilityMaintenancePerDay,
+} from './economics'
+export type {
+  EconomicsConfig, FacilityTypeEconomics, OwnerKindEconomics, FactionEconomics,
+} from './economics'
+
 export { spaceConfig } from './space'
 export type { SpaceConfig } from './space'
 

@@ -1,4 +1,4 @@
-import { getWorld, getActiveSceneId } from '../ecs/world'
+import { getWorld, getActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { getSceneConfig } from '../data/scenes'
 import { useClock, gameDayNumber, setPartialMinute } from './clock'
 import { emitSim, onSim } from './events'
@@ -20,6 +20,7 @@ import { ambitionsSystem } from '../systems/ambitions'
 import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
 import { supplyDrainSystem } from '../systems/supplyDrain'
+import { dailyEconomicsSystem } from '../systems/dailyEconomics'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
@@ -56,6 +57,11 @@ let running = false
 let lastFrame = 0
 let tickAccum = 0
 let prevDayInGame = 0
+
+// Phase 5.5.2 — set by `hyperspeed:break` events. Read once per frame
+// inside the hyperspeed gate, then cleared. Lets dailyEconomicsSystem
+// (and future diegetic events) force a break without inspecting Vitals.
+let pendingHyperspeedBreak: string | null = null
 
 function effectiveSpeed(): number {
   const { speed, mode } = useClock.getState()
@@ -123,6 +129,13 @@ function frame(now: number) {
       if (newDay !== prevDayInGame) {
         prevDayInGame = newDay
         emitSim('day:rollover', { reason: '日翻页' })
+        // Phase 5.5.2 — facility owners reckon revenue/salary/maintenance
+        // and roll the insolvency counter. Runs on every scene world so
+        // facilities outside the active scene (e.g. another district)
+        // still settle. Skip ship/space worlds; their queries are empty.
+        for (const id of SCENE_IDS) {
+          dailyEconomicsSystem(getWorld(id), newDay)
+        }
       }
       // Supply drain runs after clock.advance so it sees the post-tick game
       // date. Reads its own elapsed-min delta internally.
@@ -174,6 +187,15 @@ function frame(now: number) {
             reasons.push('病情加重'); break
           }
         }
+      }
+
+      // Phase 5.5.2 — pending break from a diegetic event (insolvency,
+      // foreclosure, …). Synthesized into a danger reason for one frame
+      // so the existing toast-on-break path lights up too. Cleared after
+      // read so the next frame is back to vitals-only gating.
+      if (pendingHyperspeedBreak) {
+        reasons.push(pendingHyperspeedBreak)
+        pendingHyperspeedBreak = null
       }
 
       const inDanger = reasons.length > 0
@@ -251,3 +273,8 @@ export function stopLoop() {
 // breaks the historical save <-> sim/loop import cycle.
 onSim('load:start', () => stopLoop())
 onSim('load:end', () => startLoop())
+
+// Phase 5.5.2 — diegetic events outside the loop ask for a hyperspeed
+// break by emitting this. Loop reads the latest reason in its own
+// frame() and clears the slot.
+onSim('hyperspeed:break', (p) => { pendingHyperspeedBreak = p.reason })

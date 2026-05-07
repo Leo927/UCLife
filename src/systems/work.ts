@@ -1,5 +1,5 @@
 import type { World, Entity } from 'koota'
-import { IsPlayer, Action, JobPerformance, Job, Money, Workstation, JobTenure, Attributes } from '../ecs/traits'
+import { IsPlayer, Action, JobPerformance, Job, Money, Workstation, JobTenure, Attributes, Position, Facility, Owner, Building, Faction } from '../ecs/traits'
 import { wageMultiplier, getJobSpec } from '../data/jobs'
 import { isWorkstationOpen } from './market'
 import { emitSim } from '../sim/events'
@@ -7,12 +7,13 @@ import { addSkillXp, type SkillId } from '../character/skills'
 import { feedUse, statValue } from './attributes'
 import { FEED, statMult } from '../character/stats'
 import type { AttributeId } from '../character/stats'
-import { economyConfig, factionsConfig } from '../config'
+import { economyConfig, economicsConfig, factionsConfig, facilityRevenuePerShift } from '../config'
 import type { JobSpec } from '../config'
 import { addRep } from './reputation'
 import { checkPromotionEligibility } from './promotion'
 import { getStat } from '../stats/sheet'
 import { skillXpMulStat, type SkillStatId } from '../stats/schema'
+import { findFacilityForPosition } from '../ecs/ownership'
 
 function wageMul(entity: Entity): number {
   const a = entity.get(Attributes)
@@ -76,7 +77,7 @@ function jobAttr(spec: JobSpec): AttributeId {
 function processMinute(
   world: World,
   entity: Entity,
-  _ws: Entity,
+  ws: Entity,
   spec: JobSpec,
   gameDate: Date,
   isPlayer: boolean,
@@ -92,7 +93,15 @@ function processMinute(
   // End-of-shift payout MUST run before the day-rollover reset: midnight
   // shifts flip the calendar day on the same minute the payout fires.
   if (wasInWindow && !inWindow) {
-    if (todayPerf > 0 && spec.wage > 0) {
+    // Phase 5.5.2 — facility owner pays the worker's wage and books the
+    // shift's revenue. The facility lookup runs once per shift transition;
+    // a closed facility (insolvency day 2+) zeros both wage and revenue —
+    // workers stop showing up for an unpaid boss.
+    const facilityEnt = findFacilityFor(world, ws)
+    const closedFacility = facilityEnt?.get(Facility)?.closedSinceDay ?? 0
+    const facilityClosed = closedFacility > 0
+
+    if (todayPerf > 0 && spec.wage > 0 && !facilityClosed) {
       const npcBonus = isPlayer ? 1.0 : economyConfig.wage.npcBonus
       const attrMult = statMult(statValue(entity, jobAttr(spec)))
       // Intelligence multiplies skill XP across all jobs; per-skill perks
@@ -101,6 +110,8 @@ function processMinute(
       const skillMul = spec.skill ? skillXpMul(entity, spec.skill as SkillStatId) : 1
       const wage = Math.floor(spec.wage * wageMultiplier(todayPerf) * npcBonus * attrMult * wageMul(entity))
       const xpGain = spec.skill ? Math.floor(spec.skillXp * (todayPerf / 100) * intMult * skillMul) : 0
+
+      if (facilityEnt) accrueShiftEconomics(facilityEnt, todayPerf, wage)
 
       const m = entity.get(Money)
       if (m && wage > 0) entity.set(Money, { amount: m.amount + wage })
@@ -160,6 +171,51 @@ function isInWorkWindowInline(spec: JobSpec, date: Date): boolean {
   if (!spec.workDays.includes(date.getDay())) return false
   const m = date.getHours() * 60 + date.getMinutes()
   return m >= spec.shiftStart * 60 && m < spec.shiftEnd * 60
+}
+
+// Phase 5.5.2 — find the ownable Facility containing a given Workstation.
+// State-owned facilities short-circuit accrual (the city eats the cost),
+// matching dailyEconomics's skip rule. Returns null when the workstation
+// sits inside a non-ownable Building (e.g. a ship room — Building without
+// Facility) or outside any building.
+function findFacilityFor(world: World, ws: Entity): Entity | null {
+  const wsPos = ws.get(Position)
+  if (!wsPos) return null
+  const facility = findFacilityForPosition(world, wsPos)
+  if (!facility) return null
+  const owner = facility.get(Owner)
+  if (!owner || owner.kind === 'state') return null
+  return facility
+}
+
+// Apply a single completed shift's contribution to the facility's day
+// accumulators. Salary is the wage workSystem just paid the worker.
+// Revenue scales the per-shift base by the worker's perf and the
+// configured owner-kind / faction multipliers.
+function accrueShiftEconomics(facility: Entity, todayPerf: number, wage: number): void {
+  const fac = facility.get(Facility)!
+  const bld = facility.get(Building)
+  const owner = facility.get(Owner)
+  if (!bld || !owner || owner.kind === 'state') return
+
+  const baseRevenue = facilityRevenuePerShift(bld.typeId)
+  const ownerKindMul = economicsConfig.ownerKindMul[owner.kind].revenueMul
+  let factionMul = 1
+  if (owner.kind === 'faction' && owner.entity) {
+    const factionTrait = owner.entity.get(Faction)
+    if (factionTrait) {
+      factionMul = economicsConfig.factions[factionTrait.id]?.revenueMul ?? 1
+    }
+  }
+  const perf01 = Math.max(0, Math.min(1, todayPerf / 100))
+  const revenue = Math.round(
+    baseRevenue * perf01 * economicsConfig.global.revenueMul * ownerKindMul * factionMul,
+  )
+  facility.set(Facility, {
+    ...fac,
+    revenueAcc: fac.revenueAcc + revenue,
+    salariesAcc: fac.salariesAcc + Math.max(0, wage),
+  })
 }
 
 export { isWorkstationOpen }

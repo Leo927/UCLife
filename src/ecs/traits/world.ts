@@ -122,3 +122,29 @@ export const Faction = trait({
   id: 'civilian' as FactionId,
   fund: 0,
 })
+
+// Phase 5.5.2 per-facility daily-economics state. Sits on every ownable
+// Building. workSystem accumulates `revenueAcc` and `salariesAcc` across
+// the day; the daily-economics rollover at midnight rolls those into the
+// owner's fund along with maintenance, and updates `insolventDays`.
+//
+// `lastClosedDay` and `closedReason` flag a facility currently shuttered
+// because its owner can't make payroll — workers refuse the shift on
+// Day 2 onwards, drawn from the warning loop in
+// Design/social/facilities-and-ownership.md.
+export type FacilityClosedReason = 'insolvent'
+
+export const Facility = trait({
+  revenueAcc: 0,
+  salariesAcc: 0,
+  insolventDays: 0,
+  // Last gameDayNumber the rollover ran for this facility. 0 = never.
+  // Guards against a single rollover firing twice within one day (e.g.
+  // tests force-advancing time, or a load that re-runs day:rollover).
+  lastRolloverDay: 0,
+  // 0 = open / solvent. >0 = the gameDayNumber the worker no-show kicked
+  // in. Workstations on this facility short-circuit `working` actions
+  // until cleared by a solvent rollover.
+  closedSinceDay: 0,
+  closedReason: null as FacilityClosedReason | null,
+})

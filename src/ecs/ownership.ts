@@ -9,7 +9,7 @@
 // trait pair.
 
 import type { Entity, World, TraitInstance } from 'koota'
-import { Faction, EntityKey, Owner, Building, Character, Money, IsPlayer, FactionRole } from './traits'
+import { Faction, EntityKey, Owner, Building, Character, Money, IsPlayer, FactionRole, Facility } from './traits'
 import { factionsConfig, ownershipConfig, isPrivateBuildingType, type FactionId } from '../config'
 import { SeededRng } from '../procgen'
 
@@ -109,3 +109,81 @@ export function seedPrivateOwners(world: World, seedSuffix: string): void {
     b.ent.set(Owner, { kind: 'character', entity: pick.ent })
   }
 }
+
+// Spatial lookup: given a position (e.g. a Workstation's), return the
+// ownable Building that contains it. Returns null when the position is
+// outside every Building rect (e.g. ship-room Buildings, which lack the
+// Facility trait), or when the position itself is missing.
+//
+// Per call: O(B) where B is the building count for the active world.
+// workSystem hits this once per worker per shift-end transition — cheap.
+export function findFacilityForPosition(
+  world: World,
+  pos: { x: number; y: number },
+): Entity | null {
+  for (const b of world.query(Building, Facility)) {
+    const bld = b.get(Building)!
+    if (pos.x < bld.x || pos.x >= bld.x + bld.w) continue
+    if (pos.y < bld.y || pos.y >= bld.y + bld.h) continue
+    return b
+  }
+  return null
+}
+
+// Look up the Faction entity referenced by an Owner trait. Returns null
+// for non-faction owners or dangling refs.
+export function ownerFaction(owner: TraitInstance<typeof Owner>): Entity | null {
+  if (owner.kind !== 'faction') return null
+  return owner.entity
+}
+
+// Resolve the character entity behind a 'character' Owner trait. Null
+// otherwise. Wraps the kind/entity check so callers stay tidy.
+export function ownerCharacter(owner: TraitInstance<typeof Owner>): Entity | null {
+  if (owner.kind !== 'character') return null
+  return owner.entity
+}
+
+// Fund check: does the resolved owner of `building` have at least `cost`
+// available? State owners always read true (the city eats the cost).
+// Used by daily-economics to gate solvency without paying yet.
+export function ownerCanPay(building: Entity, cost: number): boolean {
+  const o = building.get(Owner)
+  if (!o) return false
+  if (o.kind === 'state') return true
+  if (cost <= 0) return true
+  if (o.kind === 'faction') {
+    const f = o.entity?.get(Faction)
+    return !!f && f.fund >= cost
+  }
+  // character
+  const m = o.entity?.get(Money)
+  return !!m && m.amount >= cost
+}
+
+// Apply a delta (positive = credit, negative = debit) to the owner's
+// fund. State owners are no-ops by design (no payroll modeling).
+// Returns true if the change was applied; false if the owner ref is
+// missing the expected trait (e.g. a character owner without Money).
+export function applyOwnerFundDelta(building: Entity, delta: number): boolean {
+  const o = building.get(Owner)
+  if (!o) return false
+  if (o.kind === 'state') return true
+  if (o.kind === 'faction') {
+    const fEnt = o.entity
+    if (!fEnt) return false
+    const f = fEnt.get(Faction)
+    if (!f) return false
+    fEnt.set(Faction, { ...f, fund: f.fund + delta })
+    return true
+  }
+  // character
+  const cEnt = o.entity
+  if (!cEnt) return false
+  const m = cEnt.get(Money)
+  if (!m) return false
+  cEnt.set(Money, { amount: m.amount + delta })
+  return true
+}
+
+

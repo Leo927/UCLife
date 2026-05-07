@@ -19,6 +19,10 @@ export interface SimEventPayloads {
   // ── Lifecycle (legacy callers — `reason` only) ───────────────────────
   'day:rollover':       { reason: string }
   'hyperspeed:start':   { reason: string }
+  // Phase 5.5.2 — surface from outside the loop. The loop's per-frame
+  // hyperspeed gate reads `pendingHyperspeedBreak` set by this event and
+  // forces isHyperspeed=false for one frame.
+  'hyperspeed:break':   { reason: string }
   'load:start':         { reason: string }
   'load:end':           { reason: string }
   // ── Generic event-log + toast ────────────────────────────────────────
