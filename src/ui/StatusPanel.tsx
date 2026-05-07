@@ -404,7 +404,6 @@ function StatusBar({ label, value, invert = false }: { label: string; value: num
         <div className="status-bar-fill" style={{ width: `${filled}%`, background: color }} />
       </div>
       <span className="status-bar-desc" style={{ color }}>{desc}</span>
-      <span className="status-bar-num">{Math.round(filled)}</span>
     </div>
   )
 }
