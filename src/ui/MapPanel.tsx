@@ -203,15 +203,27 @@ export function MapPanel() {
   // a movement threshold to reject accidental swipes).
   const pressRef = useRef<{ x: number; y: number } | null>(null)
 
-  // Transient ripple shown at the most recent navigate-click. Keyed by an
-  // ever-increasing id so consecutive clicks remount the <g> and replay the
-  // SVG <animate>. Auto-clears after the animation duration.
-  const [clickFx, setClickFx] = useState<{ cx: number; cy: number; key: number } | null>(null)
+  // Transient ripple at the most recent navigate-click. Driven by a RAF
+  // loop so it's independent of SVG-SMIL's document-timeline quirks (which
+  // skip animations whose default begin="0s" already elapsed before the
+  // <animate> was mounted). `t` ramps 0→1 across durationSec and the
+  // element clears itself when the animation completes.
+  const [clickFx, setClickFx] = useState<{ cx: number; cy: number; key: number; t: number } | null>(null)
+  const fxKey = clickFx?.key ?? null
   useEffect(() => {
-    if (!clickFx) return
-    const t = setTimeout(() => setClickFx(null), worldConfig.mapClickFeedback.durationSec * 1000)
-    return () => clearTimeout(t)
-  }, [clickFx])
+    if (fxKey === null) return
+    const dur = worldConfig.mapClickFeedback.durationSec * 1000
+    const start = performance.now()
+    let raf = 0
+    const loop = () => {
+      const t = Math.min(1, (performance.now() - start) / dur)
+      setClickFx(prev => prev && prev.key === fxKey ? { ...prev, t } : prev)
+      if (t < 1) raf = requestAnimationFrame(loop)
+      else setClickFx(prev => prev && prev.key === fxKey ? null : prev)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [fxKey])
 
   if (!open) return null
 
@@ -297,7 +309,7 @@ export function MapPanel() {
     }
     player.set(MoveTarget, { x: px, y: py })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
-    setClickFx({ cx: u.x, cy: u.y, key: performance.now() })
+    setClickFx({ cx: u.x, cy: u.y, key: performance.now(), t: 0 })
   }
 
   return (
@@ -389,26 +401,17 @@ export function MapPanel() {
               const fx = worldConfig.mapClickFeedback
               const r0 = Math.max(fx.startRadiusTiles, 4 / scale)
               const r1 = Math.max(fx.endRadiusTiles, 16 / scale)
-              const dur = `${fx.durationSec}s`
+              const r = r0 + (r1 - r0) * clickFx.t
+              const op = fx.startAlpha * (1 - clickFx.t)
               return (
-                <g key={clickFx.key}>
-                  <circle
-                    cx={clickFx.cx} cy={clickFx.cy} r={r0}
-                    fill="none"
-                    stroke={fx.colorCss}
-                    strokeWidth={fx.strokeWidthBase / scale}
-                    opacity={fx.startAlpha}
-                  >
-                    <animate
-                      attributeName="r" from={r0} to={r1}
-                      dur={dur} repeatCount="1" fill="freeze"
-                    />
-                    <animate
-                      attributeName="opacity" from={fx.startAlpha} to={0}
-                      dur={dur} repeatCount="1" fill="freeze"
-                    />
-                  </circle>
-                </g>
+                <circle
+                  cx={clickFx.cx} cy={clickFx.cy} r={r}
+                  fill="none"
+                  stroke={fx.colorCss}
+                  strokeWidth={fx.strokeWidthBase / scale}
+                  opacity={op}
+                  pointerEvents="none"
+                />
               )
             })()}
           </svg>
