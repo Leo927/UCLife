@@ -57,8 +57,6 @@ Reliability is the primary acceptance criterion for any new `check-*.mjs` / play
 6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** If a check needs retries to stay green, the underlying signal is wrong — fix the signal.
 7. **Fail loud, fail fast.** Every assertion must produce a message that points at the broken invariant. On failure, dump relevant `__uclife__` state to the log.
 
-**Verification.** Soak each new test 20× via `npm run ci:local -- --workers 4`. The soak is a violation detector, not a quality bar — a test that obeys rules 1–6 is deterministic and 1× is sufficient. The 20× run only exists to expose hidden non-determinism the author missed (a stray `setTimeout`, an unguarded module import, a DOM read masquerading as a state read). **If the soak fails even once, do not run it more times — find which construction rule you broke and fix the root cause.** Re-running until green is forbidden; that's how flake gets shipped.
-
 If you can't meet rules 1–7 for a scenario, **don't add the test** — file the gap as a TODO.
 
 ### Perf budgets — non-negotiable
