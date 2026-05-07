@@ -6,12 +6,14 @@ export interface AutopilotResult {
   arrived: boolean
 }
 
-// Braking margin (px) added to the kinematic stopping distance before we
-// switch from accel-toward-target to brake-against-velocity. Without it the
-// ship oscillates around the switch boundary; ~5% of typical thrustAccel
-// is plenty given the semi-implicit integrator.
-const BRAKING_MARGIN_PX = 4
-
+// Steering autopilot. We pick a desired-velocity vector — direction toward
+// the target, magnitude kinematically ramped down so the ship can decelerate
+// to arrivalSpeed by the time it reaches arrivalRadius — and thrust along
+// (desiredVel - currentVel). Steering against the velocity error (not the
+// position error) is what kills lateral drift: a ship cruising at maxSpeed
+// perpendicular to the target would otherwise rotate around it forever,
+// because raw thrust-toward-target can only swing the velocity vector when
+// speed is already clamped, never shrink the perpendicular component.
 export function thrustToward(
   k: ShipKinematics,
   target: Vec2,
@@ -26,34 +28,26 @@ export function thrustToward(
   const speed = vecLen(k.vel)
 
   if (distance < arrivalRadius && speed < arrivalSpeed) {
-    // Counter-thrust to bleed off residual drift; integrator clamps actual a.
     const ax = speed > 0 ? -k.vel.x * thrustAccel / Math.max(speed, 1e-6) : 0
     const ay = speed > 0 ? -k.vel.y * thrustAccel / Math.max(speed, 1e-6) : 0
     return { thrust: { ax, ay }, arrived: true }
   }
 
-  // Use only the approach velocity (component toward target) for braking distance.
-  // Total speed would include lateral (perpendicular) velocity that cannot cause overshoot,
-  // which made the ship enter brake mode unnecessarily and orbit the target.
   const distInv = distance > 0 ? 1 / distance : 0
-  const approachVel = (k.vel.x * dx + k.vel.y * dy) * distInv
-  const brakingDistance =
-    approachVel > 0 && thrustAccel > 0 ? (approachVel * approachVel) / (2 * thrustAccel) : 0
-
-  if (distance > brakingDistance + BRAKING_MARGIN_PX) {
-    return {
-      thrust: { ax: dx * distInv * thrustAccel, ay: dy * distInv * thrustAccel },
-      arrived: false,
-    }
+  const safeDist = Math.max(distance - arrivalRadius, 0)
+  const desiredSpeed = Math.min(
+    maxSpeed,
+    Math.sqrt(arrivalSpeed * arrivalSpeed + 2 * thrustAccel * safeDist),
+  )
+  const desiredVx = dx * distInv * desiredSpeed
+  const desiredVy = dy * distInv * desiredSpeed
+  const errX = desiredVx - k.vel.x
+  const errY = desiredVy - k.vel.y
+  const errMag = Math.hypot(errX, errY)
+  if (errMag < 1e-6) return { thrust: { ax: 0, ay: 0 }, arrived: false }
+  const inv = 1 / errMag
+  return {
+    thrust: { ax: errX * inv * thrustAccel, ay: errY * inv * thrustAccel },
+    arrived: false,
   }
-
-  if (speed > 0) {
-    const inv = 1 / speed
-    return {
-      thrust: { ax: -k.vel.x * inv * thrustAccel, ay: -k.vel.y * inv * thrustAccel },
-      arrived: false,
-    }
-  }
-
-  return { thrust: { ax: 0, ay: 0 }, arrived: false }
 }

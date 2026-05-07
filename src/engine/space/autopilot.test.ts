@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { thrustToward } from './autopilot'
+import { step, type ShipKinematics } from './integration'
+import type { Vec2 } from './types'
 
 describe('thrustToward', () => {
   it('thrusts toward target when stationary', () => {
@@ -43,5 +45,26 @@ describe('thrustToward', () => {
     const result = thrustToward(k, { x: 0, y: 100 }, 1, 100, 5)
     expect(result.arrived).toBe(false)
     expect(result.thrust.ay).toBeGreaterThan(0)
+  })
+
+  it('does not orbit indefinitely when cruising at max speed perpendicular to target', () => {
+    // Bug: at max speed perpendicular to the target, lateral velocity never
+    // decays because the controller only counters approach velocity. The
+    // ship circles the target forever.
+    const maxSpeed = 100
+    const thrustAccel = 50
+    const arrivalRadius = 5
+    let k: ShipKinematics = { pos: { x: 0, y: 0 }, vel: { x: maxSpeed, y: 0 } }
+    const target: Vec2 = { x: 0, y: 200 }
+    let arrived = false
+    for (let i = 0; i < 60 * 30; i++) {
+      const r = thrustToward(k, target, thrustAccel, maxSpeed, arrivalRadius)
+      if (r.arrived) {
+        arrived = true
+        break
+      }
+      k = step(k, r.thrust, maxSpeed, 1 / 60)
+    }
+    expect(arrived).toBe(true)
   })
 })
