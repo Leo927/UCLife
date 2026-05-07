@@ -3,8 +3,8 @@ import raw from './enemyShips.json5?raw'
 import { isWeaponId, getWeapon } from './weapons'
 import type { MountSize } from './weapons'
 
-// Enemy ship blueprint — Starsector-shape stat block. Combat spawns an
-// EnemyShipState entity from one of these.
+// Enemy ship blueprint — Starsector-shape stat block. Combat spawns a
+// CombatShipState entity from one of these.
 
 export interface EnemyMountDef {
   idx: number
@@ -24,7 +24,10 @@ export interface EnemyShipBlueprint {
   hasShield: boolean
   shieldEfficiency: number
   topSpeed: number
-  maneuverability: number
+  accel: number
+  decel: number
+  angularAccel: number
+  maxAngVel: number
   mounts: EnemyMountDef[]
   defaultWeapons: string[]
   ai: {
@@ -68,8 +71,17 @@ for (const ship of parsed.ships) {
     throw new Error(`enemyShips.json5: ship "${ship.id}" shieldEfficiency must be >= 0`)
   }
   if (ship.topSpeed < 0) throw new Error(`enemyShips.json5: ship "${ship.id}" topSpeed must be >= 0`)
-  if (ship.maneuverability < 0 || ship.maneuverability > 2) {
-    throw new Error(`enemyShips.json5: ship "${ship.id}" maneuverability must be in [0,2]`)
+  if (typeof ship.accel !== 'number' || ship.accel < 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" accel must be a number >= 0`)
+  }
+  if (typeof ship.decel !== 'number' || ship.decel < 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" decel must be a number >= 0`)
+  }
+  if (typeof ship.angularAccel !== 'number' || ship.angularAccel <= 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" angularAccel must be a number > 0`)
+  }
+  if (typeof ship.maxAngVel !== 'number' || ship.maxAngVel <= 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" maxAngVel must be a number > 0`)
   }
 
   const mountIdxSeen = new Set<number>()

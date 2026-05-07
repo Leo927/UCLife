@@ -21,7 +21,7 @@ export interface SpaceEntity {
   shipClassId: string
   // Optional escort ship class IDs that join the lead in tactical
   // combat. Empty/missing = solo encounter. Each escort spawns its
-  // own EnemyShipState in the arena alongside the lead.
+  // own CombatShipState in the arena alongside the lead.
   escorts?: string[]
   spawn: SpacePos
   aiMode: EnemyAiMode

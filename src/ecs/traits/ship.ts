@@ -1,6 +1,6 @@
 // Ship traits — Phase 6.0+ space layer. Ship-as-scene (interior walkable
 // world, ShipRoom + WeaponMount sub-entities) plus the spaceCampaign
-// world's Body/POI/Velocity/Thrust/Course/EnemyAI/EnemyShipState.
+// world's Body/POI/Velocity/Thrust/Course/EnemyAI/CombatShipState.
 
 import { trait } from 'koota'
 
@@ -14,9 +14,9 @@ import { trait } from 'koota'
 // Sphere campaign map; snapped to a POI when docked.
 //
 // Starsector-shape combat stats (armor / fluxMax / fluxCurrent / fluxDissipation /
-// shieldEfficiency / topSpeed / maneuverability) live here as a single
-// flat block — there's only ever one player flagship in 6.0, and a flat
-// shape keeps the save/load layer simple.
+// shieldEfficiency / topSpeed / accel / decel / angularAccel / maxAngVel) live
+// here as a single flat block — there's only ever one player flagship in 6.0,
+// and a flat shape keeps the save/load layer simple.
 export const Ship = trait({
   classId: '',
   hullCurrent: 0, hullMax: 0,
@@ -27,8 +27,11 @@ export const Ship = trait({
   // path is end-game MS only). Flux still gates weapon power output.
   hasShield: false,
   shieldEfficiency: 1,    // multiplier on flux-per-damage (1 = neutral)
-  topSpeed: 0,            // map-units/sec equivalent for tactical movement
-  maneuverability: 0,     // 0..1, scales turn rate
+  topSpeed: 0,            // hard cap on |velocity| in arena units/sec
+  accel: 0,               // linear thrust accel (units/sec²) when input is held
+  decel: 0,               // passive linear braking (units/sec²) when no input
+  angularAccel: 0,        // steering torque (rad/sec²)
+  maxAngVel: 0,           // angular velocity ceiling (rad/sec)
   // Combat readiness — Starsector-shape gauge that depletes in combat
   // and restores at safe POIs. Low CR = worse combat performance.
   // Phase 6.0 only mutates CR on flee/defeat outcomes; per-tick CR drain
@@ -122,7 +125,7 @@ export const EnemyAI = trait(() => ({
   shipClassId: '',
   // Escort ship class IDs deployed alongside this lead ship when the
   // engagement triggers. Empty = solo. Each escort spawns its own
-  // EnemyShipState in the tactical arena.
+  // CombatShipState in the tactical arena.
   escorts: [] as string[],
   mode: 'patrol' as 'patrol' | 'idle' | 'chase' | 'flee',
   patrolPath: [] as { x: number; y: number }[],
@@ -137,18 +140,29 @@ export const MaintenanceLoad = trait({
   loadUnits: 0,
 })
 
-// Starsector-shape enemy ship state during a tactical engagement.
-// Continuous-space position + heading, full stat block, hardpoint list.
-// Held as plain trait data on a placeholder entity in the player ship's
-// world; tactical UI snapshots from this each frame.
-export const EnemyShipState = trait(() => ({
+// Starsector-shape combat-time ship state during a tactical engagement.
+// Continuous-space position + heading + velocity + angular velocity, full
+// stat block, hardpoint list, and an AI directive block. Both the player
+// flagship and every enemy carry this trait during combat — the player's
+// `isPlayer: true`, enemies' `isPlayer: false`. This unifies the physics
+// + AI loop: every ship runs the same maintainRange-style AI; player
+// input overrides thrust + aim on the player ship only.
+//
+// On the player ship, hull/armor/flux fields here are not the canonical
+// values — those still live on the persistent Ship singleton trait so
+// they survive endCombat. Damage routing keeps writing to Ship via
+// damageHull/applyDamageToPlayer; the player's CombatShipState fields
+// for hull/armor/flux/weapons stay zero/empty (and unread).
+export const CombatShipState = trait(() => ({
   shipClassId: 'pirateLight' as string,
   nameZh: '',
+  isPlayer: false,
   // Tactical position in map-units (combat arena is sized in arena units,
   // not normalized 0..100 like the campaign map).
   pos: { x: 0, y: 0 } as { x: number; y: number },
   vel: { x: 0, y: 0 } as { x: number; y: number },
   heading: 0,    // radians, 0 = +x
+  angVel: 0,     // radians/sec
   hullCurrent: 0, hullMax: 0,
   armorCurrent: 0, armorMax: 0,
   fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
@@ -156,7 +170,10 @@ export const EnemyShipState = trait(() => ({
   shieldEfficiency: 1,
   shieldUp: true,
   topSpeed: 0,
-  maneuverability: 0.5,
+  accel: 0,
+  decel: 0,
+  angularAccel: 0,
+  maxAngVel: 0,
   weapons: [] as {
     weaponId: string
     size: 'small' | 'medium' | 'large'

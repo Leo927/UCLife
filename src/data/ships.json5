@@ -14,8 +14,21 @@
 //   shieldEfficiency  — multiplier on incoming-damage flux conversion
 //                       when shields are up. 1 = neutral; <1 = better.
 //                       Irrelevant when hasShield = false.
-//   topSpeed          — tactical-arena units/sec at full throttle
-//   maneuverability   — 0..1 multiplier on turn rate
+//   topSpeed          — tactical-arena units/sec at full throttle (hard cap)
+//   accel             — linear thrust acceleration (arena units/sec²) when WASD input is held
+//   decel             — passive deceleration applied when no thrust input — gives the ship inertia + glide
+//   angularAccel      — radians/sec² of steering torque (used both to spin the
+//                       helm toward the aim cursor and to bleed off angular velocity when idle)
+//   maxAngVel         — radians/sec hard cap on angular velocity (turn rate ceiling)
+//
+// AI block (`ai`):
+//   When the player provides no movement input, the player's ship runs the
+//   same AI loop as enemies — closing to / strafing at / backing away from
+//   maintainRange relative to the nearest hostile. Player input/aim
+//   overrides this directive on the player ship; enemies always run AI.
+//   aggression           — weapon-charge multiplier (0..1; not used for player firing).
+//   retreatThresholdPct  — hull % below which AI flees (0..1; not yet wired for player).
+//   maintainRange        — preferred standoff distance from the nearest hostile, arena units.
 //
 // Logistics (campaign map):
 //   fuelMax / suppliesMax — campaign-map travel resources
@@ -63,7 +76,10 @@
       hasShield: false,
       shieldEfficiency: 1.0,
       topSpeed: 60,
-      maneuverability: 0.55,
+      accel: 60,
+      decel: 30,
+      angularAccel: 4.0,
+      maxAngVel: 1.5,
       crMax: 100,
       fuelMax: 16,
       suppliesMax: 40,
@@ -74,6 +90,13 @@
         { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
       ],
       defaultWeapons: ['beamMk1'],
+      ai: {
+        aggression: 0.5,
+        retreatThresholdPct: 0.2,
+        // Light freighter prefers a brawler standoff range — same band as
+        // pirateLight so a no-input player and a default enemy meet midway.
+        maintainRange: 200,
+      },
       priceFiat: 80000,
       rooms: [
         {

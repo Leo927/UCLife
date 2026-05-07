@@ -12,7 +12,7 @@ import {
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
 } from '../systems/combat'
 import { getWorld } from '../ecs/world'
-import { Ship, WeaponMount, EnemyShipState, EntityKey } from '../ecs/traits'
+import { Ship, WeaponMount, CombatShipState, EntityKey } from '../ecs/traits'
 import { getShipClass } from '../data/ships'
 import { getWeapon } from '../data/weapons'
 import { PixiCanvas } from '../render/pixi'
@@ -98,8 +98,9 @@ function hashKey(key: string): number {
 function snapshotEnemies(): EnemySnap[] {
   const w = getWorld(SHIP_SCENE_ID)
   const out: EnemySnap[] = []
-  for (const e of w.query(EnemyShipState)) {
-    const s = e.get(EnemyShipState)!
+  for (const e of w.query(CombatShipState)) {
+    const s = e.get(CombatShipState)!
+    if (s.isPlayer) continue   // player ship has its own HUD path
     const ek = e.get(EntityKey)
     const key = ek ? ek.key : `enemy-${out.length}`
     out.push({

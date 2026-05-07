@@ -3,7 +3,10 @@
 // Schema (see enemyShips.ts):
 //   id, nameZh, descZh
 //   hullMax, armorMax, fluxMax, fluxDissipation, hasShield, shieldEfficiency
-//   topSpeed, maneuverability
+//   topSpeed, accel, decel, angularAccel, maxAngVel
+//   (Movement is Newtonian: ships accumulate velocity from thrust × accel, glide
+//   under decel when not thrusting, cap at topSpeed, and steer via angularAccel
+//   torque clamped to maxAngVel. See systems/combat.ts.)
 //   mounts[]   — same hardpoint shape as ships.json5
 //   defaultWeapons[] — ordered list bound to mounts
 //   ai — { aggression: 0..1, retreatThresholdPct: 0..1, maintainRange: number }
@@ -30,7 +33,10 @@
       hasShield: false,
       shieldEfficiency: 1.0,
       topSpeed: 70,
-      maneuverability: 0.65,
+      accel: 80,
+      decel: 40,
+      angularAccel: 5.0,
+      maxAngVel: 1.8,
       mounts: [
         { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },
         { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
@@ -60,7 +66,10 @@
       hasShield: false,
       shieldEfficiency: 1.0,
       topSpeed: 80,
-      maneuverability: 0.70,
+      accel: 90,
+      decel: 50,
+      angularAccel: 6.0,
+      maxAngVel: 2.0,
       mounts: [
         { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },
         { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
@@ -88,7 +97,10 @@
       hasShield: false,
       shieldEfficiency: 1.0,
       topSpeed: 55,
-      maneuverability: 0.45,
+      accel: 50,
+      decel: 25,
+      angularAccel: 3.0,
+      maxAngVel: 1.2,
       mounts: [
         // Forward beam, ballistic, and a side-slung beam covering starboard.
         { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },

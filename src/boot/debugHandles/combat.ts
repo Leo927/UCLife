@@ -6,7 +6,7 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld } from '../../ecs/world'
 import {
-  Position, EnemyShipState, EnemyAI, EntityKey,
+  Position, CombatShipState, EnemyAI, EntityKey,
 } from '../../ecs/traits'
 import { useCombatStore, startCombat } from '../../systems/combat'
 import { useTransition } from '../../sim/transition'
@@ -33,9 +33,10 @@ registerDebugHandle('startCombatCheat', (
 registerDebugHandle('fastWinCombat', () => {
   const w = getWorld('playerShipInterior')
   let touched = false
-  for (const enemy of w.query(EnemyShipState)) {
-    const cur = enemy.get(EnemyShipState)!
-    enemy.set(EnemyShipState, { ...cur, hullCurrent: 0 })
+  for (const enemy of w.query(CombatShipState)) {
+    const cur = enemy.get(CombatShipState)!
+    if (cur.isPlayer) continue   // player hull lives on Ship trait, not CombatShipState
+    enemy.set(CombatShipState, { ...cur, hullCurrent: 0 })
     touched = true
   }
   return touched

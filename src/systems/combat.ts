@@ -3,10 +3,16 @@
 // + range, projectile entities, flux/shields/armor/hull damage routing.
 //
 // Tick model (per frame, when clock.mode === 'combat' AND store.paused === false):
-//   1. Player ship physics (heading rotates toward shift+mouse cursor only;
-//      otherwise the helm holds its last orientation). Velocity decay.
+//   1. Player ship physics — Newtonian: WASD applies thrust at `accel` along
+//      the ship's local frame, no input applies passive `decel` against
+//      current velocity, |vel| capped at `topSpeed`. Heading uses bang-bang
+//      torque at `angularAccel` toward the shift+mouse aim cursor (with
+//      brake-distance check to avoid overshoot), capped at `maxAngVel`. With
+//      no aim signal the helm bleeds angVel to 0 via the same torque budget.
 //   2. Player weapon charge + auto-fire when target in arc + range
-//   3. Per-enemy AI (maintain own range or close to maintainRange; turn to face)
+//   3. Per-enemy AI — picks a desired thrust direction (close / strafe / back
+//      relative to maintainRange), applies thrust with the same physics as
+//      the player; heading torques toward the player's bearing.
 //   4. Per-enemy weapon charge + auto-fire
 //   5. Projectile motion + collision -> damage application against any enemy
 //   6. Flux dissipation (player + each enemy)
@@ -14,7 +20,9 @@
 //
 // State lives in:
 //   - Ship trait on the player flagship (in playerShipInterior world)
-//   - One EnemyShipState trait per enemy in the engagement (same world)
+//   - One CombatShipState trait per ship in the engagement (player + enemies; same world)
+//     The player's CombatShipState is attached to the existing Ship singleton
+//     entity at startCombat and stripped at endCombat. `isPlayer:true` flags it.
 //   - Module-local projectile pool (in-memory only, transient)
 //   - useCombatStore (UI state: open/paused/selectedMount/flash)
 
@@ -22,7 +30,7 @@ import type { World } from 'koota'
 import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
-  Ship, WeaponMount, EnemyShipState, EntityKey, IsPlayer, Money,
+  Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
   EnemyAI, Flags,
 } from '../ecs/traits'
 import { getEnemyShip } from '../data/enemyShips'
@@ -45,6 +53,10 @@ const SHIP_SCENE_ID = 'playerShipInterior'
 // enemies fan out on the right. Ship positions are in arena units.
 export const ARENA_W = 1000
 export const ARENA_H = 600
+// Arena edge padding (unit). Ships are clamped to [pad, ARENA-pad]; the value
+// matches the maximum hull radius at this scale so the sprite never visually
+// clips through the arena wall.
+const ARENA_EDGE_PAD = 20
 const PLAYER_SPAWN = { x: 250, y: 300 }
 const ENEMY_FORMATION_CENTER = { x: 750, y: 300 }
 const ENEMY_FORMATION_SPACING = 90
@@ -87,24 +99,26 @@ export function getBeamFlashes(): BeamFlash[] {
 let nextProjectileId = 1
 const projectiles: ProjectileSnap[] = []
 
-// Tactical-arena position for the player flagship — module-local rather
-// than written to Ship.fleetPos, so the campaign-map fleet position
-// survives an engagement intact. UI snapshots read it via
-// getCombatPlayerPos().
-const combatPlayerPos: { x: number; y: number } = { x: 0, y: 0 }
-let combatPlayerHeading = 0   // radians, 0 = +x; rotates toward target
-
 // Campaign-world EntityKey of the enemy that triggered the engagement —
 // stored so endCombat('victory') can destroy it (otherwise the same
 // pirate re-prompts engagement after the cooldown expires).
 let activeCampaignEnemyKey: string | null = null
 
+// Default player spatial state when no CombatShipState exists yet (combat
+// not open) — UI snapshot helpers fall back to these so they never throw.
+const PLAYER_FALLBACK_POS = { x: 0, y: 0 }
+
 export function getCombatPlayerPos(): { x: number; y: number } {
-  return { x: combatPlayerPos.x, y: combatPlayerPos.y }
+  const e = getPlayerCombatShip()
+  if (!e) return { ...PLAYER_FALLBACK_POS }
+  const cs = e.get(CombatShipState)!
+  return { x: cs.pos.x, y: cs.pos.y }
 }
 
 export function getCombatPlayerHeading(): number {
-  return combatPlayerHeading
+  const e = getPlayerCombatShip()
+  if (!e) return 0
+  return e.get(CombatShipState)!.heading
 }
 
 interface CombatState {
@@ -178,9 +192,23 @@ function getPlayerShip(): Entity | undefined {
   return shipWorld().queryFirst(Ship)
 }
 
+// All CombatShipState entities flagged as the player. There is exactly
+// one in a well-formed combat (the Ship singleton with CombatShipState
+// attached) — returns undefined when combat isn't open.
+function getPlayerCombatShip(): Entity | undefined {
+  for (const e of shipWorld().query(CombatShipState)) {
+    if (e.get(CombatShipState)!.isPlayer) return e
+  }
+  return undefined
+}
+
+// All non-player CombatShipState entities. Excludes the player's
+// CombatShipState (which lives on the Ship singleton during combat).
 function getEnemyEntities(): Entity[] {
   const out: Entity[] = []
-  for (const e of shipWorld().query(EnemyShipState)) out.push(e)
+  for (const e of shipWorld().query(CombatShipState)) {
+    if (!e.get(CombatShipState)!.isPlayer) out.push(e)
+  }
   return out
 }
 
@@ -211,12 +239,14 @@ function spawnEnemyShip(w: World, blueprintId: string, slotIdx: number, totalSlo
   const blueprint = getEnemyShip(blueprintId)
   const spawn = enemySpawnSlot(slotIdx, totalSlots)
   w.spawn(
-    EnemyShipState({
+    CombatShipState({
       shipClassId: blueprint.id,
       nameZh: blueprint.nameZh,
+      isPlayer: false,
       pos: { x: spawn.x, y: spawn.y },
       vel: { x: 0, y: 0 },
       heading: Math.PI,    // facing -x toward player
+      angVel: 0,
       hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
       armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
       fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
@@ -224,7 +254,10 @@ function spawnEnemyShip(w: World, blueprintId: string, slotIdx: number, totalSlo
       shieldEfficiency: blueprint.shieldEfficiency,
       shieldUp: blueprint.hasShield,
       topSpeed: blueprint.topSpeed,
-      maneuverability: blueprint.maneuverability,
+      accel: blueprint.accel,
+      decel: blueprint.decel,
+      angularAccel: blueprint.angularAccel,
+      maxAngVel: blueprint.maxAngVel,
       weapons: blueprint.defaultWeapons.map((id, i) => ({
         weaponId: id,
         size: blueprint.mounts[i].size,
@@ -250,16 +283,15 @@ export function startCombat(
 ): void {
   const w = shipWorld()
 
-  for (const e of w.query(EnemyShipState)) e.destroy()
+  // Strip prior combat state. Enemies are transient → destroy. The player's
+  // CombatShipState lives on the persistent Ship singleton entity → just
+  // remove the trait so the entity (and its long-arc Ship state) survives.
+  for (const e of w.query(CombatShipState)) {
+    if (e.get(CombatShipState)!.isPlayer) e.remove(CombatShipState)
+    else e.destroy()
+  }
   projectiles.length = 0
   activeCampaignEnemyKey = campaignEnemyKey ?? null
-
-  // Tactical-arena position lives in module-local state — Ship.fleetPos
-  // stays at its campaign-map value so the player rejoins the campaign
-  // (after flee or the next engagement) at the same spot they left.
-  combatPlayerPos.x = PLAYER_SPAWN.x
-  combatPlayerPos.y = PLAYER_SPAWN.y
-  combatPlayerHeading = 0   // facing +x toward enemy spawn
 
   const ship = getPlayerShip()
   if (ship) {
@@ -272,6 +304,38 @@ export function startCombat(
       fluxCurrent: 0,
       armorCurrent: s.armorMax,
     })
+    // Attach a CombatShipState to the player ship — same trait shape as
+    // enemies. Spatial fields seed at the player spawn; combat stat
+    // fields (hull/armor/flux/weapons) stay zero/empty here because
+    // damage routes through the Ship singleton + WeaponMount entities,
+    // not this trait. ai is sourced from the player ship class.
+    const cls = getShipClass(s.classId)
+    ship.add(CombatShipState({
+      shipClassId: cls.id,
+      nameZh: cls.nameZh,
+      isPlayer: true,
+      pos: { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y },
+      vel: { x: 0, y: 0 },
+      heading: 0,    // facing +x toward enemy spawn
+      angVel: 0,
+      hullCurrent: 0, hullMax: 0,
+      armorCurrent: 0, armorMax: 0,
+      fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
+      hasShield: false,
+      shieldEfficiency: 1,
+      shieldUp: false,
+      topSpeed: cls.topSpeed,
+      accel: cls.accel,
+      decel: cls.decel,
+      angularAccel: cls.angularAccel,
+      maxAngVel: cls.maxAngVel,
+      weapons: [],
+      ai: {
+        aggression: cls.ai.aggression,
+        retreatThreshold: cls.ai.retreatThresholdPct,
+        maintainRange: cls.ai.maintainRange,
+      },
+    }))
   }
 
   const fleet = [leadShipId, ...escortShipIds]
@@ -384,7 +448,12 @@ function applyDefeatConsequence(): void {
 
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
-  for (const e of w.query(EnemyShipState)) e.destroy()
+  // Same player-vs-enemy split as startCombat: keep the Ship singleton
+  // entity alive, just shed its CombatShipState; destroy enemy entities.
+  for (const e of w.query(CombatShipState)) {
+    if (e.get(CombatShipState)!.isPlayer) e.remove(CombatShipState)
+    else e.destroy()
+  }
   projectiles.length = 0
   beamFlashes.length = 0
 
@@ -426,7 +495,7 @@ function applyDamageToEnemy(
   enemyEnt: Entity,
   weapon: WeaponDef,
 ): { absorbed: boolean; destroyed: boolean } {
-  const e = enemyEnt.get(EnemyShipState)!
+  const e = enemyEnt.get(CombatShipState)!
   let { fluxCurrent, fluxMax, shieldEfficiency, shieldUp } = e
   let armorCurrent = e.armorCurrent
   let hullCurrent = e.hullCurrent
@@ -438,7 +507,7 @@ function applyDamageToEnemy(
     if (fluxCurrent >= fluxMax) {
       shieldUp = false   // overload — shields drop until flux vents below 0.5*max
     }
-    enemyEnt.set(EnemyShipState, { ...e, fluxCurrent, shieldUp })
+    enemyEnt.set(CombatShipState, { ...e, fluxCurrent, shieldUp })
     return { absorbed: true, destroyed: false }
   }
 
@@ -450,7 +519,7 @@ function applyDamageToEnemy(
     remaining = Math.max(0, remaining - armorAbsorb)
   }
   hullCurrent = Math.max(0, hullCurrent - remaining)
-  enemyEnt.set(EnemyShipState, {
+  enemyEnt.set(CombatShipState, {
     ...e, fluxCurrent, shieldUp, armorCurrent, hullCurrent,
   })
   return { absorbed: false, destroyed: hullCurrent <= 0 }
@@ -515,6 +584,76 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }): number 
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+// Bang-bang torque controller — drive `angVel` toward a desired heading
+// with at most `angularAccel` rad/sec², capped at `maxAngVel`. The
+// "brake distance" check (angVel² / 2*angularAccel — angle covered before
+// counter-torque can stop the spin) prevents oscillation: when we'd
+// otherwise overshoot we apply counter-torque instead. With `desired === null`
+// the helm has no aim signal — bleed angVel back to 0 using the same torque.
+// Returns the next (heading, angVel) pair.
+function steerHeading(
+  heading: number,
+  angVel: number,
+  desired: number | null,
+  angularAccel: number,
+  maxAngVel: number,
+  dt: number,
+): { heading: number; angVel: number } {
+  let nextAngVel = angVel
+  if (desired === null) {
+    // Brake angVel toward 0.
+    const brake = Math.min(Math.abs(nextAngVel), angularAccel * dt)
+    nextAngVel -= Math.sign(nextAngVel) * brake
+  } else {
+    const err = angleDelta(heading, desired)
+    const brakeAngle = (nextAngVel * nextAngVel) / (2 * angularAccel)
+    const movingTowardErr = Math.sign(err) === Math.sign(nextAngVel) && nextAngVel !== 0
+    if (movingTowardErr && Math.abs(err) <= brakeAngle) {
+      // Counter-torque to avoid overshoot.
+      nextAngVel -= Math.sign(nextAngVel) * angularAccel * dt
+    } else {
+      nextAngVel += Math.sign(err) * angularAccel * dt
+    }
+  }
+  if (nextAngVel > maxAngVel) nextAngVel = maxAngVel
+  else if (nextAngVel < -maxAngVel) nextAngVel = -maxAngVel
+  return { heading: heading + nextAngVel * dt, angVel: nextAngVel }
+}
+
+// Newtonian step on a 2D velocity. `thrust` is a unit (or zero) direction
+// vector — when non-zero, accelerate vel by `accel * dt` along it; when
+// zero, brake vel against its own direction by `decel * dt`. After accel,
+// |vel| is clamped to `topSpeed`.
+function stepVelocity(
+  vel: { x: number; y: number },
+  thrust: { x: number; y: number },
+  accel: number,
+  decel: number,
+  topSpeed: number,
+  dt: number,
+): void {
+  const thrustMag = Math.hypot(thrust.x, thrust.y)
+  if (thrustMag > 0) {
+    const inv = 1 / thrustMag
+    vel.x += thrust.x * inv * accel * dt
+    vel.y += thrust.y * inv * accel * dt
+  } else {
+    const speed = Math.hypot(vel.x, vel.y)
+    if (speed > 0) {
+      const brake = Math.min(speed, decel * dt)
+      const k = brake / speed
+      vel.x -= vel.x * k
+      vel.y -= vel.y * k
+    }
+  }
+  const speed = Math.hypot(vel.x, vel.y)
+  if (speed > topSpeed) {
+    const k = topSpeed / speed
+    vel.x *= k
+    vel.y *= k
+  }
+}
+
 // Spawn a projectile or instant-hit for `weapon` from `from` toward `to`.
 // Beams (projectileSpeed === 0) resolve as instant hits at distance check.
 // `targetEnemy` is required for player beams (multi-enemy disambiguation);
@@ -573,7 +712,9 @@ function fireWeapon(
 function tickProjectiles(dtSec: number): void {
   const ship = getPlayerShip()
   if (!ship) return
-  const playerPos = combatPlayerPos
+  const playerEnt = getPlayerCombatShip()
+  if (!playerEnt) return
+  const playerPos = playerEnt.get(CombatShipState)!.pos
   // Mutate-in-place + filter pattern.
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i]
@@ -593,7 +734,7 @@ function tickProjectiles(dtSec: number): void {
       const enemies = getEnemyEntities()
       let hit: Entity | null = null
       for (const e of enemies) {
-        const s = e.get(EnemyShipState)
+        const s = e.get(CombatShipState)
         if (!s) continue
         if (dist(p, s.pos) < 12) { hit = e; break }
       }
@@ -631,6 +772,8 @@ function tickProjectiles(dtSec: number): void {
 export function combatSystem(_world: World, dtMs: number): void {
   const enemies = getEnemyEntities()
   if (enemies.length === 0) return
+  const playerEnt = getPlayerCombatShip()
+  if (!playerEnt) return
   const store = useCombatStore.getState()
   if (store.paused) return
 
@@ -640,42 +783,95 @@ export function combatSystem(_world: World, dtMs: number): void {
   if (!ship) return
 
   refreshPlayerFluxFromShip(ship)
-
   const shipState = ship.get(Ship)!
 
-  // -- 1. Player ship physics ------------------------------------------------
-  // WASD direct control in ship-local frame: forward = W/S along heading,
-  // strafe = A/D perpendicular (right-hand: +strafe = starboard). Diagonals
-  // normalize so W+D doesn't outrun pure W. Velocity caps at topSpeed.
-  // Heading: only updates when shift+mouse aim is active. With no aim
-  // signal the helm holds its last heading — there is no auto-face-enemy
-  // fallback. Maneuverability caps turn rate.
-  const playerPos = combatPlayerPos
-  const axis = store.inputAxis
-  const inputLen = Math.hypot(axis.forward, axis.strafe)
-  if (inputLen > 0) {
-    const fwd = axis.forward / Math.max(1, inputLen)
-    const stf = axis.strafe / Math.max(1, inputLen)
-    const cosH = Math.cos(combatPlayerHeading)
-    const sinH = Math.sin(combatPlayerHeading)
-    // Forward unit = (cosH, sinH); starboard unit = (-sinH, cosH).
-    const vx = (fwd * cosH + stf * -sinH) * shipState.topSpeed
-    const vy = (fwd * sinH + stf *  cosH) * shipState.topSpeed
-    playerPos.x += vx * dtSec
-    playerPos.y += vy * dtSec
-  }
-  if (store.aimAtMouse && store.aimMouse) {
-    const desiredHeading = angleBetween(playerPos, store.aimMouse)
-    const turnRate = (Math.PI * 1.5) * Math.max(0.1, shipState.maneuverability)
-    const headingDelta = angleDelta(combatPlayerHeading, desiredHeading)
-    const turnStep = Math.sign(headingDelta) * Math.min(Math.abs(headingDelta), turnRate * dtSec)
-    combatPlayerHeading += turnStep
+  // -- 1. Per-ship AI directive + physics (unified) -------------------------
+  // Each ship — player and enemy — picks its nearest hostile and runs the
+  // same maintainRange-style directive: close in if too far, back away if
+  // too close, otherwise strafe. The player ship overrides this directive
+  // with WASD thrust + shift+mouse aim whenever those inputs are active;
+  // releasing input hands the helm back to the AI.
+  const allShips: Entity[] = [playerEnt, ...enemies]
+  for (const self of allShips) {
+    const cs = self.get(CombatShipState)!
+    const isPlayer = cs.isPlayer
+    const hostiles = isPlayer ? enemies : [playerEnt]
+    let nearest: Entity | null = null
+    let nearestRange = Infinity
+    for (const h of hostiles) {
+      const hs = h.get(CombatShipState)!
+      const r = dist(cs.pos, hs.pos)
+      if (r < nearestRange) { nearestRange = r; nearest = h }
+    }
+
+    let thrustWorld = { x: 0, y: 0 }
+    let aimAngle: number | null = null
+    if (nearest) {
+      const targetPos = nearest.get(CombatShipState)!.pos
+      const toAng = angleBetween(cs.pos, targetPos)
+      const range = nearestRange
+      const mr = cs.ai.maintainRange
+      let moveAng: number
+      if (range < mr * 0.85) moveAng = toAng + Math.PI       // back away
+      else if (range > mr * 1.15) moveAng = toAng             // close in
+      else moveAng = toAng + Math.PI / 2                      // strafe
+      thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
+      aimAngle = toAng
+    }
+
+    if (isPlayer) {
+      // WASD overrides AI thrust whenever any axis is held.
+      const axis = store.inputAxis
+      const inputLen = Math.hypot(axis.forward, axis.strafe)
+      if (inputLen > 0) {
+        const fwd = axis.forward / Math.max(1, inputLen)
+        const stf = axis.strafe / Math.max(1, inputLen)
+        const cosH = Math.cos(cs.heading)
+        const sinH = Math.sin(cs.heading)
+        // Forward unit = (cosH, sinH); starboard unit = (-sinH, cosH).
+        thrustWorld = {
+          x: fwd * cosH + stf * -sinH,
+          y: fwd * sinH + stf *  cosH,
+        }
+      }
+      // Shift+mouse aim overrides AI aim. Without aim input the AI's
+      // "face nearest hostile" directive remains in effect — the helm
+      // no longer freezes when the player lets go.
+      if (store.aimAtMouse && store.aimMouse) {
+        aimAngle = angleBetween(cs.pos, store.aimMouse)
+      }
+    }
+
+    const vel = { x: cs.vel.x, y: cs.vel.y }
+    stepVelocity(vel, thrustWorld, cs.accel, cs.decel, cs.topSpeed, dtSec)
+    const pos = { x: cs.pos.x + vel.x * dtSec, y: cs.pos.y + vel.y * dtSec }
+    if (pos.x < ARENA_EDGE_PAD) {
+      pos.x = ARENA_EDGE_PAD
+      if (vel.x < 0) vel.x = 0
+    } else if (pos.x > ARENA_W - ARENA_EDGE_PAD) {
+      pos.x = ARENA_W - ARENA_EDGE_PAD
+      if (vel.x > 0) vel.x = 0
+    }
+    if (pos.y < ARENA_EDGE_PAD) {
+      pos.y = ARENA_EDGE_PAD
+      if (vel.y < 0) vel.y = 0
+    } else if (pos.y > ARENA_H - ARENA_EDGE_PAD) {
+      pos.y = ARENA_H - ARENA_EDGE_PAD
+      if (vel.y > 0) vel.y = 0
+    }
+    const helm = steerHeading(
+      cs.heading, cs.angVel, aimAngle,
+      cs.angularAccel, cs.maxAngVel, dtSec,
+    )
+    self.set(CombatShipState, {
+      ...cs,
+      pos, vel,
+      heading: helm.heading,
+      angVel: helm.angVel,
+    })
   }
 
-  // Clamp arena bounds so the player can't drift offscreen.
-  playerPos.x = Math.max(20, Math.min(ARENA_W - 20, playerPos.x))
-  playerPos.y = Math.max(20, Math.min(ARENA_H - 20, playerPos.y))
-
+  // -- 2. Player flux + shield recovery (Ship-singleton fields) -------------
   ship.set(Ship, {
     ...shipState,
     fluxCurrent: Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec),
@@ -689,12 +885,13 @@ export function combatSystem(_world: World, dtMs: number): void {
     playerShield.shieldUp = true
   }
 
-  // -- 2. Player weapon charge + auto-fire ----------------------------------
-  // Per-mount firing arc lives on the WeaponMount trait now (firingArcRad +
-  // facingRad, both relative to ship heading). Each turret picks the closest
-  // enemy that falls inside its arc and within range. With multiple enemies
-  // in the arena, different mounts can engage different targets in the
-  // same tick.
+  // Read fresh player pose for weapon-fire arc checks below.
+  const playerCsNow = playerEnt.get(CombatShipState)!
+  const playerPos = playerCsNow.pos
+  const playerHeading = playerCsNow.heading
+
+  // -- 3. Player weapon charge + auto-fire ----------------------------------
+  // Each WeaponMount entity picks the closest in-arc, in-range enemy.
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
     if (!m.weaponId) continue
@@ -702,11 +899,11 @@ export function combatSystem(_world: World, dtMs: number): void {
     let charge = Math.min(def.chargeSec, m.chargeSec + dtSec)
     let ready = charge >= def.chargeSec
     if (ready) {
-      const mountFacing = combatPlayerHeading + m.facingRad
+      const mountFacing = playerHeading + m.facingRad
       let target: { ent: Entity; pos: { x: number; y: number } } | null = null
       let bestRange = Infinity
       for (const en of enemies) {
-        const enemyState = en.get(EnemyShipState)
+        const enemyState = en.get(CombatShipState)
         if (!enemyState) continue
         const range = dist(playerPos, enemyState.pos)
         if (range > def.range) continue
@@ -728,34 +925,13 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
   }
 
-  // -- 3 + 4. Per-enemy AI + weapon charge + auto-fire ----------------------
-  // Each enemy steers and fires independently. Movement: keep its own
-  // maintainRange from the player. Firing: each weapon checks its arc
-  // against the player.
+  // -- 4. Per-enemy weapon charge + auto-fire (inline weapons array) -------
   for (const enemyEnt of enemies) {
-    const e2 = enemyEnt.get(EnemyShipState)
+    const e2 = enemyEnt.get(CombatShipState)
     if (!e2) continue
-    const enemyPos = { x: e2.pos.x, y: e2.pos.y }
-    const toPlayerAng = angleBetween(enemyPos, playerPos)
+    const enemyPos = e2.pos
+    const enemyHeading = e2.heading
     const range = dist(enemyPos, playerPos)
-    let moveAng = toPlayerAng
-    const maintainRange = e2.ai.maintainRange
-    if (range < maintainRange * 0.85) {
-      moveAng = toPlayerAng + Math.PI    // back away
-    } else if (range > maintainRange * 1.15) {
-      moveAng = toPlayerAng                // close in
-    } else {
-      moveAng = toPlayerAng + Math.PI / 2  // strafe
-    }
-    const enemyMove = e2.topSpeed * dtSec
-    enemyPos.x += Math.cos(moveAng) * enemyMove
-    enemyPos.y += Math.sin(moveAng) * enemyMove
-    enemyPos.x = Math.max(20, Math.min(ARENA_W - 20, enemyPos.x))
-    enemyPos.y = Math.max(20, Math.min(ARENA_H - 20, enemyPos.y))
-
-    // Enemy heading: face the player (enemy hardpoints don't get a free
-    // pass on arc — same per-mount facing/firingArc rules apply).
-    const enemyHeading = toPlayerAng
 
     const updatedWeapons = e2.weapons.map((wpn) => {
       const def = getWeapon(wpn.weaponId)
@@ -773,15 +949,12 @@ export function combatSystem(_world: World, dtMs: number): void {
       return { ...wpn, chargeSec: charge, ready }
     })
 
-    // Flux dissipation + shield recovery for this enemy.
     const enemyFlux = Math.max(0, e2.fluxCurrent - e2.fluxDissipation * dtSec)
     let enemyShieldUp = e2.shieldUp
     if (e2.hasShield && !enemyShieldUp && enemyFlux < e2.fluxMax * 0.5) enemyShieldUp = true
 
-    enemyEnt.set(EnemyShipState, {
+    enemyEnt.set(CombatShipState, {
       ...e2,
-      pos: enemyPos,
-      heading: enemyHeading,
       weapons: updatedWeapons,
       fluxCurrent: enemyFlux,
       shieldUp: enemyShieldUp,

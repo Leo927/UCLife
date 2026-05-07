@@ -3,7 +3,7 @@
 // active-scene `world` proxy), so the snapshot captures the ship even
 // when the player is currently in a city scene.
 //
-// Transient combat state (charge, projectiles, EnemyShipState) is never
+// Transient combat state (charge, projectiles, CombatShipState) is never
 // persisted; combat-time saves are refused at the saveGame level.
 
 import { registerSaveHandler } from '../../save/registry'

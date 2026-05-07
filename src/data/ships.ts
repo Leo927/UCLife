@@ -54,13 +54,21 @@ export interface ShipClassDef {
   hasShield: boolean
   shieldEfficiency: number
   topSpeed: number
-  maneuverability: number
+  accel: number
+  decel: number
+  angularAccel: number
+  maxAngVel: number
   crMax: number
   fuelMax: number
   suppliesMax: number
   crewMax: number
   mounts: ShipMountDef[]
   defaultWeapons: string[]
+  ai: {
+    aggression: number
+    retreatThresholdPct: number
+    maintainRange: number
+  }
   priceFiat: number
   rooms: ShipRoomDef[]
   doors: ShipDoorDef[]
@@ -108,8 +116,29 @@ for (const ship of parsed.ships) {
   }
   if (ship.shieldEfficiency < 0) throw new Error(`ships.json5: ship "${ship.id}" shieldEfficiency must be >= 0`)
   if (ship.topSpeed < 0) throw new Error(`ships.json5: ship "${ship.id}" topSpeed must be >= 0`)
-  if (ship.maneuverability < 0 || ship.maneuverability > 2) {
-    throw new Error(`ships.json5: ship "${ship.id}" maneuverability must be in [0, 2]`)
+  if (typeof ship.accel !== 'number' || ship.accel < 0) {
+    throw new Error(`ships.json5: ship "${ship.id}" accel must be a number >= 0`)
+  }
+  if (typeof ship.decel !== 'number' || ship.decel < 0) {
+    throw new Error(`ships.json5: ship "${ship.id}" decel must be a number >= 0`)
+  }
+  if (typeof ship.angularAccel !== 'number' || ship.angularAccel <= 0) {
+    throw new Error(`ships.json5: ship "${ship.id}" angularAccel must be a number > 0`)
+  }
+  if (typeof ship.maxAngVel !== 'number' || ship.maxAngVel <= 0) {
+    throw new Error(`ships.json5: ship "${ship.id}" maxAngVel must be a number > 0`)
+  }
+  if (!ship.ai || typeof ship.ai !== 'object') {
+    throw new Error(`ships.json5: ship "${ship.id}" missing ai block`)
+  }
+  if (ship.ai.aggression < 0 || ship.ai.aggression > 1) {
+    throw new Error(`ships.json5: ship "${ship.id}" ai.aggression must be in [0,1]`)
+  }
+  if (ship.ai.retreatThresholdPct < 0 || ship.ai.retreatThresholdPct > 1) {
+    throw new Error(`ships.json5: ship "${ship.id}" ai.retreatThresholdPct must be in [0,1]`)
+  }
+  if (ship.ai.maintainRange <= 0) {
+    throw new Error(`ships.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
   }
   if (ship.crMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crMax must be > 0`)
   if (ship.fuelMax < 0) throw new Error(`ships.json5: ship "${ship.id}" fuelMax must be >= 0`)
