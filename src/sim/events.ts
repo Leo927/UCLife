@@ -29,19 +29,10 @@ export interface SimEventPayloads {
   'log':                { textZh: string; atMs: number }
   'toast':              { textZh: string; durationMs?: number; action?: { label: string; onClick: () => void } }
   // ── Semantic UI intents (no other way for sim to express these) ──────
-  'ui:open-shop':              Record<string, never>
   'ui:open-flight':            { hubId: string }
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }
-  'ui:open-ship-dealer':       Record<string, never>
-  // Phase 5.5.3 — opened by interaction.ts when the player clicks a
-  // 'secretary' workstation. Carries the station entity so the dialog
-  // can branch on occupant + ownership without re-walking the world.
-  'ui:open-secretary':         { station: Entity }
-  // Phase 5.5.4 — opened when the player clicks a 'recruiter' desk in a
-  // recruitOffice. Same shape as the secretary event: branch on
-  // ownership + occupant inside the dialog.
-  'ui:open-recruiter':         { station: Entity }
+  'ui:open-manage':            { building: Entity }
 }
 
 export type SimEventName = keyof SimEventPayloads

@@ -5,12 +5,15 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world, getWorld, getActiveSceneId } from '../../ecs/world'
-import { Applicant, Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation, Recruiter } from '../../ecs/traits'
+import { Applicant, Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation, Recruiter, Interactable, ManageCell, Position } from '../../ecs/traits'
 import { gatherListings, buyFromState } from '../../systems/realtor'
 import { dailyEconomicsSystem } from '../../systems/dailyEconomics'
 import { housingPressureSystem } from '../../systems/housingPressure'
+import { emitSim } from '../../sim/events'
+import { useUI } from '../../ui/uiStore'
 import {
-  assignBeds, assignIdleMembers, bookSummary, factionStatus,
+  assignBeds, assignIdleMembers, assignIdleMembersToBuilding,
+  bookSummary, factionStatus,
   findOwnedFactionOfficeStation, installSecretary, sidewaysReport,
   eligibleSecretaryHires,
 } from '../../systems/secretaryRoster'
@@ -358,6 +361,106 @@ registerDebugHandle('countApplicants', (): number => {
   let n = 0
   for (const _e of world.query(Applicant)) n += 1
   return n
+})
+
+// Phase 5.5.4.5 — per-facility manage cell. The smoke verifies the cell
+// is spawned for player-ownable types, that it is inert until the
+// player owns the linked building, and that triggering it (simulating
+// a walk-on) opens the manage dialog scoped to that facility.
+
+interface ManageCellSummary {
+  buildingKey: string
+  buildingTypeId: string
+  ownerKind: 'state' | 'faction' | 'character'
+  ownedByPlayer: boolean
+  x: number
+  y: number
+}
+
+registerDebugHandle('listManageCells', (): ManageCellSummary[] => {
+  const player = world.queryFirst(IsPlayer)
+  const out: ManageCellSummary[] = []
+  for (const cell of world.query(Interactable, ManageCell, Position)) {
+    const it = cell.get(Interactable)!
+    if (it.kind !== 'manage') continue
+    const link = cell.get(ManageCell)!
+    const building = link.building
+    if (!building) continue
+    const bld = building.get(Building)
+    const o = building.get(Owner)
+    if (!bld || !o) continue
+    const key = building.get(EntityKey)?.key ?? '?'
+    const p = cell.get(Position)!
+    out.push({
+      buildingKey: key,
+      buildingTypeId: bld.typeId,
+      ownerKind: o.kind,
+      ownedByPlayer: !!player && o.kind === 'character' && o.entity === player,
+      x: p.x, y: p.y,
+    })
+  }
+  return out
+})
+
+interface ManageTriggerResult {
+  ok: boolean
+  reason?: string
+  buildingKey?: string
+}
+
+registerDebugHandle('manageCellTrigger', (buildingKey: string): ManageTriggerResult => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  for (const cell of world.query(Interactable, ManageCell)) {
+    const it = cell.get(Interactable)!
+    if (it.kind !== 'manage') continue
+    const link = cell.get(ManageCell)!
+    const building = link.building
+    if (!building) continue
+    if (building.get(EntityKey)?.key !== buildingKey) continue
+    const o = building.get(Owner)
+    if (!o || o.kind !== 'character' || o.entity !== player) {
+      return { ok: false, reason: 'not owned by player', buildingKey }
+    }
+    emitSim('ui:open-manage', { building })
+    return { ok: true, buildingKey }
+  }
+  return { ok: false, reason: 'manage cell not found', buildingKey }
+})
+
+registerDebugHandle('manageDialogState', (): {
+  open: boolean
+  buildingKey: string | null
+} => {
+  const b = useUI.getState().dialogManageBuilding
+  if (!b) return { open: false, buildingKey: null }
+  const key = b.get(EntityKey)?.key ?? null
+  return { open: true, buildingKey: key }
+})
+
+registerDebugHandle('manageDialogClose', (): { ok: true } => {
+  useUI.getState().setDialogManageBuilding(null)
+  return { ok: true }
+})
+
+registerDebugHandle('manageAssignIdle', (buildingKey: string): {
+  ok: boolean
+  reason?: string
+  assigned?: number
+  unassigned?: number
+} => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  for (const b of world.query(Building, EntityKey)) {
+    if (b.get(EntityKey)!.key !== buildingKey) continue
+    const o = b.get(Owner)
+    if (!o || o.kind !== 'character' || o.entity !== player) {
+      return { ok: false, reason: 'not owned by player' }
+    }
+    const summary = assignIdleMembersToBuilding(world, player, b)
+    return { ok: true, assigned: summary.assigned, unassigned: summary.unassigned }
+  }
+  return { ok: false, reason: 'building not found' }
 })
 
 registerDebugHandle('realtorBuy', (buildingKey: string): BuyResult => {

@@ -25,8 +25,8 @@ async function setup() {
   bindUi()
   // Clear any state the modules ran into during import.
   useUI.setState({
-    statusOpen: false, inventoryOpen: false, shopOpen: false, systemOpen: false, mapOpen: false,
-    ambitionsOpen: false, shipDealerOpen: false,
+    statusOpen: false, inventoryOpen: false, systemOpen: false, mapOpen: false,
+    ambitionsOpen: false,
     transitSourceId: null, flightHubId: null,
     dialogNPC: null, enlargedPortrait: null, toasts: [],
   })
@@ -67,12 +67,6 @@ describe('boot/uiBindings', () => {
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
-  it('ui:open-shop sets shopOpen', async () => {
-    const { emitSim, useUI } = await setup()
-    emitSim('ui:open-shop', {})
-    expect(useUI.getState().shopOpen).toBe(true)
-  })
-
   it('ui:open-flight stores the hub id', async () => {
     const { emitSim, useUI } = await setup()
     emitSim('ui:open-flight', { hubId: 'vonbraunAirport' })
@@ -95,22 +89,16 @@ describe('boot/uiBindings', () => {
     expect(useUI.getState().dialogNPC).toBe(fakeEntity)
   })
 
-  it('ui:open-ship-dealer sets shipDealerOpen', async () => {
-    const { emitSim, useUI } = await setup()
-    emitSim('ui:open-ship-dealer', {})
-    expect(useUI.getState().shipDealerOpen).toBe(true)
-  })
-
   it('bindUi is idempotent — repeated calls do not duplicate listeners', async () => {
     const { useUI } = await setup()
     const { bindUi } = await import('./uiBindings')
     bindUi()
     bindUi()
     const { emitSim } = await import('../sim/events')
-    useUI.setState({ shopOpen: false })
-    const spy = vi.spyOn(useUI.getState(), 'setShop')
-    emitSim('ui:open-shop', {})
+    useUI.setState({ flightHubId: null })
+    const spy = vi.spyOn(useUI.getState(), 'openFlight')
+    emitSim('ui:open-flight', { hubId: 'vonbraunAirport' })
     expect(spy).toHaveBeenCalledTimes(1)
-    expect(useUI.getState().shopOpen).toBe(true)
+    expect(useUI.getState().flightHubId).toBe('vonbraunAirport')
   })
 })

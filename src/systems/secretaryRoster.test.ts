@@ -5,7 +5,8 @@ import {
   Owner, Position, Workstation,
 } from '../ecs/traits'
 import {
-  assignBeds, assignIdleMembers, bookSummary, factionStatus,
+  assignBeds, assignIdleMembers, assignIdleMembersToBuilding,
+  bookSummary, facilityRoster, factionStatus,
   installSecretary, sidewaysReport,
 } from './secretaryRoster'
 import { worldConfig } from '../config'
@@ -102,6 +103,63 @@ describe('assignIdleMembers', () => {
     const summary = assignIdleMembers(world, player)
     expect(summary.assigned).toBe(0)
     expect(summary.unassigned).toBe(1)
+  })
+})
+
+describe('assignIdleMembersToBuilding', () => {
+  it('only fills vacancies inside the named building', () => {
+    const world = createWorld()
+    const player = spawnPlayer(world)
+    const apt = spawnPlayerOwnedBldg(world, 'apartment', 'bld-apt', player)
+    const aptOrigin = apt.get(Building)!
+    const m1 = spawnMember(world, 'm1')
+    const m2 = spawnMember(world, 'm2')
+    spawnBed(world, aptOrigin, m1, 'bed-1')
+    spawnBed(world, aptOrigin, m2, 'bed-2')
+    // Two facilities, each with one vacant station — scoping should
+    // only fill the one we name.
+    const officeA = spawnPlayerOwnedBldg(world, 'factionOffice', 'bld-a', player, { x: 100 * TILE, y: 0 })
+    const officeB = spawnPlayerOwnedBldg(world, 'factionOffice', 'bld-b', player, { x: 200 * TILE, y: 0 })
+    const wsA = spawnWs(world, officeA.get(Building)!, 'secretary', null, 'ws-a')
+    const wsB = spawnWs(world, officeB.get(Building)!, 'secretary', null, 'ws-b')
+
+    const summary = assignIdleMembersToBuilding(world, player, officeA)
+    expect(summary.assigned).toBe(1)
+    expect(wsA.get(Workstation)!.occupant).not.toBeNull()
+    expect(wsB.get(Workstation)!.occupant).toBeNull()
+  })
+
+  it('reports zero when the building has no vacancies', () => {
+    const world = createWorld()
+    const player = spawnPlayer(world)
+    const office = spawnPlayerOwnedBldg(world, 'factionOffice', 'bld-1', player)
+    const m = spawnMember(world, 'm1')
+    spawnWs(world, office.get(Building)!, 'secretary', m, 'ws-1')
+    const summary = assignIdleMembersToBuilding(world, player, office)
+    expect(summary.assigned).toBe(0)
+  })
+})
+
+describe('facilityRoster', () => {
+  it('partitions stations into vacant + occupied for a single building', () => {
+    const world = createWorld()
+    const player = spawnPlayer(world)
+    const apt = spawnPlayerOwnedBldg(world, 'apartment', 'bld-apt', player)
+    const aptOrigin = apt.get(Building)!
+    const m = spawnMember(world, 'm1')
+    spawnBed(world, aptOrigin, m, 'bed-1')
+    const office = spawnPlayerOwnedBldg(world, 'factionOffice', 'bld-1', player, { x: 100 * TILE, y: 0 })
+    const occupiedWs = spawnWs(world, office.get(Building)!, 'secretary', m, 'ws-occ')
+    m.set(Job, { workstation: occupiedWs, unemployedSinceMs: 0 })
+    spawnWs(world, office.get(Building)!, 'secretary', null, 'ws-vac')
+
+    const roster = facilityRoster(world, player, office)
+    expect(roster).toHaveLength(2)
+    const vacant = roster.filter((r) => r.occupant === null)
+    const occupied = roster.filter((r) => r.occupant !== null)
+    expect(vacant).toHaveLength(1)
+    expect(occupied).toHaveLength(1)
+    expect(occupied[0].occupant).toBe(m)
   })
 })
 

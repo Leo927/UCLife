@@ -1,3 +1,10 @@
+// Ship dealer's inline dialog (rendered in NPCDialog when the player
+// chats up the on-duty AE director — the diegetic stand-in for AE's
+// civilian ship sales until a dedicated ship-dealer NPC role lands).
+// The kiosk in the AE lobby carries no Interactable trait; ship
+// purchase is a talk-verb branch on the responsible body, per the
+// worker-not-workstation rule in Design/social/diegetic-management.md.
+
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Money, Attributes, Flags } from '../../ecs/traits'
 import { useUI } from '../uiStore'
@@ -9,26 +16,28 @@ import { playUi } from '../../audio/player'
 const SHIP_ID = 'lightFreighter'
 const PILOTING_REQUIRED = 10
 
-export function ShipDealer() {
-  const open = useUI((s) => s.shipDealerOpen)
-  const close = () => { playUi('ui.ship-dealer.close'); useUI.getState().setShipDealer(false) }
+export function ShipDealerConversation() {
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
   // Subscribe to Attributes so the piloting display refreshes as XP grows.
   void useTrait(player, Attributes)
   const flags = useTrait(player, Flags)
 
-  if (!open) return null
+  if (!player) return null
 
   const cls = getShipClass(SHIP_ID)
   const playerMoney = money?.amount ?? 0
-  const piloting = player ? getSkillXp(player, 'piloting') : 0
+  const piloting = getSkillXp(player, 'piloting')
   const alreadyOwned = !!flags?.flags.shipOwned
   const canAfford = playerMoney >= cls.priceFiat
   const meetsPiloting = piloting >= PILOTING_REQUIRED
 
+  const close = () => {
+    playUi('ui.ship-dealer.close')
+    useUI.getState().setDialogNPC(null)
+  }
+
   const buy = () => {
-    if (!player) return
     if (alreadyOwned) {
       useUI.getState().showToast('你已拥有飞船 · 前往售票处旁登船')
       close()
@@ -72,50 +81,39 @@ export function ShipDealer() {
   }
 
   return (
-    <div className="status-overlay" onClick={close}>
-      <div className="status-panel" onClick={(e) => e.stopPropagation()}>
-        <header className="status-header">
-          <h2>安那海姆电子 · 二手船坞</h2>
-          <button className="status-close" onClick={close} aria-label="关闭">✕</button>
-        </header>
-        <section className="status-section">
-          <div className="shop-money">钱包: <span className="shop-money-amount">¥{playerMoney.toLocaleString()}</span></div>
-          <div className="status-meta">驾驶 {piloting} / 需 {PILOTING_REQUIRED}</div>
-        </section>
-        <section className="status-section">
-          <h3>{cls.nameZh}</h3>
-          <p className="map-place-desc">{cls.descZh}</p>
-          <div className="ship-dealer-stats">
-            <div>船体 {cls.hullMax}</div>
-            <div>装甲 {cls.armorMax}</div>
-            <div>电荷池 {cls.fluxMax}</div>
-            <div>燃料 {cls.fuelMax}</div>
-            <div>补给 {cls.suppliesMax}</div>
-            <div>武器槽 {cls.mounts.length}</div>
-            <div>载员上限 {cls.crewMax}</div>
-            {defaultWeaponLabels.length > 0 && (
-              <div>预装武器 {defaultWeaponLabels.join(' / ')}</div>
-            )}
-          </div>
-        </section>
-        <section className="status-section">
-          <div className="ship-dealer-actions">
-            <button
-              className="apt-row-buy"
-              disabled={buyDisabled}
-              onClick={buy}
-            >
-              {buyLabel}
-            </button>
-          </div>
-          {!alreadyOwned && !meetsPiloting && (
-            <p className="map-place-desc">驾驶技能不足 · AE 销售拒绝交付。</p>
-          )}
-          {!alreadyOwned && meetsPiloting && !canAfford && (
-            <p className="map-place-desc">现金不足 · 请先攒齐货款。</p>
-          )}
-        </section>
+    <section className="status-section conversation-extension">
+      <h3>二手船坞</h3>
+      <div className="shop-money">钱包: <span className="shop-money-amount">¥{playerMoney.toLocaleString()}</span></div>
+      <div className="status-meta">驾驶 {piloting} / 需 {PILOTING_REQUIRED}</div>
+      <h3 style={{ marginTop: 8 }}>{cls.nameZh}</h3>
+      <p className="map-place-desc">{cls.descZh}</p>
+      <div className="ship-dealer-stats">
+        <div>船体 {cls.hullMax}</div>
+        <div>装甲 {cls.armorMax}</div>
+        <div>电荷池 {cls.fluxMax}</div>
+        <div>燃料 {cls.fuelMax}</div>
+        <div>补给 {cls.suppliesMax}</div>
+        <div>武器槽 {cls.mounts.length}</div>
+        <div>载员上限 {cls.crewMax}</div>
+        {defaultWeaponLabels.length > 0 && (
+          <div>预装武器 {defaultWeaponLabels.join(' / ')}</div>
+        )}
       </div>
-    </div>
+      <div className="ship-dealer-actions" style={{ marginTop: 8 }}>
+        <button
+          className="apt-row-buy"
+          disabled={buyDisabled}
+          onClick={buy}
+        >
+          {buyLabel}
+        </button>
+      </div>
+      {!alreadyOwned && !meetsPiloting && (
+        <p className="map-place-desc">驾驶技能不足 · AE 销售拒绝交付。</p>
+      )}
+      {!alreadyOwned && meetsPiloting && !canAfford && (
+        <p className="map-place-desc">现金不足 · 请先攒齐货款。</p>
+      )}
+    </section>
   )
 }
