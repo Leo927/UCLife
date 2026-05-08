@@ -156,10 +156,16 @@ Hyperspeed compresses *waiting* (three more days of fluid and rest), not
 *engagement* (you guessed wrong and the ankle's now infected). The wake
 list above is the line.
 
-### 7. Clinic interactable
+### 7. Clinic — talk to the clinician on duty
 
-Walking up to a clinic interactable (existing pattern) opens a two-step
-modal.
+Per the *worker, not workstation* rule
+([../DESIGN.md](../DESIGN.md),
+[../social/diegetic-management.md](../social/diegetic-management.md#worker-not-workstation)),
+the clinic building itself is not an interaction target. The player
+talks to the **clinician on duty** at the clinic — a service branch
+on the existing talk-verb — which opens the two-step modal below.
+A clinic with no clinician on shift is closed; the player walks
+away (or comes back during posted hours).
 
 **Step 1 — diagnosis offer:**
 
@@ -315,7 +321,9 @@ content to surface until injuries arrive.
 - **Carrier prevalence as a number?** The Phase 4.2 line *"三位同事请
   病假"* is intentionally flavor. If playtest shows the signal isn't
   reaching, expose a small `prevalence: 高 / 中 / 低` chip on the
-  workplace's interactable. Defer.
+  inspector hover of co-workers, or as a side branch on the talk-verb
+  with the workplace's manager / shift lead. Workplaces themselves
+  remain non-interactive (worker, not workstation). Defer.
 - **Diagnosis-aid item.** A cheap pamphlet or first-aid book that
   permanently widens the symptom→family hint (severity tier already
   free)? Optional onboarding lever; defer to onboarding pass.
