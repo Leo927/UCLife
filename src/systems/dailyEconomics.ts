@@ -22,13 +22,14 @@
 
 import type { Entity, World, TraitInstance } from 'koota'
 import {
-  Building, Owner, Facility, Faction,
+  Building, Owner, Facility, Faction, Job,
   Character, IsPlayer, EntityKey, Workstation, Position,
 } from '../ecs/traits'
 import {
   economicsConfig, facilityMaintenancePerDay, factionsConfig,
 } from '../config'
 import { applyOwnerFundDelta, ownerCanPay } from '../ecs/ownership'
+import { getJobSpec } from '../data/jobs'
 import { emitSim } from '../sim/events'
 import { useClock } from '../sim/clock'
 
@@ -116,6 +117,7 @@ export function dailyEconomicsSystem(
         closedSinceDay: 0,
         closedReason: null,
       })
+      evictInstallOnlySeats(world, ent)
       result.foreclosed += 1
       announceForeclosure(world, ent, owner)
       continue
@@ -237,6 +239,32 @@ function ownerDisplayName(owner: OwnerInstance | undefined): string | null {
 
 function friendlyFacilityName(facility: Entity): string {
   return facility.get(Building)?.label ?? '设施'
+}
+
+// Foreclosure invariant: a state-reverted faction-misc facility (faction
+// office, recruit office) must not carry a stale installOnly occupant.
+// Walk the building's installOnly workstations, clear the occupant, and
+// release the worker's Job pointer. The seat reopens for the next owner
+// to install through the dialog flow.
+function evictInstallOnlySeats(world: World, facility: Entity): void {
+  const bld = facility.get(Building)
+  if (!bld) return
+  const x0 = bld.x, y0 = bld.y, x1 = bld.x + bld.w, y1 = bld.y + bld.h
+  for (const ws of world.query(Workstation, Position)) {
+    const pos = ws.get(Position)!
+    if (pos.x < x0 || pos.x >= x1) continue
+    if (pos.y < y0 || pos.y >= y1) continue
+    const w = ws.get(Workstation)!
+    if (w.occupant === null) continue
+    const spec = getJobSpec(w.specId)
+    if (!spec?.installOnly) continue
+    const occ = w.occupant
+    ws.set(Workstation, { ...w, occupant: null })
+    const job = occ.get(Job)
+    if (job?.workstation === ws) {
+      occ.set(Job, { workstation: null, unemployedSinceMs: nowMs() })
+    }
+  }
 }
 
 // First named worker inside the facility — dresses the day-1 toast.

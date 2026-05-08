@@ -8,6 +8,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { createWorld } from 'koota'
 import {
   Building, Owner, Facility, Faction, EntityKey, Money, Character, IsPlayer,
+  Job, Position, Workstation,
 } from '../ecs/traits'
 import { bootstrapFactions, findFactionEntity } from '../ecs/ownership'
 import {
@@ -199,5 +200,75 @@ describe('dailyEconomicsSystem — owner kinds', () => {
     expect(ae.get(Faction)!.fund).toBe(economicsConfig.factions.anaheim.dailyStipend)
     dailyEconomicsSystem(world, 2)
     expect(ae.get(Faction)!.fund).toBe(2 * economicsConfig.factions.anaheim.dailyStipend)
+  })
+})
+
+describe('dailyEconomicsSystem — installOnly seats on foreclosure', () => {
+  it('clears the secretary occupant when a faction office reverts to state', () => {
+    const world = createWorld()
+    const player = world.spawn(IsPlayer, Money({ amount: 0 }), Character({ name: 'P', color: '#fff', title: 'P' }), EntityKey({ key: 'p' }))
+    const office = world.spawn(
+      Building({ x: 0, y: 0, w: 5 * TILE, h: 4 * TILE, label: 'Faction办公室', typeId: 'factionOffice' }),
+      Owner({ kind: 'character', entity: player }),
+      Facility({
+        revenueAcc: 0, salariesAcc: 0, insolventDays: 0,
+        lastRolloverDay: 0, closedSinceDay: 0, closedReason: null,
+      }),
+      EntityKey({ key: 'bld-office' }),
+    )
+    const desk = world.spawn(
+      Position({ x: 2 * TILE, y: 2 * TILE }),
+      Workstation({ specId: 'secretary', occupant: null, managerStation: null }),
+      EntityKey({ key: 'ws-secretary' }),
+    )
+    const secretary = world.spawn(
+      Character({ name: 'Sec', color: '#fff', title: '秘书' }),
+      Job({ workstation: desk, unemployedSinceMs: 0 }),
+      EntityKey({ key: 'npc-sec' }),
+    )
+    desk.set(Workstation, { ...desk.get(Workstation)!, occupant: secretary })
+
+    // Drive 3 insolvent days. factionOffice maintenance = 50; the office
+    // earns nothing → net = -50 each day → foreclosure on day 3.
+    dailyEconomicsSystem(world, 1)
+    dailyEconomicsSystem(world, 2)
+    const r = dailyEconomicsSystem(world, 3)
+
+    expect(r.foreclosed).toBe(1)
+    expect(office.get(Owner)!.kind).toBe('state')
+    expect(desk.get(Workstation)!.occupant).toBeNull()
+    expect(secretary.get(Job)!.workstation).toBeNull()
+  })
+
+  it('leaves ordinary worker desks seated when a bar reverts to state', () => {
+    const world = createWorld()
+    const player = world.spawn(IsPlayer, Money({ amount: 0 }), Character({ name: 'P', color: '#fff', title: 'P' }), EntityKey({ key: 'p' }))
+    const bar = world.spawn(
+      Building({ x: 0, y: 0, w: 5 * TILE, h: 4 * TILE, label: 'Bar', typeId: 'bar' }),
+      Owner({ kind: 'character', entity: player }),
+      Facility({
+        revenueAcc: 0, salariesAcc: 0, insolventDays: 0,
+        lastRolloverDay: 0, closedSinceDay: 0, closedReason: null,
+      }),
+      EntityKey({ key: 'bld-bar' }),
+    )
+    const desk = world.spawn(
+      Position({ x: 2 * TILE, y: 2 * TILE }),
+      Workstation({ specId: 'bartender', occupant: null, managerStation: null }),
+      EntityKey({ key: 'ws-bartender' }),
+    )
+    const tender = world.spawn(
+      Character({ name: 'B', color: '#fff', title: '调酒师' }),
+      Job({ workstation: desk, unemployedSinceMs: 0 }),
+      EntityKey({ key: 'npc-b' }),
+    )
+    desk.set(Workstation, { ...desk.get(Workstation)!, occupant: tender })
+
+    dailyEconomicsSystem(world, 1)
+    dailyEconomicsSystem(world, 2)
+    dailyEconomicsSystem(world, 3)
+    expect(bar.get(Owner)!.kind).toBe('state')
+    // bartender stays seated — only installOnly seats are evicted.
+    expect(desk.get(Workstation)!.occupant).toBe(tender)
   })
 })

@@ -18,6 +18,10 @@
 //   description:    HR-listing blurb shown to the player
 //   playerHireable: false marks an NPC-only role; HRConversation hides these from
 //                   the player's listing while NPCs can still claim them
+//   installOnly:    true marks a seat NPCs must never auto-claim through the BT
+//                   find-job path — only the player's install dialog (secretary,
+//                   recruiter) can seat someone. Faction-misc convenience seats
+//                   are meaningless without a player owner.
 {
   catalog: {
     factory_engineer: {
@@ -189,6 +193,7 @@
       requirements: {},
       description: '协助faction领导日常事务。',
       playerHireable: false,
+      installOnly: true,
     },
 
     // NPC-only role. The realtor at the agency desk; the player walks up
@@ -307,6 +312,7 @@
       requirements: {},
       description: '协助faction发掘并面试新成员。',
       playerHireable: false,
+      installOnly: true,
     },
 
     // NPC-only role. Sits at the AE workshop reception desk; the player walks
