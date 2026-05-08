@@ -36,6 +36,22 @@
     },
   },
 
+  // Phase 5.5.3 faction office. Single supervisor desk for the secretary —
+  // a hired NPC the player installs after buying the building. The kind is
+  // 'secretary' so interaction.ts routes desk clicks to SecretaryDialog
+  // (handles both the install-secretary flow and the consultative verbs)
+  // rather than the generic manager/NPC route.
+  factionOffice: {
+    labelZh: 'Faction办公室',
+    size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'secretary', role: 'supervisor', kind: 'secretary', labelZh: '秘书办公桌' },
+      ],
+    },
+  },
+
   // Civilian clinic. Doctor at the supervisor desk runs the diagnose +
   // treatment-tier flow inline in NPCDialog (ClinicConversation). The
   // 'clinic' interactable kind opens that dialog if the doctor is on shift,

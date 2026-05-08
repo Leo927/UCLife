@@ -21,6 +21,7 @@ import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
 import { supplyDrainSystem } from '../systems/supplyDrain'
 import { dailyEconomicsSystem } from '../systems/dailyEconomics'
+import { housingPressureSystem } from '../systems/housingPressure'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
@@ -136,6 +137,12 @@ function frame(now: number) {
         for (const id of SCENE_IDS) {
           dailyEconomicsSystem(getWorld(id), newDay)
         }
+        // Phase 5.5.3 — housing pressure runs after the economics rollover
+        // so the secretary's "anything gone sideways?" verb sees today's
+        // freshly-decayed opinions. Active scene only — pre-creation
+        // player-faction members are single-scene, since they can only be
+        // bound to facilities the player physically owns + walks past.
+        housingPressureSystem(world)
       }
       // Supply drain runs after clock.advance so it sees the post-tick game
       // date. Reads its own elapsed-min delta internally.

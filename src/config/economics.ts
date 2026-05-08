@@ -31,6 +31,10 @@ export interface EconomicsConfig {
     gracePeriodDays: number
     warningHyperspeedBreak: boolean
   }
+  housingPressure: {
+    opinionDecayPerUnhousedDay: number
+    minOpinionFromHousing: number
+  }
 }
 
 export const economicsConfig = json5.parse(raw) as EconomicsConfig
