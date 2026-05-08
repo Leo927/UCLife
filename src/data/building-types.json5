@@ -17,8 +17,11 @@
   // City HR clerk's window. Per the worker-not-workstation rule the
   // window itself is scenery; the talk-verb on city_hr_clerk surfaces
   // the public job board (HRConversation in NPCDialog).
+  // stateLocked: civic infrastructure — city runs the public job board
+  // forever; the realtor never lists it, no faction (or player) can buy.
   hrOffice: {
     labelZh: '市民人事局',
+    stateLocked: true,
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',

@@ -90,6 +90,13 @@ describe('gatherListings', () => {
     expect(listings).toHaveLength(0)
   })
 
+  it('skips state-locked types like hrOffice', () => {
+    const world = createWorld()
+    spawnBldg(world, 'hrOffice', 'bld-hr', '市民人事局')
+    const listings = gatherListings(world)
+    expect(listings).toHaveLength(0)
+  })
+
   it('attaches seller name when ownerKind is character', () => {
     const world = createWorld()
     const seller = spawnSeller(world, '陈先生', 'npc-1')
@@ -99,6 +106,21 @@ describe('gatherListings', () => {
     expect(listing.ownerKind).toBe('character')
     expect(listing.seller?.name).toBe('陈先生')
     expect(listing.seller?.entity).toBe(seller)
+  })
+
+  it('hides listings owned by the excludeOwner (pre-creation player-faction alias)', () => {
+    const world = createWorld()
+    const player = world.spawn(IsPlayer, Money({ amount: 0 }), EntityKey({ key: 'player' }))
+    const seller = spawnSeller(world, '陈先生', 'npc-1')
+    const bldOwned = spawnBldg(world, 'bar', 'bld-mine', '我的酒吧')
+    const bldOther = spawnBldg(world, 'bar', 'bld-other', '别人的酒吧')
+    bldOwned.set(Owner, { kind: 'character', entity: player })
+    bldOther.set(Owner, { kind: 'character', entity: seller })
+    const visible = gatherListings(world, { excludeOwner: player })
+    expect(visible.map((l) => l.buildingKey)).toEqual(['bld-other'])
+    // Sanity: without the filter, both surface — default behavior unchanged.
+    const all = gatherListings(world)
+    expect(all.map((l) => l.buildingKey).sort()).toEqual(['bld-mine', 'bld-other'])
   })
 })
 
@@ -169,6 +191,29 @@ describe('buyFromState', () => {
     const paid = buyFromState(player, listing)
     expect(paid).toBeNull()
     expect(player.get(Money)!.amount).toBe(5)
+  })
+
+  it('refuses to transfer ownership of a state-locked facility', () => {
+    const world = createWorld()
+    const player = world.spawn(IsPlayer, Money({ amount: 100_000 }), EntityKey({ key: 'player' }))
+    const bld = spawnBldg(world, 'hrOffice', 'bld-hr', '市民人事局')
+    // gatherListings would skip stateLocked types, so synthesize a listing
+    // payload directly to exercise the buyFromState guard in isolation.
+    const paid = buyFromState(player, {
+      building: bld,
+      buildingKey: 'bld-hr',
+      typeId: 'hrOffice',
+      labelZh: '市民人事局',
+      category: 'civic',
+      rect: { x: 100, y: 100, w: 5 * TILE, h: 4 * TILE },
+      ownerKind: 'state',
+      seller: null,
+      askingPrice: 1,
+      lease: false,
+    })
+    expect(paid).toBeNull()
+    expect(player.get(Money)!.amount).toBe(100_000)
+    expect(bld.get(Owner)!.kind).toBe('state')
   })
 })
 

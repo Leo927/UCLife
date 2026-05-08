@@ -78,10 +78,14 @@ function RealtorPanel() {
   const allBuildings = useQuery(Building, Owner)
   const gameMs = useClock((s) => s.gameDate.getTime())
   const [tab, setTab] = useState<Tab>('residential')
+  // Owner trait mutations (e.g. after buyFromState) don't invalidate the
+  // useQuery membership. Bump this when a transfer fires so the memo
+  // recomputes against the new ownership state.
+  const [refreshTick, setRefreshTick] = useState(0)
 
   const listings = useMemo(() => {
-    return gatherListings(world)
-  }, [allBuildings])
+    return gatherListings(world, { excludeOwner: player ?? null })
+  }, [allBuildings, player, refreshTick])
 
   const listingsByCategory = useMemo(() => {
     const r: RealtyListing[] = []
@@ -145,6 +149,7 @@ function RealtorPanel() {
     playUi('ui.realtor.buy')
     const paid = buyFromState(player, listing)
     if (paid !== null) {
+      setRefreshTick((t) => t + 1)
       useUI.getState().showToast(`房产过户成功 · ${listing.labelZh} · ¥${paid.toLocaleString()}`)
     } else {
       useUI.getState().showToast('购房失败')

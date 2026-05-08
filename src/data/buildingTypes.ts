@@ -201,6 +201,12 @@ export type BuildingType = {
   // back to the building entity via ManageCell. The interaction system
   // gates activation on player ownership.
   hasManageCell?: boolean
+  // Civic infrastructure that the city must run forever. When true, the
+  // realtor never lists the building and any direct-seller close path
+  // refuses the transfer — Owner stays 'state' for the run's lifetime.
+  // See ownership.json5 for the spawn-time default ('state' is required;
+  // the flag is meaningless on a faction- or private-owned facility).
+  stateLocked?: boolean
 }  & { layout: BuildingLayout }
 
 export function isFixedSize(s: ProcgenSize | FixedSize): s is FixedSize {

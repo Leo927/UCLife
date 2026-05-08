@@ -17,9 +17,14 @@ import {
 import { getRep } from './reputation'
 import { worldConfig } from '../config'
 import type { FactionId } from '../data/factions'
+import { buildingTypes } from '../data/buildingTypes'
 import { bedActiveOccupant } from './bed'
 
 const TILE = worldConfig.tilePx
+
+function isStateLocked(typeId: string): boolean {
+  return buildingTypes[typeId]?.stateLocked === true
+}
 
 export interface RealtyListing {
   building: Entity
@@ -45,6 +50,11 @@ export interface RealtyListing {
 
 export interface ListingFilter {
   categories?: ListingCategory[]
+  // Hide listings whose current owner is this character. The realtor
+  // doesn't sell a facility back to whoever already owns it — and under
+  // the pre-creation player-faction alias (see `src/ecs/playerFaction.ts`),
+  // anything player-owned is already in the player-faction's inventory.
+  excludeOwner?: Entity | null
 }
 
 function tilesArea(rect: { w: number; h: number }): number {
@@ -106,10 +116,12 @@ export function gatherListings(world: World, filter?: ListingFilter): RealtyList
     const spec = getRealtyType(typeId)
     if (!spec) continue
     if (spec.category === 'hidden') continue
+    if (isStateLocked(typeId)) continue
     if (wantCats && !wantCats.has(spec.category)) continue
 
     const o = ent.get(Owner)!
     if (o.kind === 'faction') continue
+    if (filter?.excludeOwner && o.kind === 'character' && o.entity === filter.excludeOwner) continue
 
     // The aeComplex is faction-owned but tagged 'hidden' anyway for safety.
     let seller: RealtyListing['seller'] = null
@@ -154,6 +166,7 @@ export function gatherListings(world: World, filter?: ListingFilter): RealtyList
 // purchase price on success, null on insufficient funds or invalid state.
 export function buyFromState(player: Entity, listing: RealtyListing): number | null {
   if (listing.ownerKind !== 'state') return null
+  if (isStateLocked(listing.typeId)) return null
   if (listing.askingPrice === null) return null
   const m = player.get(Money)
   if (!m || m.amount < listing.askingPrice) return null

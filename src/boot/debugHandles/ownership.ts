@@ -82,7 +82,8 @@ interface ListingDebug {
 }
 
 registerDebugHandle('realtorListings', (): ListingDebug[] => {
-  return gatherListings(world).map((l) => ({
+  const player = world.queryFirst(IsPlayer) ?? null
+  return gatherListings(world, { excludeOwner: player }).map((l) => ({
     buildingKey: l.buildingKey,
     typeId: l.typeId,
     category: l.category,

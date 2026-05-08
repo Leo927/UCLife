@@ -1,9 +1,11 @@
 // Phase 5.5.1 realtor smoke. Verifies:
 //  1. seedPrivateOwners produced ≥1 character-owned listing per private type
 //     present in the world (bars / factories / apartments / etc.).
-//  2. The state-owned hrOffice is present and listed as factionMisc.
-//  3. realtorBuy on a state-owned listing transfers Owner.kind to character
-//     and the listing disappears from subsequent gatherListings() calls.
+//  2. realtorBuy on a state-owned listing transfers Owner to the player
+//     and the listing drops from gatherListings() — the realtor doesn't
+//     resell facilities back to the player-faction (their pre-creation
+//     alias is the player's character ownership).
+//  3. State-locked civic types (e.g. hrOffice) never appear in listings.
 
 import { chromium } from 'playwright'
 
@@ -52,6 +54,12 @@ const stateCommercial = byOwner('state').filter((l) => l.category === 'commercia
 const missingPrice = stateCommercial.filter((l) => l.askingPrice === null || l.askingPrice <= 0)
 if (missingPrice.length > 0) failures.push(`${missingPrice.length} state-listings have invalid price`)
 
+// State-locked civic facilities must never appear in the realtor listing —
+// the realtor desk doesn't move civic infrastructure.
+if (byType('hrOffice').length > 0) {
+  failures.push('hrOffice listed by realtor (must be state-locked, never sold)')
+}
+
 // Try to buy a state-owned listing (commercial preferred — apartments lease).
 const target = byOwner('state').find((l) => l.askingPrice !== null && l.askingPrice > 0)
 if (!target) {
@@ -63,20 +71,17 @@ if (!target) {
   if (!result.ok) failures.push(`realtorBuy rejected: ${result.reason}`)
   else {
     const after = await page.evaluate(() => globalThis.__uclife__.realtorListings())
-    const stillStateAtKey = after.find(
-      (l) => l.buildingKey === target.buildingKey && l.ownerKind === 'state',
-    )
-    if (stillStateAtKey) failures.push('listing still state-owned after buyFromState')
-    const playerOwned = after.find(
-      (l) => l.buildingKey === target.buildingKey && l.ownerKind === 'character',
-    )
-    if (!playerOwned) {
-      // Player-owned listings are still emitted with category but ownerKind='character';
-      // confirm the kind mutated.
-      const snapshot = await page.evaluate(() => globalThis.__uclife__.ownershipSnapshot())
-      if ((snapshot.buildingsByOwnerKind?.character ?? 0) === 0) {
-        failures.push('no character-owned buildings after purchase')
-      }
+    // Player-owned facilities are aliased to the player-faction's
+    // inventory and must drop from the realtor list entirely — neither
+    // as state nor as character-owned.
+    const stillListed = after.find((l) => l.buildingKey === target.buildingKey)
+    if (stillListed) {
+      failures.push(`listing still present after buy (ownerKind=${stillListed.ownerKind}) — player-owned should be hidden`)
+    }
+    // And the ownership ledger should reflect the move to character.
+    const snapshot = await page.evaluate(() => globalThis.__uclife__.ownershipSnapshot())
+    if ((snapshot.buildingsByOwnerKind?.character ?? 0) === 0) {
+      failures.push('no character-owned buildings after purchase')
     }
   }
 }

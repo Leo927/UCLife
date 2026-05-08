@@ -48,10 +48,13 @@
     dorm:      { category: 'residential',  buyable: true,  buildingPriceTilesMul: 120 },
     flop:      { category: 'residential',  buyable: true,  lease: true,  buildingPriceTilesMul: 90 },
 
-    hrOffice:  { category: 'factionMisc',  buyable: true,  buildingPriceTilesMul: 320 },
+    // hrOffice carries `stateLocked: true` in building-types.json5 — the
+    // realtor never lists it and direct-seller purchase refuses. Civic
+    // category here is just the band it would have appeared under.
+    hrOffice:  { category: 'civic',        buyable: false },
     // Phase 5.5.3 — faction office is the player's late-game convenience
-    // hub. Priced like the HR office: small footprint, factionMisc band,
-    // bought directly from the realtor (state-owned by default).
+    // hub. Small footprint, factionMisc band, bought directly from the
+    // realtor (state-owned by default).
     factionOffice: { category: 'factionMisc', buyable: true, buildingPriceTilesMul: 320 },
     // Phase 5.5.4 — recruiter office. Same factionMisc band; the player
     // buys it state-owned, installs a recruiter, then collects procgen
