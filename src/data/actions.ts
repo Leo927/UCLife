@@ -7,11 +7,11 @@ export type ActionDef = {
 }
 
 // transit/ticketCounter open UI overlays rather than committing to an
-// action, so they're excluded alongside shop/HR/manager. Clinic and
-// pharmacy are in the same UI-overlay bucket — interactionSystem
-// dispatches ui:open-dialog-npc and the doctor / pharmacist's inline
-// conversation extension renders the actual options.
-type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'secretary' | 'recruiter' | 'aeReception' | 'clinic' | 'pharmacy' | 'transit' | 'ticketCounter' | 'buyShip' | 'boardShip' | 'disembarkShip' | 'helm'>
+// action; boardShip/disembarkShip/helm trigger scene transitions or
+// helm mode; manage opens the per-facility owner-control surface.
+// None of those kinds resolve to an Action — interactionSystem returns
+// before reaching ACTIONS[kind].
+type ActionableInteractableKind = Exclude<InteractableKind, 'transit' | 'ticketCounter' | 'boardShip' | 'disembarkShip' | 'helm' | 'manage'>
 
 // Durations here are defaults — interaction.ts overrides at runtime for
 // sleep/bar/work.

@@ -14,24 +14,29 @@
     },
   },
 
+  // City HR clerk's window. Per the worker-not-workstation rule the
+  // window itself is scenery; the talk-verb on city_hr_clerk surfaces
+  // the public job board (HRConversation in NPCDialog).
   hrOffice: {
     labelZh: '市民人事局',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'city_hr_clerk', role: 'supervisor', kind: 'hr', labelZh: '招聘窗口' },
+        { type: 'workstation', specId: 'city_hr_clerk', role: 'supervisor', noInteractable: true, labelZh: '招聘窗口' },
       ],
     },
   },
 
+  // Realtor's desk — scenery. The talk-verb on the realtor NPC drives
+  // listing browse + close-the-sale (RealtorConversation in NPCDialog).
   realtor: {
     labelZh: '房产中介',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'realtor', role: 'supervisor', kind: 'manager', labelZh: '中介台' },
+        { type: 'workstation', specId: 'realtor', role: 'supervisor', noInteractable: true, labelZh: '中介台' },
       ],
     },
   },
@@ -40,49 +45,46 @@
   // workstation runs the procgen-applicant pipeline (recruitmentSystem
   // generates applicants daily; they walk into the lobby, idle, and either
   // get accepted via auto-filter / manual review, or expire and despawn).
-  // The kind 'recruiter' routes desk clicks to RecruiterDialog (install +
-  // criteria + applicant review). Naming distinct from civic 'hrOffice'
-  // (city_hr_clerk) to avoid the kind-collision; this one is for the
-  // player-faction's recruitment hub, the other is the city employment
-  // bureau.
+  // The desk itself is scenery — talk-verb on the seated recruiter NPC
+  // drives criteria-as-conversation + the applicant lobby
+  // (RecruiterConversation in NPCDialog).
   recruitOffice: {
     labelZh: '招聘代理处',
     size: { minW: 6, maxW: 8, minH: 4, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'recruiter', role: 'supervisor', kind: 'recruiter', labelZh: '招聘办公桌' },
+        { type: 'workstation', specId: 'recruiter', role: 'supervisor', noInteractable: true, labelZh: '招聘办公桌' },
       ],
     },
   },
 
   // Phase 5.5.3 faction office. Single supervisor desk for the secretary —
-  // a hired NPC the player installs after buying the building. The kind is
-  // 'secretary' so interaction.ts routes desk clicks to SecretaryDialog
-  // (handles both the install-secretary flow and the consultative verbs)
-  // rather than the generic manager/NPC route.
+  // a hired NPC the player installs once any office in the city is
+  // staffed (or via the per-facility manage cell, deferred). The desk is
+  // scenery; the secretary's consultative verbs render inline in
+  // NPCDialog (SecretaryConversation) when the player chats her up.
   factionOffice: {
     labelZh: '势力办公室',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'secretary', role: 'supervisor', kind: 'secretary', labelZh: '秘书办公桌' },
+        { type: 'workstation', specId: 'secretary', role: 'supervisor', noInteractable: true, labelZh: '秘书办公桌' },
       ],
     },
   },
 
   // Civilian clinic. Doctor at the supervisor desk runs the diagnose +
   // treatment-tier flow inline in NPCDialog (ClinicConversation). The
-  // 'clinic' interactable kind opens that dialog if the doctor is on shift,
-  // mirroring how 'hr' / 'aeReception' open theirs.
+  // desk is scenery — the talk-verb on the doctor is the surface.
   clinic: {
     labelZh: '诊所',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'civilian_doctor', role: 'supervisor', kind: 'clinic', labelZh: '诊台' },
+        { type: 'workstation', specId: 'civilian_doctor', role: 'supervisor', noInteractable: true, labelZh: '诊台' },
       ],
     },
   },
@@ -90,19 +92,22 @@
   // Civilian pharmacy. Pharmacist at the supervisor desk sells
   // pharmacy-tier (tier 1) treatment for already-diagnosed conditions
   // through PharmacyConversation. No diagnosis here — players who want
-  // a diagnosis must visit the clinic first.
+  // a diagnosis must visit the clinic first. Counter is scenery; verb
+  // is on the pharmacist's body.
   pharmacy: {
     labelZh: '药店',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'civilian_pharmacist', role: 'supervisor', kind: 'pharmacy', labelZh: '药品柜台' },
+        { type: 'workstation', specId: 'civilian_pharmacist', role: 'supervisor', noInteractable: true, labelZh: '药品柜台' },
       ],
     },
   },
 
   // South exit (primary), north entry (extra) for one-way patron traffic.
+  // The cashier counter is scenery; buy-verb routes through the on-duty
+  // shop_*_clerk's talk-verb (ShopkeeperConversation in NPCDialog).
   shop: {
     labelZh: '便利店',
     size: { minW: 6, maxW: 9, minH: 4, maxH: 6 },
@@ -110,7 +115,7 @@
       algorithm: 'open_floor',
       extraDoors: [{ side: 'n', tiedToPrimary: false }],
       items: [
-        { type: 'workstation', specId: 'shop_morning_clerk',   role: 'counter', kind: 'shop', labelZh: '柜台' },
+        { type: 'workstation', specId: 'shop_morning_clerk',   role: 'counter', noInteractable: true, labelZh: '柜台' },
         { type: 'workstation', specId: 'shop_afternoon_clerk', role: 'counter', noInteractable: true },
         { type: 'landmark', role: 'shop_counter'  },
         { type: 'landmark', role: 'shop_approach' },
@@ -133,7 +138,11 @@
       extraDoors: [{ side: 's', tiedToPrimary: true }],
       items: [
         { type: 'partition', orientation: 'h', rowFromTop: 3, doorTiedToPrimary: true },
-        { type: 'workstation', specId: 'factory_manager',        role: 'supervisor', kind: 'manager', labelZh: '经理办公桌' },
+        // The factory_manager's desk is scenery — hire-verbs render via
+        // FactoryManagerConversation on the talk-verb to the seated
+        // manager. spawn.ts links worker stations to this desk by
+        // matching specId, not by an Interactable kind.
+        { type: 'workstation', specId: 'factory_manager',        role: 'supervisor', noInteractable: true, labelZh: '经理办公桌' },
         { type: 'workstation', specId: 'factory_engineer',        role: 'worker' },
         { type: 'workstation', specId: 'factory_worker_morning',  role: 'worker' },
         { type: 'workstation', specId: 'factory_worker_early',    role: 'worker' },
@@ -271,8 +280,10 @@
       ],
 
       items: [
-        // Reception
-        { type: 'workstation', specId: 'ae_director', relTile: { x: 3.5, y: 13.5 }, kind: 'aeReception', labelZh: '前台' },
+        // Reception — desk is scenery; AEConversation +
+        // ShipDealerConversation render via the on-duty ae_director's
+        // talk-verb in NPCDialog.
+        { type: 'workstation', specId: 'ae_director', relTile: { x: 3.5, y: 13.5 }, noInteractable: true, labelZh: '前台' },
 
         // Board row (y = 4.5)
         { type: 'workstation', specId: 'ae_board_chair',     relTile: { x: 8.5,  y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },

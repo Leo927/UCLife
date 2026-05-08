@@ -65,6 +65,7 @@ export type CraftedWorkstationItem = {
   relTile: { x: number; y: number }
   kind?: string
   labelZh?: string
+  noInteractable?: boolean
 }
 
 export type CraftedWorkstationGridItem = {

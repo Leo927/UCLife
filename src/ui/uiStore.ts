@@ -10,46 +10,33 @@ export interface Toast {
 interface UIState {
   statusOpen: boolean
   inventoryOpen: boolean
-  shopOpen: boolean
   systemOpen: boolean
   mapOpen: boolean
   ambitionsOpen: boolean
-  shipDealerOpen: boolean
   transitSourceId: string | null
   flightHubId: string | null
-  // HR/Realtor/AE conversations share dialogNPC rather than carrying their
-  // own open flags — they're inline panels inside NPCDialog.
+  // Service-side dialogs (HR, realtor, AE, clinic, pharmacy, shop,
+  // secretary, recruiter, ship-dealer) all share dialogNPC and render
+  // as inline conversation panels inside NPCDialog — see the
+  // worker-not-workstation rule in Design/social/diegetic-management.md.
   dialogNPC: Entity | null
-  // Phase 5.5.3 — set by interaction.ts when the player clicks a
-  // 'secretary' workstation. SecretaryDialog reads it directly so the
-  // hire-list path (vacant seat) and the verb path (seated secretary)
-  // share one mount point.
-  dialogSecretaryStation: Entity | null
-  // Phase 5.5.4 — set by interaction.ts when the player clicks a
-  // 'recruiter' workstation. RecruiterDialog reads it for the install /
-  // verbs split, mirroring SecretaryDialog.
-  dialogRecruiterStation: Entity | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
   setStatus: (open: boolean) => void
   toggleInventory: () => void
   setInventory: (open: boolean) => void
-  setShop: (open: boolean) => void
   setSystem: (open: boolean) => void
   toggleSystem: () => void
   setMap: (open: boolean) => void
   toggleMap: () => void
   setAmbitions: (open: boolean) => void
   toggleAmbitions: () => void
-  setShipDealer: (open: boolean) => void
   openTransit: (sourceId: string) => void
   closeTransit: () => void
   openFlight: (hubId: string) => void
   closeFlight: () => void
   setDialogNPC: (e: Entity | null) => void
-  setDialogSecretaryStation: (e: Entity | null) => void
-  setDialogRecruiterStation: (e: Entity | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -68,37 +55,29 @@ if (typeof window !== 'undefined' && (import.meta as unknown as { env?: { DEV?: 
 export const useUI = create<UIState>((set) => ({
   statusOpen: false,
   inventoryOpen: false,
-  shopOpen: false,
   systemOpen: false,
   mapOpen: false,
   ambitionsOpen: false,
-  shipDealerOpen: false,
   transitSourceId: null,
   flightHubId: null,
   dialogNPC: null,
-  dialogSecretaryStation: null,
-  dialogRecruiterStation: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
   setStatus: (open) => set({ statusOpen: open }),
   toggleInventory: () => set((s) => ({ inventoryOpen: !s.inventoryOpen })),
   setInventory: (open) => set({ inventoryOpen: open }),
-  setShop: (open) => set({ shopOpen: open }),
   setSystem: (open) => set({ systemOpen: open }),
   toggleSystem: () => set((s) => ({ systemOpen: !s.systemOpen })),
   setMap: (open) => set({ mapOpen: open }),
   toggleMap: () => set((s) => ({ mapOpen: !s.mapOpen })),
   setAmbitions: (open) => set({ ambitionsOpen: open }),
   toggleAmbitions: () => set((s) => ({ ambitionsOpen: !s.ambitionsOpen })),
-  setShipDealer: (open) => set({ shipDealerOpen: open }),
   openTransit: (sourceId) => set({ transitSourceId: sourceId }),
   closeTransit: () => set({ transitSourceId: null }),
   openFlight: (hubId) => set({ flightHubId: hubId }),
   closeFlight: () => set({ flightHubId: null }),
   setDialogNPC: (e) => set({ dialogNPC: e }),
-  setDialogSecretaryStation: (e) => set({ dialogSecretaryStation: e }),
-  setDialogRecruiterStation: (e) => set({ dialogRecruiterStation: e }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

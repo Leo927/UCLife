@@ -10,21 +10,25 @@ export type BedTier = 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge'
 
 export type RoadKind = 'avenue' | 'street' | 'alley'
 
+// Cell verbs. Two categories per Design/social/diegetic-management.md:
+//   • Always-active interactables — the cell *is* the verb (bed, bar
+//     seat, wash basin, transit turnstile, etc., plus the player's own
+//     work cell and the per-facility 'manage' cell).
+//   • Job-site cells — scenery, no verb. Service-side workstations
+//     (cashier, clinic, pharmacy, hr, secretary, recruiter, ae
+//     reception, factory manager, ship dealer) have their workstation
+//     entities spawned WITHOUT an Interactable trait; the player
+//     interacts via talk-verb on the worker on duty.
 export type InteractableKind =
-  | 'eat' | 'sleep' | 'wash' | 'work' | 'shop' | 'hr' | 'bar' | 'manager'
+  | 'eat' | 'sleep' | 'wash' | 'work' | 'bar'
   | 'tap' | 'scavenge' | 'rough'
-  | 'aeReception'
-  | 'clinic'
-  | 'pharmacy'
   | 'gym'
   | 'transit'
   | 'ticketCounter'
-  | 'buyShip'
   | 'boardShip'
   | 'disembarkShip'
   | 'helm'
-  | 'secretary'
-  | 'recruiter'
+  | 'manage'
 
 export type ActionKind =
   | 'idle' | 'walking' | 'eating' | 'sleeping' | 'washing'

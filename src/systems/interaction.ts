@@ -2,7 +2,7 @@ import type { World } from 'koota'
 import type { Entity } from 'koota'
 import {
   Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
-  Money, Character, Bed, BarSeat, Health, Workstation, RoughUse, RoughSpot, Transit,
+  Money, Character, Bed, BarSeat, Workstation, RoughUse, RoughSpot, Transit,
   FlightHub,
   type InteractableKind,
 } from '../ecs/traits'
@@ -26,8 +26,6 @@ import { getSceneConfig, isSceneId } from '../data/scenes'
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
 
-const STATION_RANGE = worldConfig.ranges.workstationOccupied
-
 function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): boolean {
   for (const bedEnt of world.query(Bed)) {
     const b = bedEnt.get(Bed)!
@@ -35,18 +33,6 @@ function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): b
     if (bedActiveOccupant(b, nowMs) === player) return true
   }
   return false
-}
-
-function findNPCAtStation(world: World, station: { x: number; y: number }): Entity | null {
-  for (const npc of world.query(Character, Position)) {
-    const h = npc.get(Health)
-    if (h?.dead) continue
-    const np = npc.get(Position)!
-    if (Math.hypot(np.x - station.x, np.y - station.y) < STATION_RANGE) {
-      return npc
-    }
-  }
-  return null
 }
 
 export function interactionSystem(world: World) {
@@ -63,7 +49,6 @@ export function interactionSystem(world: World) {
     let nearestEnt: Entity | null = null
     let nearestDist = Infinity
     let nearestFee = 0
-    let nearestPos = { x: 0, y: 0 }
     const interactables = world.query(Interactable, Position)
     for (const ent of interactables) {
       const it = ent.get(Interactable)!
@@ -90,54 +75,11 @@ export function interactionSystem(world: World) {
       nearestEnt = ent
       nearestDist = d
       nearestFee = it.fee
-      nearestPos = { x: ip.x, y: ip.y }
     }
 
     player.remove(QueuedInteract)
     if (!nearestKind) continue
 
-    const occupant = nearestEnt ? findNPCAtStation(world, nearestPos) : null
-
-    if (nearestKind === 'manager') {
-      if (!occupant) {
-        emitSim('toast', { textZh: '经理不在 · 请稍后再来' })
-        continue
-      }
-      emitSim('ui:open-dialog-npc', { entity: occupant })
-      continue
-    }
-    if (nearestKind === 'shop') {
-      if (!occupant) {
-        emitSim('toast', { textZh: '店员不在 · 商店已关门' })
-        continue
-      }
-      emitSim('ui:open-shop', {})
-      continue
-    }
-    if (nearestKind === 'clinic') {
-      if (!occupant) {
-        emitSim('toast', { textZh: '医生不在 · 诊所暂停接诊' })
-        continue
-      }
-      emitSim('ui:open-dialog-npc', { entity: occupant })
-      continue
-    }
-    if (nearestKind === 'pharmacy') {
-      if (!occupant) {
-        emitSim('toast', { textZh: '药剂师不在 · 药店暂停营业' })
-        continue
-      }
-      emitSim('ui:open-dialog-npc', { entity: occupant })
-      continue
-    }
-    if (nearestKind === 'hr') {
-      if (!occupant) {
-        emitSim('toast', { textZh: '人事不在 · 招聘窗口暂停办公' })
-        continue
-      }
-      emitSim('ui:open-dialog-npc', { entity: occupant })
-      continue
-    }
     if (nearestKind === 'transit') {
       if (nearestEnt) {
         const t = nearestEnt.get(Transit)
@@ -152,33 +94,12 @@ export function interactionSystem(world: World) {
       }
       continue
     }
-    if (nearestKind === 'aeReception') {
-      if (!occupant) {
-        emitSim('toast', { textZh: 'AE 主管不在 · 工坊暂停办公' })
-        continue
-      }
-      emitSim('ui:open-dialog-npc', { entity: occupant })
-      continue
-    }
-    if (nearestKind === 'secretary') {
-      // The secretary desk has two modes: empty seat (player installs a
-      // hire) and seated secretary (consultative verbs). Both render in
-      // SecretaryDialog, which keys off the workstation entity. Routing
-      // here just sets the dialog target — the dialog itself reads
-      // occupant + ownership so a state-owned desk shows nothing actionable
-      // until the realtor close.
-      if (nearestEnt) emitSim('ui:open-secretary', { station: nearestEnt })
-      continue
-    }
-    if (nearestKind === 'recruiter') {
-      // Same install-then-verbs pattern as the secretary desk. The dialog
-      // reads occupant + ownership and routes to install / criteria /
-      // applicant-review accordingly.
-      if (nearestEnt) emitSim('ui:open-recruiter', { station: nearestEnt })
-      continue
-    }
-    if (nearestKind === 'buyShip') {
-      emitSim('ui:open-ship-dealer', {})
+    if (nearestKind === 'manage') {
+      // Per Design/social/diegetic-management.md the manage cell is the
+      // legitimate cell-as-management surface. Wired in a follow-up phase;
+      // for now, just emit a placeholder toast so a stray spawn from
+      // building-types.json5 won't crash the system.
+      emitSim('toast', { textZh: '管理面板尚未启用' })
       continue
     }
     if (nearestKind === 'boardShip') {
@@ -249,8 +170,8 @@ export function interactionSystem(world: World) {
           continue
         }
       }
-      if (occupant && occupant !== player) {
-        const occName = occupant.get(Character)?.name ?? '别人'
+      if (wsTrait && wsTrait.occupant !== null && wsTrait.occupant !== player) {
+        const occName = wsTrait.occupant.get(Character)?.name ?? '别人'
         emitSim('toast', { textZh: `${occName} 正在使用此工位` })
         continue
       }

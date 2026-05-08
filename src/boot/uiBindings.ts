@@ -24,11 +24,7 @@ export function bindUi(): void {
   onSim('toast', ({ textZh, durationMs, action }) => {
     useUI.getState().showToast(textZh, durationMs, action)
   })
-  onSim('ui:open-shop', () => useUI.getState().setShop(true))
   onSim('ui:open-flight', ({ hubId }) => useUI.getState().openFlight(hubId))
   onSim('ui:open-transit', ({ terminalId }) => useUI.getState().openTransit(terminalId))
   onSim('ui:open-dialog-npc', ({ entity }) => useUI.getState().setDialogNPC(entity))
-  onSim('ui:open-ship-dealer', () => useUI.getState().setShipDealer(true))
-  onSim('ui:open-secretary', ({ station }) => useUI.getState().setDialogSecretaryStation(station))
-  onSim('ui:open-recruiter', ({ station }) => useUI.getState().setDialogRecruiterStation(station))
 }

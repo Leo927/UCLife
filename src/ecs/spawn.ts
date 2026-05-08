@@ -138,19 +138,10 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
     case 'crafted':     spawnCrafted(layout, slot, rng); break
   }
 
-  // The ship dealer kiosk lives in the AE lobby, a few tiles south of the
-  // reception desk. Phase 6.0 spine — Phase 6.1 may move this onto a
-  // dedicated NPC dispatcher.
-  if (typeId === 'aeComplex') {
-    world.spawn(
-      Position({
-        x: slot.rect.x + 3.5 * TILE,
-        y: slot.rect.y + 16.5 * TILE,
-      }),
-      Interactable({ kind: 'buyShip', label: '购买飞船 · ¥80000', fee: 0 }),
-      EntityKey({ key: 'buyship-aeComplex' }),
-    )
-  }
+  // Per the worker-not-workstation rule the former 'buyShip' kiosk is
+  // gone — ship purchase now routes via the AE director's talk-verb
+  // (ShipDealerConversation rendered in NPCDialog when ae_director is
+  // on duty). See Design/social/diegetic-management.md.
 
   return buildingEnt
 }
@@ -197,8 +188,11 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
   const counters: Record<string, number> = {}
   let counterPos: { x: number; y: number } | undefined
 
-  // Workers in a building with a kind:'manager' supervisor get their hires
-  // routed through that manager's desk. Collect refs in pass 1, link in pass 2.
+  // Workers in a building with a recruiting-manager supervisor (today
+  // only `factory_manager`) get their hires routed through that
+  // manager's desk via the FactoryManagerConversation talk-verb. Collect
+  // refs in pass 1, link in pass 2. specId-keyed because the workstation
+  // entity itself carries no Interactable kind anymore — it's scenery.
   let managerStation: Entity | null = null
   const workerStations: Entity[] = []
 
@@ -212,7 +206,7 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
     const ent = spawnProcgenItem(pi, counters)
     if (ent && pi.item.type === 'workstation') {
       const wsItem = pi.item as ProcgenWorkstationItem
-      if (wsItem.role === 'supervisor' && wsItem.kind === 'manager') {
+      if (wsItem.role === 'supervisor' && wsItem.specId === 'factory_manager') {
         managerStation = ent
       } else if (wsItem.role === 'worker') {
         workerStations.push(ent)
@@ -263,23 +257,23 @@ function spawnProcgenItem(
       const wsItem = item as ProcgenWorkstationItem
       const idx = counters[sid] ?? 0
       counters[sid] = idx + 1
-      if (wsItem.noInteractable) {
-        return world.spawn(
-          Position({ x, y }),
-          Workstation({ specId: sid, occupant: null }),
-          EntityKey({ key: `ws-${sid}` }),
-        )
-      }
-      const ent = world.spawn(
-        Position({ x, y }),
-        Interactable({ kind: (wsItem.kind ?? 'work') as InteractableKind, label: wsItem.labelZh ?? '工位' }),
-        Workstation({ specId: sid, occupant: null }),
-        EntityKey({ key: `ws-${sid}` }),
-      )
+      const ent = wsItem.noInteractable
+        ? world.spawn(
+            Position({ x, y }),
+            Workstation({ specId: sid, occupant: null }),
+            EntityKey({ key: `ws-${sid}` }),
+          )
+        : world.spawn(
+            Position({ x, y }),
+            Interactable({ kind: (wsItem.kind ?? 'work') as InteractableKind, label: wsItem.labelZh ?? '工位' }),
+            Workstation({ specId: sid, occupant: null }),
+            EntityKey({ key: `ws-${sid}` }),
+          )
       // Phase 5.5.4 — recruiter desk carries a Recruiter trait (criteria
       // block + per-day counters). Keep the trait attachment co-located
       // with workstation creation so a player who buys the office sees a
-      // valid Recruiter trait from day one.
+      // valid Recruiter trait from day one. Applies regardless of
+      // noInteractable: the trait is independent of the cell-verb.
       if (sid === 'recruiter') ent.add(Recruiter)
       return ent
     }
@@ -414,6 +408,18 @@ function spawnCraftedItem(
     case 'workstation': {
       const px = rect.x + item.relTile.x * TILE
       const py = rect.y + item.relTile.y * TILE
+      // `noInteractable: true` makes the desk pure scenery — used for
+      // service-side workstations (cashier, clinic, secretary, etc.)
+      // where the verb lives on the worker on duty's body, not the
+      // tile. See Design/social/diegetic-management.md.
+      if (item.noInteractable) {
+        world.spawn(
+          Position({ x: px, y: py }),
+          Workstation({ specId: item.specId, occupant: null }),
+          EntityKey({ key: `ws-${item.specId}` }),
+        )
+        break
+      }
       world.spawn(
         Position({ x: px, y: py }),
         Interactable({ kind: (item.kind ?? 'work') as InteractableKind, label: item.labelZh ?? '工位' }),

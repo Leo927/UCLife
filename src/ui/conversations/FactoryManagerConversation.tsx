@@ -16,8 +16,9 @@ export function FactoryManagerConversation({ managerStation }: { managerStation:
 
   // Only stations whose manager-of-record is this manager's desk. No employer
   // gate here — the desk owns the local hierarchy regardless of corporate
-  // affiliation, and the spawn linker only sets managerStation when there's
-  // a kind:'manager' supervisor in the same building.
+  // affiliation, and the spawn linker only sets managerStation when a
+  // recruiting-manager supervisor (specId factory_manager) sits in the
+  // same building.
   const openings: { ws: Entity; spec: JobSpec }[] = []
   for (const ws of allStations) {
     const w = ws.get(Workstation)!
