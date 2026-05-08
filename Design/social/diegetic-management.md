@@ -1,6 +1,6 @@
 # Diegetic management
 
-*The surface-design discipline for Phase 6 faction management. Management of fleet, colony, and faction lives on bodies and in places — not in floating menus.*
+*The surface-design discipline for the whole game. Customer-side service, owner-side management, and faction-tier governance all live on bodies and in places — not in floating menus.*
 
 ## Why this file exists
 
@@ -18,6 +18,44 @@ This file establishes the discipline that prevents that. The roster tables in [.
 2. **Who is the player talking to?** Not what listbox are they choosing from — who is the responsible NPC?
 
 If the answer is "a floating panel" / "no one in particular," the feature is undesigned. Find the room and find the person.
+
+### Worker, not workstation
+
+The principle's strict form, lifted from
+[../DESIGN.md](../DESIGN.md): **the worker on duty is the
+interaction surface for a job site.** The till, the bar counter, the
+clinic desk, the recruiter's chair — these are scenery. The body
+behind them is the verb target.
+
+This applies symmetrically to both sides of the counter:
+
+- **Customer-side** (buy goods, drink at the bar, get diagnosed,
+  read a posting) — talk-verb on the worker on duty. No
+  click-the-shop panel.
+- **Owner-side** (fire, replace, reassign, inspect performance) —
+  same talk-verb on the worker on duty, with owner-only branches
+  gated by ownership. The owner is *standing in their own bar
+  talking to their own bartender*, not poking a UI tile.
+
+When a job site is **vacant** (no one on duty), it exposes **no
+verbs**. The shop is dark; the door doesn't open. This is the
+intended cost of staffing failure — it makes payroll, schedules, and
+insolvency *legible in the world* rather than in a panel.
+
+Owner-side verbs that must fire on an empty seat route through a
+different body, never back onto the tile:
+
+- **Assign an idle member to a vacant job** → secretary at the
+  faction office (`assignIdleMembers`).
+- **Find a fresh hire for a vacant job** → recruiter at the HR
+  office, or the talk-verb hire branch on a civilian in the world.
+- **Inspect "this seat is empty"** → the realtor (for foreclosure
+  state) or the secretary's `sidewaysReport` verb.
+
+State-owned civic facilities (shops, clinics, post office) staff a
+generic procgen worker on business hours so the rule doesn't
+collapse into "the city is closed" — see
+[facilities-and-ownership.md](facilities-and-ownership.md#civic-default-staffing).
 
 ## Physical hubs
 

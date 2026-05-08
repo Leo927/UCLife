@@ -34,10 +34,19 @@ Drawn from Tynan Sylvester's *The Simulation Dream*:
 4. **Apophenia is free depth.** Name the NPCs, log their actions verbosely, let players invent the meaning.
 5. **Constraint generates emergence**, not elaborate rules.
 
-Two concrete tactics that fall out of this:
+Three concrete tactics that fall out of this:
 
 - **Inspector mode** — click any entity, see all traits.
 - **Verbose event log** — every NPC action emits a readable line; the log *is* the story.
+- **Worker, not workstation.** Every job-site verb — buy, sell, get
+  diagnosed, get a haircut, fire, hire, replace, set assignment —
+  routes through the **worker on duty**, not through the workstation
+  tile or the building. The bar counter is scenery; the bartender is
+  the surface. A vacant workstation exposes no verbs; staffing
+  failures become "the shop is dark." Owner-side verbs that need to
+  fire on an empty seat (assign / hire) route through the secretary
+  or the recruiter, not back onto the tile. See
+  [social/diegetic-management.md](social/diegetic-management.md).
 
 ## How to navigate this doc
 

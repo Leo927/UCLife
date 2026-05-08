@@ -30,6 +30,14 @@ the *geometry*. A facility has one or more **job sites** (the
 workplace cell already shipped) and zero or more **bed sites**. Cells
 remain the geometric primitive; "facility" is the economic noun.
 
+**The worker on duty is the player's interaction surface for a job
+site, not the cell itself.** A job site cell is scenery; clicking it
+exposes no verbs. All transactions, services, and owner-side
+management at that job site route through the talk-verb on the
+embodied worker. This is the universal rule — see
+[../DESIGN.md](../DESIGN.md) and
+[diegetic-management.md](diegetic-management.md#worker-not-workstation).
+
 ## The Faction abstraction
 
 A first-class entity, parallel to a character. A faction holds:
@@ -339,24 +347,101 @@ The convenience the secretary provides is **not having to walk to
 every facility every day to spot-check status**. She does not become
 a panel that lets the player *do* every action remotely.
 
+## Customer-side interaction (any facility)
+
+A customer transacts with the **worker on duty**, never with the
+workstation cell. The talk-verb on the worker is extended with
+service branches appropriate to the facility class:
+
+- **Shop / general store** — *buy*, *sell*, *ask about stock*. The
+  cashier is the surface. No clerk on shift = no purchases; the
+  player sees the dim shopfront and walks away. Charisma still
+  modifies prices via the existing channel.
+- **Bar** — *order a drink*, *order food*, *tip*, *ask about
+  rumors* (gossip channel for [newsfeed.md](newsfeed.md)). The
+  bartender is the surface.
+- **Clinic** — *get diagnosed*, *get treated*, *fill prescription*.
+  The clinician on duty is the surface; see
+  [../characters/physiology-ux.md](../characters/physiology-ux.md).
+- **Realty office** — listing browse + close-the-sale verbs on the
+  realtor (this file's "Acquisition" section).
+- **HR office** — applicant lobby + criteria-as-conversation on the
+  recruiter (this file's "Recruitment" section).
+- **Faction office** — secretary's consultative verbs (this file's
+  "secretary delegate" section).
+
+A *closed* facility — outside business hours, on payroll failure
+(see "Insolvency"), or after foreclosure — exposes no worker, and
+therefore no service. The dark facade is the player-visible signal
+that something is broken upstream of the till.
+
+### Civic default staffing
+
+State-owned civic facilities (shops, clinics, public services) staff
+a generic procgen worker during their business hours so the
+worker-not-workstation rule does not collapse into a friction floor
+where the player can't buy bread because the cashier went home five
+minutes ago. The staffing is **per-shift**, not always-on: closing
+time is real, and "I forgot to buy food before 10pm" is a legitimate
+in-world consequence. Specifically:
+
+- Each civic-facility class declares its operating hours in
+  `facility-types.json5`.
+- During those hours, the workSystem guarantees at least one worker
+  on duty at each customer-facing job site. If no faction-assigned
+  member is on shift, a generic city-staff procgen NPC is spawned
+  and despawned at shift bounds — they are real bodies the player
+  can talk to and inspector-mode, not invisible auto-fillers.
+- Outside operating hours, the seat is vacant and the facility is
+  dark.
+
+Privately-owned facilities make their own staffing decisions through
+ownership economics — if the bar owner doesn't hire a bartender, the
+bar is closed. That is the intended consequence loop.
+
 ## Job-site interaction (player-owned facilities)
 
-When the player owns a facility, walking to any of its job sites and
-interacting opens a **job-site panel** showing:
+When the player owns a facility, owner-side verbs surface on the
+**talk-verb of the worker on duty** — the same body the customer
+talks to, with extra branches gated by ownership:
 
-- The current worker (name, persona summary, skills relevant to the
-  role, performance trend)
-- Or "vacant" if unfilled
-- Verbs: **fire**, **replace** (auto-pick a fitting member),
-  **assign a specific faction member** from a list constrained to
-  *members currently in the same city as the job site*
+- **Inspect** — the worker's persona summary, role-relevant skills,
+  performance trend (this is the existing diegetic surface).
+- **Fire** — ends the assignment immediately; the NPC walks out.
+- **Replace** — auto-pick a fitting idle faction member to take
+  over (resolves to the same operation as the secretary's
+  `assignIdleMembers`, scoped to this seat).
+- **Reassign to specific member** — pick from a list constrained
+  to *members currently in the same city as the job site*.
 
 This is the diegetic-correct surface — the player is standing at the
-workplace; the NPC is right there. The secretary's auto-assign verb
-is the same operation in batch.
+workplace, the NPC is right there, and the conversation is "about
+your job." The workstation cell itself remains non-interactive.
 
-Bed-site interaction works the same way: the player walks to a bed
-they own, sees the current claimant, can re-assign manually.
+When a player-owned job site is **vacant**:
+
+- The cell exposes no verbs.
+- The walked-to-it player sees "this seat is empty" via the same
+  visual cue as a closed facility (dim, unmanned).
+- The hire / assign verb routes through one of two bodies:
+  - **Secretary** at the faction office — `assignIdleMembers`
+    pulls an existing member to fill it.
+  - **Recruiter** at the HR office — generates a fresh applicant
+    over time.
+  - Or the talk-verb hire branch on any civilian in the world.
+
+This preserves the rule: the workstation tile is never an
+interaction target. Every owner-side action lives on a body — the
+worker, the secretary, the recruiter, or the civilian being
+recruited.
+
+Bed-site interaction follows the same logic: the player walks to a
+bed they own, and if a claimant is sleeping in it, the verbs
+("re-assign", "evict") surface as a talk-verb on that NPC. An
+unclaimed bed exposes a single "claim for member" verb on the bed
+furniture itself — beds are an explicit narrow exception, since
+their *purpose* in the sim is the act of claiming, and a bed with no
+body to talk to has no other diegetic anchor.
 
 ## Player-faction creation
 
