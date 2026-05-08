@@ -15,10 +15,16 @@ import { SellerConversation } from './conversations/SellerConversation'
 import { AEConversation } from './conversations/AEConversation'
 import { ClinicConversation } from './conversations/ClinicConversation'
 import { PharmacyConversation } from './conversations/PharmacyConversation'
+import { ShopkeeperConversation } from './conversations/ShopkeeperConversation'
+import { SecretaryConversation } from './conversations/SecretaryConversation'
+import { RecruiterConversation } from './conversations/RecruiterConversation'
+import { ShipDealerConversation } from './conversations/ShipDealerConversation'
 import { FactoryManagerConversation } from './conversations/FactoryManagerConversation'
 import { JobSiteConversation } from './conversations/JobSiteConversation'
 import { TalkHireConversation } from './conversations/TalkHireConversation'
 import { playUi } from '../audio/player'
+
+const CASHIER_SPEC_IDS = ['shop_morning_clerk', 'shop_afternoon_clerk'] as const
 
 function pickGreeting(title: string, employed: boolean): string {
   if (!employed) return '"嗯。"'
@@ -106,11 +112,19 @@ export function NPCDialog() {
   const employed = !!wsSpec
 
   const onShift = action?.kind === 'working'
-  const isRealtorOnDuty = wsTrait?.specId === 'realtor' && onShift
-  const isHROnDuty = wsTrait?.specId === 'city_hr_clerk' && onShift
-  const isAEOnDuty = wsTrait?.specId === 'ae_director' && onShift
-  const isDoctorOnDuty = wsTrait?.specId === 'civilian_doctor' && onShift
-  const isPharmacistOnDuty = wsTrait?.specId === 'civilian_pharmacist' && onShift
+  const specId = wsTrait?.specId ?? ''
+  const isRealtorOnDuty = specId === 'realtor' && onShift
+  const isHROnDuty = specId === 'city_hr_clerk' && onShift
+  const isAEOnDuty = specId === 'ae_director' && onShift
+  const isDoctorOnDuty = specId === 'civilian_doctor' && onShift
+  const isPharmacistOnDuty = specId === 'civilian_pharmacist' && onShift
+  const isCashierOnDuty = onShift && (CASHIER_SPEC_IDS as readonly string[]).includes(specId)
+  const isSecretaryOnDuty = specId === 'secretary' && onShift
+  const isRecruiterOnDuty = specId === 'recruiter' && onShift
+  // Ship purchase rides on the AE director's talk-verb until a dedicated
+  // ship-dealer NPC role lands. The 'buyShip' kiosk in the AE lobby is
+  // gone — purchase is a branch on the body responsible for the kiosk.
+  const isShipDealerOnDuty = isAEOnDuty
 
   // A recruiting manager is any NPC whose workstation is referenced as
   // `managerStation` by ≥1 worker station — keeps factory_manager (and any
@@ -158,8 +172,12 @@ export function NPCDialog() {
         {isRealtorOnDuty && <RealtorConversation />}
         {ownsPrivateFacility && <SellerConversation seller={target} />}
         {isAEOnDuty && <AEConversation />}
+        {isShipDealerOnDuty && <ShipDealerConversation />}
         {isDoctorOnDuty && <ClinicConversation />}
         {isPharmacistOnDuty && <PharmacyConversation />}
+        {isCashierOnDuty && <ShopkeeperConversation />}
+        {isSecretaryOnDuty && <SecretaryConversation secretary={target} />}
+        {isRecruiterOnDuty && <RecruiterConversation recruiter={target} />}
         {isRecruitingManagerOnDuty && ws && <FactoryManagerConversation managerStation={ws} />}
         <JobSiteConversation worker={target} />
         <TalkHireConversation target={target} />

@@ -48,19 +48,6 @@ describe('sim/events typed dispatch', () => {
     expect(onToast).toHaveBeenNthCalledWith(2, { textZh: '带时长', durationMs: 6000 })
   })
 
-  it('routes empty payloads for marker events', () => {
-    const onShop = vi.fn()
-    const onShipDealer = vi.fn()
-    cleanups.push(onSim('ui:open-shop', onShop))
-    cleanups.push(onSim('ui:open-ship-dealer', onShipDealer))
-
-    emitSim('ui:open-shop', {})
-    emitSim('ui:open-ship-dealer', {})
-
-    expect(onShop).toHaveBeenCalledWith({})
-    expect(onShipDealer).toHaveBeenCalledWith({})
-  })
-
   it('routes ui:open-* payloads with their typed fields', () => {
     const onFlight = vi.fn()
     const onTransit = vi.fn()

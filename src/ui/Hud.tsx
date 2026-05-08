@@ -44,8 +44,8 @@ export function Hud() {
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
       const ui = useUI.getState()
-      const anyModal = ui.statusOpen || ui.inventoryOpen || ui.shopOpen || ui.systemOpen
-        || ui.mapOpen || ui.ambitionsOpen || ui.shipDealerOpen
+      const anyModal = ui.statusOpen || ui.inventoryOpen || ui.systemOpen
+        || ui.mapOpen || ui.ambitionsOpen
         || ui.transitSourceId !== null || ui.flightHubId !== null
         || ui.dialogNPC !== null
 
@@ -57,8 +57,6 @@ export function Hud() {
         // (which would leave-helm) when we're really just closing a UI modal.
         e.stopImmediatePropagation()
         if (ui.dialogNPC !== null) ui.setDialogNPC(null)
-        else if (ui.shipDealerOpen) ui.setShipDealer(false)
-        else if (ui.shopOpen) ui.setShop(false)
         else if (ui.flightHubId !== null) ui.closeFlight()
         else if (ui.transitSourceId !== null) ui.closeTransit()
         else if (ui.ambitionsOpen) ui.setAmbitions(false)

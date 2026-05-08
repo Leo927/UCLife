@@ -43,10 +43,12 @@ intended cost of staffing failure — it makes payroll, schedules, and
 insolvency *legible in the world* rather than in a panel.
 
 Owner-side verbs that must fire on an empty seat route through a
-different body, never back onto the tile:
+different body or a different artifact, never back onto the tile:
 
-- **Assign an idle member to a vacant job** → secretary at the
-  faction office (`assignIdleMembers`).
+- **Bootstrap install — first hire on a player-owned facility** →
+  the per-facility **manage cell** (see "Cell categories" below).
+- **Assign an idle member to a vacant job (cross-facility)** →
+  secretary at the faction office (`assignIdleMembers`).
 - **Find a fresh hire for a vacant job** → recruiter at the HR
   office, or the talk-verb hire branch on a civilian in the world.
 - **Inspect "this seat is empty"** → the realtor (for foreclosure
@@ -56,6 +58,70 @@ State-owned civic facilities (shops, clinics, post office) staff a
 generic procgen worker on business hours so the rule doesn't
 collapse into "the city is closed" — see
 [facilities-and-ownership.md](facilities-and-ownership.md#civic-default-staffing).
+
+### Cell categories: interactable vs. job site
+
+The walkable city is built from cells. Two categories exist, with
+distinct visual treatment:
+
+1. **Interactable cells** — the cell itself is the verb. These are
+   the cases where there is no body to attach the verb to (because
+   the artifact *is* the system, or it is a self-service apparatus).
+   Examples: a bed (sleep), a bar seat (drink — the seat is the
+   customer's diegetic anchor; the bartender is gated separately
+   via on-duty presence), a wash basin, a park tap, a transit
+   turnstile, a self-service ticket kiosk, a gym station, a ship's
+   helm console, the player's own job cell (sit-at-work), a
+   facility's **manage cell** (owner-only; see below).
+2. **Job-site cells** — the cashier counter, the clinic desk, the
+   pharmacist's window, the HR clerk's window, the AE director's
+   reception, the secretary's desk, the recruiter's desk, the
+   factory manager's desk, the ship-dealer's desk. **These cells
+   carry no verb.** They are scenery rendered with the
+   workstation's chrome (label, sprite). The verb lives on the
+   worker behind the counter.
+
+The visual idiom must distinguish the two — an interactable cell
+gets a verb-affordance icon (the existing colored interact halo); a
+job-site cell does not. Hovering an unmanned job-site cell shows the
+worker's job title ("店员", "医生") so the player understands *what
+kind of body should be there*, not *what verb the cell carries*.
+
+### Per-facility manage cell
+
+Owning a facility introduces a sliver of legitimate
+cell-as-management surface: the **manage cell**. One per
+player-owned facility. Hidden / inert when the facility is not
+player-owned. This is the bootstrap entry point that solves the
+chicken-and-egg of "the diegetic install path requires a body, but
+the body is what you're trying to install."
+
+The manage cell sits on the facility floor — usually inside the
+back-of-house (manager's office, owner's nook), placed by
+`building-types.json5` per facility class. Its verbs:
+
+- **Install hire to vacant seat** in this facility (bootstrap when
+  you bought a facility with no roster).
+- **Assign worker** to a job site within this facility, picking from
+  the local roster.
+- **Fire / replace** an existing worker — delegated dispatch back
+  to the worker is preferred (the diegetic-correct surface), but
+  the manage cell is the fallback when you'd rather not walk to the
+  body.
+- **Inspect facility status** — read-only revenue / payroll /
+  occupancy summary scoped to this facility.
+
+The manage cell does **not** replace the secretary at the faction
+office — that surface remains the cross-facility roster tool. The
+manage cell is the *local* tool: it operates only on its own
+facility's seats and only on the local roster.
+
+The manage cell does not violate the worker-not-workstation rule
+because it is not pretending to be a job site. It is the diegetic
+representation of *the owner standing in their own facility,
+deciding who works here* — equivalent to a clipboard pinned to the
+back-office wall. Its visual idiom should read as "owner control,"
+not "verb you can perform here as a customer."
 
 ## Physical hubs
 

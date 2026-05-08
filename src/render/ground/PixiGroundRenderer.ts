@@ -76,25 +76,20 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   sleep:           { fill: 0x1e3a8a, stroke: 0x3b82f6 },
   wash:            { fill: 0x155e75, stroke: 0x06b6d4 },
   work:            { fill: 0x3b1e7a, stroke: 0xa855f7 },
-  shop:            { fill: 0x854d0e, stroke: 0xfacc15 },
-  hr:              { fill: 0x831843, stroke: 0xec4899 },
   bar:             { fill: 0x7f1d1d, stroke: 0xef4444 },
-  manager:         { fill: 0x3f3f46, stroke: 0xa1a1aa },
-  aeReception:     { fill: 0x7c5614, stroke: 0xc9a047 },
-  clinic:          { fill: 0x064e3b, stroke: 0x10b981 },
-  pharmacy:        { fill: 0x14532d, stroke: 0x4ade80 },
   gym:             { fill: 0x3a2c0a, stroke: 0xc9a047 },
   tap:             { fill: 0x1e293b, stroke: 0x64748b },
   scavenge:        { fill: 0x3a2e1a, stroke: 0xa3a3a3 },
   rough:           { fill: 0x262626, stroke: 0x737373 },
   transit:         { fill: 0x134e4a, stroke: 0x2dd4bf },
   ticketCounter:   { fill: 0x1e3a8a, stroke: 0x60a5fa },
-  buyShip:         { fill: 0x0f3a4a, stroke: 0x22d3ee },
   boardShip:       { fill: 0x0c4a6e, stroke: 0x38bdf8 },
   disembarkShip:   { fill: 0x1e293b, stroke: 0x94a3b8 },
   helm:            { fill: 0x3a1f4a, stroke: 0xa78bfa },
-  secretary:       { fill: 0x3f3f46, stroke: 0xc9a047 },
-  recruiter:       { fill: 0x4a2c5a, stroke: 0xc084fc },
+  // Owner-control hue: deep amber + bright gold, distinct from the
+  // service-side palette (those are now scenery-only and carry no
+  // Interactable). 'manage' reads as 'this is your facility'.
+  manage:          { fill: 0x713f12, stroke: 0xfbbf24 },
 }
 
 const BED_VISUAL: Record<BedTier, { fill: number; stroke: number; w: number; h: number; label: string }> = {

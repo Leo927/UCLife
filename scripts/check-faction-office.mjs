@@ -34,7 +34,12 @@ await page.waitForFunction(
     && typeof globalThis.__uclife__?.factionAssignBeds === 'function'
     && typeof globalThis.__uclife__?.factionBookSummary === 'function'
     && typeof globalThis.__uclife__?.factionSidewaysReport === 'function'
-    && typeof globalThis.__uclife__?.forceHousingPressure === 'function',
+    && typeof globalThis.__uclife__?.forceHousingPressure === 'function'
+    && typeof globalThis.__uclife__?.listManageCells === 'function'
+    && typeof globalThis.__uclife__?.manageCellTrigger === 'function'
+    && typeof globalThis.__uclife__?.manageDialogState === 'function'
+    && typeof globalThis.__uclife__?.manageDialogClose === 'function'
+    && typeof globalThis.__uclife__?.manageAssignIdle === 'function',
   null,
   { timeout: 30_000 },
 )
@@ -128,6 +133,53 @@ else if (sideways && sideways.unhousedCount > 0 && pressure.decayedCount < 1) {
 } else {
   console.log(`housing pressure: unhoused=${pressure.unhousedCount} decayed=${pressure.decayedCount}`)
 }
+
+// 7. Manage cell — spawned for player-ownable types, inert until owned,
+//    triggers dialog when owned, and rejects triggers for non-owners.
+const cellsBeforeBuy = await page.evaluate(() => globalThis.__uclife__.listManageCells())
+const officeCellBefore = cellsBeforeBuy.find((c) => c.buildingKey === officeListing.buildingKey)
+if (!officeCellBefore) {
+  failures.push('manage cell missing for factionOffice — spawn regression')
+} else if (officeCellBefore.buildingTypeId !== 'factionOffice') {
+  failures.push(`manage cell typeId=${officeCellBefore.buildingTypeId} (want factionOffice)`)
+}
+
+const cellsAfterBuy = await page.evaluate(() => globalThis.__uclife__.listManageCells())
+const officeCellAfter = cellsAfterBuy.find((c) => c.buildingKey === officeListing.buildingKey)
+if (!officeCellAfter) {
+  failures.push('manage cell vanished after purchase')
+} else if (!officeCellAfter.ownedByPlayer) {
+  failures.push(`manage cell ownedByPlayer=${officeCellAfter.ownedByPlayer} after buy (want true)`)
+}
+
+const stateOwnedCell = cellsAfterBuy.find((c) => c.ownedByPlayer === false)
+if (stateOwnedCell) {
+  const reject = await page.evaluate((k) => globalThis.__uclife__.manageCellTrigger(k), stateOwnedCell.buildingKey)
+  if (reject.ok) failures.push(`manage cell trigger succeeded on non-owned ${stateOwnedCell.buildingKey} — gate failure`)
+  else console.log(`manage cell on non-owned ${stateOwnedCell.buildingKey} correctly rejected: ${reject.reason}`)
+} else {
+  console.log('note: no non-player-owned manage cell available — gate-rejection check skipped')
+}
+
+const trig = await page.evaluate((k) => globalThis.__uclife__.manageCellTrigger(k), officeListing.buildingKey)
+if (!trig.ok) failures.push(`manageCellTrigger on owned office failed: ${trig.reason}`)
+
+const dialogState = await page.evaluate(() => globalThis.__uclife__.manageDialogState())
+if (!dialogState.open) failures.push('manageDialogState.open = false after triggering owned cell')
+else if (dialogState.buildingKey !== officeListing.buildingKey) {
+  failures.push(`manageDialogState.buildingKey=${dialogState.buildingKey} (want ${officeListing.buildingKey})`)
+} else {
+  console.log(`manage dialog opened for ${dialogState.buildingKey}`)
+}
+
+await page.evaluate(() => globalThis.__uclife__.manageDialogClose())
+
+const closedState = await page.evaluate(() => globalThis.__uclife__.manageDialogState())
+if (closedState.open) failures.push('manageDialogState still open after manageDialogClose')
+
+const assignResult = await page.evaluate((k) => globalThis.__uclife__.manageAssignIdle(k), officeListing.buildingKey)
+if (!assignResult.ok) failures.push(`manageAssignIdle on owned office failed: ${assignResult.reason}`)
+else console.log(`manageAssignIdle: assigned=${assignResult.assigned} unassigned=${assignResult.unassigned}`)
 
 await browser.close()
 

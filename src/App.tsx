@@ -7,7 +7,6 @@ import { DeathModal } from './ui/DeathModal'
 import { StatusPanel } from './ui/StatusPanel'
 import { InventoryPanel } from './ui/InventoryPanel'
 import { StatusBarFooter } from './ui/StatusBarFooter'
-import { ShopModal } from './ui/ShopModal'
 import { ConditionStrip } from './ui/ConditionStrip'
 import { EventLogPanel } from './ui/EventLogPanel'
 import { Toasts } from './ui/Toasts'
@@ -21,10 +20,8 @@ import { TacticalView } from './ui/TacticalView'
 import { useCombatStore } from './systems/combat'
 import { EngagementModal } from './ui/EngagementModal'
 import { TransitionOverlay } from './ui/TransitionOverlay'
-import { ShipDealer } from './ui/conversations/ShipDealer'
 import { NPCDialog } from './ui/NPCDialog'
-import { SecretaryDialog } from './ui/SecretaryDialog'
-import { RecruiterDialog } from './ui/RecruiterDialog'
+import { ManageFacilityDialog } from './ui/ManageFacilityDialog'
 import { PortraitModal } from './ui/PortraitModal'
 import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
 import { SpriteTester } from './render/sprite/__debug__/SpriteTester'
@@ -48,7 +45,6 @@ export function App() {
       <StatusBarFooter />
       <StatusPanel />
       <InventoryPanel />
-      <ShopModal />
       <EventLogPanel />
       <DebugPanel />
       <SystemMenu />
@@ -58,10 +54,8 @@ export function App() {
       <FlightModal />
       <TacticalView />
       <EngagementModal />
-      <ShipDealer />
       <NPCDialog />
-      <SecretaryDialog />
-      <RecruiterDialog />
+      <ManageFacilityDialog />
       <PortraitModal />
       <DeathModal />
       <Toasts />

@@ -65,6 +65,7 @@ export type CraftedWorkstationItem = {
   relTile: { x: number; y: number }
   kind?: string
   labelZh?: string
+  noInteractable?: boolean
 }
 
 export type CraftedWorkstationGridItem = {
@@ -193,6 +194,13 @@ type FixedSize = { w: number; h: number }
 export type BuildingType = {
   labelZh: string
   size: ProcgenSize | FixedSize
+  // Per Design/social/diegetic-management.md the per-facility manage cell
+  // is the legitimate cell-as-management surface for player-owned
+  // facilities. When this flag is true, spawnBuilding emits an
+  // Interactable({ kind: 'manage' }) at the building's center, linked
+  // back to the building entity via ManageCell. The interaction system
+  // gates activation on player ownership.
+  hasManageCell?: boolean
 }  & { layout: BuildingLayout }
 
 export function isFixedSize(s: ProcgenSize | FixedSize): s is FixedSize {
