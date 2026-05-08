@@ -11,14 +11,22 @@
 
 import { useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
-import { Building, Facility, IsPlayer, Owner, Workstation } from '../ecs/traits'
+import type { Entity } from 'koota'
+import {
+  Building, Character, Facility, IsPlayer, Job, Owner, Workstation,
+} from '../ecs/traits'
 import { useUI } from './uiStore'
 import { world } from '../ecs/world'
 import { playUi } from '../audio/player'
 import {
   assignIdleMembersToBuilding,
+  buildingForStation,
   facilityRoster,
 } from '../systems/secretaryRoster'
+import {
+  clearMemberJob, memberDisplayName, playerFactionMembers,
+} from '../ecs/playerFaction'
+import { getJobSpec } from '../data/jobs'
 import { facilityMaintenancePerDay } from '../config'
 
 export function ManageFacilityDialog() {
@@ -34,6 +42,8 @@ export function ManageFacilityDialog() {
   const owner = useTrait(target, Owner)
 
   const [reply, setReply] = useState<string | null>(null)
+  const [pickerWs, setPickerWs] = useState<Entity | null>(null)
+  const [pickerJobTitle, setPickerJobTitle] = useState<string>('')
 
   if (!target || !player || !buildingTrait) return null
 
@@ -42,6 +52,12 @@ export function ManageFacilityDialog() {
     playUi('ui.npc.close')
     setTarget(null)
     setReply(null)
+    setPickerWs(null)
+    setPickerJobTitle('')
+  }
+  const closePicker = () => {
+    setPickerWs(null)
+    setPickerJobTitle('')
   }
 
   if (!stillOwned) {
@@ -99,40 +115,145 @@ export function ManageFacilityDialog() {
           </div>
           {reply && <p className="dialog-response">{reply}</p>}
         </section>
-        {vacant.length > 0 && (
-          <section className="status-section">
-            <h3>空岗</h3>
-            <ul className="manage-roster">
-              {vacant.map((r) => (
-                <li key={r.ws.id()}>{r.jobTitle} · 暂无人在岗</li>
-              ))}
-            </ul>
-          </section>
+        {pickerWs ? (
+          <RosterAssignPanel
+            ws={pickerWs}
+            jobTitle={pickerJobTitle}
+            player={player}
+            onClose={closePicker}
+            onAssigned={(name) => {
+              setReply(`${name} 已就任${pickerJobTitle}。`)
+              closePicker()
+            }}
+          />
+        ) : (
+          <>
+            {vacant.length > 0 && (
+              <section className="status-section">
+                <h3>空岗</h3>
+                <ul className="manage-roster">
+                  {vacant.map((r) => (
+                    <li key={r.ws.id()}>
+                      <span>{r.jobTitle} · 暂无人在岗</span>
+                      <button
+                        className="manage-roster-pick"
+                        onClick={() => {
+                          setPickerWs(r.ws)
+                          setPickerJobTitle(r.jobTitle)
+                          setReply(null)
+                        }}
+                      >
+                        指派…
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {occupied.length > 0 && (
+              <section className="status-section">
+                <h3>在岗</h3>
+                <ul className="manage-roster">
+                  {occupied.map((r) => (
+                    <li key={r.ws.id()}>{r.jobTitle} · {r.occupantName}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            <section className="status-section">
+              <div className="dialog-options">
+                <button
+                  className="dialog-option"
+                  onClick={onAssign}
+                  disabled={vacant.length === 0}
+                >
+                  把闲人安排到本处空岗
+                </button>
+                <button className="dialog-option" onClick={close}>关闭</button>
+              </div>
+            </section>
+          </>
         )}
-        {occupied.length > 0 && (
-          <section className="status-section">
-            <h3>在岗</h3>
-            <ul className="manage-roster">
-              {occupied.map((r) => (
-                <li key={r.ws.id()}>{r.jobTitle} · {r.occupantName}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-        <section className="status-section">
-          <div className="dialog-options">
-            <button
-              className="dialog-option"
-              onClick={onAssign}
-              disabled={vacant.length === 0}
-            >
-              把闲人安排到本处空岗
-            </button>
-            <button className="dialog-option" onClick={close}>关闭</button>
-          </div>
-        </section>
       </div>
     </div>
+  )
+}
+
+function RosterAssignPanel({
+  ws, jobTitle, player, onClose, onAssigned,
+}: {
+  ws: Entity
+  jobTitle: string
+  player: Entity
+  onClose: () => void
+  onAssigned: (name: string) => void
+}) {
+  void useQuery(Workstation)
+  const members = playerFactionMembers(world, player)
+
+  const assign = (m: Entity) => {
+    playUi('ui.factory-manager.accept')
+    const cur = ws.get(Workstation)
+    if (!cur) {
+      onClose()
+      return
+    }
+    if (cur.occupant !== null && cur.occupant !== m) {
+      onClose()
+      return
+    }
+    clearMemberJob(m)
+    ws.set(Workstation, { ...cur, occupant: m })
+    m.set(Job, { workstation: ws, unemployedSinceMs: 0 })
+    onAssigned(memberDisplayName(m))
+  }
+
+  const rows = members.map((m) => {
+    const job = m.get(Job)
+    let status = '闲职'
+    if (job?.workstation) {
+      const cw = job.workstation.get(Workstation)
+      const spec = cw ? getJobSpec(cw.specId) : null
+      const bld = buildingForStation(world, job.workstation)
+      const blabel = bld?.get(Building)?.label ?? '设施'
+      const jt = spec?.jobTitle ?? '工位'
+      status = job.workstation === ws ? '已在此岗' : `现任 ${blabel}·${jt}`
+    }
+    return { m, status, sameSlot: job?.workstation === ws }
+  })
+
+  return (
+    <section className="status-section">
+      <h3>指派 · {jobTitle}</h3>
+      {rows.length === 0 && (
+        <p className="dialog-response">暂无可派遣的成员。</p>
+      )}
+      <div className="secretary-hire-list">
+        {rows.map(({ m, status, sameSlot }) => {
+          const ch = m.get(Character)
+          return (
+            <div key={m.id()} className="apt-row">
+              <div className="apt-row-info">
+                <div className="apt-row-name">{ch?.name ?? '?'}</div>
+                <div className="apt-row-meta">{status}</div>
+              </div>
+              <div className="apt-row-actions">
+                <button
+                  className="apt-row-buy"
+                  onClick={() => assign(m)}
+                  disabled={sameSlot}
+                >
+                  派去
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="dialog-options">
+        <button className="dialog-option" onClick={onClose}>返回</button>
+      </div>
+    </section>
   )
 }
 
