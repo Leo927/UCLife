@@ -397,6 +397,34 @@
   {
     "type": "dependency",
     "from": "src/sim/loop.ts",
+    "to": "src/systems/dailyEconomics.ts",
+    "unresolvedTo": "../systems/dailyEconomics",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/housingPressure.ts",
+    "unresolvedTo": "../systems/housingPressure",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
     "to": "src/systems/interaction.ts",
     "unresolvedTo": "../systems/interaction",
     "dependencyTypes": [
@@ -574,34 +602,6 @@
     "rule": {
       "severity": "error",
       "name": "no-up-from-sim-or-ai"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/stats/perkSync.ts",
-    "to": "src/character/perks.ts",
-    "unresolvedTo": "../character/perks",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-up-from-stats"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/stats/perkSync.ts",
-    "to": "src/ecs/traits/index.ts",
-    "unresolvedTo": "../ecs/traits",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-up-from-stats"
     }
   }
 ]

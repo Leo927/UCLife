@@ -160,6 +160,16 @@ export function interactionSystem(world: World) {
       emitSim('ui:open-dialog-npc', { entity: occupant })
       continue
     }
+    if (nearestKind === 'secretary') {
+      // The secretary desk has two modes: empty seat (player installs a
+      // hire) and seated secretary (consultative verbs). Both render in
+      // SecretaryDialog, which keys off the workstation entity. Routing
+      // here just sets the dialog target — the dialog itself reads
+      // occupant + ownership so a state-owned desk shows nothing actionable
+      // until the realtor close.
+      if (nearestEnt) emitSim('ui:open-secretary', { station: nearestEnt })
+      continue
+    }
     if (nearestKind === 'buyShip') {
       emitSim('ui:open-ship-dealer', {})
       continue

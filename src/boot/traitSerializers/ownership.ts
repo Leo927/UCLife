@@ -7,10 +7,15 @@
 // seed with a default Owner; the saved snapshot overlays the deltas (private
 // NPC owner picks, player purchases). State and faction owners reuse the
 // rebuilt entity refs via EntityKey resolution.
+//
+// Facility (5.5.2): per-Building daily-economics state. setupWorld attaches
+// it fresh on every spawn; the save round-trip patches in the runtime
+// fields (acc, insolvency counter, closed flags) so a save mid-grace-period
+// preserves the warning state.
 
 import type { TraitInstance } from 'koota'
 import { registerTraitSerializer } from '../../save/traitRegistry'
-import { Faction, Owner } from '../../ecs/traits'
+import { Faction, Owner, Facility } from '../../ecs/traits'
 
 registerTraitSerializer<TraitInstance<typeof Faction>>({
   id: 'faction',
@@ -39,5 +44,24 @@ registerTraitSerializer<OwnerSnap>({
     const entity = ctx.resolveRef(v.ownerKey)
     if (e.has(Owner)) e.set(Owner, { kind: v.kind, entity })
     else e.add(Owner({ kind: v.kind, entity }))
+  },
+})
+
+interface FacilitySnap {
+  revenueAcc: number
+  salariesAcc: number
+  insolventDays: number
+  lastRolloverDay: number
+  closedSinceDay: number
+  closedReason: 'insolvent' | null
+}
+
+registerTraitSerializer<FacilitySnap>({
+  id: 'facility',
+  trait: Facility,
+  read: (e) => ({ ...e.get(Facility)! }),
+  write: (e, v) => {
+    if (e.has(Facility)) e.set(Facility, v)
+    else e.add(Facility(v))
   },
 })

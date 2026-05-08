@@ -5,7 +5,7 @@ import {
   type SceneConfig, type MicroSceneConfig, type ShipSceneConfig,
 } from '../data/scenes'
 import {
-  Position, Interactable, Building, Owner,
+  Position, Interactable, Building, Owner, Facility,
   Job, Workstation,
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
@@ -116,6 +116,10 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
   const buildingEnt = world.spawn(
     Building({ ...slot.rect, label: btype.labelZh, typeId }),
     Owner(defaultOwnerFor(world, typeId)),
+    Facility({
+      revenueAcc: 0, salariesAcc: 0, insolventDays: 0,
+      lastRolloverDay: 0, closedSinceDay: 0, closedReason: null,
+    }),
     EntityKey({ key: buildingKey }),
   )
 

@@ -23,6 +23,7 @@ import { EngagementModal } from './ui/EngagementModal'
 import { TransitionOverlay } from './ui/TransitionOverlay'
 import { ShipDealer } from './ui/conversations/ShipDealer'
 import { NPCDialog } from './ui/NPCDialog'
+import { SecretaryDialog } from './ui/SecretaryDialog'
 import { PortraitModal } from './ui/PortraitModal'
 import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
 import { SpriteTester } from './render/sprite/__debug__/SpriteTester'
@@ -58,6 +59,7 @@ export function App() {
       <EngagementModal />
       <ShipDealer />
       <NPCDialog />
+      <SecretaryDialog />
       <PortraitModal />
       <DeathModal />
       <Toasts />

@@ -16,6 +16,7 @@ import { AEConversation } from './conversations/AEConversation'
 import { ClinicConversation } from './conversations/ClinicConversation'
 import { PharmacyConversation } from './conversations/PharmacyConversation'
 import { FactoryManagerConversation } from './conversations/FactoryManagerConversation'
+import { JobSiteConversation } from './conversations/JobSiteConversation'
 import { playUi } from '../audio/player'
 
 function pickGreeting(title: string, employed: boolean): string {
@@ -159,6 +160,7 @@ export function NPCDialog() {
         {isDoctorOnDuty && <ClinicConversation />}
         {isPharmacistOnDuty && <PharmacyConversation />}
         {isRecruitingManagerOnDuty && ws && <FactoryManagerConversation managerStation={ws} />}
+        <JobSiteConversation worker={target} />
         {DEBUG_AVAILABLE && (
           <section className="status-section faded">
             <h3>DEV</h3>

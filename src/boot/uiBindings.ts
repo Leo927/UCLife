@@ -29,4 +29,5 @@ export function bindUi(): void {
   onSim('ui:open-transit', ({ terminalId }) => useUI.getState().openTransit(terminalId))
   onSim('ui:open-dialog-npc', ({ entity }) => useUI.getState().setDialogNPC(entity))
   onSim('ui:open-ship-dealer', () => useUI.getState().setShipDealer(true))
+  onSim('ui:open-secretary', ({ station }) => useUI.getState().setDialogSecretaryStation(station))
 }

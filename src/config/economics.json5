@@ -1,0 +1,107 @@
+// Phase 5.5.2 facility economics. Drives the per-day revenue / salary /
+// maintenance reckoning and the 3-day insolvency grace counter.
+//
+// Per worked job site, per day:
+//   revenue =
+//     baseRevenue
+//     × workPerformance
+//     × global.revenueMul
+//     × ownerKind.revenueMul    (1.0 for player; <1 caps NPC wealth)
+//     × faction.revenueMul      (only when the owner is a faction)
+//
+// Per facility, per day:
+//   ownerNet = Σ(job-site revenue) − Σ(salaries paid) − maintenance
+//
+// Salaries are tracked as the wage the worker actually received (workSystem
+// is the canonical source — economy.npcBonus / perf-multiplier / wageMul
+// already applied). Maintenance is a flat per-facility-type cost that
+// charges every rolled-over day, even when the facility is unstaffed.
+//
+// Insolvency:
+//   gracePeriodDays — consecutive insolvent days before the facility reverts
+//     to state ownership (3 = "boss didn't pay payroll for three days,
+//     foreclosure on day 3").
+//   warningHyperspeedBreak — true breaks the player out of hyperspeed on
+//     the leading edge of insolvency / foreclosure events. Catches the
+//     player who hyperspeeded past three days of facility decay.
+{
+  global: {
+    revenueMul: 1.0,
+    // Per-shift base revenue when the worker hits 100% perf. Tuned so a
+    // bar with one bartender at 100% nets ~150 - 60 (wage) - maintenance ≈
+    // small but positive; a factory floor with five workers nets large
+    // positive once running.
+    defaultBaseRevenuePerShift: 110,
+  },
+
+  // Per-building-type overrides. Anything missing here uses
+  // global.defaultBaseRevenuePerShift and global.defaultMaintenancePerDay.
+  facilityTypes: {
+    bar:       { baseRevenuePerShift: 150, maintenancePerDay: 35 },
+    factory:   { baseRevenuePerShift: 220, maintenancePerDay: 110 },
+    shop:      { baseRevenuePerShift: 130, maintenancePerDay: 30 },
+    hrOffice:  { baseRevenuePerShift: 0,   maintenancePerDay: 40 },
+    // Phase 5.5.3 — faction office is pure overhead (the secretary doesn't
+    // generate revenue). Maintenance covers the rent + the secretary's
+    // wage flow, modeled as a flat per-day burn. Tuned slightly above
+    // hrOffice so a player who buys an office without revenue-bearing
+    // facilities feels the cost.
+    factionOffice: { baseRevenuePerShift: 0, maintenancePerDay: 50 },
+
+    // Residential / civic types are listed here so unstaffed maintenance
+    // cost is explicit. Apartment + luxury are leased per-bed (no
+    // job-site revenue path); they still cost the owner upkeep.
+    apartment: { baseRevenuePerShift: 0,   maintenancePerDay: 12 },
+    luxury:    { baseRevenuePerShift: 0,   maintenancePerDay: 25 },
+    flop:      { baseRevenuePerShift: 0,   maintenancePerDay: 8  },
+    dorm:      { baseRevenuePerShift: 0,   maintenancePerDay: 10 },
+
+    // AE complex — faction-owned, stipend-flavored. Maintenance covers
+    // every floor staff station. Per-shift revenue is the per-worker
+    // figure (engineers / technicians / assemblers).
+    aeComplex: { baseRevenuePerShift: 250, maintenancePerDay: 800 },
+  },
+
+  // Multipliers keyed by Owner.kind. The state row exists for completeness;
+  // state-owned facilities short-circuit the whole pipeline (the city eats
+  // the cost) so the value here is never read.
+  ownerKindMul: {
+    state:     { revenueMul: 0 },
+    character: { revenueMul: 1.0 },
+    faction:   { revenueMul: 0.85 },
+  },
+
+  // Per-faction multipliers. Sponsored factions (canon: AE, Federation,
+  // Zeon) sit higher than 1.0 to flavor solvency — they're propped up by
+  // off-screen stipends. dailyStipend lands on Faction.fund every day
+  // before the rollup so a faction with no Phase 5.5.2 facilities still
+  // appears solvent.
+  factions: {
+    anaheim:    { revenueMul: 1.4, dailyStipend: 12000 },
+    civilian:   { revenueMul: 1.0, dailyStipend: 0 },
+    federation: { revenueMul: 1.5, dailyStipend: 8000 },
+    zeon:       { revenueMul: 1.5, dailyStipend: 8000 },
+    pirate:     { revenueMul: 0.9, dailyStipend: 0 },
+  },
+
+  insolvency: {
+    gracePeriodDays: 3,
+    warningHyperspeedBreak: true,
+  },
+
+  // Phase 5.5.3 — daily housing pressure. Faction-of-one members without a
+  // bed claim in a player-owned residence lose opinion of the player at
+  // end-of-day. The drift is small per day so a player who's a few beds
+  // short for a single sleep cycle isn't punished harshly, but a chronic
+  // shortfall accumulates into a real cohesion problem.
+  //   opinionDecayPerUnhousedDay — Knows(member→player).opinion delta per
+  //                                day a member sleeps without a claim.
+  //   minOpinionFromHousing      — drift floor; -100 is the global edge
+  //                                minimum; clamped tighter so housing
+  //                                pressure alone can't push a member to
+  //                                outright hostility.
+  housingPressure: {
+    opinionDecayPerUnhousedDay: -1,
+    minOpinionFromHousing: -40,
+  },
+}
