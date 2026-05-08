@@ -7,6 +7,9 @@ Four sub-systems that together make UC Life Sim a *life* sim and not just a surv
 | [ambitions.md](ambitions.md) | Long-arc player goals — what to want | 5.0 |
 | [newsfeed.md](newsfeed.md) | Date-keyed events surfaced through diegetic channels | 5.1 |
 | [relationships.md](relationships.md) | Talk verb, per-NPC opinion, faction reputation | 5.2 |
+| [facilities-and-ownership.md](facilities-and-ownership.md) | Civilian faction prelude: facility ownership, daily payroll, realtor / HR-office / faction-office surfaces | 5.5 |
+| [research.md](research.md) | Faction-tier progression spine: research lab, faction stats + effects + unlocks | 5.5.6 |
+| [facility-tiers.md](facility-tiers.md) | Owner-side investment loop: four universal tier knobs per owned facility, gated by research | 5.5.6 |
 | [faction-management.md](faction-management.md) | Player grows from one ship to a fleet to a colony to a small faction (Starsector layer) | 6 |
 | [diegetic-management.md](diegetic-management.md) | Surface-design discipline for Phase 6: management lives on bodies and in places, not in menus | 6 |
 

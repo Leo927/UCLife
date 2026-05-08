@@ -49,8 +49,17 @@ A first-class entity, parallel to a character. A faction holds:
 - **Fund** — credits. Pays salaries, maintenance, acquisitions.
 - **Income source** — optional. Sponsored factions (canon: AE,
   Federation) receive a fixed daily stipend to flavor solvency.
-- **Properties** — owned facilities, owned ships, owned MS, owned
-  technologies (concept slot — research lands later).
+- **Properties** — owned facilities, owned ships, owned MS.
+- **StatSheet + Effects** — same engine as characters
+  ([../characters/effects.md](../characters/effects.md)), with a
+  faction-scoped schema (`revenueMul`, `salaryMul`, `maintenanceMul`,
+  `researchSpeedMul`, `recruitChanceMul`, `loyaltyDriftMul`). The
+  daily-economics knobs below fold through it. See
+  [research.md](research.md).
+- **Unlocks** — `FactionUnlocks: Set<string>`, the faction's binary
+  gate set (blueprint ids, facility upgrade ids, ship-class ids).
+  Authored by research; consumed by brokers, manage-interactables,
+  and Phase 6 procurement gates.
 - **Relations** — opinion edges to other factions and to characters.
 - **War edges** — a binary `AtWarWith` relation between factions,
   separate from opinion. War status gates encounter behavior.
@@ -116,6 +125,13 @@ runaway NPC-faction wealth without nerfing the player. The player's
 1.0 is the design baseline; NPC owners are economically less efficient
 than the player by construction. This is hair complexity that the
 player will never see, doing real systemic work.
+
+The `factionRevenueMultiplier` resolves to `getStat(faction.sheet,
+'revenueMul')` — same channel that research-issued FactionEffects
+modify ([research.md](research.md)). No second knob, no ad-hoc field.
+The same applies to `salaryMul`, `maintenanceMul`,
+`recruitChanceMul`, `researchSpeedMul`, `loyaltyDriftMul` — every
+faction-side daily multiplier is one StatSheet read.
 
 ## Insolvency: 3-day grace, embodied warning loop
 
@@ -511,10 +527,18 @@ nudge that makes the colony arc earn its weight.
 - [diegetic-management.md](diegetic-management.md) — surface
   discipline; the realtor / HR-office / secretary patterns are
   applications of this file's principles
+- [research.md](research.md) — faction-tier progression spine that
+  authors FactionEffects + FactionUnlocks, and the research lab as a
+  `factionMisc` facility class
+- [facility-tiers.md](facility-tiers.md) — owner-side investment
+  loop on every facility, gated by research, plugging into the
+  daily-economics formulas above
 - [faction-management.md](faction-management.md) — Phase 6 fleet /
   colony arc that inherits the abstractions defined here
 - [relationships.md](relationships.md) — talk-verb opinion feeds
   recruitment quality and seller asking price
+- [../characters/effects.md](../characters/effects.md) — Effect +
+  StatSheet engine reused for the FactionStatSheet
 - [../characters/skills.md](../characters/skills.md) —
   workPerformance feeds revenue, salary tier, and recruitment
   generation parameters

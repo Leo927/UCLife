@@ -314,9 +314,27 @@ critical path.
   with the band's `flavorZh` as the body text. Backgrounds, perks, and
   gear all render through the same component.
 
+## Reuse: factions
+
+Phase 5.5.6 introduces a **`FactionStatSheet` + `FactionEffects`**
+pair, parallel to the per-character sheet, sharing this engine
+verbatim. Same `Modifier` shape, same fold order, same `floor` /
+`cap` semantics, same `removeBySource()` contract. The schema differs
+— faction-scoped stat ids (`revenueMul`, `salaryMul`,
+`maintenanceMul`, `researchSpeedMul`, `recruitChanceMul`,
+`loyaltyDriftMul`) — but the authoring DSL is identical. A research
+row authors a list of modifier rows the same way a background or perk
+does. See [../social/research.md](../social/research.md).
+
+Binary unlocks (`blueprint:gm-cannon`, `upgrade:factory-tier-2`) are
+**not** modeled as stats. They live on a parallel
+`FactionUnlocks: Set<string>` trait — the StatSheet stays the home
+for additive numerical levers, not for content flags.
+
 ## Related
 
 - [attributes.md](attributes.md) — StatSheet engine; this file extends its ModType set and grows its stat catalog
 - [physiology.md](physiology.md) — condition lifecycle; the banded effects mechanism described here is what its "effects fold" reduces to
 - [physiology-data.md](physiology-data.md) — `ConditionTemplate.effects` adopts the BandedEffect shape pinned in this file (drops `EffectModifier.channel`, `minSeverity`, `maxSeverity`)
+- [../social/research.md](../social/research.md) — faction-side reuse of this engine; introduces `FactionStatSheet` + `FactionEffects` + `FactionUnlocks`
 - [../saves.md](../saves.md) — save round-trip contract; Effects trait is part of the player snapshot

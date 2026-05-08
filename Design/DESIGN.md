@@ -67,6 +67,8 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Newsfeed (Phase 5.1) | [social/newsfeed.md](social/newsfeed.md) |
 | ↳ Relationships & faction reputation | [social/relationships.md](social/relationships.md) |
 | ↳ Facilities and ownership (Phase 5.5 — Civilian Faction) | [social/facilities-and-ownership.md](social/facilities-and-ownership.md) |
+| ↳ Research and faction unlocks (Phase 5.5.6) | [social/research.md](social/research.md) |
+| ↳ Facility tiers — owner-side investment (Phase 5.5.6+) | [social/facility-tiers.md](social/facility-tiers.md) |
 | ↳ Faction management (Phase 6) | [social/faction-management.md](social/faction-management.md) |
 | ↳ Diegetic management surfaces (Phase 6) | [social/diegetic-management.md](social/diegetic-management.md) |
 | Combat (Starsector-shape with MS-as-fighter, Phase 6+) | [combat.md](combat.md) |
