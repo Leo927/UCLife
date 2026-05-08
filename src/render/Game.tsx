@@ -40,7 +40,7 @@ import type {
 import {
   Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, Action,
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
-  Active, Road, Appearance,
+  Active, Road, Appearance, ManageCell, Owner,
 } from '../ecs/traits'
 import { useCamera } from './cameraStore'
 import { useCombatStore } from '../systems/combat'
@@ -523,6 +523,15 @@ function buildSnapshot(
     if (ent.get(Character)) continue
     if (ent.get(Bed)) continue
     if (ent.get(BarSeat)) continue
+    // Per-facility manage cell is hidden when the player does not own
+    // the linked building (Design/social/diegetic-management.md). The
+    // entity stays spawned so save/load + listManageCells don't churn;
+    // the renderer just skips it.
+    const mc = ent.get(ManageCell)
+    if (mc) {
+      const owner = mc.building?.get(Owner)
+      if (!owner || owner.kind !== 'character' || owner.entity !== playerEnt) continue
+    }
     const rough = ent.get(RoughSpot)
     interactables.push({
       ent,

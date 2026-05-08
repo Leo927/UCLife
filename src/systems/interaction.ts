@@ -71,6 +71,14 @@ export function interactionSystem(world: World) {
         const spot = ent.get(RoughSpot)
         if (spot && spot.occupant !== null && spot.occupant !== player) continue
       }
+      // Manage cell is hidden when the player doesn't own the linked
+      // building; skip in the proximity scan so a non-owned cell can't
+      // win nearest and stall the player on a ghost interactable.
+      if (it.kind === 'manage') {
+        const cell = ent.get(ManageCell)
+        const owner = cell?.building?.get(Owner)
+        if (!owner || owner.kind !== 'character' || owner.entity !== player) continue
+      }
       nearestKind = it.kind
       nearestEnt = ent
       nearestDist = d
@@ -95,16 +103,8 @@ export function interactionSystem(world: World) {
       continue
     }
     if (nearestKind === 'manage') {
-      // Inert when the player doesn't own the linked building — by
-      // design (Design/social/diegetic-management.md): the cell is a
-      // manage *surface*, and a non-owner has nothing to manage. No
-      // toast either — the cell just doesn't fire.
-      const cell = nearestEnt?.get(ManageCell)
-      const building = cell?.building ?? null
-      if (!building) continue
-      const owner = building.get(Owner)
-      if (!owner || owner.kind !== 'character' || owner.entity !== player) continue
-      emitSim('ui:open-manage', { building })
+      const building = nearestEnt?.get(ManageCell)?.building
+      if (building) emitSim('ui:open-manage', { building })
       continue
     }
     if (nearestKind === 'boardShip') {
