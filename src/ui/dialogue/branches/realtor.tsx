@@ -3,27 +3,33 @@ import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
   IsPlayer, Money, Bed, Position, MoveTarget, QueuedInteract, Home, Attributes, Owner, Building,
-} from '../../ecs/traits'
-import type { BedTier } from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { useClock } from '../../sim/clock'
-import { claimHome, buyHome } from '../../systems/market'
-import { world } from '../../ecs/world'
-import { bedActiveOccupant } from '../../systems/bed'
+} from '../../../ecs/traits'
+import type { BedTier } from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { useClock } from '../../../sim/clock'
+import { claimHome, buyHome } from '../../../systems/market'
+import { world } from '../../../ecs/world'
+import { bedActiveOccupant } from '../../../systems/bed'
 import {
   gatherListings, buyFromState, type RealtyListing,
-} from '../../systems/realtor'
-import { economyConfig } from '../../config'
-import { getStat } from '../../stats/sheet'
-import { playUi } from '../../audio/player'
+} from '../../../systems/realtor'
+import { economyConfig } from '../../../config'
+import { getStat } from '../../../stats/sheet'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
+
+export function realtorBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isRealtorOnDuty) return null
+  return {
+    id: 'realtor',
+    label: dialogueText.buttons.realtor,
+    info: dialogueText.branches.realtor.title,
+    specialUI: () => <RealtorPanel />,
+  }
+}
 
 type Tab = 'residential' | 'commercial' | 'factionMisc'
-
-const TAB_LABEL: Record<Tab, string> = {
-  residential: '住宅',
-  commercial: '商铺',
-  factionMisc: '机构',
-}
 
 const BED_TIER_ORDER: BedTier[] = ['luxury', 'apartment', 'dorm', 'flop']
 
@@ -62,13 +68,12 @@ function applyRentMul(listed: number, mul: number): number {
   return Math.max(1, Math.round(listed * mul))
 }
 
-export function RealtorConversation() {
+function RealtorPanel() {
   const player = useQueryFirst(IsPlayer, Money)
   const money = useTrait(player, Money)
   const playerHome = useTrait(player, Home)
   const attrs = useTrait(player, Attributes)
   const rentMul = attrs ? getStat(attrs.sheet, 'rentMul') : 1
-  // Subscribe to broad changes so listings refresh after a purchase.
   const allBeds = useQuery(Bed, Position)
   const allBuildings = useQuery(Building, Owner)
   const gameMs = useClock((s) => s.gameDate.getTime())
@@ -76,8 +81,6 @@ export function RealtorConversation() {
 
   const listings = useMemo(() => {
     return gatherListings(world)
-    // allBuildings is captured above so the memo invalidates on any
-    // Owner/Building change; the dep array enforces re-collection.
   }, [allBuildings])
 
   const listingsByCategory = useMemo(() => {
@@ -211,20 +214,25 @@ export function RealtorConversation() {
     }
   }
 
+  const tabHelp = dialogueText.branches.realtor.tabHelp[tab]
+  const tabs = dialogueText.branches.realtor.tabs
+
   return (
-    <section className="status-section conversation-extension">
-      <h3>房产 · 选择房源</h3>
-      <p className="hr-intro">{tabHelp(tab)}</p>
-      <div className="shop-money">钱包: <span className="shop-money-amount">¥{money?.amount.toLocaleString() ?? 0}</span></div>
+    <>
+      <h3>{dialogueText.branches.realtor.title}</h3>
+      <p className="hr-intro">{tabHelp}</p>
+      <div className="shop-money">
+        {dialogueText.branches.realtor.moneyLabel}: <span className="shop-money-amount">¥{money?.amount.toLocaleString() ?? 0}</span>
+      </div>
 
       <div className="realtor-tabs">
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+        {(['residential', 'commercial', 'factionMisc'] as Tab[]).map((t) => (
           <button
             key={t}
             className={`realtor-tab ${tab === t ? 'active' : ''}`}
             onClick={() => { playUi('ui.realtor.preview'); setTab(t) }}
           >
-            {TAB_LABEL[t]}
+            {tabs[t]}
           </button>
         ))}
       </div>
@@ -264,16 +272,8 @@ export function RealtorConversation() {
           onBuyState={buyState}
         />
       )}
-    </section>
+    </>
   )
-}
-
-function tabHelp(tab: Tab): string {
-  switch (tab) {
-    case 'residential': return '租公寓按月签约 · 公寓和高级公寓可购入。整栋宿舍/旅馆可在此挂牌交易。'
-    case 'commercial':  return '酒吧、便利店、工厂。国有产权由我直接转让 · 私人产权需当面与业主谈。'
-    case 'factionMisc': return '城市机构（人事局等）。国有产权可直接收购。'
-  }
 }
 
 function BuildingListPanel({
@@ -290,7 +290,7 @@ function BuildingListPanel({
   onBuyState: (l: RealtyListing) => void
 }) {
   if (listings.length === 0) {
-    return <p className="hr-intro">暂无可挂牌的房源。</p>
+    return <p className="hr-intro">{dialogueText.branches.realtor.empty}</p>
   }
   return (
     <>
@@ -343,9 +343,7 @@ function BuildingRow({
           </button>
         )}
         {listing.ownerKind === 'character' && listing.seller && (
-          <button className="apt-row-buy" onClick={() => onWalkToSeller(listing)}>
-            找业主
-          </button>
+          <button className="apt-row-buy" onClick={() => onWalkToSeller(listing)}>找业主</button>
         )}
       </div>
     </div>
@@ -364,9 +362,6 @@ function sizeLabel(rect: { w: number; h: number }): string {
   return `${w}×${h}`
 }
 
-// Residential tab keeps the existing bed-row UI for apartment/luxury/dorm/flop
-// (per-bed rent + buy stays the canonical surface), and adds a building-row
-// list for any residential building that's directly buyable as a whole.
 function ResidentialPanel({
   listings,
   bedRows,
@@ -396,8 +391,6 @@ function ResidentialPanel({
   onWalkToSeller: (l: RealtyListing) => void
   onBuyState: (l: RealtyListing) => void
 }) {
-  // Pull out dorms (whole-building purchase) so the bed-row list stays
-  // about apartment/luxury/flop. The building list is a separate sub-block.
   const dormBuildings = listings.filter((l) => l.typeId === 'dorm' || l.typeId === 'flop')
 
   return (
@@ -429,7 +422,7 @@ function ResidentialPanel({
       })}
       {dormBuildings.length > 0 && (
         <div className="realtor-tier-group">
-          <h4>整栋出售（宿舍 / 旅馆）</h4>
+          <h4>{dialogueText.branches.realtor.sectionDormSale}</h4>
           {dormBuildings.map((l) => (
             <BuildingRow
               key={l.buildingKey}

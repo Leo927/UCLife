@@ -9,60 +9,12 @@ import { getJobSpec } from '../data/jobs'
 import { DEBUG_AVAILABLE } from '../debug/store'
 import { tierOf, TIER_LABEL_ZH, topRelationsFor } from '../systems/relations'
 import { Portrait } from '../render/portrait/react/Portrait'
-import { HRConversation } from './conversations/HRConversation'
-import { RealtorConversation } from './conversations/RealtorConversation'
-import { SellerConversation } from './conversations/SellerConversation'
-import { AEConversation } from './conversations/AEConversation'
-import { ClinicConversation } from './conversations/ClinicConversation'
-import { PharmacyConversation } from './conversations/PharmacyConversation'
-import { ShopkeeperConversation } from './conversations/ShopkeeperConversation'
-import { SecretaryConversation } from './conversations/SecretaryConversation'
-import { RecruiterConversation } from './conversations/RecruiterConversation'
-import { ShipDealerConversation } from './conversations/ShipDealerConversation'
-import { FactoryManagerConversation } from './conversations/FactoryManagerConversation'
-import { JobSiteConversation } from './conversations/JobSiteConversation'
-import { TalkHireConversation } from './conversations/TalkHireConversation'
+import { DialogueRunner } from './dialogue/runner'
+import { buildNpcDialogue } from './dialogue/builder'
+import type { DialogueRoles } from './dialogue/types'
 import { playUi } from '../audio/player'
 
 const CASHIER_SPEC_IDS = ['shop_morning_clerk', 'shop_afternoon_clerk'] as const
-
-function pickGreeting(title: string, employed: boolean): string {
-  if (!employed) return '"嗯。"'
-  if (title.includes('店员')) return '"欢迎光临。"'
-  if (title.includes('人事')) return '"你好，请问要应聘吗？"'
-  if (title.includes('中介')) return '"您好，租房还是买房？"'
-  if (title.includes('经理')) return '"你好。"'
-  if (title.includes('调酒')) return '"想喝点什么？"'
-  if (title.includes('医生')) return '"哪里不舒服？"'
-  if (title.includes('药剂师')) return '"需要什么药？"'
-  if (title.includes('工程')) return '"你好。我是Anaheim的技术员。"'
-  if (title.includes('工人')) return '"嘿，朋友。"'
-  return '"你好。"'
-}
-
-function pickSmallTalk(title: string, employed: boolean): string {
-  if (!employed) return '"我也只是混口饭吃。日子能过就行。"'
-  if (title.includes('店员')) return '"今天店里挺安静。这附近不太热闹。"'
-  if (title.includes('人事')) return '"工厂在招几个岗位，门槛不高。"'
-  if (title.includes('中介')) return '"最近房源紧俏，看中了赶紧定。"'
-  if (title.includes('经理')) return '"工厂里事情多，闲不下来。"'
-  if (title.includes('调酒')) return '"夜班嘛，常客都是工人和零工。"'
-  if (title.includes('医生')) return '"最近来咳嗽和肠胃的多。"'
-  if (title.includes('药剂师')) return '"市面上的非处方药基本都齐了。"'
-  if (title.includes('工程')) return '"AE那边压力大，最近经常加班到深夜。"'
-  if (title.includes('工人')) return '"工厂的活累，但工资按时发。"'
-  return '"嗯。"'
-}
-
-function pickFarewell(title: string): string {
-  if (title.includes('店员')) return '"再来。"'
-  if (title.includes('人事')) return '"再考虑考虑。"'
-  if (title.includes('中介')) return '"看好房源记得回来签约。"'
-  if (title.includes('经理')) return '"有事再来。"'
-  if (title.includes('调酒')) return '"走好，回头再来一杯。"'
-  if (title.includes('工人') || title.includes('工程')) return '"走好。"'
-  return '"再见。"'
-}
 
 export function NPCDialog() {
   const target = useUI((s) => s.dialogNPC)
@@ -74,15 +26,10 @@ export function NPCDialog() {
   const allStations = useQuery(Workstation)
   // Subscribe to Owner so the seller branch refreshes after a transaction.
   const allBuildings = useQuery(Building, Owner)
-  const [response, setResponse] = useState<string | null>(null)
   const [showDebug, setShowDebug] = useState(false)
 
   if (!target || !info) return null
 
-  // True if this NPC owns ≥1 private facility — gates the SellerConversation
-  // branch. Read directly from the world rather than walking allBuildings
-  // every render — the array is captured above to keep koota re-renders
-  // hooked up; the loop is short (≤ a few buildings per owner).
   let ownsPrivateFacility = false
   for (const b of allBuildings) {
     const o = b.get(Owner)
@@ -101,7 +48,6 @@ export function NPCDialog() {
   const close = () => {
     playUi('ui.npc.close')
     setTarget(null)
-    setResponse(null)
     setShowDebug(false)
   }
 
@@ -113,32 +59,30 @@ export function NPCDialog() {
 
   const onShift = action?.kind === 'working'
   const specId = wsTrait?.specId ?? ''
-  const isRealtorOnDuty = specId === 'realtor' && onShift
-  const isHROnDuty = specId === 'city_hr_clerk' && onShift
   const isAEOnDuty = specId === 'ae_director' && onShift
-  const isDoctorOnDuty = specId === 'civilian_doctor' && onShift
-  const isPharmacistOnDuty = specId === 'civilian_pharmacist' && onShift
-  const isCashierOnDuty = onShift && (CASHIER_SPEC_IDS as readonly string[]).includes(specId)
-  const isSecretaryOnDuty = specId === 'secretary' && onShift
-  const isRecruiterOnDuty = specId === 'recruiter' && onShift
-  // Ship purchase rides on the AE director's talk-verb until a dedicated
-  // ship-dealer NPC role lands. The 'buyShip' kiosk in the AE lobby is
-  // gone — purchase is a branch on the body responsible for the kiosk.
-  const isShipDealerOnDuty = isAEOnDuty
-
-  // A recruiting manager is any NPC whose workstation is referenced as
-  // `managerStation` by ≥1 worker station — keeps factory_manager (and any
-  // future analogue) generic without specId hard-coding. `allStations` is
-  // queried at the top of the component so the hook order stays stable.
-  const isRecruitingManagerOnDuty = !!ws && onShift && allStations.some((s) => s.get(Workstation)?.managerStation === ws)
-
-  const greet = () => { playUi('ui.npc.greet'); setResponse(pickGreeting(title, employed)) }
-  const smallTalk = () => { playUi('ui.npc.smalltalk'); setResponse(pickSmallTalk(title, employed)) }
-  const farewell = () => {
-    playUi('ui.npc.farewell')
-    setResponse(pickFarewell(title))
-    setTimeout(close, 800)
+  const roles: DialogueRoles = {
+    onShift,
+    isRealtorOnDuty: specId === 'realtor' && onShift,
+    isHROnDuty: specId === 'city_hr_clerk' && onShift,
+    isAEOnDuty,
+    isDoctorOnDuty: specId === 'civilian_doctor' && onShift,
+    isPharmacistOnDuty: specId === 'civilian_pharmacist' && onShift,
+    isCashierOnDuty: onShift && (CASHIER_SPEC_IDS as readonly string[]).includes(specId),
+    isSecretaryOnDuty: specId === 'secretary' && onShift,
+    isRecruiterOnDuty: specId === 'recruiter' && onShift,
+    // Ship purchase rides on the AE director's talk-verb until a dedicated
+    // ship-dealer NPC role lands.
+    isShipDealerOnDuty: isAEOnDuty,
+    // A recruiting manager is any NPC whose workstation is referenced as
+    // managerStation by ≥1 worker station.
+    isRecruitingManagerOnDuty: !!ws && onShift && allStations.some(
+      (s) => s.get(Workstation)?.managerStation === ws,
+    ),
+    ownsPrivateFacility,
+    managerStation: ws,
   }
+
+  const root = buildNpcDialogue({ npc: target, title, employed, roles })
 
   return (
     <div className="status-overlay" onClick={close}>
@@ -158,29 +102,9 @@ export function NPCDialog() {
                 ? `${TIER_LABEL_ZH[playerTier]} · 印象 ${playerEdge.opinion >= 0 ? '+' : ''}${playerEdge.opinion.toFixed(0)}`
                 : `${TIER_LABEL_ZH.stranger}`}
             </div>
-            {response && <p className="dialog-response">{response}</p>}
           </div>
         </section>
-        <section className="status-section">
-          <div className="dialog-options">
-            <button className="dialog-option" onClick={greet}>你好</button>
-            <button className="dialog-option" onClick={smallTalk}>闲聊</button>
-            <button className="dialog-option" onClick={farewell}>再见</button>
-          </div>
-        </section>
-        {isHROnDuty && <HRConversation />}
-        {isRealtorOnDuty && <RealtorConversation />}
-        {ownsPrivateFacility && <SellerConversation seller={target} />}
-        {isAEOnDuty && <AEConversation />}
-        {isShipDealerOnDuty && <ShipDealerConversation />}
-        {isDoctorOnDuty && <ClinicConversation />}
-        {isPharmacistOnDuty && <PharmacyConversation />}
-        {isCashierOnDuty && <ShopkeeperConversation />}
-        {isSecretaryOnDuty && <SecretaryConversation secretary={target} />}
-        {isRecruiterOnDuty && <RecruiterConversation recruiter={target} />}
-        {isRecruitingManagerOnDuty && ws && <FactoryManagerConversation managerStation={ws} />}
-        <JobSiteConversation worker={target} />
-        <TalkHireConversation target={target} />
+        <DialogueRunner root={root} />
         {DEBUG_AVAILABLE && (
           <section className="status-section faded">
             <h3>DEV</h3>

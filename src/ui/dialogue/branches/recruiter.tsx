@@ -1,36 +1,37 @@
-// Recruiter's inline dialog (rendered in NPCDialog when the player chats
-// up the on-duty recruiter at a player-owned recruit office). The desk
-// behind her carries no Interactable trait — it is scenery only — per
-// the worker-not-workstation rule in Design/social/diegetic-management.md.
-//
-// The install (vacant-seat hire) route used to live on the desk's modal
-// and is now closed by the diegetic discipline: bootstrap install
-// happens via the per-facility manage cell (ManageFacilityDialog) or
-// via a talk-verb hire on a civilian.
-
 import { useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
   Applicant, Character, IsPlayer, Job, Recruiter, Workstation,
-} from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { world } from '../../ecs/world'
-import { Portrait } from '../../render/portrait/react/Portrait'
-import { playUi } from '../../audio/player'
+} from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { world } from '../../../ecs/world'
+import { Portrait } from '../../../render/portrait/react/Portrait'
+import { playUi } from '../../../audio/player'
 import {
   lobbyForStation, manualAcceptApplicant, rejectApplicant,
-} from '../../systems/recruitment'
-import { recruitmentConfig, skillsConfig } from '../../config'
-import type { SkillId } from '../../character/skills'
+} from '../../../systems/recruitment'
+import { recruitmentConfig, skillsConfig } from '../../../config'
+import type { SkillId } from '../../../character/skills'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
 const SKILL_OPTIONS: SkillId[] = recruitmentConfig.skillsRolled
 
-export function RecruiterConversation({ recruiter }: { recruiter: Entity }) {
+export function recruiterBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isRecruiterOnDuty) return null
+  return {
+    id: 'recruiter',
+    label: dialogueText.buttons.recruiter,
+    info: (ctx.npc.get(Character)?.name ?? '招聘专员') + dialogueText.branches.recruiter.titleSuffix,
+    specialUI: () => <RecruiterPanel recruiter={ctx.npc} />,
+  }
+}
+
+function RecruiterPanel({ recruiter }: { recruiter: Entity }) {
   const player = useQueryFirst(IsPlayer)!
   const recInfo = useTrait(recruiter, Character)
   const recJob = useTrait(recruiter, Job)
-  // Subscribe so accept/reject mutations re-render the lobby.
   void useQuery(Applicant)
 
   const station = recJob?.workstation ?? null
@@ -48,7 +49,7 @@ export function RecruiterConversation({ recruiter }: { recruiter: Entity }) {
       criteria: { skill, minLevel, autoAccept: skill !== null },
     })
     if (skill === null) {
-      setReply('好——所有申请者都先排队，我等你看过再说。')
+      setReply(dialogueText.branches.recruiter.replyNoFilter)
     } else {
       const label = skillsConfig.catalog[skill]?.label ?? skill
       setReply(`明白——以后${label} Lv ${minLevel} 以上的，我直接收下；不够的让你过目。`)
@@ -70,11 +71,6 @@ export function RecruiterConversation({ recruiter }: { recruiter: Entity }) {
     }
   }
 
-  const onClose = () => {
-    playUi('ui.npc.close')
-    useUI.getState().setDialogNPC(null)
-  }
-
   const criteriaLabel = (() => {
     const c = recTrait?.criteria
     if (!c || !c.skill) return '无筛选 · 所有申请排队等审'
@@ -82,22 +78,21 @@ export function RecruiterConversation({ recruiter }: { recruiter: Entity }) {
     return `自动收${label} Lv ${c.minLevel} +`
   })()
 
-  // Verify the station still binds — the seated recruiter may have
-  // been fired in the same session, in which case the talk-verb is
-  // stale. Defensive guard: bail rather than render a half-broken UI.
   const wsTrait = station.get(Workstation)
   if (!wsTrait || wsTrait.occupant !== recruiter) return null
 
   return (
-    <section className="status-section conversation-extension">
-      <h3>{recInfo?.name ?? '招聘专员'} · 招聘专员</h3>
+    <>
+      <h3>{recInfo?.name ?? '招聘专员'}{dialogueText.branches.recruiter.titleSuffix}</h3>
       <div className="hr-intro">
         当前条件：{criteriaLabel} · 大堂 {lobby.length}/{recruitmentConfig.lobbyCapacity}
       </div>
       {reply && <p className="dialog-response" style={{ whiteSpace: 'pre-line' }}>{reply}</p>}
 
       <div className="dialog-options">
-        <button className="dialog-option" onClick={() => setCriteria(null, 0)}>不要筛选 · 我自己看</button>
+        <button className="dialog-option" onClick={() => setCriteria(null, 0)}>
+          {dialogueText.branches.recruiter.noFilter}
+        </button>
         {SKILL_OPTIONS.map((sid) => (
           <button
             key={sid}
@@ -109,8 +104,8 @@ export function RecruiterConversation({ recruiter }: { recruiter: Entity }) {
         ))}
       </div>
 
-      <h3 style={{ marginTop: 12 }}>大堂里的申请者</h3>
-      {lobby.length === 0 && <p className="hr-intro">现在没有应聘者在等。</p>}
+      <h3 style={{ marginTop: 12 }}>{dialogueText.branches.recruiter.lobbyHeader}</h3>
+      {lobby.length === 0 && <p className="hr-intro">{dialogueText.branches.recruiter.lobbyEmpty}</p>}
       <div className="secretary-hire-list">
         {lobby.map(({ applicant, data }) => (
           <div key={applicant.id()} className="apt-row">
@@ -128,10 +123,6 @@ export function RecruiterConversation({ recruiter }: { recruiter: Entity }) {
           </div>
         ))}
       </div>
-
-      <div className="dialog-options" style={{ marginTop: 8 }}>
-        <button className="dialog-option" onClick={onClose}>再见</button>
-      </div>
-    </section>
+    </>
   )
 }

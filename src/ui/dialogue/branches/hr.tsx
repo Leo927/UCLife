@@ -1,32 +1,61 @@
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
-import { IsPlayer, Attributes, Job, Workstation, Position } from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../character/skills'
-import { dowLabel, getJobSpec } from '../../data/jobs'
-import type { JobSpec } from '../../config'
-import { playUi } from '../../audio/player'
+import { IsPlayer, Attributes, Job, Workstation, Position } from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../../character/skills'
+import { dowLabel, getJobSpec } from '../../../data/jobs'
+import type { JobSpec } from '../../../config'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
-export function FactoryManagerConversation({ managerStation }: { managerStation: Entity }) {
+export function hrBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isHROnDuty) return null
+  return {
+    id: 'hr',
+    label: dialogueText.buttons.hr,
+    info: dialogueText.branches.hr.title,
+    specialUI: () => <HRPanel managerStation={null} />,
+  }
+}
+
+export function factoryManagerBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isRecruitingManagerOnDuty) return null
+  const ws = ctx.roles.managerStation
+  if (!ws) return null
+  return {
+    id: 'factoryManager',
+    label: dialogueText.buttons.factoryManager,
+    info: dialogueText.branches.factoryManager.title,
+    specialUI: () => <HRPanel managerStation={ws} />,
+  }
+}
+
+// Single panel shared by city HR and factory-manager hire flows. The
+// only difference is which subset of stations is on offer:
+//   • managerStation === null → public HR opening list (no employer, no
+//     local manager)
+//   • managerStation === <desk> → only stations whose managerStation
+//     matches this desk
+function HRPanel({ managerStation }: { managerStation: Entity | null }) {
   const player = useQueryFirst(IsPlayer, Attributes, Job)
-  // Subscribe to Attributes so the skill-requirement chips refresh as XP grows.
   void useTrait(player, Attributes)
   const job = useTrait(player, Job)
   const allStations = useQuery(Workstation, Position)
 
-  // Only stations whose manager-of-record is this manager's desk. No employer
-  // gate here — the desk owns the local hierarchy regardless of corporate
-  // affiliation, and the spawn linker only sets managerStation when a
-  // recruiting-manager supervisor (specId factory_manager) sits in the
-  // same building.
   const openings: { ws: Entity; spec: JobSpec }[] = []
   for (const ws of allStations) {
-    const w = ws.get(Workstation)!
+    const w = ws.get(Workstation)
     if (!w) continue
-    if (w.managerStation !== managerStation) continue
     if (w.occupant !== null && w.occupant !== player) continue
+    if (managerStation === null) {
+      if (w.managerStation !== null) continue
+    } else {
+      if (w.managerStation !== managerStation) continue
+    }
     const spec = getJobSpec(w.specId)
     if (!spec || !spec.playerHireable) continue
+    if (managerStation === null && spec.employer) continue
     openings.push({ ws, spec })
   }
 
@@ -42,7 +71,7 @@ export function FactoryManagerConversation({ managerStation }: { managerStation:
     if (!player || !meets(spec)) return
     const w = ws.get(Workstation)!
     if (w.occupant !== null && w.occupant !== player) return
-    playUi('ui.factory-manager.accept')
+    playUi(managerStation ? 'ui.factory-manager.accept' : 'ui.hr.accept')
     const prev = job?.workstation ?? null
     if (prev && prev !== ws) {
       const pw = prev.get(Workstation)
@@ -54,22 +83,31 @@ export function FactoryManagerConversation({ managerStation }: { managerStation:
   }
 
   const isCurrent = (ws: Entity) => job?.workstation === ws
+  const emptyText = managerStation
+    ? dialogueText.branches.factoryManager.empty
+    : dialogueText.branches.hr.empty
 
   return (
-    <section className="status-section conversation-extension">
-      <h3>本厂招聘</h3>
-      {openings.length === 0 && <p className="hr-intro">本厂目前没有空缺岗位。</p>}
+    <>
+      <h3>{managerStation ? dialogueText.branches.factoryManager.title : dialogueText.branches.hr.title}</h3>
+      {openings.length === 0 && <p className="hr-intro">{emptyText}</p>}
       {openings.map(({ ws, spec }) => {
         const qualified = meets(spec)
         const current = isCurrent(ws)
         const reqEntries = Object.entries(spec.requirements) as [SkillId, number][]
-        const daysLabel = spec.workDays.length === 7 ? '每天' : spec.workDays.map(dowLabel).join('/')
+        const daysLabel =
+          spec.workDays.length === 7 ? '每天' : spec.workDays.map(dowLabel).join('/')
         return (
-          <div key={ws.id()} className={`hr-job ${qualified ? '' : 'disabled'} ${current ? 'current' : ''}`}>
+          <div
+            key={ws.id()}
+            className={`hr-job ${qualified ? '' : 'disabled'} ${current ? 'current' : ''}`}
+          >
             <div className="hr-job-info">
               <div className="hr-job-name">{spec.jobTitle}</div>
               {spec.description && <div className="hr-job-desc">{spec.description}</div>}
-              <div className="hr-job-wage">月薪 ¥{spec.wage} · {daysLabel} {spec.shiftStart}:00 – {spec.shiftEnd}:00 · 经验 +{spec.skillXp}</div>
+              <div className="hr-job-wage">
+                月薪 ¥{spec.wage} · {daysLabel} {spec.shiftStart}:00 – {spec.shiftEnd}:00 · 经验 +{spec.skillXp}
+              </div>
               {reqEntries.length > 0 && (
                 <div className="hr-job-reqs">
                   <span className="hr-req-label">要求: </span>
@@ -101,6 +139,6 @@ export function FactoryManagerConversation({ managerStation }: { managerStation:
           </div>
         )
       })}
-    </section>
+    </>
   )
 }

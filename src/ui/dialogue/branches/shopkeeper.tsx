@@ -1,17 +1,22 @@
-// Shopkeeper's inline dialog (rendered in NPCDialog when the player chats
-// up an on-duty shop_*_clerk). The cell behind the cashier carries no
-// Interactable trait — it is scenery only — per the worker-not-workstation
-// rule in Design/social/diegetic-management.md. Buying always routes
-// through the body behind the till.
-
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Inventory, Attributes } from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { SHOP_ITEMS, type ShopItem } from '../../data/shop'
-import { getStat } from '../../stats/sheet'
-import { playUi } from '../../audio/player'
+import { IsPlayer, Money, Inventory, Attributes } from '../../../ecs/traits'
+import { SHOP_ITEMS, type ShopItem } from '../../../data/shop'
+import { getStat } from '../../../stats/sheet'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
-export function ShopkeeperConversation() {
+export function shopkeeperBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isCashierOnDuty) return null
+  return {
+    id: 'shop',
+    label: dialogueText.buttons.shop,
+    info: dialogueText.branches.shop.intro,
+    specialUI: () => <ShopList />,
+  }
+}
+
+function ShopList() {
   const player = useQueryFirst(IsPlayer, Money)
   const money = useTrait(player, Money)
   const attrs = useTrait(player, Attributes)
@@ -25,13 +30,10 @@ export function ShopkeeperConversation() {
     if (!money) return
     const price = priceOf(item)
     if (money.amount < price) return
-
     playUi('ui.shop.buy')
     player.set(Money, { amount: money.amount - price })
-
     const inv = player.get(Inventory)
     if (!inv) return
-
     switch (item.effect.type) {
       case 'add_water':
         player.set(Inventory, { ...inv, water: inv.water + 1 })
@@ -48,13 +50,12 @@ export function ShopkeeperConversation() {
     }
   }
 
-  const close = () => useUI.getState().setDialogNPC(null)
-
   return (
-    <section className="status-section conversation-extension" data-testid="shop-modal">
-      <h3>便利店</h3>
-      <div className="shop-money">金钱: <span className="shop-money-amount">¥{money?.amount ?? 0}</span></div>
-
+    <>
+      <h3>{dialogueText.branches.shop.title}</h3>
+      <div className="shop-money">
+        金钱: <span className="shop-money-amount">¥{money?.amount ?? 0}</span>
+      </div>
       {SHOP_ITEMS.map((item) => {
         const price = priceOf(item)
         const canAfford = (money?.amount ?? 0) >= price
@@ -74,10 +75,6 @@ export function ShopkeeperConversation() {
           </div>
         )
       })}
-
-      <div className="dialog-options" style={{ marginTop: 8 }}>
-        <button className="dialog-option" onClick={close}>再见</button>
-      </div>
-    </section>
+    </>
   )
 }

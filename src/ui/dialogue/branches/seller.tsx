@@ -1,44 +1,38 @@
-// Talk-verb branch on a private facility owner. Listed by the realtor's
-// flagger flow ("找业主"). The player walks to the seller; this branch
-// appears on the seller's NPC dialog when they own ≥1 facility in the
-// player's current scene. Per facilities-and-ownership.md, the realtor
-// names the seller and points at their world position; the deal closes
-// here, in person.
-//
-// Phase 5.5.1 keeps the negotiation simple: a fixed-but-opinion-modulated
-// asking price. Subsequent phases can add haggling, refusal, multi-turn
-// dialog. The price formula lives in src/systems/realtor.ts so future
-// negotiation flows reuse the same band logic.
-
 import { useMemo } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
-import {
-  IsPlayer, Money, Owner, Building, EntityKey,
-} from '../../ecs/traits'
-import { useUI } from '../uiStore'
+import { IsPlayer, Money, Owner, Building, EntityKey } from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
 import {
   privateAskingPrice, buyFromOwner, gatherListings, type RealtyListing,
-} from '../../systems/realtor'
-import { world } from '../../ecs/world'
-import { playUi } from '../../audio/player'
+} from '../../../systems/realtor'
+import { world } from '../../../ecs/world'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
-export function SellerConversation({ seller }: { seller: Entity }) {
+export function sellerBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.ownsPrivateFacility) return null
+  return {
+    id: 'seller',
+    label: dialogueText.buttons.seller,
+    info: dialogueText.branches.seller.intro,
+    specialUI: () => <SellerPanel seller={ctx.npc} />,
+  }
+}
+
+function SellerPanel({ seller }: { seller: Entity }) {
   const player = useQueryFirst(IsPlayer, Money)
   const money = useTrait(player, Money)
-  // Re-collect listings on Owner change — purchases mutate the building's
-  // Owner ref and the listing should disappear after a successful close.
   const allBuildings = useQuery(Building, Owner, EntityKey)
 
   const listings = useMemo(() => {
     return gatherListings(world).filter(
       (l) => l.ownerKind === 'character' && l.seller?.entity === seller,
     )
-    // allBuildings is captured so the memo invalidates on Owner mutation.
   }, [allBuildings, seller])
 
-  if (listings.length === 0) return null
-  if (!player) return null
+  if (listings.length === 0 || !player) return null
 
   const close = () => useUI.getState().setDialogNPC(null)
 
@@ -57,10 +51,11 @@ export function SellerConversation({ seller }: { seller: Entity }) {
   }
 
   return (
-    <section className="status-section conversation-extension">
-      <h3>出售房产</h3>
-      <p className="hr-intro">业主名下房产 · 标价随私交印象浮动</p>
-      <div className="shop-money">钱包: <span className="shop-money-amount">¥{money?.amount.toLocaleString() ?? 0}</span></div>
+    <>
+      <h3>{dialogueText.branches.seller.title}</h3>
+      <div className="shop-money">
+        钱包: <span className="shop-money-amount">¥{money?.amount.toLocaleString() ?? 0}</span>
+      </div>
       {listings.map((l) => {
         const price = privateAskingPrice(player, seller, l.typeId, l.rect)
         const priceLabel = price !== null ? `¥${price.toLocaleString()}` : '—'
@@ -84,6 +79,6 @@ export function SellerConversation({ seller }: { seller: Entity }) {
           </div>
         )
       })}
-    </section>
+    </>
   )
 }

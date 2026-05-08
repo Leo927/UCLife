@@ -1,25 +1,29 @@
-// Ship dealer's inline dialog (rendered in NPCDialog when the player
-// chats up the on-duty AE director — the diegetic stand-in for AE's
-// civilian ship sales until a dedicated ship-dealer NPC role lands).
-// The kiosk in the AE lobby carries no Interactable trait; ship
-// purchase is a talk-verb branch on the responsible body, per the
-// worker-not-workstation rule in Design/social/diegetic-management.md.
-
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Attributes, Flags } from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { getShipClass } from '../../data/ships'
-import { getWeapon, isWeaponId } from '../../data/weapons'
-import { getSkillXp } from '../../character/skills'
-import { playUi } from '../../audio/player'
+import { IsPlayer, Money, Attributes, Flags } from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { getShipClass } from '../../../data/ships'
+import { getWeapon, isWeaponId } from '../../../data/weapons'
+import { getSkillXp } from '../../../character/skills'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
 const SHIP_ID = 'lightFreighter'
 const PILOTING_REQUIRED = 10
 
-export function ShipDealerConversation() {
+export function shipDealerBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isShipDealerOnDuty) return null
+  return {
+    id: 'shipDealer',
+    label: dialogueText.buttons.shipDealer,
+    info: dialogueText.branches.shipDealer.title,
+    specialUI: () => <ShipDealerPanel />,
+  }
+}
+
+function ShipDealerPanel() {
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
-  // Subscribe to Attributes so the piloting display refreshes as XP grows.
   void useTrait(player, Attributes)
   const flags = useTrait(player, Flags)
 
@@ -69,20 +73,13 @@ export function ShipDealerConversation() {
 
   let buyLabel = `购买 ¥${cls.priceFiat.toLocaleString()}`
   let buyDisabled = false
-  if (alreadyOwned) {
-    buyLabel = '已拥有'
-    buyDisabled = true
-  } else if (!meetsPiloting) {
-    buyLabel = '驾驶技能不足'
-    buyDisabled = true
-  } else if (!canAfford) {
-    buyLabel = '金钱不足'
-    buyDisabled = true
-  }
+  if (alreadyOwned) { buyLabel = '已拥有'; buyDisabled = true }
+  else if (!meetsPiloting) { buyLabel = '驾驶技能不足'; buyDisabled = true }
+  else if (!canAfford) { buyLabel = '金钱不足'; buyDisabled = true }
 
   return (
-    <section className="status-section conversation-extension">
-      <h3>二手船坞</h3>
+    <>
+      <h3>{dialogueText.branches.shipDealer.title}</h3>
       <div className="shop-money">钱包: <span className="shop-money-amount">¥{playerMoney.toLocaleString()}</span></div>
       <div className="status-meta">驾驶 {piloting} / 需 {PILOTING_REQUIRED}</div>
       <h3 style={{ marginTop: 8 }}>{cls.nameZh}</h3>
@@ -100,13 +97,7 @@ export function ShipDealerConversation() {
         )}
       </div>
       <div className="ship-dealer-actions" style={{ marginTop: 8 }}>
-        <button
-          className="apt-row-buy"
-          disabled={buyDisabled}
-          onClick={buy}
-        >
-          {buyLabel}
-        </button>
+        <button className="apt-row-buy" disabled={buyDisabled} onClick={buy}>{buyLabel}</button>
       </div>
       {!alreadyOwned && !meetsPiloting && (
         <p className="map-place-desc">驾驶技能不足 · AE 销售拒绝交付。</p>
@@ -114,6 +105,6 @@ export function ShipDealerConversation() {
       {!alreadyOwned && meetsPiloting && !canAfford && (
         <p className="map-place-desc">现金不足 · 请先攒齐货款。</p>
       )}
-    </section>
+    </>
   )
 }

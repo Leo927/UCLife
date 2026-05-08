@@ -1,25 +1,30 @@
-// Doctor's inline dialog (rendered in NPCDialog when the player chats up
-// the on-duty civilian_doctor). Pay the diagnosis fee to flip
-// `diagnosed = true` on symptomatic conditions, then pick a treatment
-// tier (untreated / pharmacy / clinic) and pay the cost. commitTreatment
-// writes the tier onto the instance; the next day:rollover phase tick
-// reads it.
-
 import { useState } from 'react'
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Conditions } from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { useClock, gameDayNumber } from '../../sim/clock'
-import { getConditionTemplate, TREATMENT_TIER_ZH } from '../../character/conditions'
-import { diagnoseCondition, commitTreatment } from '../../systems/physiology'
-import { emitSim } from '../../sim/events'
-import { playUi } from '../../audio/player'
+import { IsPlayer, Money, Conditions } from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { useClock, gameDayNumber } from '../../../sim/clock'
+import { getConditionTemplate, TREATMENT_TIER_ZH } from '../../../character/conditions'
+import { diagnoseCondition, commitTreatment } from '../../../systems/physiology'
+import { emitSim } from '../../../sim/events'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
 const DIAGNOSIS_FEE = 8
 const PHARMACY_COST = 20
 const CLINIC_INPATIENT_COST = 60
 
-export function ClinicConversation() {
+export function clinicBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isDoctorOnDuty) return null
+  return {
+    id: 'clinic',
+    label: dialogueText.buttons.clinic,
+    info: dialogueText.branches.clinic.title,
+    specialUI: () => <ClinicPanel />,
+  }
+}
+
+function ClinicPanel() {
   const player = useQueryFirst(IsPlayer, Money, Conditions)
   const money = useTrait(player, Money)
   const conditions = useTrait(player, Conditions)
@@ -66,12 +71,12 @@ export function ClinicConversation() {
   }
 
   return (
-    <section className="status-section conversation-extension" data-testid="clinic-modal">
-      <h3>诊断与治疗</h3>
+    <>
+      <h3>{dialogueText.branches.clinic.title}</h3>
       <div className="shop-money">金钱: <span className="shop-money-amount">¥{money?.amount ?? 0}</span></div>
 
       {symptomatic.length === 0 && (
-        <p className="status-muted" style={{ marginTop: 8 }}>你目前没有任何身体不适。</p>
+        <p className="status-muted" style={{ marginTop: 8 }}>{dialogueText.branches.clinic.noSymptoms}</p>
       )}
 
       {undiagnosed.length > 0 && (
@@ -83,7 +88,6 @@ export function ClinicConversation() {
             className="shop-item-buy"
             disabled={(money?.amount ?? 0) < DIAGNOSIS_FEE}
             onClick={payDiagnosis}
-            data-testid="clinic-diagnose"
           >
             接受诊断 (¥{DIAGNOSIS_FEE})
           </button>
@@ -92,7 +96,7 @@ export function ClinicConversation() {
 
       {diagnosed.length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <h3>治疗方案</h3>
+          <h3>{dialogueText.branches.clinic.treatmentHeader}</h3>
           {diagnosed.map((inst) => {
             const t = getConditionTemplate(inst.templateId)
             if (!t) return null
@@ -108,7 +112,6 @@ export function ClinicConversation() {
                 key={t}
                 className={`clinic-treatment-row ${tier === t ? 'selected' : ''} ${(money?.amount ?? 0) < treatmentCost(t) ? 'disabled' : ''}`}
                 onClick={() => { if ((money?.amount ?? 0) >= treatmentCost(t)) { playUi('ui.clinic.tier-select'); setTier(t) } }}
-                data-testid={`clinic-tier-${t}`}
               >
                 <div>
                   <div className="clinic-treatment-name">{treatmentLabel(t)}</div>
@@ -122,13 +125,12 @@ export function ClinicConversation() {
               style={{ marginTop: 8 }}
               disabled={(money?.amount ?? 0) < treatmentCost(tier)}
               onClick={commit}
-              data-testid="clinic-confirm"
             >
               确认治疗
             </button>
           </div>
         </div>
       )}
-    </section>
+    </>
   )
 }

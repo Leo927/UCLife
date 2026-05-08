@@ -1,39 +1,45 @@
-// Phase 5.5.3 job-site interaction panel. Conversation extension on
-// NPCDialog: when the player chats up an NPC working at a workstation
-// inside a player-owned Building, the panel surfaces fire / replace /
-// assign-from-roster verbs.
-//
-// "Replace" picks any idle player-faction member and seats them at the
-// station. "Assign" lets the player browse the roster + pick. "Fire"
-// clears the seat (the NPC keeps their bed claim — the secretary's
-// roster verb can re-employ them later).
-
 import { useState } from 'react'
-import { useQuery, useQueryFirst, useTrait } from 'koota/react'
+import { useQuery, useQueryFirst } from 'koota/react'
 import type { Entity } from 'koota'
 import {
   Building, Character, IsPlayer, Job, Owner, Workstation,
-} from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { world } from '../../ecs/world'
+} from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { world } from '../../../ecs/world'
 import {
-  buildingForStation,
-  findOwnedFactionOfficeStation,
-} from '../../systems/secretaryRoster'
+  buildingForStation, findOwnedFactionOfficeStation,
+} from '../../../systems/secretaryRoster'
 import {
-  clearMemberJob,
-  idlePlayerFactionMembers,
-  isPlayerOwnedBuilding,
-  memberDisplayName,
-  playerFactionMembers,
-} from '../../ecs/playerFaction'
-import { getJobSpec } from '../../data/jobs'
-import { playUi } from '../../audio/player'
+  clearMemberJob, idlePlayerFactionMembers, isPlayerOwnedBuilding,
+  memberDisplayName, playerFactionMembers,
+} from '../../../ecs/playerFaction'
+import { getJobSpec } from '../../../data/jobs'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
-export function JobSiteConversation({ worker }: { worker: Entity }) {
+export function jobSiteBranch(ctx: DialogueCtx): DialogueNode | null {
+  const worker = ctx.npc
+  const job = worker.get(Job)
+  if (!job?.workstation) return null
+  const ws = job.workstation
+  const building = buildingForStation(world, ws)
+  if (!building) return null
+  // We don't have a player ref here (ctx is per-NPC) — fetch via the world
+  // query against IsPlayer in the SpecialUI component. The branch shows
+  // when the worker's station is in *some* player-owned building. The
+  // ownership check repeats the same logic the panel does.
+  return {
+    id: 'jobSite',
+    label: dialogueText.buttons.jobSite,
+    info: (building.get(Building)?.label ?? '') + ' · ' + (getJobSpec(ws.get(Workstation)?.specId ?? '')?.jobTitle ?? '工位'),
+    specialUI: () => <JobSitePanel worker={worker} />,
+  }
+}
+
+function JobSitePanel({ worker }: { worker: Entity }) {
   const player = useQueryFirst(IsPlayer)
-  const job = useTrait(worker, Job)
-  // Subscribe so the panel refreshes after fire / replace / assign.
+  const job = worker.get(Job)
   void useQuery(Workstation)
   void useQuery(Owner)
   const [browseRoster, setBrowseRoster] = useState(false)
@@ -47,10 +53,6 @@ export function JobSiteConversation({ worker }: { worker: Entity }) {
   if (!building) return null
   if (!isPlayerOwnedBuilding(building, player)) return null
 
-  // Defensive: don't show "fire" for the player themselves, or for the
-  // secretary in this faction office (use the dedicated dialog for that
-  // — firing the secretary from this panel + then trying to talk to them
-  // breaks the SecretaryDialog flow).
   if (worker === player) return null
   const secStation = findOwnedFactionOfficeStation(world, player)
   if (ws === secStation) return null
@@ -85,17 +87,17 @@ export function JobSiteConversation({ worker }: { worker: Entity }) {
   }
 
   return (
-    <section className="status-section conversation-extension">
+    <>
       <h3>{buildingLabel} · {spec?.jobTitle ?? '工位'}</h3>
       <div className="hr-intro">
         当前: {memberDisplayName(worker)}{spec ? ` · 月薪 ¥${spec.wage}` : ''}
       </div>
       {!browseRoster && (
         <div className="dialog-options">
-          <button className="dialog-option" onClick={onFire}>解雇</button>
-          <button className="dialog-option" onClick={onReplace}>从空闲成员中替换</button>
+          <button className="dialog-option" onClick={onFire}>{dialogueText.branches.jobSite.fire}</button>
+          <button className="dialog-option" onClick={onReplace}>{dialogueText.branches.jobSite.replaceFromIdle}</button>
           <button className="dialog-option" onClick={() => setBrowseRoster(true)}>
-            从全部成员中挑一个
+            {dialogueText.branches.jobSite.pickFromAll}
           </button>
         </div>
       )}
@@ -109,7 +111,7 @@ export function JobSiteConversation({ worker }: { worker: Entity }) {
           }}
         />
       )}
-    </section>
+    </>
   )
 }
 
@@ -139,8 +141,8 @@ function RosterPicker({
 
   return (
     <div>
-      <p className="hr-intro">从全部成员里挑一个顶上去：</p>
-      {members.length === 0 && <p className="hr-intro">还没有成员可以调度。</p>}
+      <p className="hr-intro">{dialogueText.branches.jobSite.pickIntro}</p>
+      {members.length === 0 && <p className="hr-intro">{dialogueText.branches.jobSite.pickEmpty}</p>}
       <div className="secretary-hire-list">
         {members.map((m) => {
           const ch = m.get(Character)

@@ -1,6 +1,6 @@
-// Phase 5.5.4 talk-verb hire. Conversation extension on NPCDialog: when
-// the player chats up an NPC who is *not* already in the player-faction,
-// surfaces an "offer to recruit" branch gated by faction rep + opinion.
+// Phase 5.5.4 talk-verb hire. Branch on the per-NPC dialogue tree:
+// when the player chats up an NPC who is *not* already in the player-
+// faction, surfaces an "邀请加入" branch gated by faction rep + opinion.
 //
 // At least one gate must clear:
 //   • factionRepGate — player's rep with the configured faction is
@@ -13,37 +13,29 @@
 // the player's wallet as their first paid bonus. The next time
 // assignIdleMembers runs (secretary verb), they'll fill an open station.
 
-import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
   Applicant, Building, Character, FactionRole, IsPlayer, Job, Knows, Money,
   Owner, Position, Workstation,
-} from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { recruitmentConfig } from '../../config'
-import { getRep } from '../../systems/reputation'
-import { isPlayerOwnedBuilding } from '../../ecs/playerFaction'
-import { world } from '../../ecs/world'
-import { playUi } from '../../audio/player'
+} from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { recruitmentConfig } from '../../../config'
+import { getRep } from '../../../systems/reputation'
+import { isPlayerOwnedBuilding } from '../../../ecs/playerFaction'
+import { world } from '../../../ecs/world'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
-export function TalkHireConversation({ target }: { target: Entity }) {
-  const player = useQueryFirst(IsPlayer)
-  // Subscribe so the panel refreshes after a hire.
-  void useQuery(Workstation)
-  void useQuery(Owner)
-  void useTrait(player, Money)
-
+export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
+  const target = ctx.npc
+  const player = world.queryFirst(IsPlayer)
   if (!player || target === player) return null
-
-  // Applicants flow through RecruiterDialog — keep these surfaces distinct.
   if (target.has(Applicant)) return null
 
-  // AE-employed don't poach via talk-verb. Their promotion arc is its own
-  // surface; bypassing it here would let the player skip AE rep work.
   const fr = target.get(FactionRole)
   if (fr && fr.faction === 'anaheim') return null
 
-  // Already employed at a player-owned facility? Hide.
   const job = target.get(Job)
   if (job?.workstation && isStationInPlayerOwnedBuilding(job.workstation, player)) {
     return null
@@ -58,13 +50,18 @@ export function TalkHireConversation({ target }: { target: Entity }) {
   const opinionOk = opinion >= gates.opinionGate.min
   const gateOpen = factionRepOk || opinionOk
 
-  // Hide the panel entirely when both gates are far off — keeps the
-  // chat dialog about chatting until the player has at least a hint of
-  // a relationship.
   const far = !factionRepOk && opinion < gates.opinionGate.min - 25
   if (far) return null
 
-  const onOffer = () => {
+  const reasons: string[] = []
+  if (!factionRepOk) reasons.push(`AE声望 ${aeRep} → 需 ≥ ${gates.factionRepGate.min}`)
+  if (!opinionOk) reasons.push(`对方印象 ${Math.round(opinion)} → 需 ≥ ${gates.opinionGate.min}`)
+
+  const offerLabel = gateOpen
+    ? `提出邀请 · 付 ¥${gates.signingBonus}`
+    : '条件未达 · 不便邀请'
+
+  const onAccept = () => {
     if (!gateOpen) {
       useUI.getState().showToast('对方还不太信任你 · 多打几次照面再来谈吧')
       return
@@ -82,18 +79,14 @@ export function TalkHireConversation({ target }: { target: Entity }) {
     } else {
       target.add(Money({ amount: gates.signingBonus }))
     }
-    // Clear any prior job pointer at someone else's workstation.
     if (job?.workstation) {
       const cur = job.workstation.get(Workstation)
       if (cur && cur.occupant === target) {
         job.workstation.set(Workstation, { ...cur, occupant: null })
       }
     }
-    // Leave them idle — assignIdleMembers / job-site panel does the next
-    // move. Job(workstation=null) is the "ready to be assigned" marker.
     target.set(Job, { workstation: null, unemployedSinceMs: 0 })
 
-    // Loyalty bump on accept.
     if (target.has(Knows(player))) {
       const e = target.get(Knows(player))!
       target.set(Knows(player), { ...e, opinion: Math.min(100, e.opinion + 10) })
@@ -109,33 +102,36 @@ export function TalkHireConversation({ target }: { target: Entity }) {
     useUI.getState().setDialogNPC(null)
   }
 
-  const reasons: string[] = []
-  if (!factionRepOk) reasons.push(`AE声望 ${aeRep} → 需 ≥ ${gates.factionRepGate.min}`)
-  if (!opinionOk) reasons.push(`对方印象 ${Math.round(opinion)} → 需 ≥ ${gates.opinionGate.min}`)
+  const intro = `签约金 ¥${gates.signingBonus} · ${
+    gateOpen
+      ? dialogueText.branches.talkHire.gateOpen
+      : dialogueText.branches.talkHire.gateClosed
+  }`
 
-  return (
-    <section className="status-section conversation-extension">
-      <h3>邀请加入</h3>
-      <p className="hr-intro">
-        签约金 ¥{gates.signingBonus} · {gateOpen ? '对方愿意听你说' : '对方还在观望'}
-      </p>
-      {!gateOpen && (
-        <ul style={{ fontSize: 12, color: '#9aa', margin: '4px 0 8px 16px' }}>
-          {reasons.map((r) => <li key={r}>{r}</li>)}
-        </ul>
-      )}
-      <div className="dialog-options">
-        <button className="dialog-option" disabled={!gateOpen} onClick={onOffer}>
-          {gateOpen ? `提出邀请 · 付 ¥${gates.signingBonus}` : '条件未达 · 不便邀请'}
-        </button>
-        <button className="dialog-option" onClick={onDecline}>下次再说</button>
-      </div>
-    </section>
-  )
+  const info = gateOpen ? intro : `${intro}\n${reasons.join(' · ')}`
+
+  return {
+    id: 'talkHire',
+    label: dialogueText.buttons.talkHire,
+    info,
+    children: [
+      {
+        id: 'accept',
+        label: offerLabel,
+        enabled: gateOpen,
+        closeOnEnter: true,
+        onEnter: onAccept,
+      },
+      {
+        id: 'decline',
+        label: dialogueText.branches.talkHire.decline,
+        closeOnEnter: true,
+        onEnter: onDecline,
+      },
+    ],
+  }
 }
 
-// Tests whether `ws` lives inside a Building owned by `player`. Used to
-// hide the recruit verb on NPCs the player has already hired.
 function isStationInPlayerOwnedBuilding(ws: Entity, player: Entity): boolean {
   const wsPos = ws.get(Position)
   if (!wsPos) return false

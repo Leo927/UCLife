@@ -3,28 +3,37 @@ import type { Entity } from 'koota'
 import {
   IsPlayer, Attributes, Job, Workstation, Position, Reputation,
   FactionRole, Knows, JobTenure, Character,
-} from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../character/skills'
-import { getJobSpec } from '../../data/jobs'
-import type { JobSpec } from '../../config'
-import { jobsConfig, factionsConfig } from '../../config'
-import { clearPromotionNoticeForFamily } from '../../systems/promotion'
-import { playUi } from '../../audio/player'
+} from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { SKILLS, levelOf, getSkillXp, type SkillId } from '../../../character/skills'
+import { getJobSpec } from '../../../data/jobs'
+import type { JobSpec } from '../../../config'
+import { jobsConfig, factionsConfig } from '../../../config'
+import { clearPromotionNoticeForFamily } from '../../../systems/promotion'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
 interface RankRow {
   specId: string
   spec: JobSpec
-  // null = every station for this spec is filled by another NPC.
   ws: Entity | null
   isCurrent: boolean
-  // Empty = all gates met.
   missing: string[]
 }
 
-export function AEConversation() {
+export function aeBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isAEOnDuty) return null
+  return {
+    id: 'ae',
+    label: dialogueText.buttons.ae,
+    info: factionsConfig.catalog.anaheim.nameZh + dialogueText.branches.ae.titleSuffix,
+    specialUI: () => <AEPanel />,
+  }
+}
+
+function AEPanel() {
   const player = useQueryFirst(IsPlayer, Attributes, Job)
-  // Subscribe to Attributes so the requirement chips refresh as XP grows.
   void useTrait(player, Attributes)
   const job = useTrait(player, Job)
   const reputation = useTrait(player, Reputation)
@@ -94,13 +103,7 @@ export function AEConversation() {
       }
     }
 
-    rows.push({
-      specId,
-      spec,
-      ws,
-      isCurrent: specId === currentRankSpecId,
-      missing,
-    })
+    rows.push({ specId, spec, ws, isCurrent: specId === currentRankSpecId, missing })
   }
   rows.sort((a, b) => (a.spec.rank ?? 0) - (b.spec.rank ?? 0))
 
@@ -125,18 +128,15 @@ export function AEConversation() {
   }
 
   return (
-    <section className="status-section conversation-extension">
-      <h3 style={{ color: aeMeta.accentColor }}>{aeMeta.nameZh} · 申请职级</h3>
-      <p className="hr-intro">
-        本工坊设有四个职级，按下表逐级晋升 ——
-        技能、声望、与董事会成员的关系缺一不可。
-      </p>
+    <>
+      <h3 style={{ color: aeMeta.accentColor }}>{aeMeta.nameZh}{dialogueText.branches.ae.titleSuffix}</h3>
+      <p className="hr-intro">{dialogueText.branches.ae.intro}</p>
       <div className="status-meta">
         当前 AE 声望: <strong>{aeRep >= 0 ? '+' : ''}{Math.round(aeRep)}</strong>
         {tenure && currentRankSpecId ? ` · 当前职级累计班次: ${tenure.shiftsAtCurrentRank}` : ''}
       </div>
 
-      {rows.length === 0 && <p className="hr-intro">暂无可申请的职级。</p>}
+      {rows.length === 0 && <p className="hr-intro">{dialogueText.branches.ae.empty}</p>}
       {rows.map((row) => {
         const filled = row.ws === null && !row.isCurrent
         const locked = row.missing.length > 0
@@ -147,9 +147,7 @@ export function AEConversation() {
             className={`hr-job ${available ? '' : 'disabled'} ${row.isCurrent ? 'current' : ''}`}
           >
             <div className="hr-job-info">
-              <div className="hr-job-name">
-                {row.spec.rank ?? '?'} · {row.spec.jobTitle}
-              </div>
+              <div className="hr-job-name">{row.spec.rank ?? '?'} · {row.spec.jobTitle}</div>
               {row.spec.description && <div className="hr-job-desc">{row.spec.description}</div>}
               <div className="hr-job-wage">
                 月薪 ¥{row.spec.wage} · {row.spec.shiftStart}:00 – {row.spec.shiftEnd}:00 · 经验 +{row.spec.skillXp}
@@ -184,6 +182,6 @@ export function AEConversation() {
           </div>
         )
       })}
-    </section>
+    </>
   )
 }

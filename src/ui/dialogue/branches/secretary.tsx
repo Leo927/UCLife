@@ -1,38 +1,32 @@
-// Secretary's inline dialog (rendered in NPCDialog when the player chats
-// up the on-duty secretary at a player-owned faction office). The desk
-// behind her carries no Interactable trait — it is scenery only — per
-// the worker-not-workstation rule in Design/social/diegetic-management.md.
-//
-// Install (vacant-seat hire) used to live on the desk's modal. That
-// route is now closed by the diegetic discipline; bootstrap install
-// happens via the per-facility manage cell (ManageFacilityDialog) or
-// via the recruiter / talk-verb hire on civilians.
-
 import { useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
   Building, Character, IsPlayer, Owner, Workstation,
-} from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { world } from '../../ecs/world'
-import { playUi } from '../../audio/player'
+} from '../../../ecs/traits'
+import { world } from '../../../ecs/world'
+import { playUi } from '../../../audio/player'
 import {
-  assignBeds,
-  assignIdleMembers,
-  bookSummary,
-  factionStatus,
-  sidewaysReport,
-} from '../../systems/secretaryRoster'
+  assignBeds, assignIdleMembers, bookSummary, factionStatus, sidewaysReport,
+} from '../../../systems/secretaryRoster'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
-export function SecretaryConversation({ secretary }: { secretary: Entity }) {
+export function secretaryBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isSecretaryOnDuty) return null
+  return {
+    id: 'secretary',
+    label: dialogueText.buttons.secretary,
+    info: dialogueText.branches.secretary.title,
+    specialUI: () => <SecretaryPanel secretary={ctx.npc} />,
+  }
+}
+
+function SecretaryPanel({ secretary }: { secretary: Entity }) {
   const player = useQueryFirst(IsPlayer)!
   const secInfo = useTrait(secretary, Character)
-  // Subscribe so the verb panel re-renders after each mutation.
-  const allBuildings = useQuery(Building, Owner)
-  const allStations = useQuery(Workstation)
-  void allBuildings
-  void allStations
+  void useQuery(Building, Owner)
+  void useQuery(Workstation)
 
   const status = factionStatus(world, player)
   const [reply, setReply] = useState<string | null>(null)
@@ -105,14 +99,9 @@ export function SecretaryConversation({ secretary }: { secretary: Entity }) {
     setReply('正式成立faction的入口在 5.5.5 上线 · 现在你的钱包就是faction资金。')
   }
 
-  const onClose = () => {
-    playUi('ui.npc.close')
-    useUI.getState().setDialogNPC(null)
-  }
-
   return (
-    <section className="status-section conversation-extension">
-      <h3>{secInfo?.name ?? '秘书'} · 秘书</h3>
+    <>
+      <h3>{secInfo?.name ?? '秘书'} · {dialogueText.branches.secretary.title}</h3>
       <div className="hr-intro">
         成员 {status.memberCount} · 设施 {status.facilityCount} · 床位 {status.bedCount} · 没住处 {status.unhousedCount}
       </div>
@@ -123,9 +112,8 @@ export function SecretaryConversation({ secretary }: { secretary: Entity }) {
         <button className="dialog-option" onClick={onBooks}>读一下账本</button>
         <button className="dialog-option" onClick={onSideways}>有没有出岔子？</button>
         <button className="dialog-option" onClick={onRestructure}>正式成立faction</button>
-        <button className="dialog-option" onClick={onClose}>再见</button>
       </div>
-    </section>
+    </>
   )
 }
 

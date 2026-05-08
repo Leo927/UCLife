@@ -1,0 +1,132 @@
+// zh-CN copy for the branching NPC dialogue runner.
+// Strings live here so writers can iterate without touching TS.
+//
+// Greeting / smallTalk / farewell tables are matched by job-title
+// substring (see src/ui/dialogue/branches/smallTalk.ts).
+{
+  // Timings used by the runner / individual branches.
+  timings: {
+    // Delay between clicking 再见 and the NPCDialog closing — gives the
+    // farewell line and audio time to register.
+    farewellCloseMs: 800,
+  },
+  greetings: {
+    default: '"你好。"',
+    unemployed: '"嗯。"',
+    cashier: '"欢迎光临。"',
+    hr: '"你好，请问要应聘吗？"',
+    realtor: '"您好，租房还是买房？"',
+    manager: '"你好。"',
+    bartender: '"想喝点什么？"',
+    doctor: '"哪里不舒服？"',
+    pharmacist: '"需要什么药？"',
+    aeEngineer: '"你好。我是Anaheim的技术员。"',
+    worker: '"嘿，朋友。"',
+  },
+  smallTalk: {
+    default: '"嗯。"',
+    unemployed: '"我也只是混口饭吃。日子能过就行。"',
+    cashier: '"今天店里挺安静。这附近不太热闹。"',
+    hr: '"工厂在招几个岗位，门槛不高。"',
+    realtor: '"最近房源紧俏，看中了赶紧定。"',
+    manager: '"工厂里事情多，闲不下来。"',
+    bartender: '"夜班嘛，常客都是工人和零工。"',
+    doctor: '"最近来咳嗽和肠胃的多。"',
+    pharmacist: '"市面上的非处方药基本都齐了。"',
+    aeEngineer: '"AE那边压力大，最近经常加班到深夜。"',
+    worker: '"工厂的活累，但工资按时发。"',
+  },
+  farewells: {
+    default: '"再见。"',
+    cashier: '"再来。"',
+    hr: '"再考虑考虑。"',
+    realtor: '"看好房源记得回来签约。"',
+    manager: '"有事再来。"',
+    bartender: '"走好，回头再来一杯。"',
+    worker: '"走好。"',
+  },
+  buttons: {
+    smallTalk: '闲聊',
+    farewell: '再见',
+    back: '返回',
+    // Branch entry-points — labels on the root's child buttons.
+    shop: '我想买点东西',
+    hr: '应聘岗位',
+    realtor: '看房源',
+    seller: '谈谈你的房产',
+    ae: '申请晋升',
+    shipDealer: '看看那艘货船',
+    clinic: '诊断与治疗',
+    pharmacy: '买药',
+    secretary: 'faction事务',
+    recruiter: '招募事宜',
+    factoryManager: '本厂招聘',
+    jobSite: '工位调整',
+    talkHire: '邀请加入',
+  },
+  branches: {
+    shop: { title: '便利店', intro: '今天有这些。' },
+    hr: { title: '招聘 · 选择岗位', empty: '暂无空缺职位。' },
+    realtor: {
+      title: '房产 · 选择房源',
+      moneyLabel: '钱包',
+      tabs: {
+        residential: '住宅',
+        commercial: '商铺',
+        factionMisc: '机构',
+      },
+      tabHelp: {
+        residential: '租公寓按月签约 · 公寓和高级公寓可购入。整栋宿舍/旅馆可在此挂牌交易。',
+        commercial: '酒吧、便利店、工厂。国有产权由我直接转让 · 私人产权需当面与业主谈。',
+        factionMisc: '城市机构（人事局等）。国有产权可直接收购。',
+      },
+      empty: '暂无可挂牌的房源。',
+      sectionDormSale: '整栋出售（宿舍 / 旅馆）',
+    },
+    seller: {
+      title: '出售房产',
+      intro: '业主名下房产 · 标价随私交印象浮动',
+    },
+    ae: {
+      titleSuffix: ' · 申请职级',
+      intro: '本工坊设有四个职级，按下表逐级晋升 —— 技能、声望、与董事会成员的关系缺一不可。',
+      empty: '暂无可申请的职级。',
+    },
+    shipDealer: { title: '二手船坞' },
+    clinic: {
+      title: '诊断与治疗',
+      noSymptoms: '你目前没有任何身体不适。',
+      treatmentHeader: '治疗方案',
+    },
+    pharmacy: {
+      title: '药店',
+      noSymptoms: '你目前没有任何身体不适。',
+      undiagnosedHint: '药剂师只能按已确诊的病情配药 · 请先到诊所就诊。',
+    },
+    secretary: { title: '秘书' },
+    recruiter: {
+      titleSuffix: ' · 招聘专员',
+      lobbyHeader: '大堂里的申请者',
+      lobbyEmpty: '现在没有应聘者在等。',
+      noFilter: '不要筛选 · 我自己看',
+      replyNoFilter: '好——所有申请者都先排队，我等你看过再说。',
+    },
+    factoryManager: {
+      title: '本厂招聘',
+      empty: '本厂目前没有空缺岗位。',
+    },
+    jobSite: {
+      fire: '解雇',
+      replaceFromIdle: '从空闲成员中替换',
+      pickFromAll: '从全部成员中挑一个',
+      pickIntro: '从全部成员里挑一个顶上去：',
+      pickEmpty: '还没有成员可以调度。',
+    },
+    talkHire: {
+      title: '邀请加入',
+      decline: '下次再说',
+      gateClosed: '对方还在观望',
+      gateOpen: '对方愿意听你说',
+    },
+  },
+}

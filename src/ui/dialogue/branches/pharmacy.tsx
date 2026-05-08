@@ -1,21 +1,27 @@
-// Pharmacist's inline dialog (rendered in NPCDialog when the player chats
-// up the on-duty civilian_pharmacist). The pharmacy doesn't diagnose —
-// only sells pharmacy-tier (tier 1) treatment for already-diagnosed
-// conditions. Players who haven't seen a doctor get a hint to visit the
-// clinic first.
-
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Conditions } from '../../ecs/traits'
-import { useUI } from '../uiStore'
-import { useClock, gameDayNumber } from '../../sim/clock'
-import { getConditionTemplate } from '../../character/conditions'
-import { commitTreatment } from '../../systems/physiology'
-import { emitSim } from '../../sim/events'
-import { playUi } from '../../audio/player'
+import { IsPlayer, Money, Conditions } from '../../../ecs/traits'
+import { useUI } from '../../uiStore'
+import { useClock, gameDayNumber } from '../../../sim/clock'
+import { getConditionTemplate } from '../../../character/conditions'
+import { commitTreatment } from '../../../systems/physiology'
+import { emitSim } from '../../../sim/events'
+import { playUi } from '../../../audio/player'
+import { dialogueText } from '../../../data/dialogueText'
+import type { DialogueCtx, DialogueNode } from '../types'
 
 const PHARMACY_COST = 20
 
-export function PharmacyConversation() {
+export function pharmacyBranch(ctx: DialogueCtx): DialogueNode | null {
+  if (!ctx.roles.isPharmacistOnDuty) return null
+  return {
+    id: 'pharmacy',
+    label: dialogueText.buttons.pharmacy,
+    info: dialogueText.branches.pharmacy.title,
+    specialUI: () => <PharmacyPanel />,
+  }
+}
+
+function PharmacyPanel() {
   const player = useQueryFirst(IsPlayer, Money, Conditions)
   const money = useTrait(player, Money)
   const conditions = useTrait(player, Conditions)
@@ -38,18 +44,16 @@ export function PharmacyConversation() {
   }
 
   return (
-    <section className="status-section conversation-extension" data-testid="pharmacy-modal">
-      <h3>药店</h3>
+    <>
+      <h3>{dialogueText.branches.pharmacy.title}</h3>
       <div className="shop-money">金钱: <span className="shop-money-amount">¥{money?.amount ?? 0}</span></div>
 
       {symptomatic.length === 0 && (
-        <p className="status-muted" style={{ marginTop: 8 }}>你目前没有任何身体不适。</p>
+        <p className="status-muted" style={{ marginTop: 8 }}>{dialogueText.branches.pharmacy.noSymptoms}</p>
       )}
 
       {undiagnosed.length > 0 && diagnosed.length === 0 && (
-        <p className="status-muted" style={{ marginTop: 8 }}>
-          药剂师只能按已确诊的病情配药 · 请先到诊所就诊。
-        </p>
+        <p className="status-muted" style={{ marginTop: 8 }}>{dialogueText.branches.pharmacy.undiagnosedHint}</p>
       )}
 
       {diagnosed.length > 0 && (
@@ -69,12 +73,11 @@ export function PharmacyConversation() {
             style={{ marginTop: 8 }}
             disabled={(money?.amount ?? 0) < PHARMACY_COST}
             onClick={buy}
-            data-testid="pharmacy-buy"
           >
             购买处方药 (¥{PHARMACY_COST})
           </button>
         </div>
       )}
-    </section>
+    </>
   )
 }
