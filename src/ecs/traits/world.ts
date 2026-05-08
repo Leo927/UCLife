@@ -82,12 +82,19 @@ export const RoughSpot = trait({
 // occupant's permanently. The rent system skips owned beds entirely, so
 // rentPaidUntilMs is moot for the rest of the bed's lifetime. Only the
 // player can buy under the current model.
+//
+// Phase 5.5.3 `claimedBy`: faction-bed claim independent of nightly rent.
+// When the bed sits in a player-owned residential facility, the secretary's
+// auto-assignment writes the assigned member here so housing-pressure
+// queries don't need to walk the rent ledger. A claim does not pay rent
+// — it's a faction perk; the rent system continues to skip owned beds.
 export const Bed = trait({
   tier: 'flop' as BedTier,
   nightlyRent: 0,
   occupant: null as Entity | null,
   rentPaidUntilMs: 0,
   owned: false,
+  claimedBy: null as Entity | null,
 })
 
 export const Transit = trait({

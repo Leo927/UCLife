@@ -14,6 +14,7 @@ interface BedSnap {
   occupant: string | null
   rentPaidUntilMs: number
   owned: boolean
+  claimedBy: string | null
 }
 registerTraitSerializer<BedSnap>({
   id: 'bed',
@@ -24,6 +25,7 @@ registerTraitSerializer<BedSnap>({
       occupant: ctx.keyOf(b.occupant),
       rentPaidUntilMs: b.rentPaidUntilMs,
       owned: b.owned,
+      claimedBy: ctx.keyOf(b.claimedBy),
     }
   },
   write: (e, v, ctx) => {
@@ -33,6 +35,7 @@ registerTraitSerializer<BedSnap>({
       occupant: ctx.resolveRef(v.occupant),
       rentPaidUntilMs: v.rentPaidUntilMs,
       owned: v.owned,
+      claimedBy: ctx.resolveRef(v.claimedBy ?? null),
     })
   },
 })

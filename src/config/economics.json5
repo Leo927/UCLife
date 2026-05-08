@@ -41,6 +41,12 @@
     factory:   { baseRevenuePerShift: 220, maintenancePerDay: 110 },
     shop:      { baseRevenuePerShift: 130, maintenancePerDay: 30 },
     hrOffice:  { baseRevenuePerShift: 0,   maintenancePerDay: 40 },
+    // Phase 5.5.3 — faction office is pure overhead (the secretary doesn't
+    // generate revenue). Maintenance covers the rent + the secretary's
+    // wage flow, modeled as a flat per-day burn. Tuned slightly above
+    // hrOffice so a player who buys an office without revenue-bearing
+    // facilities feels the cost.
+    factionOffice: { baseRevenuePerShift: 0, maintenancePerDay: 50 },
 
     // Residential / civic types are listed here so unstaffed maintenance
     // cost is explicit. Apartment + luxury are leased per-bed (no
@@ -81,5 +87,21 @@
   insolvency: {
     gracePeriodDays: 3,
     warningHyperspeedBreak: true,
+  },
+
+  // Phase 5.5.3 — daily housing pressure. Faction-of-one members without a
+  // bed claim in a player-owned residence lose opinion of the player at
+  // end-of-day. The drift is small per day so a player who's a few beds
+  // short for a single sleep cycle isn't punished harshly, but a chronic
+  // shortfall accumulates into a real cohesion problem.
+  //   opinionDecayPerUnhousedDay — Knows(member→player).opinion delta per
+  //                                day a member sleeps without a claim.
+  //   minOpinionFromHousing      — drift floor; -100 is the global edge
+  //                                minimum; clamped tighter so housing
+  //                                pressure alone can't push a member to
+  //                                outright hostility.
+  housingPressure: {
+    opinionDecayPerUnhousedDay: -1,
+    minOpinionFromHousing: -40,
   },
 }

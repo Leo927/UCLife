@@ -49,6 +49,10 @@
     flop:      { category: 'residential',  buyable: true,  lease: true,  buildingPriceTilesMul: 90 },
 
     hrOffice:  { category: 'factionMisc',  buyable: true,  buildingPriceTilesMul: 320 },
+    // Phase 5.5.3 — faction office is the player's late-game convenience
+    // hub. Priced like the HR office: small footprint, factionMisc band,
+    // bought directly from the realtor (state-owned by default).
+    factionOffice: { category: 'factionMisc', buyable: true, buildingPriceTilesMul: 320 },
 
     // Civic — listed for legibility but not for sale. State-owned is the
     // permanent footing; the realtor desk wouldn't actually move these.

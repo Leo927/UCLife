@@ -5,9 +5,15 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world, getWorld, getActiveSceneId } from '../../ecs/world'
-import { Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character } from '../../ecs/traits'
+import { Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation } from '../../ecs/traits'
 import { gatherListings, buyFromState } from '../../systems/realtor'
 import { dailyEconomicsSystem } from '../../systems/dailyEconomics'
+import { housingPressureSystem } from '../../systems/housingPressure'
+import {
+  assignBeds, assignIdleMembers, bookSummary, factionStatus,
+  findOwnedFactionOfficeStation, installSecretary, sidewaysReport,
+  eligibleSecretaryHires,
+} from '../../systems/secretaryRoster'
 import { gameDayNumber, useClock } from '../../sim/clock'
 
 interface OwnerSummary {
@@ -176,6 +182,63 @@ registerDebugHandle('forceDailyEconomics', (gameDay?: number): RolloverResult =>
   const day = gameDay ?? gameDayNumber(useClock.getState().gameDate)
   const r = dailyEconomicsSystem(getWorld(getActiveSceneId()), day)
   return { day, ...r }
+})
+
+// Phase 5.5.3 — secretary delegate. Smoke test exercises the four verbs
+// + the install-secretary flow without driving the modal directly.
+
+registerDebugHandle('factionStatus', () => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return null
+  return factionStatus(world, player)
+})
+
+registerDebugHandle('factionInstallSecretary', (): {
+  ok: boolean
+  reason?: string
+  secretaryName?: string
+} => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  const ws = findOwnedFactionOfficeStation(world, player)
+  if (!ws) return { ok: false, reason: 'no player-owned faction office' }
+  if (ws.get(Workstation)!.occupant !== null) {
+    const occ = ws.get(Workstation)!.occupant!
+    return { ok: true, secretaryName: occ.get(Character)?.name ?? '已就职' }
+  }
+  const hires = eligibleSecretaryHires(world)
+  const pick = hires[0]
+  if (!pick) return { ok: false, reason: 'no eligible civilians' }
+  if (!installSecretary(ws, pick)) return { ok: false, reason: 'install rejected' }
+  return { ok: true, secretaryName: pick.get(Character)?.name ?? '未命名' }
+})
+
+registerDebugHandle('factionAssignRoster', () => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return null
+  return assignIdleMembers(world, player)
+})
+
+registerDebugHandle('factionAssignBeds', () => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return null
+  return assignBeds(world, player)
+})
+
+registerDebugHandle('factionBookSummary', () => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return null
+  return bookSummary(world, player)
+})
+
+registerDebugHandle('factionSidewaysReport', () => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return null
+  return sidewaysReport(world, player)
+})
+
+registerDebugHandle('forceHousingPressure', () => {
+  return housingPressureSystem(world)
 })
 
 registerDebugHandle('realtorBuy', (buildingKey: string): BuyResult => {

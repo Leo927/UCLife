@@ -172,6 +172,25 @@
       playerHireable: false,
     },
 
+    // NPC-only role. Secretary at the player's faction office. Phase 5.5.3 —
+    // the seat is empty when the building is bought from the realtor; the
+    // player installs a hired civilian via the SecretaryDialog hire-list.
+    // Wages flow through the same daily-economics pipeline as any other
+    // role; once seated, SecretaryConversation surfaces the four delegate
+    // verbs (roster / books / sideways / restructure).
+    secretary: {
+      jobTitle: '秘书',
+      wage: 120,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '协助faction领导日常事务。',
+      playerHireable: false,
+    },
+
     // NPC-only role. The realtor at the agency desk; the player walks up
     // and uses the realtor menu (rent + buy across all building tiers).
     realtor: {

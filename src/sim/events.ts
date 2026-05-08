@@ -34,6 +34,10 @@ export interface SimEventPayloads {
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }
   'ui:open-ship-dealer':       Record<string, never>
+  // Phase 5.5.3 — opened by interaction.ts when the player clicks a
+  // 'secretary' workstation. Carries the station entity so the dialog
+  // can branch on occupant + ownership without re-walking the world.
+  'ui:open-secretary':         { station: Entity }
 }
 
 export type SimEventName = keyof SimEventPayloads

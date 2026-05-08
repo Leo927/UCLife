@@ -20,6 +20,11 @@ interface UIState {
   // HR/Realtor/AE conversations share dialogNPC rather than carrying their
   // own open flags — they're inline panels inside NPCDialog.
   dialogNPC: Entity | null
+  // Phase 5.5.3 — set by interaction.ts when the player clicks a
+  // 'secretary' workstation. SecretaryDialog reads it directly so the
+  // hire-list path (vacant seat) and the verb path (seated secretary)
+  // share one mount point.
+  dialogSecretaryStation: Entity | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -39,6 +44,7 @@ interface UIState {
   openFlight: (hubId: string) => void
   closeFlight: () => void
   setDialogNPC: (e: Entity | null) => void
+  setDialogSecretaryStation: (e: Entity | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -65,6 +71,7 @@ export const useUI = create<UIState>((set) => ({
   transitSourceId: null,
   flightHubId: null,
   dialogNPC: null,
+  dialogSecretaryStation: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -84,6 +91,7 @@ export const useUI = create<UIState>((set) => ({
   openFlight: (hubId) => set({ flightHubId: hubId }),
   closeFlight: () => set({ flightHubId: null }),
   setDialogNPC: (e) => set({ dialogNPC: e }),
+  setDialogSecretaryStation: (e) => set({ dialogSecretaryStation: e }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter
