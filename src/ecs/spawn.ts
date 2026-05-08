@@ -6,7 +6,7 @@ import {
 } from '../data/scenes'
 import {
   Position, Interactable, Building, Owner, Facility,
-  Job, Workstation, Recruiter,
+  Job, Workstation, Recruiter, ManageCell,
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
   FlightHub, Road,
@@ -136,6 +136,20 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
     case 'transit':     spawnTransitBuilding(slot, sceneId); break
     case 'park':        spawnPark(layout, slot, rng); break
     case 'crafted':     spawnCrafted(layout, slot, rng); break
+  }
+
+  // Per Design/social/diegetic-management.md: per-facility manage cell
+  // for player-ownable types. The cell sits at the building's center
+  // tile so it is reachable from any layout without per-type tuning.
+  // The interaction system gates the verb on player ownership; an
+  // unowned manage cell is inert (no verb surface, no toast).
+  if (btype.hasManageCell) {
+    world.spawn(
+      Position({ x: slot.rect.x + slot.rect.w / 2, y: slot.rect.y + slot.rect.h / 2 }),
+      Interactable({ kind: 'manage', label: `管理 · ${btype.labelZh}` }),
+      ManageCell({ building: buildingEnt }),
+      EntityKey({ key: `manage-${buildingKey}` }),
+    )
   }
 
   // Per the worker-not-workstation rule the former 'buyShip' kiosk is

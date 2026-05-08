@@ -45,6 +45,15 @@ export const Interactable = trait({
   fee: 0,
 })
 
+// Per-facility owner-control cell. Spawned at building center when the
+// type declares `hasManageCell: true`. The interaction system gates
+// activation on Owner.kind === 'character' && Owner.entity === player —
+// non-owners walking onto the tile see no verb (a stray inert cell, by
+// design). When active, opens ManageFacilityDialog keyed by `building`.
+export const ManageCell = trait({
+  building: null as Entity | null,
+})
+
 // `typeId` matches a row in `data/building-types.json5` — the realtor uses
 // it to look up category + pricing in `realty.json5`. Reset to '' for legacy
 // non-listable buildings (e.g. ship interior rooms reuse the Building trait

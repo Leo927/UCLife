@@ -27,4 +27,5 @@ export function bindUi(): void {
   onSim('ui:open-flight', ({ hubId }) => useUI.getState().openFlight(hubId))
   onSim('ui:open-transit', ({ terminalId }) => useUI.getState().openTransit(terminalId))
   onSim('ui:open-dialog-npc', ({ entity }) => useUI.getState().setDialogNPC(entity))
+  onSim('ui:open-manage', ({ building }) => useUI.getState().setDialogManageBuilding(building))
 }

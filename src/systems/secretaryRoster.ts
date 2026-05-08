@@ -215,6 +215,73 @@ export function sidewaysReport(
   }
 }
 
+// Building-scoped variant of assignIdleMembers — fills only vacancies
+// inside `building` (the player-owned facility the manage cell is
+// linked to). Mirrors the global variant's mutation discipline.
+export function assignIdleMembersToBuilding(
+  world: World,
+  player: Entity,
+  building: Entity,
+): AssignmentSummary {
+  const idle = idlePlayerFactionMembers(world, player)
+  const vacancies = vacantPlayerOwnedWorkstations(world, player)
+    .filter((v) => v.building === building)
+
+  idle.sort((a, b) => keyOf(a).localeCompare(keyOf(b)))
+  vacancies.sort((a, b) => keyOf(a.ws).localeCompare(keyOf(b.ws)))
+
+  let assigned = 0
+  for (const member of idle) {
+    const slot = vacancies.findIndex(({ ws }) => couldFillStation(member, ws))
+    if (slot < 0) continue
+    const { ws } = vacancies[slot]
+    const cur = ws.get(Workstation)!
+    if (cur.occupant !== null) continue
+    clearMemberJob(member)
+    ws.set(Workstation, { ...cur, occupant: member })
+    member.set(Job, { workstation: ws, unemployedSinceMs: 0 })
+    vacancies.splice(slot, 1)
+    assigned += 1
+  }
+
+  const label = building.get(Building)?.label ?? '设施'
+  return {
+    assigned,
+    unassigned: idle.length - assigned,
+    perFacility: assigned > 0 ? [{ label, count: assigned }] : [],
+  }
+}
+
+// Read-mostly inventory of workstations inside a single owned facility.
+// Used by ManageFacilityDialog to render the local roster — vacant seats
+// surface install verbs, occupied seats surface the worker's name.
+export interface FacilityRosterEntry {
+  ws: Entity
+  jobTitle: string
+  occupant: Entity | null
+  occupantName: string | null
+}
+
+export function facilityRoster(
+  world: World,
+  player: Entity,
+  building: Entity,
+): FacilityRosterEntry[] {
+  const out: FacilityRosterEntry[] = []
+  for (const { ws, building: b } of playerOwnedWorkstations(world, player)) {
+    if (b !== building) continue
+    const w = ws.get(Workstation)!
+    const spec = getJobSpec(w.specId)
+    out.push({
+      ws,
+      jobTitle: spec?.jobTitle ?? '工位',
+      occupant: w.occupant,
+      occupantName: w.occupant ? memberDisplayName(w.occupant) : null,
+    })
+  }
+  return out.sort((a, b) => keyOf(a.ws).localeCompare(keyOf(b.ws)))
+}
+
 // Population breakdown for the conversation header. Used by both the
 // roster verb and the books readout.
 export interface FactionStatus {

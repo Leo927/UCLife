@@ -20,6 +20,10 @@ interface UIState {
   // as inline conversation panels inside NPCDialog — see the
   // worker-not-workstation rule in Design/social/diegetic-management.md.
   dialogNPC: Entity | null
+  // Per-facility manage cell — set by interactionSystem when the player
+  // walks onto a 'manage' Interactable inside a building they own.
+  // ManageFacilityDialog reads it to render local-bootstrap verbs.
+  dialogManageBuilding: Entity | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -37,6 +41,7 @@ interface UIState {
   openFlight: (hubId: string) => void
   closeFlight: () => void
   setDialogNPC: (e: Entity | null) => void
+  setDialogManageBuilding: (e: Entity | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -61,6 +66,7 @@ export const useUI = create<UIState>((set) => ({
   transitSourceId: null,
   flightHubId: null,
   dialogNPC: null,
+  dialogManageBuilding: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -78,6 +84,7 @@ export const useUI = create<UIState>((set) => ({
   openFlight: (hubId) => set({ flightHubId: hubId }),
   closeFlight: () => set({ flightHubId: null }),
   setDialogNPC: (e) => set({ dialogNPC: e }),
+  setDialogManageBuilding: (e) => set({ dialogManageBuilding: e }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

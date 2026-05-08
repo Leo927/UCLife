@@ -3,7 +3,7 @@ import type { Entity } from 'koota'
 import {
   Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
   Money, Character, Bed, BarSeat, Workstation, RoughUse, RoughSpot, Transit,
-  FlightHub,
+  FlightHub, ManageCell, Owner,
   type InteractableKind,
 } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
@@ -95,11 +95,16 @@ export function interactionSystem(world: World) {
       continue
     }
     if (nearestKind === 'manage') {
-      // Per Design/social/diegetic-management.md the manage cell is the
-      // legitimate cell-as-management surface. Wired in a follow-up phase;
-      // for now, just emit a placeholder toast so a stray spawn from
-      // building-types.json5 won't crash the system.
-      emitSim('toast', { textZh: '管理面板尚未启用' })
+      // Inert when the player doesn't own the linked building — by
+      // design (Design/social/diegetic-management.md): the cell is a
+      // manage *surface*, and a non-owner has nothing to manage. No
+      // toast either — the cell just doesn't fire.
+      const cell = nearestEnt?.get(ManageCell)
+      const building = cell?.building ?? null
+      if (!building) continue
+      const owner = building.get(Owner)
+      if (!owner || owner.kind !== 'character' || owner.entity !== player) continue
+      emitSim('ui:open-manage', { building })
       continue
     }
     if (nearestKind === 'boardShip') {

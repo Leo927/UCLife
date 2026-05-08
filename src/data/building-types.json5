@@ -51,6 +51,7 @@
   recruitOffice: {
     labelZh: '招聘代理处',
     size: { minW: 6, maxW: 8, minH: 4, maxH: 5 },
+    hasManageCell: true,
     layout: {
       algorithm: 'open_floor',
       items: [
@@ -60,13 +61,15 @@
   },
 
   // Phase 5.5.3 faction office. Single supervisor desk for the secretary —
-  // a hired NPC the player installs once any office in the city is
-  // staffed (or via the per-facility manage cell, deferred). The desk is
+  // a hired NPC the player installs via the per-facility manage cell
+  // (Interactable kind 'manage', spawned at building center when
+  // `hasManageCell: true`) once they own the office. The desk is
   // scenery; the secretary's consultative verbs render inline in
   // NPCDialog (SecretaryConversation) when the player chats her up.
   factionOffice: {
     labelZh: '势力办公室',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
+    hasManageCell: true,
     layout: {
       algorithm: 'open_floor',
       items: [
@@ -111,6 +114,7 @@
   shop: {
     labelZh: '便利店',
     size: { minW: 6, maxW: 9, minH: 4, maxH: 6 },
+    hasManageCell: true,
     layout: {
       algorithm: 'open_floor',
       extraDoors: [{ side: 'n', tiedToPrimary: false }],

@@ -5,8 +5,8 @@
 //
 // The install (vacant-seat hire) route used to live on the desk's modal
 // and is now closed by the diegetic discipline: bootstrap install
-// happens via the per-facility manage cell (deferred — see the design
-// doc) or via a talk-verb hire on a civilian once any office is staffed.
+// happens via the per-facility manage cell (ManageFacilityDialog) or
+// via a talk-verb hire on a civilian.
 
 import { useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'

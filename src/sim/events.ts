@@ -32,6 +32,7 @@ export interface SimEventPayloads {
   'ui:open-flight':            { hubId: string }
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }
+  'ui:open-manage':            { building: Entity }
 }
 
 export type SimEventName = keyof SimEventPayloads
