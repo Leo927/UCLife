@@ -59,6 +59,12 @@
     // faction office on the assumption that a player who's running a
     // hiring pipeline has revenue facilities to feed it.
     recruitOffice: { category: 'factionMisc', buyable: true, buildingPriceTilesMul: 280 },
+    // Phase 5.5.6 — research lab. Same factionMisc band; the player buys
+    // it state-owned, installs a researcher, then queues progress against
+    // the FactionResearch tree. Pricier than the secretary / recruiter
+    // offices on the assumption that a player who's running research is
+    // already running the rest of the faction.
+    researchLab: { category: 'factionMisc', buyable: true, buildingPriceTilesMul: 360 },
 
     // Civic — listed for legibility but not for sale. State-owned is the
     // permanent footing; the realtor desk wouldn't actually move these.

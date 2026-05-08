@@ -60,6 +60,25 @@
     },
   },
 
+  // Phase 5.5.6 research lab. Player-ownable factionMisc facility; the
+  // researcher workstation runs the per-day research progress pipeline
+  // (researchSystem accumulates progress against the head of
+  // FactionResearch.queue and rolls overflow into the next entry). The
+  // desk itself is scenery — talk-verb on the seated researcher NPC
+  // drives the consultative branch + planner panel
+  // (ResearcherConversation in NPCDialog).
+  researchLab: {
+    labelZh: '研究室',
+    size: { minW: 6, maxW: 8, minH: 4, maxH: 5 },
+    hasManageCell: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'researcher', role: 'supervisor', noInteractable: true, labelZh: '研究台' },
+      ],
+    },
+  },
+
   // Phase 5.5.3 faction office. Single supervisor desk for the secretary —
   // a hired NPC the player installs via the per-facility manage cell
   // (Interactable kind 'manage', spawned at building center when

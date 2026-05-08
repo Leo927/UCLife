@@ -151,6 +151,12 @@ function frame(now: number) {
         // single-scene scope as housing pressure: applicants live in the
         // active scene's lobby.
         recruitmentSystem(world, newDay)
+        // Phase 5.5.6 — fire after the rollup chain so research
+        // subscribers (boot/researchTick.ts) credit progress AFTER
+        // dailyEconomics has settled and recruitment has populated
+        // any new researcher seats. Carries the scene id so multi-
+        // scene listeners can scope their work without re-deriving it.
+        emitSim('day:rollover:settled', { gameDay: newDay })
       }
       // Supply drain runs after clock.advance so it sees the post-tick game
       // date. Reads its own elapsed-min delta internally.

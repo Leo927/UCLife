@@ -118,6 +118,8 @@ jobs:
       - if: always()
         run: node scripts/check-recruit-office.mjs
       - if: always()
+        run: node scripts/check-research.mjs
+      - if: always()
         run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
 
       - name: Upload screenshots on failure

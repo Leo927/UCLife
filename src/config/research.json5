@@ -1,0 +1,29 @@
+// Phase 5.5.6 research configuration. Drives the per-shift progress
+// generation in researchSystem and the ETA + lost-overflow surfaces.
+//
+// Per seated researcher, per worked shift:
+//   progress = baseResearchPerShift
+//            × workPerformance
+//            × facilityEfficiencyMul    (tier-system, defaults to 1.0 in 5.5.6)
+//            × getStat(faction.sheet, 'researchSpeedMul')
+//
+// `progress` accumulates against the head of FactionResearch.queue. When
+// `accumulated >= head.cost`, the head completes and overflow rolls into
+// the next entry. If the queue is empty, overflow is *lost* and reported
+// in `FactionResearch.lostOverflowToday` for the planner's "今日产出 …
+// 已丢失" line + the secretary's bookSummary brief.
+//
+// Tuning targets:
+//   - factory-tier-2 (cost ~3 weeks of single-researcher output) lands in
+//     ~21 days at perf=1.0 with the values below: 21 × 24 ≈ 500.
+{
+  // Research progress emitted per completed researcher shift at perf=1.0,
+  // facility tier-1 efficiency, and faction researchSpeedMul=1.0.
+  baseResearchPerShift: 24,
+
+  // Floor / cap on workPerformance scaling — same band the recruitment
+  // system uses, so a researcher with a bad day can't grind progress to
+  // zero and a perfect day can't double it.
+  perfMin: 0.5,
+  perfMax: 1.5,
+}

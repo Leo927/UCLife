@@ -21,3 +21,4 @@ import './combat'     // combat / transition / engagement stores + fastWinCombat
 import './save'       // saveGame / loadGame
 import './jobs'       // fillJobVacancies — deterministic NPC/workstation setup for smoke tests
 import './ownership'  // Phase 5.5 — faction roster + per-building Owner snapshot
+import './research'   // Phase 5.5.6 — research lab + queue + planner + ticker

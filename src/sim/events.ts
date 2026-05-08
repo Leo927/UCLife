@@ -18,6 +18,11 @@ import type { Entity } from 'koota'
 export interface SimEventPayloads {
   // ── Lifecycle (legacy callers — `reason` only) ───────────────────────
   'day:rollover':       { reason: string }
+  // Phase 5.5.6 — fired after the day:rollover system chain settles
+  // (dailyEconomics, housingPressure, recruitment). Late subscribers
+  // (research, future faction-AI) hook to this so they read post-
+  // rollup state. `gameDay` is the integer day number AFTER the flip.
+  'day:rollover:settled': { gameDay: number }
   'hyperspeed:start':   { reason: string }
   // Phase 5.5.2 — surface from outside the loop. The loop's per-frame
   // hyperspeed gate reads `pendingHyperspeedBreak` set by this event and

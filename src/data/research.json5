@@ -1,0 +1,42 @@
+// Phase 5.5.6 research catalog. Each row authors a single research entry
+// the FactionResearch queue can hold. Fields:
+//
+//   id          — stable string key. The format mirrors the unlock id
+//                 conventions used elsewhere ('upgrade:factory-tier-2').
+//   nameZh      — display name in the planner + researcher's "在搞什么"
+//                 reply.
+//   descZh      — one-paragraph rationale, shown on the planner row.
+//   flavorZh    — flavor blurb shown when a `significant: true` research
+//                 completes (newsfeed line). Optional otherwise.
+//   cost        — research progress required before completion. The
+//                 system accumulates `progress` against this; overflow
+//                 rolls into the next queued entry.
+//   prereqs     — list of research ids that must already be in
+//                 FactionResearch.completed before this row can be queued.
+//   effects     — FactionEffect modifier rows (numerical levers). Each
+//                 entry is { statId, type, value }; statId resolves to a
+//                 FactionStatId. Empty when the research only emits
+//                 unlocks.
+//   unlocks     — strings added to FactionUnlocks on completion. The
+//                 unlock id is the contract; consumers (broker availability,
+//                 manage-interactable rows) check FactionUnlocks for these.
+//   category    — for tree-view grouping in the planner. Free-form for
+//                 5.5.6; the tree is flat-ish at launch catalog size.
+//   significant — true if completion should emit a one-line newsfeed
+//                 entry. Use sparingly; factory-tier-2 isn't significant,
+//                 a canon-touching license bid would be.
+{
+  catalog: {
+    'factory-tier-2': {
+      nameZh: '工厂扩容 II',
+      descZh: '提升工厂的最大产能上限。完成后即可在自有工厂的管理面板上启用 II 级扩容。',
+      flavorZh: '车间老师傅画了三天图纸，说："这才像个厂子。"',
+      cost: 500,
+      prereqs: [],
+      effects: [],
+      unlocks: ['upgrade:factory-tier-2'],
+      category: 'economy',
+      significant: false,
+    },
+  },
+}

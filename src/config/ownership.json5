@@ -30,6 +30,7 @@
     hrOffice:        { kind: 'state' },
     factionOffice:   { kind: 'state' },
     recruitOffice:   { kind: 'state' },
+    researchLab:     { kind: 'state' },
 
     // ── Faction-misc ──────────────────────────────────────────────────────
     aeComplex: { kind: 'faction', factionId: 'anaheim' },

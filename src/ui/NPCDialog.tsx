@@ -70,6 +70,7 @@ export function NPCDialog() {
     isCashierOnDuty: onShift && (CASHIER_SPEC_IDS as readonly string[]).includes(specId),
     isSecretaryOnDuty: specId === 'secretary' && onShift,
     isRecruiterOnDuty: specId === 'recruiter' && onShift,
+    isResearcherOnDuty: specId === 'researcher' && onShift,
     // Ship purchase rides on the AE director's talk-verb until a dedicated
     // ship-dealer NPC role lands.
     isShipDealerOnDuty: isAEOnDuty,

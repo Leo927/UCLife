@@ -17,18 +17,20 @@ import type { Modifier } from './sheet'
 import { type StatSheet, addModifier, removeBySource } from './sheet'
 import type { StatId } from './schema'
 
-export type EffectFamily = 'background' | 'perk' | 'condition' | 'gear'
+export type EffectFamily = 'background' | 'perk' | 'condition' | 'gear' | 'research'
 
-export interface Effect {
+export interface Effect<S extends string = StatId> {
   // Unique within a character's Effects list. Upstream owners pick the
-  // format: 'bg:soldier', 'perk:long_distance', 'cond:c-7f3a:b0'.
+  // format: 'bg:soldier', 'perk:long_distance', 'cond:c-7f3a:b0',
+  // 'research:factory-tier-2'.
   id: string
   // Back-reference the upstream system uses to find / clean up its own
   // Effects without scanning by id-prefix substring. Conditions set
-  // this to instanceId; backgrounds set it to the background id.
+  // this to instanceId; backgrounds set it to the background id;
+  // research entries set it to the research id.
   originId: string
   family: EffectFamily
-  modifiers: { statId: StatId; type: Modifier<StatId>['type']; value: number }[]
+  modifiers: { statId: S; type: Modifier<S>['type']; value: number }[]
   // Display metadata — none of these participate in the fold.
   nameZh?: string
   descZh?: string
@@ -54,13 +56,13 @@ export function effectSource(e: Pick<Effect, 'id'>): string {
 // sheet (or the same reference if no work was needed).
 export function applyEffectToSheet<S extends string>(
   sheet: StatSheet<S>,
-  effect: Effect,
+  effect: Effect<S>,
 ): StatSheet<S> {
   const source = effectSource(effect)
   let next = removeBySource(sheet, source)
   for (const m of effect.modifiers) {
     next = addModifier(next, {
-      statId: m.statId as unknown as S,
+      statId: m.statId,
       type: m.type,
       value: m.value,
       source,
@@ -83,7 +85,7 @@ export function removeEffectFromSheet<S extends string>(
 // reads cleanly because legacy sources just won't exist on new saves.
 export function rebuildSheetFromEffects<S extends string>(
   sheet: StatSheet<S>,
-  effects: readonly Effect[],
+  effects: readonly Effect<S>[],
 ): StatSheet<S> {
   let next = sheet
   // Strip every `eff:*` source on the sheet first.

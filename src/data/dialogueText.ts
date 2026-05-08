@@ -22,6 +22,7 @@ export interface DialogueText {
     pharmacy: string
     secretary: string
     recruiter: string
+    researcher: string
     factoryManager: string
     jobSite: string
     talkHire: string
@@ -49,6 +50,23 @@ export interface DialogueText {
       lobbyEmpty: string
       noFilter: string
       replyNoFilter: string
+    }
+    researcher: {
+      title: string
+      titleSuffix: string
+      idleReply: string
+      cancelHeadConfirm: string
+      plannerTitle: string
+      todayLabel: string
+      lostLabel: string
+      queueHeader: string
+      availableHeader: string
+      lockedHeader: string
+      doneHeader: string
+      emptyQueueHint: string
+      emptyAvailableHint: string
+      emptyLockedHint: string
+      emptyDoneHint: string
     }
     factoryManager: { title: string; empty: string }
     jobSite: {

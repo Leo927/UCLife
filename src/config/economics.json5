@@ -52,6 +52,11 @@
     // accepts to staff revenue facilities). Maintenance is slightly above
     // the faction office to model the lobby + the recruiter's wage burn.
     recruitOffice: { baseRevenuePerShift: 0, maintenancePerDay: 55 },
+    // Phase 5.5.6 — research lab is also pure overhead; the researcher's
+    // output (research progress) is non-monetary. Maintenance covers the
+    // researcher's wage burn. Slightly above the recruiter office on the
+    // assumption that lab equipment is expensive scenery.
+    researchLab: { baseRevenuePerShift: 0, maintenancePerDay: 65 },
 
     // Residential / civic types are listed here so unstaffed maintenance
     // cost is explicit. Apartment + luxury are leased per-bed (no

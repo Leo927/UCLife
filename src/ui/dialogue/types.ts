@@ -39,6 +39,7 @@ export type DialogueRoles = {
   isPharmacistOnDuty: boolean
   isSecretaryOnDuty: boolean
   isRecruiterOnDuty: boolean
+  isResearcherOnDuty: boolean
   isShipDealerOnDuty: boolean
   isRecruitingManagerOnDuty: boolean
   ownsPrivateFacility: boolean

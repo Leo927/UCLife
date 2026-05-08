@@ -40,6 +40,9 @@ export type { RealtyConfig, RealtyTypeSpec, ListingCategory } from './realty'
 export { recruitmentConfig } from './recruitment'
 export type { RecruitmentConfig } from './recruitment'
 
+export { researchConfig } from './research'
+export type { ResearchConfig } from './research'
+
 export {
   economicsConfig, facilityRevenuePerShift, facilityMaintenancePerDay,
 } from './economics'

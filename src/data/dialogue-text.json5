@@ -60,6 +60,7 @@
     pharmacy: '买药',
     secretary: 'faction事务',
     recruiter: '招募事宜',
+    researcher: '研究计划',
     factoryManager: '本厂招聘',
     jobSite: '工位调整',
     talkHire: '邀请加入',
@@ -110,6 +111,26 @@
       lobbyEmpty: '现在没有应聘者在等。',
       noFilter: '不要筛选 · 我自己看',
       replyNoFilter: '好——所有申请者都先排队，我等你看过再说。',
+    },
+    researcher: {
+      title: '研究室',
+      titleSuffix: ' · 研究员',
+      // Consultative replies the four short verbs return.
+      idleReply: '没人给我安排课题——你可以打开计划告诉我。',
+      // 细则：占位字串，实际由 ResearcherPanel 拼装。
+      cancelHeadConfirm: '将丢失当前进度，要继续吗？',
+      // Planner panel.
+      plannerTitle: '研究计划',
+      todayLabel: '今日产出',
+      lostLabel: '已丢失',
+      queueHeader: '当前队列',
+      availableHeader: '可立即上马',
+      lockedHeader: '前置未完成',
+      doneHeader: '已完成',
+      emptyQueueHint: '队列为空 — 添加一项后产出才会累加。',
+      emptyAvailableHint: '没有立即可上马的研究 — 先完成前置。',
+      emptyLockedHint: '所有研究都已可上马或已完成。',
+      emptyDoneHint: '尚未完成任何研究。',
     },
     factoryManager: {
       title: '本厂招聘',

@@ -140,6 +140,56 @@ export const Faction = trait({
   fund: 0,
 })
 
+// Phase 5.5.6 — faction-side StatSheet, parallel to Attributes.sheet on
+// characters. Holds revenueMul / salaryMul / maintenanceMul /
+// researchSpeedMul / recruitChanceMul / loyaltyDriftMul. Authored by
+// FactionEffectsList entries (the Effect family is reused; modifier rows
+// target FactionStatId instead of StatId). See src/stats/factionSchema.ts.
+import { type FactionStatId } from '../../stats/factionSchema'
+import { createFactionSheet } from '../../stats/factionSchema'
+import type { StatSheet } from '../../stats/sheet'
+import type { Effect } from '../../stats/effects'
+export const FactionSheet = trait(() => ({
+  sheet: createFactionSheet(),
+}))
+export type { FactionStatId }
+export type FactionStatSheet = StatSheet<FactionStatId>
+
+// Faction-side Effect bag, mirroring the per-character Effects trait.
+// Each entry's modifiers target FactionStatId; the FactionSheet's
+// modifier arrays are derived from this list (rebuild on add/remove).
+// Source strings: 'eff:research:<id>', 'eff:condition:<id>'…
+export const FactionEffectsList = trait(() => ({
+  list: [] as Effect<FactionStatId>[],
+}))
+
+// Faction-side binary unlock set. Stored as a deduplicated string array
+// because koota traits round-trip through JSON; helpers in
+// src/ecs/factionEffects.ts enforce Set semantics on add.
+export const FactionUnlocks = trait(() => ({
+  ids: [] as string[],
+}))
+
+// Phase 5.5.6 — research queue + accumulated progress per faction. The
+// researchSystem at day:rollover walks every faction-owned researchLab,
+// computes per-shift progress, accumulates against `queue[0]`'s cost,
+// and rolls overflow into the next entry. Empty-queue overflow is lost
+// and reported in `lostOverflowToday`.
+//
+// `yesterdayPerDay` snapshots the last full-day yield so the planner ETA
+// reads "≈ ⌈(cost − accumulated) / yesterdayPerDay⌉ days" without a 7-day
+// rolling window. `completed` is the running list of finished research
+// ids, kept here (rather than on FactionUnlocks) so a research with no
+// unlocks but with effects still leaves a visible "done" record in the
+// planner.
+export const FactionResearch = trait(() => ({
+  queue: [] as string[],
+  accumulated: 0,
+  yesterdayPerDay: 0,
+  lostOverflowToday: 0,
+  completed: [] as string[],
+}))
+
 // Phase 5.5.4 recruiter station. Sits alongside Workstation on the
 // recruiter's desk (specId='recruiter'). The criteria block is the
 // auto-accept filter the player tunes via RecruiterDialog ("机师, 30
