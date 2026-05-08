@@ -62,7 +62,7 @@
   // (handles both the install-secretary flow and the consultative verbs)
   // rather than the generic manager/NPC route.
   factionOffice: {
-    labelZh: 'Faction办公室',
+    labelZh: '势力办公室',
     size: { minW: 5, maxW: 8, minH: 3, maxH: 5 },
     layout: {
       algorithm: 'open_floor',
