@@ -51,6 +51,7 @@ export function findBestOpenJob(world: World, entity: Entity): Entity | null {
     if (w.occupant !== null) continue
     const spec = getJobSpec(w.specId)
     if (!spec) continue
+    if (spec.installOnly) continue
     if (!meetsRequirements(world, entity, ws)) continue
     if (spec.wage > bestWage) {
       bestWage = spec.wage
@@ -61,10 +62,15 @@ export function findBestOpenJob(world: World, entity: Entity): Entity | null {
 }
 
 // Reset unemployedSinceMs to 0 on hire so a re-hired worker's grace period
-// restarts cleanly on a future quit.
+// restarts cleanly on a future quit. installOnly seats route through their
+// dedicated install dialog (installSecretary / installRecruiter) which sets
+// the occupant directly — claimJob refuses them so a stray BT call can't
+// seat someone behind the player's back.
 export function claimJob(world: World, entity: Entity, ws: Entity): boolean {
   const w = ws.get(Workstation)
   if (!w || w.occupant !== null) return false
+  const spec = getJobSpec(w.specId)
+  if (spec?.installOnly) return false
   releaseJob(world, entity)
   ws.set(Workstation, { ...w, occupant: entity })
   if (entity.has(Job)) entity.set(Job, { workstation: ws, unemployedSinceMs: 0 })

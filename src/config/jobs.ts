@@ -21,6 +21,11 @@ export interface RelationReq {
 // `family`/`rank`/`employer` mark a spec as part of a faction career ladder:
 // faction-specific conversation panels group specs by family and walk the
 // player up the rank, while the city-wide HR hides them.
+//
+// `installOnly: true` marks a seat that NPCs must never auto-claim through
+// the BT find-job path — only the player's install dialog (SecretaryDialog,
+// RecruiterDialog) can seat someone. Used for faction-misc desks whose
+// presence is meaningless without a player owner: secretary, recruiter.
 export interface JobSpec {
   jobTitle: string
   wage: number
@@ -32,6 +37,7 @@ export interface JobSpec {
   requirements: Partial<Record<SkillId, number>>
   description: string
   playerHireable: boolean
+  installOnly?: boolean
   family?: string
   rank?: number
   employer?: FactionId
