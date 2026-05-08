@@ -350,7 +350,11 @@ a panel that lets the player *do* every action remotely.
 ## Customer-side interaction (any facility)
 
 A customer transacts with the **worker on duty**, never with the
-workstation cell. The talk-verb on the worker is extended with
+workstation cell. The cashier counter, the clinic desk, the
+pharmacist's window, the HR clerk's window, the AE director's
+reception, and the realtor's desk all carry **no `Interactable`
+trait** — they are scenery rendered via the workstation's chrome
+(label, sprite). The talk-verb on the worker is extended with
 service branches appropriate to the facility class:
 
 - **Shop / general store** — *buy*, *sell*, *ask about stock*. The
@@ -423,17 +427,25 @@ When a player-owned job site is **vacant**:
 - The cell exposes no verbs.
 - The walked-to-it player sees "this seat is empty" via the same
   visual cue as a closed facility (dim, unmanned).
-- The hire / assign verb routes through one of two bodies:
-  - **Secretary** at the faction office — `assignIdleMembers`
-    pulls an existing member to fill it.
+- The hire / assign verb routes through:
+  - **Per-facility manage cell** — the local bootstrap. One per
+    player-owned facility (see
+    [diegetic-management.md](diegetic-management.md#per-facility-manage-cell)).
+    "Install someone here" / "assign from local roster" /
+    "inspect facility status" all live here.
+  - **Secretary** at the faction office — cross-facility roster
+    tool. `assignIdleMembers` pulls existing idle members to fill
+    seats across the player's facilities. The manage cell is
+    local; the secretary is global.
   - **Recruiter** at the HR office — generates a fresh applicant
-    over time.
+    over time when no idle member fits.
   - Or the talk-verb hire branch on any civilian in the world.
 
 This preserves the rule: the workstation tile is never an
-interaction target. Every owner-side action lives on a body — the
-worker, the secretary, the recruiter, or the civilian being
-recruited.
+interaction target. Every owner-side action lives on a body or on
+the legitimate manage-cell artifact — the worker, the secretary,
+the recruiter, the civilian being recruited, or the owner's own
+clipboard.
 
 Bed-site interaction follows the same logic: the player walks to a
 bed they own, and if a claimant is sleeping in it, the verbs
@@ -500,8 +512,9 @@ nudge that makes the colony arc earn its weight.
 | **5.5.0** | Facility rename in code + data. Owner abstraction (Character \| Faction) under the hood. Existing shops/clinics/parks switch to state-owned default. No new player-facing surface yet. |
 | **5.5.1** | Realtor NPC + tabbed listing UI (residential / commercial / faction-misc). Direct-seller close for state / foreclosed inventory. Flagger mode for private sales — realtor names the seller and walks the player to them; closes via a `SellerConversation` branch on the owner's NPC dialog. Apartment + luxury lease/buy stay on the bed-row surface. Seeded NPC owners on bars / factories / private residences from day one (`seedPrivateOwners`). Owner serializer + per-Building EntityKey persist player purchases across save/load. |
 | **5.5.2** | Daily economics (revenue / salary / maintenance) on a per-Building `Facility` trait, accumulated by `workSystem` at end-of-shift and rolled up at `day:rollover` (`src/systems/dailyEconomics.ts`). Faction stipends apply to AE / Federation / Zeon `Faction.fund` daily. 3-day insolvency grace counter; day-1 warning surfaces as a named-worker toast + log line, day-2 closes the facility (workers refuse the next shift via `Facility.closedSinceDay`), day-3 reverts ownership to state and re-lists on the realtor. Hyperspeed auto-breaks on each warning leading edge via the new `hyperspeed:break` event. Worker-walks-to-player, dark-facility render, and 'sees the facility for the first time' break are deferred — the toast + log line stand in for the embodied surface until 5.5.3 ships the secretary's "anything gone sideways?" verb. |
-| **5.5.3** | Faction office facility + secretary workstation, listed by the realtor as `factionMisc`. SecretaryDialog hosts the install-secretary hire-list (vacant seat) and the four consultative verbs once seated (`assignIdleMembers`, `assignBeds`, `bookSummary`, `sidewaysReport`); restructure verb is a placeholder until 5.5.5. JobSiteConversation extension on NPCDialog when the player chats up a worker at any player-owned facility — fire / replace-from-idle / pick-from-roster. Bed claims persist via `Bed.claimedBy`; faction-of-one members are derived from player-owned workstation occupancy + owned-bed claims (no formal `MemberOf` relation yet). `housingPressureSystem` runs at `day:rollover` after the economics rollup, decaying `Knows(member→player).opinion` for unhoused members down to a configured floor. |
-| **5.5.4** | `recruitOffice` facility class + `recruiter` workstation, listed by the realtor as `factionMisc`. RecruiterDialog hosts the install-recruiter hire-list (vacant seat) and, once seated, the criteria-as-conversation chip set + applicant lobby with accept/reject verbs. `recruitmentSystem` runs at `day:rollover` after housingPressure: per seated recruiter, rolls the streak-bonused chance from `recruitment.json5`, spawns an `Applicant`-tagged procgen NPC inside the office (capped by `lobbyCapacity`), and expires applicants past `applicationLifetimeDays`. Auto-accept fires on spawn when criteria match. TalkHireConversation extends NPCDialog with an "offer to recruit" branch on civilians (gated by AE rep ≥ `factionRepGate.min` OR target opinion ≥ `opinionGate.min`); accept charges `signingBonus` from the player's wallet. AE-employed and existing player-faction members are filtered out. |
+| **5.5.3** | Faction office facility + secretary workstation, listed by the realtor as `factionMisc`. Secretary's consultative verbs (`assignIdleMembers`, `assignBeds`, `bookSummary`, `sidewaysReport`) render inside `NPCDialog` when the player talks to the seated secretary; restructure verb is a placeholder until 5.5.5. JobSiteConversation extension on NPCDialog when the player chats up a worker at any player-owned facility — fire / replace-from-idle / pick-from-roster. Bed claims persist via `Bed.claimedBy`; faction-of-one members are derived from player-owned workstation occupancy + owned-bed claims (no formal `MemberOf` relation yet). `housingPressureSystem` runs at `day:rollover` after the economics rollup, decaying `Knows(member→player).opinion` for unhoused members down to a configured floor. |
+| **5.5.4** | `recruitOffice` facility class + `recruiter` workstation, listed by the realtor as `factionMisc`. Once seated, the recruiter's criteria-as-conversation chip set + applicant lobby with accept/reject verbs render inside `NPCDialog`. `recruitmentSystem` runs at `day:rollover` after housingPressure: per seated recruiter, rolls the streak-bonused chance from `recruitment.json5`, spawns an `Applicant`-tagged procgen NPC inside the office (capped by `lobbyCapacity`), and expires applicants past `applicationLifetimeDays`. Auto-accept fires on spawn when criteria match. TalkHireConversation extends NPCDialog with an "offer to recruit" branch on civilians (gated by AE rep ≥ `factionRepGate.min` OR target opinion ≥ `opinionGate.min`); accept charges `signingBonus` from the player's wallet. AE-employed and existing player-faction members are filtered out. |
+| **5.5.4.5** | Diegetic-correctness sweep. Strip illegitimate cell-as-verb routes from `interactionSystem` for all service-side workstations (shop / clinic / pharmacy / hr / aeReception / manager / secretary / recruiter / buyShip). Service-worker desks become scenery (`noInteractable: true`); customer-side and owner-side verbs route exclusively through the talk-verb on the worker on duty. Add `'manage'` interactable kind to support the per-facility manage-cell pattern; full manage-cell spawn + dialog deferred to a follow-up phase (the secretary's `assignIdleMembers` covers cross-facility install in the interim, and the talk-verb hire branch on civilians + recruiter applicants cover fresh-hire). Customer-side bootstrap install is owner-side anyway, so the gap is "first hire on a freshly-bought facility before any secretary is seated" — small enough to defer. |
 | **5.5.5** | Player-faction creation dialogue. Aliasing → real entity migration. Diplomacy / war declaration verbs land as secretary stand-ins for Phase 6.4. |
 | **6.3** | Colony adds buildable facility classes (warship slipway, large MS factory). Sovereignty footing. |
 | **6.4** | Diplomacy / governance promoted from secretary stand-ins to council-chamber scenes. |
