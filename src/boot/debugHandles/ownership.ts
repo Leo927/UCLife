@@ -5,7 +5,7 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world, getWorld, getActiveSceneId } from '../../ecs/world'
-import { Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation } from '../../ecs/traits'
+import { Applicant, Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation, Recruiter } from '../../ecs/traits'
 import { gatherListings, buyFromState } from '../../systems/realtor'
 import { dailyEconomicsSystem } from '../../systems/dailyEconomics'
 import { housingPressureSystem } from '../../systems/housingPressure'
@@ -15,6 +15,12 @@ import {
   eligibleSecretaryHires,
 } from '../../systems/secretaryRoster'
 import { gameDayNumber, useClock } from '../../sim/clock'
+import {
+  debugSpawnApplicant, eligibleRecruiterHires, findOwnedRecruiterStation,
+  installRecruiter, lobbyForStation, manualAcceptApplicant,
+  recruitmentSystem, rejectApplicant,
+} from '../../systems/recruitment'
+import type { SkillId } from '../../character/skills'
 
 interface OwnerSummary {
   kind: 'state' | 'faction' | 'character'
@@ -239,6 +245,119 @@ registerDebugHandle('factionSidewaysReport', () => {
 
 registerDebugHandle('forceHousingPressure', () => {
   return housingPressureSystem(world)
+})
+
+// Phase 5.5.4 — recruiter office smoke. Mirrors the secretary handles:
+// install a recruiter, generate applicants, exercise the auto-accept
+// + manual review verbs through __uclife__ rather than the modal.
+
+registerDebugHandle('factionInstallRecruiter', (): {
+  ok: boolean
+  reason?: string
+  recruiterName?: string
+} => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  const ws = findOwnedRecruiterStation(world, player)
+  if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
+  if (ws.get(Workstation)!.occupant !== null) {
+    const occ = ws.get(Workstation)!.occupant!
+    return { ok: true, recruiterName: occ.get(Character)?.name ?? '已就职' }
+  }
+  const hires = eligibleRecruiterHires(world)
+  const pick = hires[0]
+  if (!pick) return { ok: false, reason: 'no eligible civilians' }
+  if (!installRecruiter(ws, pick)) return { ok: false, reason: 'install rejected' }
+  return { ok: true, recruiterName: pick.get(Character)?.name ?? '未命名' }
+})
+
+interface ApplicantSnapshot {
+  name: string
+  topSkillId: string
+  topSkillLevel: number
+  qualityScore: number
+  summary: string
+}
+
+registerDebugHandle('recruiterLobby', (): ApplicantSnapshot[] => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return []
+  const ws = findOwnedRecruiterStation(world, player)
+  if (!ws) return []
+  return lobbyForStation(world, ws).map(({ data }) => ({
+    name: data.name,
+    topSkillId: data.topSkillId,
+    topSkillLevel: data.topSkillLevel,
+    qualityScore: data.qualityScore,
+    summary: data.summary,
+  }))
+})
+
+registerDebugHandle('recruiterSpawnApplicant', (): { ok: boolean; reason?: string; key?: string } => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  const ws = findOwnedRecruiterStation(world, player)
+  if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
+  const ent = debugSpawnApplicant(world, ws)
+  if (!ent) return { ok: false, reason: 'spawn failed' }
+  return { ok: true, key: ent.get(EntityKey)?.key ?? '?' }
+})
+
+registerDebugHandle('recruiterSetCriteria', (
+  skill: SkillId | null, minLevel: number, autoAccept: boolean,
+): { ok: boolean; reason?: string } => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  const ws = findOwnedRecruiterStation(world, player)
+  if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
+  if (!ws.has(Recruiter)) return { ok: false, reason: 'no Recruiter trait' }
+  const cur = ws.get(Recruiter)!
+  ws.set(Recruiter, { ...cur, criteria: { skill, minLevel, autoAccept } })
+  return { ok: true }
+})
+
+interface AcceptResult {
+  ok: boolean
+  reason?: string
+  acceptedKey?: string
+}
+
+registerDebugHandle('recruiterAcceptFirst', (): AcceptResult => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  const ws = findOwnedRecruiterStation(world, player)
+  if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
+  const lobby = lobbyForStation(world, ws)
+  if (lobby.length === 0) return { ok: false, reason: 'lobby empty' }
+  const first = lobby[0].applicant
+  const k = first.get(EntityKey)?.key ?? '?'
+  if (!manualAcceptApplicant(world, first, player)) return { ok: false, reason: 'accept failed' }
+  return { ok: true, acceptedKey: k }
+})
+
+registerDebugHandle('recruiterRejectFirst', (): AcceptResult => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, reason: 'no player' }
+  const ws = findOwnedRecruiterStation(world, player)
+  if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
+  const lobby = lobbyForStation(world, ws)
+  if (lobby.length === 0) return { ok: false, reason: 'lobby empty' }
+  const first = lobby[0].applicant
+  const k = first.get(EntityKey)?.key ?? '?'
+  if (!rejectApplicant(first)) return { ok: false, reason: 'reject failed' }
+  return { ok: true, acceptedKey: k }
+})
+
+registerDebugHandle('forceRecruitment', (gameDay?: number) => {
+  const day = gameDay ?? gameDayNumber(useClock.getState().gameDate)
+  return { day, ...recruitmentSystem(world, day) }
+})
+
+// Used by the smoke to verify Applicant traits are wired through saves.
+registerDebugHandle('countApplicants', (): number => {
+  let n = 0
+  for (const _e of world.query(Applicant)) n += 1
+  return n
 })
 
 registerDebugHandle('realtorBuy', (buildingKey: string): BuyResult => {

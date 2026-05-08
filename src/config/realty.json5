@@ -53,6 +53,12 @@
     // hub. Priced like the HR office: small footprint, factionMisc band,
     // bought directly from the realtor (state-owned by default).
     factionOffice: { category: 'factionMisc', buyable: true, buildingPriceTilesMul: 320 },
+    // Phase 5.5.4 — recruiter office. Same factionMisc band; the player
+    // buys it state-owned, installs a recruiter, then collects procgen
+    // applicants who walk into the lobby. Slightly cheaper than the
+    // faction office on the assumption that a player who's running a
+    // hiring pipeline has revenue facilities to feed it.
+    recruitOffice: { category: 'factionMisc', buyable: true, buildingPriceTilesMul: 280 },
 
     // Civic — listed for legibility but not for sale. State-owned is the
     // permanent footing; the realtor desk wouldn't actually move these.

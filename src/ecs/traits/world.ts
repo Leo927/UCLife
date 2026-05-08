@@ -130,6 +130,31 @@ export const Faction = trait({
   fund: 0,
 })
 
+// Phase 5.5.4 recruiter station. Sits alongside Workstation on the
+// recruiter's desk (specId='recruiter'). The criteria block is the
+// auto-accept filter the player tunes via RecruiterDialog ("机师, 30
+// 以上"); the daily generation pass reads it to decide which procgen
+// applicants are auto-accepted on spawn vs. left in the lobby for
+// player review. `cumulativeNoHireDays` powers the streak bonus from
+// recruitment.json5. `lastRollDay` guards against same-day double-rolls
+// when the loop force-emits day:rollover (tests, load).
+import type { SkillId } from '../../config'
+export interface RecruiterCriteria {
+  // null = no skill gate; any applicant qualifies on the skill axis.
+  skill: SkillId | null
+  // Minimum skill level the applicant must have on `skill` to auto-accept.
+  // Ignored when skill is null.
+  minLevel: number
+  // When false, every applicant queues for player review regardless of
+  // skill match. When true, matching applicants are accepted on spawn.
+  autoAccept: boolean
+}
+export const Recruiter = trait(() => ({
+  criteria: { skill: null, minLevel: 0, autoAccept: false } as RecruiterCriteria,
+  cumulativeNoHireDays: 0,
+  lastRollDay: 0,
+}))
+
 // Phase 5.5.2 per-facility daily-economics state. Sits on every ownable
 // Building. workSystem accumulates `revenueAcc` and `salariesAcc` across
 // the day; the daily-economics rollover at midnight rolls those into the

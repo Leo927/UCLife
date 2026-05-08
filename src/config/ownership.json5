@@ -29,6 +29,7 @@
     realtor:         { kind: 'state' },
     hrOffice:        { kind: 'state' },
     factionOffice:   { kind: 'state' },
+    recruitOffice:   { kind: 'state' },
 
     // ── Faction-misc ──────────────────────────────────────────────────────
     aeComplex: { kind: 'faction', factionId: 'anaheim' },

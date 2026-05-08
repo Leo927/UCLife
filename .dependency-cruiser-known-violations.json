@@ -481,6 +481,20 @@
   {
     "type": "dependency",
     "from": "src/sim/loop.ts",
+    "to": "src/systems/recruitment.ts",
+    "unresolvedTo": "../systems/recruitment",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
     "to": "src/systems/relations.ts",
     "unresolvedTo": "../systems/relations",
     "dependencyTypes": [

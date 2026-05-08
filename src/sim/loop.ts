@@ -22,6 +22,7 @@ import { spaceSimSystem } from '../systems/spaceSim'
 import { supplyDrainSystem } from '../systems/supplyDrain'
 import { dailyEconomicsSystem } from '../systems/dailyEconomics'
 import { housingPressureSystem } from '../systems/housingPressure'
+import { recruitmentSystem } from '../systems/recruitment'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
@@ -143,6 +144,13 @@ function frame(now: number) {
         // player-faction members are single-scene, since they can only be
         // bound to facilities the player physically owns + walks past.
         housingPressureSystem(world)
+        // Phase 5.5.4 — recruitment runs once per day after housing
+        // pressure so the day's applicant flow lands after the economic
+        // settlement (a recruiter who just got foreclosed shouldn't spawn
+        // applicants for a station that's about to revert to state). Same
+        // single-scene scope as housing pressure: applicants live in the
+        // active scene's lobby.
+        recruitmentSystem(world, newDay)
       }
       // Supply drain runs after clock.advance so it sees the post-tick game
       // date. Reads its own elapsed-min delta internally.

@@ -25,6 +25,10 @@ interface UIState {
   // hire-list path (vacant seat) and the verb path (seated secretary)
   // share one mount point.
   dialogSecretaryStation: Entity | null
+  // Phase 5.5.4 — set by interaction.ts when the player clicks a
+  // 'recruiter' workstation. RecruiterDialog reads it for the install /
+  // verbs split, mirroring SecretaryDialog.
+  dialogRecruiterStation: Entity | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -45,6 +49,7 @@ interface UIState {
   closeFlight: () => void
   setDialogNPC: (e: Entity | null) => void
   setDialogSecretaryStation: (e: Entity | null) => void
+  setDialogRecruiterStation: (e: Entity | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -72,6 +77,7 @@ export const useUI = create<UIState>((set) => ({
   flightHubId: null,
   dialogNPC: null,
   dialogSecretaryStation: null,
+  dialogRecruiterStation: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -92,6 +98,7 @@ export const useUI = create<UIState>((set) => ({
   closeFlight: () => set({ flightHubId: null }),
   setDialogNPC: (e) => set({ dialogNPC: e }),
   setDialogSecretaryStation: (e) => set({ dialogSecretaryStation: e }),
+  setDialogRecruiterStation: (e) => set({ dialogRecruiterStation: e }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

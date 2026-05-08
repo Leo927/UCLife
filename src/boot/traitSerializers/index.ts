@@ -23,3 +23,4 @@ import './housingJob'   // Job, Home, PendingEviction
 import './social'       // RoughUse, ChatTarget, ChatLine, Reputation, JobTenure, FactionRole
 import './ownership'    // Faction (entity fund). Owner serializer lands at 5.5.1.
 import './progression'  // Ambitions (depends on Attributes), Flags
+import './recruitment'  // Recruiter (workstation), Applicant (character)

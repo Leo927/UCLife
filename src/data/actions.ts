@@ -11,7 +11,7 @@ export type ActionDef = {
 // pharmacy are in the same UI-overlay bucket — interactionSystem
 // dispatches ui:open-dialog-npc and the doctor / pharmacist's inline
 // conversation extension renders the actual options.
-type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'secretary' | 'aeReception' | 'clinic' | 'pharmacy' | 'transit' | 'ticketCounter' | 'buyShip' | 'boardShip' | 'disembarkShip' | 'helm'>
+type ActionableInteractableKind = Exclude<InteractableKind, 'shop' | 'hr' | 'manager' | 'secretary' | 'recruiter' | 'aeReception' | 'clinic' | 'pharmacy' | 'transit' | 'ticketCounter' | 'buyShip' | 'boardShip' | 'disembarkShip' | 'helm'>
 
 // Durations here are defaults — interaction.ts overrides at runtime for
 // sleep/bar/work.

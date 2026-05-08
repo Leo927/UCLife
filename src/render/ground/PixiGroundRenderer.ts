@@ -94,6 +94,7 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   disembarkShip:   { fill: 0x1e293b, stroke: 0x94a3b8 },
   helm:            { fill: 0x3a1f4a, stroke: 0xa78bfa },
   secretary:       { fill: 0x3f3f46, stroke: 0xc9a047 },
+  recruiter:       { fill: 0x4a2c5a, stroke: 0xc084fc },
 }
 
 const BED_VISUAL: Record<BedTier, { fill: number; stroke: number; w: number; h: number; label: string }> = {

@@ -290,6 +290,25 @@
       relationReq: { faction: 'anaheim', role: 'board', minOpinion: 50 },
     },
 
+    // NPC-only role. Recruiter at the player's recruitOffice. Phase 5.5.4 —
+    // the seat is empty when the building is bought from the realtor; the
+    // player installs a hired civilian via RecruiterDialog (mirrors the
+    // secretary install flow). Once seated, the recruiter generates procgen
+    // applicants daily via recruitmentSystem; the player visits the desk to
+    // review the lobby + tune the auto-accept filter as conversation.
+    recruiter: {
+      jobTitle: '招聘专员',
+      wage: 130,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 9,
+      shiftEnd: 17,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '协助faction发掘并面试新成员。',
+      playerHireable: false,
+    },
+
     // NPC-only role. Sits at the AE workshop reception desk; the player walks
     // up and uses the AE promotion menu through the 'aeReception' Interactable
     // hung on this workstation. The receptionist is mid-tier management — not
