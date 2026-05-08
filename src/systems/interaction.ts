@@ -170,6 +170,13 @@ export function interactionSystem(world: World) {
       if (nearestEnt) emitSim('ui:open-secretary', { station: nearestEnt })
       continue
     }
+    if (nearestKind === 'recruiter') {
+      // Same install-then-verbs pattern as the secretary desk. The dialog
+      // reads occupant + ownership and routes to install / criteria /
+      // applicant-review accordingly.
+      if (nearestEnt) emitSim('ui:open-recruiter', { station: nearestEnt })
+      continue
+    }
     if (nearestKind === 'buyShip') {
       emitSim('ui:open-ship-dealer', {})
       continue

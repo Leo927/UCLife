@@ -389,6 +389,11 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
   for (const snap of bundle.entities) {
     savedKeys.add(snap.key)
     if (byKey.has(snap.key)) continue
+    // Phase 5.5.4 — applicant entities live on the recruitment lifecycle
+    // and are keyed `npc-imm-app-<N>`. The runtime system spawns + GCs
+    // them via day-rollover; on a save crossing this boundary, the saved
+    // entity respawns through the same immigrant path as a regular NPC,
+    // then the Applicant trait serializer overlays the recruitment state.
     if (!snap.key.startsWith('npc-imm-')) {
       // Unknown key not produced by setupWorld — likely a future-version
       // entity. Skip rather than crash.

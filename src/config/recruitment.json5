@@ -1,0 +1,79 @@
+// Phase 5.5.4 recruitment configuration. Drives the recruiter office's
+// applicant pipeline (procgen NPCs walking into the lobby) and the
+// talk-verb hire surface gating.
+//
+// Per recruiter shift, per day:
+//   chance = baseRecruitmentChance
+//          × workPerformance
+//          × (1 + cumulativeNoHireDays × noHireDayBonus)
+//   chance = min(chance, recruitmentChanceCap)
+//
+// On a successful roll an Applicant entity is generated and
+// `cumulativeNoHireDays` resets to 0; a follow-up roll fires immediately
+// with the reset counter (so a hot recruiter occasionally produces two
+// in a day, capped by `maxApplicantsPerDay`). On a failed roll,
+// `cumulativeNoHireDays` increments.
+//
+// Applicant generation parameters (per the design doc):
+//   baseRecruitSkill — center of the rolled-skill range. The recruiter's
+//                      workPerformance scales it up; the per-skill range
+//                      sits within ±skillSpan of the scaled value.
+//   skillSpan        — half-width of the uniform draw for each rolled skill.
+//   skillsRolled     — which skills get a non-zero base; missing skills
+//                      stay at 0 XP.
+//
+// Lobby + lifecycle:
+//   lobbyCapacity              — max simultaneous applicants per recruiter
+//                                station. New applicants are rejected at
+//                                the door if the lobby is full.
+//   applicationLifetimeDays    — days an applicant lingers before walking
+//                                out and despawning.
+//
+// Talk-verb hire gates: at least one of the listed gate kinds must clear
+// for the "offer to recruit" branch to appear on a generic NPC's dialog.
+// `factionRep` reads the player's rep with `faction` (defaults to AE);
+// `opinion` reads the NPC→player Knows edge; `fame` is reserved for a
+// later ambition-tier surface (no consumers wired in 5.5.4).
+{
+  // Per-recruiter daily roll parameters.
+  baseRecruitmentChance: 0.6,
+  recruitmentChanceCap: 0.5,
+  // Encourages a streak of dry days to eventually break — slow, but
+  // chronic empty lobbies won't sit forever.
+  noHireDayBonus: 0.05,
+
+  // Hard upper bound on applicants from a single recruiter in one day.
+  // Even with the streak bonus + a perfect-perf recruiter, the cap stops
+  // a sufficient-rolls scenario from flooding the lobby in a single tick.
+  maxApplicantsPerDay: 2,
+
+  // Applicant skill / quality.
+  baseRecruitSkill: 25,
+  skillSpan: 15,
+  // Skills rolled per applicant. Order is irrelevant; the recruiter's
+  // characterizing line picks the highest as the "specialty" tag.
+  skillsRolled: ['mechanics', 'computers', 'piloting', 'medicine', 'cooking', 'bartending'],
+
+  // Lobby + lifecycle.
+  lobbyCapacity: 12,
+  applicationLifetimeDays: 7,
+
+  // Spawn radius around the recruiter desk. Applicants spawn at a tile
+  // randomly chosen from a small circle, avoiding the desk itself.
+  // Pixels.
+  lobbySpawnRadiusPx: 96,
+
+  // Talk-verb hire gate. Configured to be permissive for the mid-game —
+  // the player who's spent some time around AE can recruit AE workers
+  // off the floor; the player who's befriended a civilian can recruit
+  // them directly. Gate values land deliberately low so the surface is
+  // discoverable without grinding.
+  talkVerbHire: {
+    // Either gate clearing satisfies the requirement.
+    factionRepGate:   { faction: 'anaheim', min: 30 },
+    opinionGate:      { min: 25 },
+    // Signing-bonus baseline — passed through Money.amount on accept and
+    // credited to the new hire's wallet.
+    signingBonus: 200,
+  },
+}

@@ -38,6 +38,10 @@ export interface SimEventPayloads {
   // 'secretary' workstation. Carries the station entity so the dialog
   // can branch on occupant + ownership without re-walking the world.
   'ui:open-secretary':         { station: Entity }
+  // Phase 5.5.4 — opened when the player clicks a 'recruiter' desk in a
+  // recruitOffice. Same shape as the secretary event: branch on
+  // ownership + occupant inside the dialog.
+  'ui:open-recruiter':         { station: Entity }
 }
 
 export type SimEventName = keyof SimEventPayloads

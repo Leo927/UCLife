@@ -36,6 +36,26 @@
     },
   },
 
+  // Phase 5.5.4 recruiter office. Player-ownable HR office; the recruiter
+  // workstation runs the procgen-applicant pipeline (recruitmentSystem
+  // generates applicants daily; they walk into the lobby, idle, and either
+  // get accepted via auto-filter / manual review, or expire and despawn).
+  // The kind 'recruiter' routes desk clicks to RecruiterDialog (install +
+  // criteria + applicant review). Naming distinct from civic 'hrOffice'
+  // (city_hr_clerk) to avoid the kind-collision; this one is for the
+  // player-faction's recruitment hub, the other is the city employment
+  // bureau.
+  recruitOffice: {
+    labelZh: '招聘代理处',
+    size: { minW: 6, maxW: 8, minH: 4, maxH: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'recruiter', role: 'supervisor', kind: 'recruiter', labelZh: '招聘办公桌' },
+      ],
+    },
+  },
+
   // Phase 5.5.3 faction office. Single supervisor desk for the secretary —
   // a hired NPC the player installs after buying the building. The kind is
   // 'secretary' so interaction.ts routes desk clicks to SecretaryDialog

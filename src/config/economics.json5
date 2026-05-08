@@ -47,6 +47,11 @@
     // hrOffice so a player who buys an office without revenue-bearing
     // facilities feels the cost.
     factionOffice: { baseRevenuePerShift: 0, maintenancePerDay: 50 },
+    // Phase 5.5.4 — recruiter office is also pure overhead (the recruiter
+    // doesn't generate revenue; their output is applicants the player
+    // accepts to staff revenue facilities). Maintenance is slightly above
+    // the faction office to model the lobby + the recruiter's wage burn.
+    recruitOffice: { baseRevenuePerShift: 0, maintenancePerDay: 55 },
 
     // Residential / civic types are listed here so unstaffed maintenance
     // cost is explicit. Apartment + luxury are leased per-bed (no

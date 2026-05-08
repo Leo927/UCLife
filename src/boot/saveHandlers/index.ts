@@ -22,3 +22,4 @@ import './ship'         // phase: 'post' — long-arc ship state
 import './space'        // phase: 'post' — spaceCampaign physics state
 import './relations'    // phase: 'post' — Knows graph (needs entities)
 import './dailyEconomics' // phase: 'post' — transient (reset only)
+import './recruitment'  // phase: 'post' — applicant counter

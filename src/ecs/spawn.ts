@@ -6,7 +6,7 @@ import {
 } from '../data/scenes'
 import {
   Position, Interactable, Building, Owner, Facility,
-  Job, Workstation,
+  Job, Workstation, Recruiter,
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
   FlightHub, Road,
@@ -270,12 +270,18 @@ function spawnProcgenItem(
           EntityKey({ key: `ws-${sid}` }),
         )
       }
-      return world.spawn(
+      const ent = world.spawn(
         Position({ x, y }),
         Interactable({ kind: (wsItem.kind ?? 'work') as InteractableKind, label: wsItem.labelZh ?? '工位' }),
         Workstation({ specId: sid, occupant: null }),
         EntityKey({ key: `ws-${sid}` }),
       )
+      // Phase 5.5.4 — recruiter desk carries a Recruiter trait (criteria
+      // block + per-day counters). Keep the trait attachment co-located
+      // with workstation creation so a player who buys the office sees a
+      // valid Recruiter trait from day one.
+      if (sid === 'recruiter') ent.add(Recruiter)
+      return ent
     }
 
     case 'bar_seat': {

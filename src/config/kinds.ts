@@ -24,6 +24,7 @@ export type InteractableKind =
   | 'disembarkShip'
   | 'helm'
   | 'secretary'
+  | 'recruiter'
 
 export type ActionKind =
   | 'idle' | 'walking' | 'eating' | 'sleeping' | 'washing'
