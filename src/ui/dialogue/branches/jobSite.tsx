@@ -20,15 +20,15 @@ import type { DialogueCtx, DialogueNode } from '../types'
 
 export function jobSiteBranch(ctx: DialogueCtx): DialogueNode | null {
   const worker = ctx.npc
+  const player = world.queryFirst(IsPlayer)
+  if (!player || worker === player) return null
   const job = worker.get(Job)
   if (!job?.workstation) return null
   const ws = job.workstation
   const building = buildingForStation(world, ws)
   if (!building) return null
-  // We don't have a player ref here (ctx is per-NPC) — fetch via the world
-  // query against IsPlayer in the SpecialUI component. The branch shows
-  // when the worker's station is in *some* player-owned building. The
-  // ownership check repeats the same logic the panel does.
+  if (!isPlayerOwnedBuilding(building, player)) return null
+  if (ws === findOwnedFactionOfficeStation(world, player)) return null
   return {
     id: 'jobSite',
     label: dialogueText.buttons.jobSite,
