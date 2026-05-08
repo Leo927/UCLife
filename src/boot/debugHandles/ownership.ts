@@ -218,7 +218,7 @@ registerDebugHandle('factionInstallSecretary', (): {
   const hires = eligibleSecretaryHires(world)
   const pick = hires[0]
   if (!pick) return { ok: false, reason: 'no eligible civilians' }
-  if (!installSecretary(ws, pick)) return { ok: false, reason: 'install rejected' }
+  if (!installSecretary(ws, pick, player)) return { ok: false, reason: 'install rejected' }
   return { ok: true, secretaryName: pick.get(Character)?.name ?? '未命名' }
 })
 
@@ -270,7 +270,7 @@ registerDebugHandle('factionInstallRecruiter', (): {
   const hires = eligibleRecruiterHires(world)
   const pick = hires[0]
   if (!pick) return { ok: false, reason: 'no eligible civilians' }
-  if (!installRecruiter(ws, pick)) return { ok: false, reason: 'install rejected' }
+  if (!installRecruiter(ws, pick, player)) return { ok: false, reason: 'install rejected' }
   return { ok: true, recruiterName: pick.get(Character)?.name ?? '未命名' }
 })
 

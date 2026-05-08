@@ -24,7 +24,7 @@
 import type { Entity, World } from 'koota'
 import {
   Applicant, Building, Character, EntityKey, IsPlayer, Job,
-  Position, Recruiter, Workstation, JobPerformance,
+  Position, RecruitedTo, Recruiter, Workstation, JobPerformance,
 } from '../ecs/traits'
 import { recruitmentConfig } from '../config'
 import { spawnNPC } from '../character/spawn'
@@ -160,12 +160,16 @@ function countLobbyApplicants(world: World, station: Entity): number {
 // a workstation and runs assignIdleMembers — this matches the secretary
 // pattern in 5.5.3 (members are derived from station occupancy + bed
 // claims). Auto-accept doesn't seat them at a station, just removes them
-// from the queue.
-function acceptApplicant(_world: World, applicant: Entity, _player: Entity): void {
+// from the queue. RecruitedTo pins the new hire's job-seek to player-
+// owned facilities only — the BT can't accidentally re-employ them
+// across the street before the secretary picks them up.
+function acceptApplicant(_world: World, applicant: Entity, player: Entity): void {
   if (applicant.has(Applicant)) applicant.remove(Applicant)
   // Member-of-one status is inferred; the secretary's assignIdleMembers
   // verb picks them up next time it's invoked.
   if (!applicant.has(Job)) applicant.add(Job)
+  if (applicant.has(RecruitedTo)) applicant.set(RecruitedTo, { owner: player })
+  else applicant.add(RecruitedTo({ owner: player }))
 }
 
 function workPerformanceOf(npc: Entity): number {
@@ -449,10 +453,13 @@ function keyOf(e: Entity): string {
 
 // Helper used by RecruiterDialog when the player picks a civilian:
 // clears any prior occupant + writes the chosen NPC into the recruiter
-// station. Mirrors installSecretary.
+// station. Mirrors installSecretary. When `player` is supplied, also
+// stamps RecruitedTo so the new hire's BT job-seek stays within the
+// player's faction-owned facilities.
 export function installRecruiter(
   ws: Entity,
   hire: Entity,
+  player?: Entity,
 ): boolean {
   const cur = ws.get(Workstation)
   if (!cur) return false
@@ -468,5 +475,9 @@ export function installRecruiter(
   }
   ws.set(Workstation, { ...cur, occupant: hire })
   hire.set(Job, { workstation: ws, unemployedSinceMs: 0 })
+  if (player) {
+    if (hire.has(RecruitedTo)) hire.set(RecruitedTo, { owner: player })
+    else hire.add(RecruitedTo({ owner: player }))
+  }
   return true
 }

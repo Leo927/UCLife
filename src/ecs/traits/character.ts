@@ -170,6 +170,17 @@ export const Job = trait(() => ({
   unemployedSinceMs: 0,
 }))
 
+// Marks an NPC as bound to a faction's roster: the BT job-seek loop
+// refuses to claim any workstation outside the recruited owner's
+// buildings, so a recruit only ever earns wages from a faction-owned
+// facility (the faction's fund settles the day's salaries via
+// dailyEconomics). `owner` mirrors the Owner trait shape: a Character
+// entity for the pre-5.5.5 player-faction-of-one, a Faction entity for
+// future multi-NPC factions.
+export const RecruitedTo = trait(() => ({
+  owner: null as Entity | null,
+}))
+
 export const Home = trait(() => ({ bed: null as Entity | null }))
 
 // Time-bounded exit pass: when rent expires the cell door is logically

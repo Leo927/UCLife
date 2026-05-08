@@ -1,5 +1,5 @@
 import type { Entity, World } from 'koota'
-import { Workstation, Bed, Position, Job, Home, Money, Attributes } from '../ecs/traits'
+import { Workstation, Bed, Position, Job, Home, Money, Attributes, Building, Owner, RecruitedTo } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
 import { levelOf, getSkillXp } from '../character/skills'
 import type { SkillId } from '../character/skills'
@@ -22,6 +22,24 @@ const DAY_MS = 24 * HOUR_MS
 function bedRentDurationMs(tier: BedTier): number {
   if (tier === 'flop') return economyConfig.rent.flopBedHours * HOUR_MS
   return economyConfig.rent.bedRentDurationDays * DAY_MS
+}
+
+// Recruited NPCs are pinned to their faction's roster: any workstation
+// outside a building owned by the recruited owner is invisible to the
+// job-seek loop. Non-recruited NPCs short-circuit to true.
+export function recruitedAllowsWorkstation(world: World, entity: Entity, ws: Entity): boolean {
+  if (!entity.has(RecruitedTo)) return true
+  const r = entity.get(RecruitedTo)
+  if (!r?.owner) return true
+  const wsPos = ws.get(Position)
+  if (!wsPos) return false
+  for (const b of world.query(Building, Owner)) {
+    const bld = b.get(Building)!
+    if (wsPos.x < bld.x || wsPos.x >= bld.x + bld.w) continue
+    if (wsPos.y < bld.y || wsPos.y >= bld.y + bld.h) continue
+    return b.get(Owner)!.entity === r.owner
+  }
+  return false
 }
 
 export function meetsRequirements(world: World, entity: Entity, ws: Entity): boolean {
@@ -52,6 +70,7 @@ export function findBestOpenJob(world: World, entity: Entity): Entity | null {
     const spec = getJobSpec(w.specId)
     if (!spec) continue
     if (spec.installOnly) continue
+    if (!recruitedAllowsWorkstation(world, entity, ws)) continue
     if (!meetsRequirements(world, entity, ws)) continue
     if (spec.wage > bestWage) {
       bestWage = spec.wage
@@ -71,6 +90,7 @@ export function claimJob(world: World, entity: Entity, ws: Entity): boolean {
   if (!w || w.occupant !== null) return false
   const spec = getJobSpec(w.specId)
   if (spec?.installOnly) return false
+  if (!recruitedAllowsWorkstation(world, entity, ws)) return false
   releaseJob(world, entity)
   ws.set(Workstation, { ...w, occupant: entity })
   if (entity.has(Job)) entity.set(Job, { workstation: ws, unemployedSinceMs: 0 })

@@ -16,7 +16,7 @@
 import type { Entity } from 'koota'
 import {
   Applicant, Building, Character, FactionRole, IsPlayer, Job, Knows, Money,
-  Owner, Position, Workstation,
+  Owner, Position, RecruitedTo, Workstation,
 } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
 import { recruitmentConfig } from '../../../config'
@@ -86,6 +86,8 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
       }
     }
     target.set(Job, { workstation: null, unemployedSinceMs: 0 })
+    if (target.has(RecruitedTo)) target.set(RecruitedTo, { owner: player })
+    else target.add(RecruitedTo({ owner: player }))
 
     if (target.has(Knows(player))) {
       const e = target.get(Knows(player))!

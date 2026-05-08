@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createWorld } from 'koota'
 import {
   Bed, Building, Character, EntityKey, Facility, IsPlayer, Job, Money,
-  Owner, Position, Workstation,
+  Owner, Position, RecruitedTo, Workstation,
 } from '../ecs/traits'
 import {
   assignBeds, assignIdleMembers, assignIdleMembersToBuilding,
@@ -265,5 +265,17 @@ describe('installSecretary', () => {
     const ws = spawnWs(world, barOrigin, 'bartender', null, 'ws-1')
     const hire = spawnMember(world, 'civ-1')
     expect(installSecretary(ws, hire)).toBe(false)
+  })
+
+  it('stamps RecruitedTo when player is supplied', () => {
+    const world = createWorld()
+    const player = spawnPlayer(world)
+    const office = spawnPlayerOwnedBldg(world, 'factionOffice', 'bld-office', player)
+    const officeOrigin = office.get(Building)!
+    const ws = spawnWs(world, officeOrigin, 'secretary', null, 'ws-sec')
+    const hire = spawnMember(world, 'civ-1')
+    expect(installSecretary(ws, hire, player)).toBe(true)
+    expect(hire.has(RecruitedTo)).toBe(true)
+    expect(hire.get(RecruitedTo)!.owner).toBe(player)
   })
 })

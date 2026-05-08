@@ -16,7 +16,7 @@
 import type { Entity, World } from 'koota'
 import {
   Bed, Building, Character, EntityKey, Facility, Job, Money, Position,
-  Workstation,
+  RecruitedTo, Workstation,
 } from '../ecs/traits'
 import { getJobSpec } from '../data/jobs'
 import {
@@ -335,9 +335,12 @@ export function eligibleSecretaryHires(world: World): Entity[] {
 
 // Helper used by SecretaryDialog when the player picks a civilian: clears
 // any prior occupant + writes the chosen NPC into the secretary station.
+// When `player` is supplied, stamps RecruitedTo so the new hire's BT
+// job-seek stays within the player's faction-owned facilities.
 export function installSecretary(
   ws: Entity,
   hire: Entity,
+  player?: Entity,
 ): boolean {
   const cur = ws.get(Workstation)
   if (!cur) return false
@@ -346,6 +349,10 @@ export function installSecretary(
   clearMemberJob(hire)
   ws.set(Workstation, { ...cur, occupant: hire })
   hire.set(Job, { workstation: ws, unemployedSinceMs: 0 })
+  if (player) {
+    if (hire.has(RecruitedTo)) hire.set(RecruitedTo, { owner: player })
+    else hire.add(RecruitedTo({ owner: player }))
+  }
   return true
 }
 

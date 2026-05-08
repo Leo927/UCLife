@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { createWorld } from 'koota'
 import {
   Applicant, Building, Character, EntityKey, Facility, IsPlayer, Job,
-  Money, Owner, Position, Recruiter, Workstation,
+  Money, Owner, Position, RecruitedTo, Recruiter, Workstation,
 } from '../ecs/traits'
 import {
   applicantMatchesCriteria, debugSpawnApplicant, eligibleRecruiterHires,
@@ -89,6 +89,21 @@ describe('installRecruiter', () => {
     expect(ws.get(Workstation)!.occupant).toBe(civ)
   })
 
+  it('stamps RecruitedTo when player is supplied', () => {
+    const world = createWorld()
+    const player = spawnPlayer(world)
+    const bld = spawnPlayerOwnedRecruitOffice(world, player)
+    const ws = spawnRecruiterStation(world, bld.get(Building)!, null)
+    const civ = world.spawn(
+      Character({ name: 'A', color: '#fff', title: '市民' }),
+      Job({ workstation: null, unemployedSinceMs: 0 }),
+      EntityKey({ key: 'civ-a' }),
+    )
+    expect(installRecruiter(ws, civ, player)).toBe(true)
+    expect(civ.has(RecruitedTo)).toBe(true)
+    expect(civ.get(RecruitedTo)!.owner).toBe(player)
+  })
+
   it('refuses to overwrite a seated recruiter', () => {
     const world = createWorld()
     const player = spawnPlayer(world)
@@ -141,6 +156,18 @@ describe('manualAcceptApplicant + rejectApplicant', () => {
     expect(manualAcceptApplicant(world, a, player)).toBe(true)
     expect(a.has(Applicant)).toBe(false)
     expect(a.has(Job)).toBe(true)
+  })
+
+  it('accept stamps RecruitedTo pointing at the player', () => {
+    const world = createWorld()
+    const player = spawnPlayer(world)
+    const bld = spawnPlayerOwnedRecruitOffice(world, player)
+    const ws = spawnRecruiterStation(world, bld.get(Building)!, null)
+    spawnRecruiterNPC(world, ws)
+    const a = debugSpawnApplicant(world, ws)!
+    manualAcceptApplicant(world, a, player)
+    expect(a.has(RecruitedTo)).toBe(true)
+    expect(a.get(RecruitedTo)!.owner).toBe(player)
   })
 
   it('reject destroys the entity and clears the lobby', () => {
