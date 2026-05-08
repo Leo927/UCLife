@@ -2,6 +2,14 @@
 // each subtree so NPCs only use them when they have neither stock nor cash
 // (and, for sleep, no claimed bed). Each rough action tags the actor with
 // RoughUse so vitals.ts can apply hygiene + HP penalties.
+//
+// `eat-from-trash` is additionally gated on `isDestitute`: a wealthy NPC
+// would rather wait for the shop counter to be staffed again than poison
+// themselves, since hunger maxing is survivable for hours. `rough-sleep` is
+// NOT gated on wealth — fatigue saturation is fatal, and if every bed is
+// rented out, sleeping in the park beats dying of exhaustion. The fix to
+// "wealthy NPC sleeping in the park" lives in the sleep selector itself,
+// which now tries `findHome` before falling to rough sleep.
 
 import type { RootNodeDefinition } from 'mistreevous/dist/BehaviourTreeDefinition'
 
@@ -10,7 +18,7 @@ export const NPC_TREE: RootNodeDefinition = {
   child: {
     type: 'selector',
     children: [
-      // Sleep — bed first, bench fallback.
+      // Sleep — bed first, then try to rent if homeless, bench as last resort.
       {
         type: 'sequence',
         children: [
@@ -25,6 +33,23 @@ export const NPC_TREE: RootNodeDefinition = {
                   { type: 'action', call: 'sleep' },
                 ],
               },
+              // Homeless with money: claim the best bed they can afford,
+              // walk to it, sleep there. findHome FAILED (no bed at any
+              // tier they can pay for) drops to rough sleep below.
+              {
+                type: 'sequence',
+                children: [
+                  { type: 'condition', call: 'isHomeless' },
+                  { type: 'action', call: 'findHome' },
+                  { type: 'action', call: 'goHome' },
+                  { type: 'action', call: 'sleep' },
+                ],
+              },
+              // Wealth gate is intentionally absent here: Branch 2 above
+              // already calls findHome, which only FAILs if no rentable bed
+              // exists at any tier the NPC can afford. If we reach this
+              // branch, sleeping rough is the only way to avoid the fatigue-
+              // saturation HP drain — better a hygiene hit than death.
               {
                 type: 'sequence',
                 children: [
@@ -101,6 +126,7 @@ export const NPC_TREE: RootNodeDefinition = {
               {
                 type: 'sequence',
                 children: [
+                  { type: 'condition', call: 'isDestitute' },
                   { type: 'condition', call: 'hasTrash' },
                   { type: 'action', call: 'goToTrash' },
                   { type: 'action', call: 'scavenge' },

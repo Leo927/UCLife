@@ -43,6 +43,7 @@ const STOCK_TARGET_PREMIUM = aiConfig.stockTarget.premiumMeal
 const STOCK_TARGET_WATER = aiConfig.stockTarget.water
 
 const WEALTHY_CASH = aiConfig.livingStandards.wealthyCash
+const DESTITUTE_CASH = aiConfig.livingStandards.destituteCash
 
 const MEAL_PRICE = economyConfig.prices.meal
 const PREMIUM_MEAL_PRICE = economyConfig.prices.premiumMeal
@@ -69,6 +70,7 @@ export type NPCAgent = Agent & {
   canAffordBar: () => boolean
   shouldStockUp: () => boolean
   isHomeless: () => boolean
+  isDestitute: () => boolean
   hasTap: () => boolean
   hasTrash: () => boolean
   hasRoughSpot: () => boolean
@@ -277,6 +279,15 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
 
     isHomeless() {
       return homeBed() === null
+    },
+    // Survival fallbacks (scavenge, rough sleep) are gated on this so wealthy
+    // NPCs don't pick a hygiene-poisoning trash meal or a HP-bleeding park
+    // bench when the shop is between shifts or every bed is rented out — they
+    // wait, walk, or call findHome instead. Below DESTITUTE_CASH the
+    // fallbacks are the only option, so we let them fire.
+    isDestitute() {
+      const m = ctx.money
+      return !m || m.amount <= DESTITUTE_CASH
     },
     hasTap() {
       const p = ctx.pos
