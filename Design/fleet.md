@@ -212,13 +212,13 @@ UI scope is broader than the previous draft because MS + pilot + retrofit manage
 
 | Screen | Question | Verb |
 |---|---|---|
-| **Fleet roster** | What ships do I have, who's on each, what's their state? | View / mothball / scrap / set-as-flagship / set-doctrine / assign-captain |
+| **Fleet roster** | What ships do I have, who's on each, what's their state? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit, not a roster verb — see below) |
 | **MS bay** (per-ship tab + fleet-wide tab) | Which MS are in this hangar, who's piloting, repair state? | Reassign-MS-to-hangar / assign-pilot / scrap-MS / repair-priority |
 | **MS retrofit panel** (per MS, opened from MS bay) | What's this MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
 | **Pilot roster** | Who can pilot, who's assigned to which MS, who's idle? | Assign / reassign |
 | **Crew assignment** | Which NPCs are aboard which ships? | Move / hire / fire |
 | **Officer dialog** (existing NPC dialog) | Who is this person? | Hire-as-captain / hire-as-pilot / hire-as-crew / fire / talk |
-| **Buy-ship dialog** (broker NPCs) | What ship hulls are available where? | Purchase |
+| **Buy/sell-ship dialog** (broker NPCs) | What ship hulls are available where; what will the broker pay for one of mine? | Purchase / sell — sell requires the ship be vacant of the player |
 | **Buy-MS dialog** (broker NPCs at MS-trading POIs) | What MS frames + parts are available? | Purchase frame / purchase weapon / purchase mod |
 | **Fleet HUD sliver** in starmap | What's my fleet doing right now? | Read-only awareness |
 
@@ -233,7 +233,9 @@ The flagship is **the ship the player is currently crewing.** It gets:
 - The walkable interior scene (existing scene-world infra, hydrated from the ship class's `bridge` template).
 - An `IsFlagshipMark` tag for fast lookup.
 
-That is the entire mechanical specialness. No promote-to-flagship ceremony, no story-rare gating. Switching flagship is just transit between two ships of the fleet (gated to docking-with-fleet moments, or a transit animation while in formation).
+That is the entire mechanical specialness. No promote-to-flagship ceremony, no story-rare gating. Switching flagship is just transit between two ships of the fleet (gated to docking-with-fleet moments, or a transit animation while in formation) — there is no roster verb for it; the `IsFlagshipMark` follows the player's body.
+
+**Selling the ship-the-player-is-on is forbidden.** The ship broker at the port refuses to take possession of a vessel the captain is still aboard. To sell your current flagship, transit to another of your own ships (so the seat empties) and then close the sale; or — if it is your last hull — disembark to the city dock and the broker treats the sale as **fleet termination**: the bridge scene goes dark, the comm panel with it, and hired captains / pilots / crew route through a paid-out-or-disbanded branch back into civilian life. This mirrors the realty office's rule for selling a residence the player still occupies, and makes the inverse of the acquisition arc carry the same diegetic weight as acquisition itself.
 
 The walkable scene is hydrated lazily per ship: when the player boards, the scene hydrates from the ship-class template + the instance's stored interior blob (where the player left a coffee mug); when the player leaves, it serializes back. Per-ship interior content is **authored per class, not per instance** — five ship classes = five interior templates regardless of fleet size.
 
