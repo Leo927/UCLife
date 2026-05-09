@@ -2,7 +2,8 @@
 //
 // Procedural building placement now lives in roads.ts + blocks.ts; this
 // module only carries the handoff shape consumed by spawn.ts and the
-// `placeFixedBuilding` helper for hand-placed structures (e.g. aeComplex).
+// `placeFixedBuilding` helper for hand-placed structures (e.g. aeComplex,
+// the airport reservedRect).
 
 import type { SeededRng } from './rng'
 import { getBuildingType, isFixedSize } from '../data/buildingTypes'
@@ -33,17 +34,24 @@ function wallLen(rect: { w: number; h: number }, side: DoorSide): number {
   return (side === 'n' || side === 's') ? rect.w : rect.h
 }
 
+export type ReservedDoorOverride = {
+  side: DoorSide
+  offsetTiles?: number
+}
+
+// Place a fixed-size building. `crafted` layouts pull their door list from
+// `layout.doors`; non-crafted fixed-size layouts (airport, transit,
+// open_floor, park) MUST pass a `doorOverride` because their layout shape
+// has no door field.
 export function placeFixedBuilding(
   typeId: string,
   tile: { x: number; y: number },
   rng: SeededRng,
+  doorOverride?: ReservedDoorOverride,
 ): PlacedBuilding {
   const btype = getBuildingType(typeId)
   if (!isFixedSize(btype.size)) {
     throw new Error(`Fixed building "${typeId}" must have fixed size { w, h }`)
-  }
-  if (btype.layout.algorithm !== 'crafted') {
-    throw new Error(`Fixed building "${typeId}" must use crafted algorithm`)
   }
 
   const rect = {
@@ -53,8 +61,6 @@ export function placeFixedBuilding(
     h: btype.size.h * TILE,
   }
 
-  const [primarySpec, ...extraSpecs] = btype.layout.doors
-
   function resolveOffset(spec: { offsetTiles?: number; offsetMinTiles?: number; offsetMaxTiles?: number }, side: DoorSide): number {
     if (spec.offsetTiles !== undefined) return spec.offsetTiles * TILE
     const tiles = Math.round(wallLen(rect, side) / TILE)
@@ -63,17 +69,30 @@ export function placeFixedBuilding(
     return rng.intRange(min, Math.max(min, max)) * TILE
   }
 
-  const primarySide = primarySpec.side as DoorSide
-  const primaryDoor: DoorPlacement = {
-    side: primarySide,
-    offsetPx: resolveOffset(primarySpec, primarySide),
-    widthPx: TILE,
+  if (btype.layout.algorithm === 'crafted') {
+    const [primarySpec, ...extraSpecs] = btype.layout.doors
+    const primarySide = primarySpec.side as DoorSide
+    const primaryDoor: DoorPlacement = {
+      side: primarySide,
+      offsetPx: resolveOffset(primarySpec, primarySide),
+      widthPx: TILE,
+    }
+    const extraDoors: DoorPlacement[] = extraSpecs.map((spec) => {
+      const side = spec.side as DoorSide
+      return { side, offsetPx: resolveOffset(spec, side), widthPx: TILE }
+    })
+    return { typeId, slot: { rect, primaryDoor, extraDoors } }
   }
 
-  const extraDoors: DoorPlacement[] = extraSpecs.map((spec) => {
-    const side = spec.side as DoorSide
-    return { side, offsetPx: resolveOffset(spec, side), widthPx: TILE }
-  })
-
-  return { typeId, slot: { rect, primaryDoor, extraDoors } }
+  if (!doorOverride) {
+    throw new Error(
+      `Fixed building "${typeId}" (layout=${btype.layout.algorithm}) needs a door override`,
+    )
+  }
+  const primaryDoor: DoorPlacement = {
+    side: doorOverride.side,
+    offsetPx: resolveOffset({ offsetTiles: doorOverride.offsetTiles }, doorOverride.side),
+    widthPx: TILE,
+  }
+  return { typeId, slot: { rect, primaryDoor, extraDoors: [] } }
 }

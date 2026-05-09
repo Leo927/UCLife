@@ -38,17 +38,21 @@
 //       id, rect{x,y,w,h}, types[], buildingsPerBlockMax (default 1)
 //       types[]   — array of `{ id, min?, max? }`. min defaults to 0
 //                   (place opportunistically), max defaults to unbounded
-//                   (place freely). Use min ≥ 1 to mandate placement
-//                   (e.g. exactly 1 airport per central district).
-//     reservedRects — hand-crafted buildings that live *inside* the zone.
+//                   (place freely). Use min ≥ 1 to mandate placement.
+//                   Buildings too big for a single street block (e.g.
+//                   the 30×50 airport) belong in reservedRects, not here.
+//     reservedRects — fixed-size buildings that live *inside* the zone.
 //                   Procgen forces avenues/streets at the rect's edges so
 //                   it emerges as a single uncarved super-block, then
-//                   spawn drops the crafted building there. Use this for
-//                   buildings too large to host as a fixedBuilding outside
-//                   the zone (e.g. AE Complex).
-//                   { buildingType, tile:{x,y}, display? } — size from
-//                   buildingTypes; display attaches a world-map marker
-//                   over the building footprint.
+//                   spawn drops the building there. Use this for any
+//                   facility too large to host inside a single street block
+//                   (e.g. AE Complex, the 30×50 airport).
+//                   { buildingType, tile:{x,y}, door?, display? } — size
+//                   comes from buildingTypes. Crafted layouts pull doors
+//                   from buildingTypes; non-crafted layouts (airport,
+//                   transit, open_floor, park) MUST supply `door:
+//                   { side, offsetTiles? }`. display attaches a world-map
+//                   marker over the building footprint.
 //     display     — optional player-facing marker. When present, MapPanel
 //                   renders a marker covering the zone's `rect` with the
 //                   given { id, nameZh, shortZh, description?, kind }.
@@ -99,8 +103,8 @@
           },
           // Tighter than the AE/Zum zones — central Von Braun is the densest
           // sector: narrower avenues, smaller blocks, more alleys, smaller
-          // alley splits. Avenue min stays at 12 so the commercial band
-          // always has a block wide enough for the airport (12×8 minimum).
+          // alley splits. The 30×50 airport sits as a reservedRect so it
+          // doesn't have to fit in a street block.
           roads: {
             avenueSpacingTiles: { min: 12, max: 16 },
             streetSpacingTiles: { min: 8, max: 12 },
@@ -110,6 +114,27 @@
             alleyWidthTiles: 1,
             alleyMinBlockTiles: 8,
           },
+          // 30×50 airport reserved rect: zone is (40,4)..(140,84); rect
+          // sits at the east edge (108,10)..(138,60), leaving 2-tile road
+          // buffers on every edge. The airport eats most of the
+          // residential_east band (and a sliver of residential_south)
+          // but stays clear of commercial so its mandatory buildings
+          // still have room. Door faces west onto the forced avenue at
+          // x=106, so passengers spill out toward the city core.
+          reservedRects: [
+            {
+              buildingType: 'airport',
+              tile: { x: 108, y: 10 },
+              door: { side: 'w', offsetTiles: 25 },
+              display: {
+                id: 'vonBraunCityAirport',
+                nameZh: '冯·布劳恩航天港',
+                shortZh: '航天港',
+                kind: 'complex',
+                description: '中心区东侧的大型航天港,直通月面外其他城市与殖民地。',
+              },
+            },
+          ],
           // Districts (rects relative to zone rect origin).
           // Layout: commercial core near spawn (top-center), residential ring
           // around it, industrial along the south band.
@@ -118,14 +143,14 @@
               id: 'commercial',
               rect: { x: 30, y: 0, w: 40, h: 24 },
               // Mandatory placements: shop and bar drive NPC behavior trees
-              // (shopCounter / barCounter landmarks); airport drives flights;
-              // hrOffice + realtor are gameplay anchors; clinic + pharmacy
-              // gate the physiology cure flow (doctor diagnosis + treatment
-              // / OTC). Park is opportunistic. The transitTerminal lives in
-              // residential_north because commercial is too dense to fit
-              // it alongside the airport reliably.
+              // (shopCounter / barCounter landmarks); hrOffice + realtor
+              // are gameplay anchors; clinic + pharmacy gate the physiology
+              // cure flow (doctor diagnosis + treatment / OTC). Park is
+              // opportunistic. The transitTerminal lives in residential_north
+              // because commercial is too dense to fit it alongside the
+              // airport reliably. The airport itself is a reservedRect on
+              // the zone (30×50 — too big for any street block).
               types: [
-                { id: 'airport',         min: 1, max: 1 },
                 { id: 'shop',            min: 1},
                 { id: 'bar',             min: 1 },
                 { id: 'hrOffice',        min: 1, max: 1 },
@@ -296,15 +321,29 @@
             alleyWidthTiles: 1,
             alleyMinBlockTiles: 9,
           },
+          // 30×50 airport reserved rect: zone is (4,4)..(74,64); rect sits
+          // at (20,8)..(50,58) so road buffers fit on every edge. Door
+          // faces south onto the forced street at y=58, opening toward
+          // the residential and industrial bands.
+          reservedRects: [
+            {
+              buildingType: 'airport',
+              tile: { x: 20, y: 8 },
+              door: { side: 's', offsetTiles: 15 },
+              display: {
+                id: 'zumCityAirport',
+                nameZh: '祖姆市航天港',
+                shortZh: '祖姆航天港',
+                kind: 'complex',
+                description: 'Side 3 共和国首府的中央航天港,占据城市核心。',
+              },
+            },
+          ],
           districts: [
             {
-              // Widened so airport (12×8 min) + shop + transitTerminal can
-              // each claim their own sub-block — the prior 30×18 only had
-              // room for 2 super-blocks once the airport ate the bigger one.
               id: 'commercial',
               rect: { x: 18, y: 0, w: 38, h: 24 },
               types: [
-                { id: 'airport',         min: 1, max: 1 },
                 { id: 'shop',            min: 1, max: 1 },
                 { id: 'transitTerminal', min: 1, max: 1 },
                 { id: 'bar',             min: 0, max: 1 },

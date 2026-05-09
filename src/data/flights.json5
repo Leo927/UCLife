@@ -1,8 +1,8 @@
 // Inter-city flight routes. Each `hub` is one airport's static metadata —
 // id, name, host scene. The hub's *position* (ticket counter pixel coords +
-// fly-in arrival pixel coords) is determined at procgen time by the
+// fly-in arrival pixel coords) is determined at spawn time by the
 // airport building that lands in the matching scene; see scenes.json5
-// (district config: `airport` carries `min: 1, max: 1`) and the runtime
+// (each procgen zone reserves a 30×50 airport rect) and the runtime
 // registry in `sim/airportPlacements.ts`.
 //
 // `sceneId` binds the hub 1:1 to the airport spawned in that scene's

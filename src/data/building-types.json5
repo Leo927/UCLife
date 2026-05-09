@@ -182,9 +182,14 @@
   // Open interior, single ticket counter; FlightHub binding done at spawn
   // (scene.id → flights.json5 hub.sceneId). Also embeds the scene's
   // `placement: 'airport'` transit terminal as a kiosk near the entrance.
+  // Fixed-size 30×50 footprint — too big for any street block, so the
+  // airport is placed exclusively as a procgen-zone reservedRect (the
+  // road carver forces avenues/streets at its edges; spawn drops it into
+  // the resulting super-block). One reservedRect entry per scene supplies
+  // the tile + primary-door spec.
   airport: {
     labelZh: '航天港',
-    size: { minW: 12, maxW: 20, minH: 8, maxH: 14 },
+    size: { w: 30, h: 50 },
     layout: { algorithm: 'airport' },
   },
 

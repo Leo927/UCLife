@@ -863,7 +863,8 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
     for (const sb of grid.subBlocks) {
       if (!sb.reservedFor) continue
       const tile = { x: sb.rect.x / TILE, y: sb.rect.y / TILE }
-      const pb = placeFixedBuilding(sb.reservedFor, tile, zoneRng)
+      const resolved = reserved.find((r) => r.typeId === sb.reservedFor && r.rect.x === tile.x && r.rect.y === tile.y)
+      const pb = placeFixedBuilding(sb.reservedFor, tile, zoneRng, resolved?.door)
       spawnBuilding(pb.typeId, pb.slot, zoneRng, scene.id)
     }
     for (const pb of assignBuildings(cfg.rect, grid.subBlocks, cfg.districts, zoneRng)) {

@@ -49,24 +49,36 @@ export type WorldPlaceDisplay = {
   kind: WorldPlaceKind
 }
 
-// Hand-crafted building that lives *inside* a procgen zone instead of
+// Hand-placed building that lives *inside* a procgen zone instead of
 // outside it. The road grid forces avenues at the rect's east/west edges
 // and streets at its north/south edges, so the rect emerges as a single
-// uncarved super-block; spawn drops the crafted building into that block.
+// uncarved super-block; spawn drops the building into that block.
 //
-// Use this when a fixed building is "huge" enough that placing it as a
-// fixedBuilding outside the zone would visually fragment the district
-// (e.g. AE Complex inside the AE Industrial District).
+// Use this for any fixed-size building that needs to sit on a footprint
+// larger than the zone's street-block envelope — the crafted AE Complex
+// uses it for visual integration; procgen layouts (airport, transit,
+// open_floor, park) use it to host facilities too big for the
+// per-block assigner. For non-crafted layouts the `door` field supplies
+// the primary-door side + offset that crafted layouts get from
+// `layout.doors`.
+export type ReservedDoorSpec = {
+  side: DoorSide
+  offsetTiles?: number
+}
 export type ReservedRectRef = {
   buildingType: string
   tile: { x: number; y: number }
+  door?: ReservedDoorSpec
   display?: WorldPlaceDisplay
 }
 
 // Validated form: tile-space rect with the building's size baked in.
+// `door` is preserved so spawn-time can hand it to placeFixedBuilding for
+// non-crafted layouts; crafted layouts ignore it.
 export type ResolvedReservedRect = {
   typeId: string
   rect: { x: number; y: number; w: number; h: number }
+  door?: ReservedDoorSpec
 }
 
 export type ProcgenConfig = {
@@ -192,9 +204,11 @@ for (const s of parsed.scenes) {
             `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" must be a fixed-size building`,
           )
         }
-        if (btype.layout.algorithm !== 'crafted') {
+        // Crafted layouts carry their own door list. Every other layout
+        // needs a primary-door spec attached to the reservedRect entry.
+        if (btype.layout.algorithm !== 'crafted' && !r.door) {
           throw new Error(
-            `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" must use crafted layout`,
+            `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" (layout=${btype.layout.algorithm}) needs a door spec`,
           )
         }
         const rect = { x: r.tile.x, y: r.tile.y, w: btype.size.w, h: btype.size.h }
@@ -210,7 +224,7 @@ for (const s of parsed.scenes) {
             `scenes.json5: scene "${s.id}" reservedRect "${r.buildingType}" needs ${sw} tile(s) of vertical buffer inside zone rect`,
           )
         }
-        resolved.push({ typeId: r.buildingType, rect })
+        resolved.push({ typeId: r.buildingType, rect, door: r.door })
         if (r.display) {
           const id = r.display.id
           if (placeIds.has(id)) {
