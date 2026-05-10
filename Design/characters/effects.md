@@ -331,10 +331,53 @@ Binary unlocks (`blueprint:gm-cannon`, `upgrade:factory-tier-2`) are
 `FactionUnlocks: Set<string>` trait — the StatSheet stays the home
 for additive numerical levers, not for content flags.
 
+## Reuse: fleet entities (Phase 6.2+)
+
+Phase 6.2 introduces a third reuse: **`ShipStatSheet + ShipEffects`**
+on every ship, MS, and MA in the player's fleet, plus enemy fleet
+entities for parity. Same engine, same `Modifier` shape, same fold
+order, same `floor` / `cap` semantics, same `removeBySource()`
+contract. The schemas differ — ship-scoped stat ids (`hullPoints`,
+`armorPoints`, `topSpeed`, `maneuverability`, `supplyPerDay`,
+`supplyStorage`, `fuelStorage`, `cargoCapacity`, `hangarCapacity`,
+`mechanicCrewSlots`, `onShipRepairCap`, `onShipRepairFloor`,
+`crewRequired`, `dpCost`); MS-scoped stat ids (the same numerical fields
+authored on `ms-classes.json5`).
+
+The principle the fleet design is built around:
+
+> Any number that can change at runtime is a stat.
+
+Mounts, hardpoint shapes, bridge templates, and other structured /
+enum fields stay template-only. Scalars become stat bases that
+runtime `Effect`s fold over.
+
+Modifier sources for ship / MS Effects (per
+[../fleet.md](../fleet.md#ships-ms-ma-as-stat-bearing-entities)):
+
+| Channel | Examples |
+|---|---|
+| Officer skills | Captain's `tactics` emits `percentMult +0.10` on `topSpeed`; chief mechanic's `mechanics` emits `flat -0.05` on `onShipRepairFloor`. |
+| Frame mods (MS) | Armor plating: `flat +50` on `armorPoints`. Thruster pack: `percentMult +0.15` on `topSpeed`. |
+| Damage state | `combatReadiness < 0.5` emits `cap 0.7` on `topSpeed` and `flat +0.10` on `onShipRepairFloor`. |
+| Faction research | Fleet-wide `flat -0.05` on `onShipRepairFloor`, authored as a `FactionEffect` that produces per-ship `Effect`s on assignment. |
+| Doctrine stance | "Engineering focus": `flat -0.10` on `onShipRepairFloor` plus `percentMult -0.20` on `topSpeed` while held. |
+
+Save round-trip is identical to character / faction: `Effects` traits
+on each fleet entity round-trip as POJOs; `attachFormulas()` re-seeds
+the sheet's derived state on load; modifier arrays rebuild from the
+serialized Effects list. No new save shape.
+
+This is now the **third** identical reuse of the engine. Future
+candidates (creature stat sheets for animals / wildlife if Phase 6.4+
+ever adds them; vehicle stat sheets for ground vehicles) drop in the
+same way: new schema, same engine.
+
 ## Related
 
 - [attributes.md](attributes.md) — StatSheet engine; this file extends its ModType set and grows its stat catalog
 - [physiology.md](physiology.md) — condition lifecycle; the banded effects mechanism described here is what its "effects fold" reduces to
 - [physiology-data.md](physiology-data.md) — `ConditionTemplate.effects` adopts the BandedEffect shape pinned in this file (drops `EffectModifier.channel`, `minSeverity`, `maxSeverity`)
 - [../social/research.md](../social/research.md) — faction-side reuse of this engine; introduces `FactionStatSheet` + `FactionEffects` + `FactionUnlocks`
+- [../fleet.md](../fleet.md#ships-ms-ma-as-stat-bearing-entities) — fleet-side reuse; ships, MS, and MA carry `ShipStatSheet` + `ShipEffects` with officer / frame-mod / damage / research / doctrine modifier sources
 - [../saves.md](../saves.md) — save round-trip contract; Effects trait is part of the player snapshot

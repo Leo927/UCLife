@@ -67,6 +67,7 @@ Ships and MS follow the same authoring pattern: **template lives in data; instan
   hangarCapacity: 4,            // # of MS sortie slots aboard
   mechanicCrewSlots: 12,        // forward-repair crew complement
   onShipRepairCap: 0.8,         // hull/armor ceiling for in-sortie repair
+  onShipRepairFloor: 0.4,       // integrity floor — units below this can't be touched aboard
   mounts: [                     // hardpoints + the weapon at each — fixed at template
     { id: 'fwd-l1', position: { x: 0, y: 12 }, weapon: 'mega-particle-cannon' },
     { id: 'fwd-l2', position: { x: 0, y: -12 }, weapon: 'mega-particle-cannon' },
@@ -304,17 +305,20 @@ The surface hangar's structural advantage over the on-ship hangar is **depth of 
 | Capability | Surface hangar (depot) | On-ship hangar (forward) |
 |---|---|---|
 | Resupply (ammo, consumables) | Yes, no cap | Yes, no cap |
-| Repair `damaged → ready` | Up to 100% | Up to a configured **cap (~80% by default)** |
+| Repair effective range | `[0, 1.0]` | `[onShipRepairFloor, onShipRepairCap]` — **band**, not just a ceiling |
+| Repair `damaged → ready` | Up to 100% | Up to **`onShipRepairCap`** (~0.8 baseline) |
+| Below **`onShipRepairFloor`** (~0.4 baseline) | Repairs from any state, including 0 | **Untouchable for repair aboard** — ship crew can stabilize but can't restore deep structural damage |
 | Repair `destroyed → ready` | Yes | **No** — depot-only state transition |
 | Refit (swap weapons, install mods) | Yes | **No** — parts inventory lives at the depot |
 | Assemble new MS from parts | Yes (Phase 6.3+) | **No** |
 | Throughput formula | `Σ(worker.workPerformance) × manager.workPerformance` | `Σ(ship.mechanicCrew.workPerformance) × ship's hangar boss workPerformance` |
 
-Three levers carry the asymmetry:
+Four levers carry the asymmetry:
 
-1. **Repair cap.** Ship hangars patch combat damage but cannot restore deep structure. The cap is per-ship-class (configured in `ship-classes.json5` as `onShipRepairCap`, default `0.8`). Combat-ready in the field; needs depot for full restoration.
-2. **No refit / no assembly aboard.** Parts and frame-mods inventory lives at the surface depot — you cannot swap a beam rifle for a 240mm cannon mid-sortie because the 240mm is not on the ship. This protects the surface hangar's role as the customization platform.
-3. **Destroyed → ready is depot-only.** A combat-disabled MS can be patched by ship crew up to `damaged → 80%`, but the `destroyed → ready` transition happens at depot.
+1. **Repair cap (ceiling).** Ship hangars patch combat damage but cannot restore deep structure. The cap is a **stat** on the ship (`onShipRepairCap`, default `0.8`); see "Ships, MS, MA as stat-bearing entities" below. Combat-ready in the field; needs depot for full restoration.
+2. **Repair floor (deep-damage threshold).** Ship hangars can't even *start* on a unit damaged below `onShipRepairFloor` (default `0.4`). This is also a stat on the ship — different hulls (tenders, mobile drydocks) have lower baseline floors and can salvage units in worse shape, while small escorts have higher floors. The floor produces a meaningful in-mission state: a Gundam that drops to 35% in combat is sidelined for the rest of the sortie regardless of crew throughput; the player either flies home or writes that unit off until depot.
+3. **No refit / no assembly aboard.** Parts and frame-mods inventory lives at the surface depot — you cannot swap a beam rifle for a 240mm cannon mid-sortie because the 240mm is not on the ship. This protects the surface hangar's role as the customization platform.
+4. **Destroyed → ready is depot-only.** A combat-disabled MS sitting in a ship hangar takes no further damage, but its `destroyed → ready` state transition happens at depot.
 
 ### Throughput scales with ship class
 
@@ -325,6 +329,43 @@ This also makes "buy a tender" a real loadout decision: a fleet with strong forw
 ### Storage stays on the surface
 
 MS / MA at rest still live in surface hangars, not aboard ships. On-ship hangars are sortie facilities, not storage. The pre-deployment loadout pull — *"send this Salamis with 4 GM Cannons or 4 GM Snipers?"* — happens at sortie time, in the surface hangar bay, by the manager's loadout verb. On return from sortie, MS unload back to the surface hangar (default), or stay aboard if a re-sortie is imminent. This avoids the split-inventory trap ("which Gundam is on which ship") while preserving the in-flight working hangar.
+
+## Ships, MS, MA as stat-bearing entities
+
+Every numerical field on a ship, MS, or MA template is a **stat with a base** in a `StatSheet`, modifiable by `Effect`s the same way a character's strength or skill is. There is no second numerics engine for fleet entities; the engine [characters/effects.md](characters/effects.md) defines for characters and [social/research.md](social/research.md) reuses for factions is reused a third time here.
+
+The principle: *any number that can change at runtime is a stat.* Ship hull baseline, top speed, supply consumption, hangar throughput modifiers, repair floor, repair cap — all stats. Mounts, hardpoint shapes, bridge template id — structured / enum, not stats; they stay template-only fields.
+
+### Schema split
+
+Within each template (`ship-classes.json5`, `ms-classes.json5`, …), fields fall into two categories:
+
+- **Stat bases** (scalar numbers): `hullPoints`, `armorPoints`, `topSpeed`, `maneuverability`, `supplyPerDay`, `supplyStorage`, `fuelStorage`, `cargoCapacity`, `hangarCapacity`, `mechanicCrewSlots`, `onShipRepairCap`, `onShipRepairFloor`, `crewRequired`, `dpCost`. The template's value is the stat's `base`; runtime modifiers fold over it via `getStat(shipSheet, statId)`.
+- **Template-only fields** (compound / enum / structured): `id`, `name`, `hullClass`, `mounts: [...]`, `bridge: 'standard'`. These don't enter the StatSheet.
+
+For MS, the same split: scalars (`hullPoints`, `armorPoints`, `topSpeed`, `supplyPerDay`, `supplyPerRepairDay`, `dpCost`, plus per-MS new stats like `repairResistance` if a future frame mod wants to tweak how *this* MS responds to repair throughput) become stats; `hardpoints: [...]`, `defaultLoadout: {...}` stay template.
+
+### Modifier sources
+
+Same five-channel taxonomy as characters / factions, mapped to fleet-tier sources:
+
+| Channel | Targets | Example |
+|---|---|---|
+| **Officer skills** | Ship stats of the ship the officer is aboard | A chief mechanic with high `mechanics` emits `flat -0.05` on `onShipRepairFloor`. A captain with high `tactics` emits `percentMult +0.10` on `topSpeed` while in tactical. |
+| **Frame mods** (MS only) | MS stats | Armor plating mod: `flat +50` on `armorPoints`. Sub-thruster pack: `percentMult +0.15` on `topSpeed`. Frame mods install via the depot retrofit panel and emit Effects against the MS sheet. |
+| **Damage state** | Self stats | A ship at `combatReadiness < 0.5` emits `cap 0.7` on its own `topSpeed` and `flat +0.10` on its own `onShipRepairFloor` — limping back is harder, and so is patching units while limping. |
+| **Faction research** | Fleet-wide ship/MS stats | "Field repair tactics" research line emits `flat -0.05` on `onShipRepairFloor` against every player-faction ship. Authored as a `FactionEffect` that produces per-ship `Effect`s on assignment. |
+| **Doctrine stance** | Ship stats while active | "Engineering focus" stance emits `flat -0.10` on `onShipRepairFloor` plus `percentMult -0.20` on `topSpeed` while held. Stance-emitted Effects are removed when the stance switches. |
+
+All five sources author through the existing modifier shape — `{ statId, type, value, source }` — with namespaced source ids (`'officer:Yamada:mechanics'`, `'mod:armor-plating'`, `'damage:combatReadiness'`, `'research:field-repair'`, `'doctrine:engineering-focus'`) so `removeBySource()` keeps working.
+
+### Save / load
+
+Same round-trip as character: `serializeSheet()` strips formulas + memo cache + modifier arrays; `attachFormulas()` re-seeds on load; `Effects` traits on each ship/MS/MA round-trip as POJOs and rebuild the modifier arrays at boot. No new save shape.
+
+### Why this matters mechanically
+
+The unification makes loadout decisions matter without inventing a second engine for any of them. *"This captain is worth re-hiring at twice the salary"* becomes a question the player can answer by looking at the Effects he emits on the ship sheet. *"This frame mod is more valuable on a Gundam than on a GM"* becomes a question of which MS sheet it produces a bigger effective `cap` change against. *"Researching field repair pays off in fewer trips home"* becomes a question of how much the floor drops fleet-wide. The numbers aren't hidden behind hand-rolled per-feature math — they're stats, the player learns one mental model, and the engine renders them through the same status-panel component characters already use.
 
 ## Auto-assignment
 
