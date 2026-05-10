@@ -64,7 +64,9 @@ Ships and MS follow the same authoring pattern: **template lives in data; instan
   supplyStorage: 600,           // how much supply this hull can carry
   fuelStorage: 240,
   cargoCapacity: 0,             // mules / freighters are where cargo lives
-  hangarCapacity: 4,            // # of MS slots
+  hangarCapacity: 4,            // # of MS sortie slots aboard
+  mechanicCrewSlots: 12,        // forward-repair crew complement
+  onShipRepairCap: 0.8,         // hull/armor ceiling for in-sortie repair
   mounts: [                     // hardpoints + the weapon at each — fixed at template
     { id: 'fwd-l1', position: { x: 0, y: 12 }, weapon: 'mega-particle-cannon' },
     { id: 'fwd-l2', position: { x: 0, y: -12 }, weapon: 'mega-particle-cannon' },
@@ -214,7 +216,7 @@ UI scope is broader than the previous draft because MS + pilot + retrofit manage
 |---|---|---|
 | **Fleet roster** | What ships do I have, where's each housed, who's on each, what's their state? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit through the hangar — not a roster verb) |
 | **Hangar floor** (per facility, opened from manager talk-verb) | What's in this hangar — units, repair state, units awaiting placement, current daily throughput? | Receive-delivery / repair-priority / scrap (manager owns these); per-unit verbs route to the unit itself in the bay |
-| **MS sortie loadout** (per ship, opened from on-ship hangar deck) | Which MS are loaded onto *this ship* for the next sortie? | Pull-from-surface-hangar / unload-back-to-surface (the deployment-slot decision, not storage) |
+| **On-ship hangar deck** (per ship, opened from ship's hangar boss talk-verb) | Which MS are loaded onto *this ship* for the current/next sortie; what's the forward-repair state? | Pull-from-surface-hangar / unload-back-to-surface (loadout); repair-priority / inspect (forward repair, capped at `onShipRepairCap`); no refit, no assembly, no destroyed→ready — those route to a surface hangar |
 | **MS retrofit panel** (per MS, opened by walking up to the MS in the hangar) | What's this MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
 | **Pilot roster** | Who can pilot, who's assigned to which MS, who's idle? | Assign / reassign |
 | **Crew assignment** | Which NPCs are aboard which ships? | Move / hire / fire |
@@ -293,11 +295,36 @@ Boarding a ship is the act of becoming its captain (and so, its flagship-marker)
 
 Capital-ship boarding works the same way — the player just rides the orbital lift first to reach the drydock.
 
-### On-ship hangars are deployment slots, not storage
+### On-ship hangar vs. surface hangar — the depot/forward asymmetry
 
-Ship templates declare `hangarCapacity` (MS slots aboard). **Those are sortie slots, not storage slots.** MS at rest live in the player's surface hangar facility; they only enter a ship's onboard hangar when the player (or a doctrine-set auto-loadout) loads them for sortie. On return, MS unload back to the surface hangar — or stay aboard if a re-sortie is imminent and the player chooses.
+Ship templates declare `hangarCapacity` (MS sortie slots) and `mechanicCrewSlots` (the crew complement that services those MS). MS at rest live in the player's surface hangar facility — *storage is depot-only*. But during sortie, the on-ship hangar is a real working facility: the ship's mechanic crew, led by the ship's **hangar boss** NPC, services the MS aboard between engagements. Without this, multi-leg sorties become impossible — any scratch on a GM means flying home, which is the wrong pacing.
 
-This avoids split-inventory ("which Gundam is on which ship") and produces the canonical pre-deployment loadout decision: *"send this Salamis with 4 GM Cannons or 4 GM Snipers?"* The on-ship hangar deck is the diegetic surface for that loadout pull — walk into the ship's hangar, the deck shows the slots assigned to this sortie; walk into a player-owned surface hangar, that's where the resting fleet lives.
+The surface hangar's structural advantage over the on-ship hangar is **depth of work**, not throughput:
+
+| Capability | Surface hangar (depot) | On-ship hangar (forward) |
+|---|---|---|
+| Resupply (ammo, consumables) | Yes, no cap | Yes, no cap |
+| Repair `damaged → ready` | Up to 100% | Up to a configured **cap (~80% by default)** |
+| Repair `destroyed → ready` | Yes | **No** — depot-only state transition |
+| Refit (swap weapons, install mods) | Yes | **No** — parts inventory lives at the depot |
+| Assemble new MS from parts | Yes (Phase 6.3+) | **No** |
+| Throughput formula | `Σ(worker.workPerformance) × manager.workPerformance` | `Σ(ship.mechanicCrew.workPerformance) × ship's hangar boss workPerformance` |
+
+Three levers carry the asymmetry:
+
+1. **Repair cap.** Ship hangars patch combat damage but cannot restore deep structure. The cap is per-ship-class (configured in `ship-classes.json5` as `onShipRepairCap`, default `0.8`). Combat-ready in the field; needs depot for full restoration.
+2. **No refit / no assembly aboard.** Parts and frame-mods inventory lives at the surface depot — you cannot swap a beam rifle for a 240mm cannon mid-sortie because the 240mm is not on the ship. This protects the surface hangar's role as the customization platform.
+3. **Destroyed → ready is depot-only.** A combat-disabled MS can be patched by ship crew up to `damaged → 80%`, but the `destroyed → ready` transition happens at depot.
+
+### Throughput scales with ship class
+
+Because ship throughput is `Σ(mechanicCrew) × hangarBoss`, large ships (cruisers, battleships, **dedicated tenders**) carry enough mechanic complement to outpace a small surface hangar in raw repair speed. A kitted-out fleet with a tender hull can sustain a long-arc sortie without ever depoting for routine damage — and that is the *intended* tradeoff. The depot still wins on deep work (refit, assembly, destroyed-state recovery, full hull restoration), so surface hangars never become irrelevant; they become *specialized*.
+
+This also makes "buy a tender" a real loadout decision: a fleet with strong forward-repair throughput trades cargo / firepower slots for sustainment.
+
+### Storage stays on the surface
+
+MS / MA at rest still live in surface hangars, not aboard ships. On-ship hangars are sortie facilities, not storage. The pre-deployment loadout pull — *"send this Salamis with 4 GM Cannons or 4 GM Snipers?"* — happens at sortie time, in the surface hangar bay, by the manager's loadout verb. On return from sortie, MS unload back to the surface hangar (default), or stay aboard if a re-sortie is imminent. This avoids the split-inventory trap ("which Gundam is on which ship") while preserving the in-flight working hangar.
 
 ## Auto-assignment
 

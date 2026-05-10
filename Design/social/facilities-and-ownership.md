@@ -365,7 +365,9 @@ a panel that lets the player *do* every action remotely.
 
 ## Hangar facility (Phase 6.2)
 
-The hangar is a facility class on the same Owner / payroll / maintenance / revenue spine as every other ownable space — but it is the **physical home of fleet inventory**. Every ship, MS, and MA the player owns sits in a hangar slot somewhere; there is no off-screen storage. Full mechanic in [../fleet.md](../fleet.md#where-the-fleet-physically-lives--hangars-not-abstraction); this section is the facility-side authoring shape.
+The hangar is a facility class on the same Owner / payroll / maintenance / revenue spine as every other ownable space — but it is the **physical home of fleet inventory** at depot tier. Every ship, MS, and MA the player owns sits in a depot hangar slot somewhere; there is no off-screen storage. Full mechanic in [../fleet.md](../fleet.md#where-the-fleet-physically-lives--hangars-not-abstraction); this section is the facility-side authoring shape.
+
+On-ship hangar decks are *not* a facility class — they are part of the ship template (`hangarCapacity` + `mechanicCrewSlots` + `onShipRepairCap`) and provide capped forward repair / resupply during sortie. The depot/forward asymmetry — depot can refit, assemble, restore destroyed MS, and repair to 100%; on-ship can resupply and patch up to ~80% — is the structural advantage that keeps depot hangars relevant at every fleet scale ([../fleet.md](../fleet.md#on-ship-hangar-vs-surface-hangar--the-depotforward-asymmetry)).
 
 ### Two physical tiers, one template
 
