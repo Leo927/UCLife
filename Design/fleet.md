@@ -212,14 +212,15 @@ UI scope is broader than the previous draft because MS + pilot + retrofit manage
 
 | Screen | Question | Verb |
 |---|---|---|
-| **Fleet roster** | What ships do I have, who's on each, what's their state? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit, not a roster verb — see below) |
-| **MS bay** (per-ship tab + fleet-wide tab) | Which MS are in this hangar, who's piloting, repair state? | Reassign-MS-to-hangar / assign-pilot / scrap-MS / repair-priority |
-| **MS retrofit panel** (per MS, opened from MS bay) | What's this MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
+| **Fleet roster** | What ships do I have, where's each housed, who's on each, what's their state? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit through the hangar — not a roster verb) |
+| **Hangar floor** (per facility, opened from manager talk-verb) | What's in this hangar — units, repair state, units awaiting placement, current daily throughput? | Receive-delivery / repair-priority / scrap (manager owns these); per-unit verbs route to the unit itself in the bay |
+| **MS sortie loadout** (per ship, opened from on-ship hangar deck) | Which MS are loaded onto *this ship* for the next sortie? | Pull-from-surface-hangar / unload-back-to-surface (the deployment-slot decision, not storage) |
+| **MS retrofit panel** (per MS, opened by walking up to the MS in the hangar) | What's this MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
 | **Pilot roster** | Who can pilot, who's assigned to which MS, who's idle? | Assign / reassign |
 | **Crew assignment** | Which NPCs are aboard which ships? | Move / hire / fire |
 | **Officer dialog** (existing NPC dialog) | Who is this person? | Hire-as-captain / hire-as-pilot / hire-as-crew / fire / talk |
-| **Buy/sell-ship dialog** (broker NPCs) | What ship hulls are available where; what will the broker pay for one of mine? | Purchase / sell — sell requires the ship be vacant of the player |
-| **Buy-MS dialog** (broker NPCs at MS-trading POIs) | What MS frames + parts are available? | Purchase frame / purchase weapon / purchase mod |
+| **Buy/sell-ship dialog** (broker NPCs) | What ship hulls are available where; what will the broker pay for one of mine? | Purchase (queues delivery to a hangar with capacity) / sell (sell requires the ship be vacant of the player) |
+| **Buy-MS dialog** (broker NPCs at MS-trading POIs) | What MS frames + parts are available? | Purchase frame / purchase weapon / purchase mod (frames queue delivery; weapons / mods route to inventory) |
 | **Fleet HUD sliver** in starmap | What's my fleet doing right now? | Read-only awareness |
 
 There is **no ship retrofit panel**, anywhere. A buy-ship dialog produces a ship instance with the class's authored loadout; that's the fight-state for the rest of that ship's service life.
@@ -233,28 +234,78 @@ The flagship is **the ship the player is currently crewing.** It gets:
 - The walkable interior scene (existing scene-world infra, hydrated from the ship class's `bridge` template).
 - An `IsFlagshipMark` tag for fast lookup.
 
-That is the entire mechanical specialness. No promote-to-flagship ceremony, no story-rare gating. Switching flagship is **physical transit** between two of your ships, not a roster verb — the `IsFlagshipMark` follows the player's body.
+That is the entire mechanical specialness. No promote-to-flagship ceremony, no story-rare gating. Switching flagship is **physical transit** between two of your ships — not a roster verb. The `IsFlagshipMark` follows the player's body. The act of switching is the act of walking back to the hangar where another of your ships sits, walking up its airlock, and entering its interior scene.
 
-**Where the rest of the fleet sits when the flagship lands.** Capital ships do not all dock at a civilian surface dome. When the flagship descends to a surface POI (Von Braun, Lisbon, Granada, Jaburo), the rest of the fleet holds station in **local orbit** — lunar orbit for Moon POIs, low Earth orbit for Earth POIs. Individual surface take-off fuel costs (12 for the Moon, 80 for Earth — see [starmap.md](starmap.md)) are paid per-ship, so it's economically nonsensical to land escorts you don't need to walk onto. At Side colonies, asteroid bases, and Luna II — proper space facilities with multi-ship berthing — the whole fleet (or as much of it as fits) can dock side-by-side at the station.
-
-Two transit shapes therefore exist:
-
-1. **At a multi-berth station** — walk a concourse or umbilical between two of your ships docked at adjacent berths.
-2. **In formation in deep space** — shuttle hop (small-craft transit) between fleet ships flying together. Canonical UC pattern.
-
-**There is no third shape on the ground.** When the flagship is at Von Braun, the only ship the player can walk onto is the flagship. Switching flagship while groundside therefore demands lifting off first, paying the current flagship's surface take-off fuel and rendezvousing with the fleet in orbit. That friction is intentional — flagship is the player's diegetic self, swapping it should not be a free menu act.
-
-**Selling the ship-the-player-is-on is forbidden.** The broker at the port handles paperwork freely for any non-flagship ship in the fleet — it's a transaction, not a physical handover; the orbital crew is notified via comm and the ship is decommissioned in place. But a vessel with the captain still aboard cannot be sold. To sell your *current* flagship, transit to another of your own ships and then close the sale (which from the surface means lifting off first, per the orbital model above); or — if it is your last hull — disembark to the city dock and the broker treats the sale as **fleet termination**: the bridge scene goes dark, the comm panel with it, and hired captains / pilots / crew route through a paid-out-or-disbanded branch back into civilian life. This mirrors the realty office's rule for selling a residence the player still occupies, and makes the inverse of the acquisition arc carry the same diegetic weight as acquisition itself.
+**Selling a vessel the captain is still aboard is forbidden.** The hangar manager refuses to process the sale (paperwork is fine; physical handover with the owner inside the ship is not). To sell your *current* flagship, board a different ship in your fleet (walk back to its hangar, enter it) and then close the sale through the broker; or — if it is your last hull — disembark to the hangar floor and the sale is processed as **fleet termination**: the bridge scene goes dark, the comm panel with it, and hired captains / pilots / crew route through a paid-out-or-disbanded branch back into civilian life. Selling a *non-flagship* ship is paperwork-only at the broker — the hangar manager takes possession in place, decommissions, and the slot frees up on the next day's rollover. This mirrors the realty office's rule for selling a residence the player still occupies, and makes the inverse of the acquisition arc carry the same diegetic weight as acquisition itself.
 
 The walkable scene is hydrated lazily per ship: when the player boards, the scene hydrates from the ship-class template + the instance's stored interior blob (where the player left a coffee mug); when the player leaves, it serializes back. Per-ship interior content is **authored per class, not per instance** — five ship classes = five interior templates regardless of fleet size.
+
+## Where the fleet physically lives — hangars, not abstraction
+
+Fleet inventory is **fully diegetic**. Every ship, MS, and MA the player owns sits in a physical **hangar facility** — either player-owned or rented at a state-owned hangar — at a surface or orbital POI. There is no off-screen storage. If the player wants to see a unit, they walk to the hangar housing it.
+
+This kills the prior "rest of fleet holds in local orbit" abstraction entirely. The orbital model was a soft violation of [social/diegetic-management.md](social/diegetic-management.md) — fleet-as-floating-data instead of fleet-as-walkable-objects.
+
+### Two hangar tiers
+
+Capital-ship scale doesn't fit on a civilian surface tilemap, so hangar facilities come in two physical scales — both built from the same template:
+
+1. **Surface hangars** — at city POIs (Von Braun, Granada, Jaburo, Lisbon, Side-colony civilian sectors). Houses **MS, MA, shuttles, and small craft**. A surface-hangar slot is sized for a 20m mobile suit, not a 200m cruiser. Surface hangars are facility-class entities in `facility-types.json5`, owned and run on the same payroll/maintenance/revenue spine as the bar, the HR office, and the research lab.
+2. **Orbital drydocks** — at orbital POIs (Granada drydock cluster, Earth-orbit dock complex, Side-colony orbital sectors). Houses **cruisers, battleships, and anything too large for civilian-dome berths**. Same hangar-facility class — manager, workers, capacity, daily economics — hosted at a `spaceCampaign` POI with a walkable scene attached. The walk to manage capital ships is "spaceport → orbital lift interactable → drydock concourse." UC canon supports this: capital ships base in space; lunar-surface industrial complexes are construction yards, not parking lots.
+
+From the player's seat, both tiers feel the same: walk to a hangar, talk to the manager, units sit in the bay. The split is structural (visual scale, UC physics), not a separate vocabulary the player has to learn.
+
+### Hangar facility shape
+
+See [social/facilities-and-ownership.md](social/facilities-and-ownership.md#hangar-facility) for the canonical definition. The shape that matters here:
+
+- **Capacity** — total slots available, configured per facility template, by tier. A small surface hangar might hold 4 MS slots; a major drydock might hold 4 cruiser slots + 12 small-craft slots. Buying a unit you have no slot for blocks delivery until a slot opens.
+- **Manager** — the verb surface for hangar operations. Receive delivery, repair-priority, refit-MS, assemble-MS, scrap. Future verbs slot in here ([social/diegetic-management.md](social/diegetic-management.md) discipline: never workstation cells).
+- **Workers** — repair and resupply throughput.
+  ```
+  dailyThroughput  =  Σ(worker.workPerformance) × manager.workPerformance
+                       (in repairPointsPerDay)
+  spread             =  dailyThroughput / (count of units not yet fully repaired-and-supplied)
+  ```
+  Each ship/MS class declares `repairCostPoints` per damage tier in `ship-classes.json5` / `ms-classes.json5`. The manager's **repair-priority** verb overrides the spread, focusing the full pool on a single unit until it's done — without this, after a heavy engagement the player can't get one critical hull ready for re-sortie and the system fights them.
+- **Daily economics** — payroll, maintenance, revenue per the existing facility formula in [facilities-and-ownership.md](social/facilities-and-ownership.md). Phase 6.3+ may open hangars to outside customers (revenue from refit fees); MVP runs them as pure cost centers for the player's own fleet.
+
+### State-owned rental hangars — the early-game escape valve
+
+One **state-owned hangar per major POI** (Von Braun, Granada, Earth-orbit dock complex, Side-colony hubs). Cannot be bought. Always large; staffed at a fixed baseline by state employees the player can't hire/fire. The player rents slots **per slot per day**.
+
+- **Rental rate is configured to ~5× the equivalent operating cost** of an owned slot at baseline tuning (payroll + maintenance amortized per slot). Rate lives in `facility-types.json5`; tunable.
+- **State-hangar workers do not benefit from the player's faction research efficiency bonuses** ([research.md](social/research.md)). The state efficiency baseline is fixed; only owned hangars scale with research.
+- The state hangar is the dominant choice in the very early game (no capital outlay, instant capacity) and the dominated choice late-game (5× operating cost is a real bleed). This is the rent-vs-own arc, mirroring residential apartments.
+
+### Receive-delivery and the late-game scale valve
+
+Buying a ship/MS at a broker doesn't materialize the unit in space. It enters a **delivery queue** against the player's hangar inventory:
+
+1. **Slot available** — delivery routes to the matching hangar (player-owned or state-rental) automatically. Walk to that hangar, talk to the manager, the unit is there. Manager exposes a "**receive delivery**" verb when units are awaiting placement; resolving it places the unit in a slot.
+2. **No slot** — the unit waits at the broker's holding bay. The broker tells the player "we're holding it for you; come back when you have space." Hyperspeed auto-breaks if a delivery sits unplaced past N days (TBD; nudge state).
+3. **Placement at MVP is auto-snap** — manager picks the next free slot. Manual rearrangement of units in placeable space is a Phase 6.3+ feature, gated on a real mechanical lever (e.g., proximity-to-workshop repair bonus). Sandbox-only placement is a toy that doesn't earn its slot.
+4. **Secretary auto-house verb** — at the faction office, the secretary exposes "**auto-house all undelivered inventory**" that batches receive-delivery across every hangar the player owns or rents. This is the late-game scale valve — at fleet-of-30 size, walking to each hangar is a death march.
+
+### Boarding, launching, and the flagship handoff
+
+Boarding a ship is the act of becoming its captain (and so, its flagship-marker). Walk to the hangar where the ship sits → walk up to the ship's airlock interactable → enter the walkable interior scene. The `IsFlagshipMark` migrates on entry. Launching is the existing helm-tile flow: sit at the bridge helm, undock, the ship transitions to the `spaceCampaign` scene. The hangar bay reflects the empty slot.
+
+Capital-ship boarding works the same way — the player just rides the orbital lift first to reach the drydock.
+
+### On-ship hangars are deployment slots, not storage
+
+Ship templates declare `hangarCapacity` (MS slots aboard). **Those are sortie slots, not storage slots.** MS at rest live in the player's surface hangar facility; they only enter a ship's onboard hangar when the player (or a doctrine-set auto-loadout) loads them for sortie. On return, MS unload back to the surface hangar — or stay aboard if a re-sortie is imminent and the player chooses.
+
+This avoids split-inventory ("which Gundam is on which ship") and produces the canonical pre-deployment loadout decision: *"send this Salamis with 4 GM Cannons or 4 GM Snipers?"* The on-ship hangar deck is the diegetic surface for that loadout pull — walk into the ship's hangar, the deck shows the slots assigned to this sortie; walk into a player-owned surface hangar, that's where the resting fleet lives.
 
 ## Auto-assignment
 
 Where the system can pick a sensible default, it does. Player can always override.
 
-- **MS pilot.** When an MS arrives at a hangar without a pilot, auto-assign the highest-`piloting` idle pilot in the fleet's pilot pool. (`piloting` is the unified skill across mobile workers, spacecraft, and mobile suits — see [characters/skills.md](characters/skills.md).) When a pilot dies, the MS is unpiloted (not auto-reassigned — that's the player's call).
+- **MS pilot.** When an MS lands in a hangar without a pilot, auto-assign the highest-`piloting` idle pilot in the fleet's pilot pool. (`piloting` is the unified skill across mobile workers, spacecraft, and mobile suits — see [characters/skills.md](characters/skills.md).) When a pilot dies, the MS is unpiloted (not auto-reassigned — that's the player's call).
 - **Ship captain.** Same shape: highest-Ship-Command idle officer.
-- **Hangar slot.** When a new MS is added to the fleet, place it in the first ship with an open hangar slot.
+- **Hangar slot.** A purchased unit auto-routes to the first hangar (player-owned, then rented) with a free slot of the matching tier. If no slot exists, delivery queues at the broker until capacity opens.
 - **Crew.** Crew gap on a ship = auto-pull from idle hireable pool to fill `crewRequired - currentCrew`.
 
 Every auto-assignment is overridable from the relevant screen.
@@ -263,10 +314,10 @@ Every auto-assignment is overridable from the relevant screen.
 
 Phase 6.2 debug action. Single click does all of the following:
 
-1. Ensure the player has a flagship (existing behavior).
-2. Add a **second ship** to the player's fleet (a small escort or freighter). Auto-place in formation.
-3. Generate a sizable batch of NPCs (~30; concrete number TBD) via `nameGen` / `appearanceGen` — covering captain-grade, pilot-grade, and general-crew shapes — and mark all of them as **hired by the player**. Distribute them across the two ships per auto-assignment rules.
-4. Stock the second ship's hangar with a couple of MS instances and auto-assign pilots from the new hire pool.
+1. Ensure the player has a flagship (existing behavior) and a hangar to house it (grants a small player-owned surface hangar at Von Braun if none exists; for capital-class flagships, grants a rented slot at the Granada drydock).
+2. Add a **second ship** to the player's fleet (a small escort or freighter). Auto-route to the player's hangar inventory; rent a slot at the state hangar if needed.
+3. Generate a sizable batch of NPCs (~30; concrete number TBD) via `nameGen` / `appearanceGen` — covering captain-grade, pilot-grade, hangar-manager-grade, hangar-worker-grade, and general-crew shapes — and mark all of them as **hired by the player**. Distribute per auto-assignment rules.
+4. Stock the surface hangar with a couple of MS instances and auto-assign pilots from the new hire pool. (Phase 6.2.5+ — MS layer.)
 
 This is what makes the system testable end-to-end without grinding hire dialogs. Faction-management's hire flow ([social/faction-management.md](social/faction-management.md)) defines the proper hire path; this debug action short-circuits it for testing.
 
@@ -275,8 +326,8 @@ This is what makes the system testable end-to-end without grinding hire dialogs.
 | Phase | Scope |
 |---|---|
 | **6.1.5** | **Structural prep, no player-visible content.** Ship-template/instance split. Move existing flagship class data into `ship-classes.json5`. Singleton-`Ship` → plural with `templateId` lookup. Save handler in `saveHandlers/` for fleet roster. Pre-existing saves migrate to single-ship fleet cleanly. No new gameplay. |
-| **6.2** | **Fleet MVP (ships only, no retrofit).** Two more ship classes (one escort, one small freighter). Debug "grant fleet" function (above). Per-ship + crew supply economics (no MS layer yet — flagship's existing hangar stays as-is). Fleet roster + crew assignment screens. Hire-as-captain / hire-as-crew on NPC dialog (stub; full hire flow lives in faction-management). Buy-ship dialog at brokers — purchase delivers a ship with its authored loadout, no fitting screen. Mothballing. Persistent fleet damage between encounters. Doctrine slider per ship. |
-| **6.2.5** | **MS + pilot + retrofit layer — the depth phase.** `ms-classes.json5`, `ms-weapons.json5`, `ms-frame-mods.json5`. MS runtime entity with `mountedWeapons` + `frameMods` per-instance state. Hangar UI, pilot roster, pilot assignment. Per-MS supply + per-MS repair-supply economics. MS bay screen. **MS retrofit panel** — weapon swap, mod install, role tags. Buy-MS dialog at MS brokers. Auto-assign + override flow. This phase is where the customization energy that *isn't* going into ships lands. |
+| **6.2** | **Fleet MVP (ships only, no retrofit). Hangar facility lands as part of this phase since fleet is now diegetic.** Two more ship classes (one escort, one small freighter). Surface-hangar facility class in `facility-types.json5` (small craft + MS slots). Orbital-drydock facility class (capital-ship slots) at one canonical drydock POI (Granada drydock). State-owned rental hangar at Von Braun. Hangar manager + workers job sites; receive-delivery, repair-priority, scrap verbs. Daily-throughput formula. Debug "grant fleet" function (above) — extends to "and place units in a default hangar." Per-ship + crew supply economics. Fleet roster + crew assignment screens. Hire-as-captain / hire-as-crew on NPC dialog. Buy-ship dialog at brokers — purchase queues delivery to player's hangar inventory; capacity gates the purchase. Mothballing. Persistent fleet damage between encounters; repair routes through the hangar throughput. Doctrine slider per ship. |
+| **6.2.5** | **MS + pilot + retrofit layer — the depth phase.** `ms-classes.json5`, `ms-weapons.json5`, `ms-frame-mods.json5`. MS runtime entity with `mountedWeapons` + `frameMods` per-instance state. Pilot roster, pilot assignment. Per-MS supply + per-MS repair-supply economics. **On-ship hangar deck = sortie loadout surface; surface-hangar facility = storage + retrofit surface.** MS retrofit panel opens by walking up to an MS in any hangar (player-owned or rented). Buy-MS dialog at MS brokers — frames queue delivery against MS-slot capacity; weapons + mods route to inventory. Hangar manager's refit / assemble verbs land here. Auto-assign + override flow. Secretary's auto-house-undelivered verb. |
 | **6.2.7** | **CP + DP.** Command points + deployment points wired into tactical. Doctrine sliders fully active. Out-of-CP standing-orders behavior. |
 | **6.3** | Mules / freighters as content (extra classes), salvage from wrecks (MS parts + frame mods only — no ship parts since ships don't refit), multi-ship walkable interior switching (player can move flagship freely between own ships at docked-with-fleet moments). |
 
@@ -292,7 +343,9 @@ Promote-to-flagship as a separate phase is **gone.** Flagship is just "the ship 
 
 4. **Crew NPC count explodes save size.** A 30+ NPC hired roster has ECS + serialization cost; multiply across a fleet that can grow further. **Mitigation:** profile at 6.2 debug-fleet size; if save grows past budget, push hired-NPC representation onto a leaner shape than full Character (TBD; revisit only if measured).
 
-5. **Off-helm autopilot interactions across N ships.** Naive N-body formation flocking is a perf trap. **Mitigation:** non-flagship ships station-keep at fixed `formationSlot` offsets in transit; one Course in the campaign world per fleet, computed positions per tick. Real ship AI activates only in tactical, where active-pause carries the load.
+5. **Off-helm autopilot interactions across N ships.** Naive N-body formation flocking is a perf trap. **Mitigation:** the hangar-storage model means non-flagship ships only fly in formation while the fleet is *sortied*; ships at rest sit in hangar slots and don't tick autopilot at all. While sortied, non-flagship ships station-keep at fixed `formationSlot` offsets behind the flagship; one `Course` in the campaign world per fleet, computed positions per tick. Real ship AI activates only in tactical, where active-pause carries the load.
+
+6. **Hangar-capacity gating must be perceivable, not silent.** A new player who tries to buy a second ship and gets "no capacity" without a clear reason will read it as a bug. **Mitigation:** the broker's purchase verb names the gate explicitly ("你没有空闲机库位 — 去 Granada 找个 drydock 位，或者从 Von Braun 国营机库租一个."), and the buy dialog shows current occupied / total slot counts per tier. The state-rental escape valve is the safety net; it should be one verb away at any major POI.
 
 ## What this is NOT
 
@@ -305,6 +358,8 @@ Promote-to-flagship as a separate phase is **gone.** Flagship is just "the ship 
 - **Not freighter-less.** Mules and freighters are first-class fleet roles.
 - **Not officer skill trees.** Officers are characters with the existing skill XP system.
 - **Not a salvage / wreck-recovery economy at the ship tier.** MS-side salvage (parts, frame mods) is in scope from Phase 6.3+; ship hulls are not part-swap salvageable since ships don't refit.
+- **Not floating-data fleet inventory.** Every ship, MS, and MA the player owns sits in a physical hangar slot. There is no "in storage" abstraction. Capacity is a third gate alongside economics and command bandwidth — buying a hull you have no slot for blocks delivery until a slot opens.
+- **Not orbital station-keeping while at rest.** Idle non-flagship ships sit in hangar slots, not in formation around the flagship. Formation flying is a sortie behavior only.
 
 ## Cross-doc alignment
 
@@ -320,12 +375,13 @@ The proper hire flow (hire-as-captain / hire-as-pilot / hire-as-crew dialog bran
 
 ## Related
 
-- [starmap.md](starmap.md) — campaign map; non-flagship ships live in the `spaceCampaign` world alongside the flagship
+- [starmap.md](starmap.md) — campaign map; orbital drydock POIs (Phase 6.2) host capital-ship hangars
 - [combat.md](combat.md) — locks the no-hard-cap, walkable-flagship, permanent-loss commitments this file resolves into a data shape; combat.md's Starsector→UC mapping table reflects the MS-primary asymmetry
-- [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership feed CP cap and doctrine effectiveness; `piloting` (existing unified skill) gates MS pilot quality
-- [characters/index.md](characters/index.md) — captains, pilots, and crew are full Character entities, including death pipeline
+- [social/facilities-and-ownership.md](social/facilities-and-ownership.md) — hangar facility class is the canonical home of fleet inventory; same Owner / payroll / maintenance / revenue spine as every other facility
+- [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership feed CP cap and doctrine effectiveness; `piloting` (existing unified skill) gates MS pilot quality; Mechanics gates hangar-worker throughput contribution
+- [characters/index.md](characters/index.md) — captains, pilots, crew, hangar managers, and hangar workers are full Character entities, including death pipeline
 - [social/faction-management.md](social/faction-management.md) — full hire flow + Phase 6.3+ colony layer
-- [social/diegetic-management.md](social/diegetic-management.md) — physical hubs + comm panel + council pattern that the surfaces above are projections of
+- [social/diegetic-management.md](social/diegetic-management.md) — physical hubs + comm panel + council pattern that the surfaces above are projections of; the hangar facility is one of those hubs
 - [phasing.md](phasing.md) — Phase 6 phasing
 - `src/ecs/traits/ship.ts` — `Ship` singleton today; splits into template-lookup + instance traits at 6.1.5
 - `src/sim/ship.ts` — singleton helpers (`getPlayerShipEntity`) rename to flagship helpers + add `getFleetEntities`

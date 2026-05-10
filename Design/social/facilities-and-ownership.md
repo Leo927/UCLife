@@ -363,7 +363,49 @@ The convenience the secretary provides is **not having to walk to
 every facility every day to spot-check status**. She does not become
 a panel that lets the player *do* every action remotely.
 
-## Customer-side interaction (any facility)
+## Hangar facility (Phase 6.2)
+
+The hangar is a facility class on the same Owner / payroll / maintenance / revenue spine as every other ownable space — but it is the **physical home of fleet inventory**. Every ship, MS, and MA the player owns sits in a hangar slot somewhere; there is no off-screen storage. Full mechanic in [../fleet.md](../fleet.md#where-the-fleet-physically-lives--hangars-not-abstraction); this section is the facility-side authoring shape.
+
+### Two physical tiers, one template
+
+A `hangar` facility template declares a **tier** (`surface` or `drydock`) and a per-slot-class capacity. The tier governs *what fits in the slots*:
+
+- **Surface hangars** are listed by city realtors as `factionMisc`, sized for MS, MA, shuttles, and small craft. A small surface hangar is a few hundred m² of bay; visually fits a city tilemap.
+- **Orbital drydocks** are at orbital POIs (Granada drydock, Earth-orbit dock complex, Side-colony orbital sectors). They host capital-class slots that a civilian dome cannot. Listed at the realty office's drydock tab (Phase 6.2 surface — for now, the city realtor lists drydocks at her own city's orbital cluster only; a player operating across orbital regions walks to each).
+
+Both tiers use the same data shape and same daily-economics formula. The split is structural (capital ships do not fit surface tilemaps), not a separate vocabulary.
+
+### Job sites
+
+Two job-site classes per hangar:
+
+1. **Hangar manager** — one seat per hangar. The verb surface for everything: receive-delivery, repair-priority, refit (Phase 6.2.5), assemble (Phase 6.3+), scrap. Per [diegetic-management.md](diegetic-management.md), every owner-side and customer-side fleet verb routes through the manager's talk-verb; the bay floor itself is scenery.
+2. **Hangar workers** — N seats per hangar, configured by template. Workers do not expose verbs; their effect is throughput — `dailyThroughput = Σ(worker.workPerformance) × manager.workPerformance`, in `repairPointsPerDay`, spread across not-yet-fully-supplied units. Manager's repair-priority verb overrides the spread to focus the pool on a single unit.
+
+A vacant manager seat closes the hangar (no receive-delivery, no repair, no refit) — the dim-bay rule applies the same way the dim-shopfront rule does for shops. Workers below quorum reduce throughput linearly; the manager's "any complaints" branch surfaces the gap.
+
+### Daily economics
+
+The standard formula from this file applies. `revenue` is currently zero for player-owned hangars (the player consumes their own services); the field is reserved for Phase 6.3+ where a player-owned hangar can serve outside customers. `salaries + maintenance` are the cost line.
+
+Faction `researchSpeedMul`-equivalent bonuses for hangars route through a **`hangarThroughputMul` faction-stat** ([research.md](research.md)), multiplying `dailyThroughput`. Research bonuses **do not apply to state-owned rental hangars** (see below).
+
+### State-owned rental hangars — the early-game escape valve
+
+One state-owned hangar per major POI (Von Braun, Granada, Earth-orbit dock complex, the major Side-colony hubs). **Cannot be bought.** Always large; staffed at a fixed baseline by state employees (hire/fire is not exposed). The player rents slots **per slot per day**.
+
+- **Rental rate** is configured to ~5× the equivalent operating cost of an owned slot at baseline tuning (`facility-types.json5`). The 5× factor is a deliberate dominate-late-game / dominated-late-game shape — strictly worse but available, mirroring residential apartment rental.
+- **Throughput baseline is fixed** — state hangars do not benefit from the player's `hangarThroughputMul` research. Late-game research-stacked owned hangars outperform state hangars on raw throughput, not just operating cost.
+- **Capacity is shared across player tenants** in MVP design — the state hangar is "always large enough" diegetically (canonically a major civic facility), and capacity exhaustion is not a play state. If exhaustion ever needs to matter, it lives in a future phase.
+
+The state hangar is the dominant choice from day-of-first-purchase through to the player's first owned hangar; it is the dominated choice from then on. This is the same arc the apartment-vs-owned-residence pattern produces in housing.
+
+### Acquisition
+
+Surface hangars are sold by city realtors as `factionMisc` listings, identical flow to the HR office and faction office. Orbital drydocks (Phase 6.2) are sold by the realtor's drydock tab — same realtor body, expanded inventory; private-sale flagger mode applies if the drydock is privately owned.
+
+
 
 A customer transacts with the **worker on duty**, never with the
 workstation cell. The cashier counter, the clinic desk, the
@@ -532,7 +574,9 @@ nudge that makes the colony arc earn its weight.
 | **5.5.4** | `recruitOffice` facility class + `recruiter` workstation, listed by the realtor as `factionMisc`. Once seated, the recruiter's criteria-as-conversation chip set + applicant lobby with accept/reject verbs render inside `NPCDialog`. `recruitmentSystem` runs at `day:rollover` after housingPressure: per seated recruiter, rolls the streak-bonused chance from `recruitment.json5`, spawns an `Applicant`-tagged procgen NPC inside the office (capped by `lobbyCapacity`), and expires applicants past `applicationLifetimeDays`. Auto-accept fires on spawn when criteria match. TalkHireConversation extends NPCDialog with an "offer to recruit" branch on civilians (gated by AE rep ≥ `factionRepGate.min` OR target opinion ≥ `opinionGate.min`); accept charges `signingBonus` from the player's wallet. AE-employed and existing player-faction members are filtered out. |
 | **5.5.4.5** | Diegetic-correctness sweep. Strip illegitimate cell-as-verb routes from `interactionSystem` for all service-side workstations (shop / clinic / pharmacy / hr / aeReception / manager / secretary / recruiter / buyShip). Service-worker desks become scenery (`noInteractable: true`); customer-side and owner-side verbs route exclusively through the talk-verb on the worker on duty. Per-facility manage cell ships in full: building types declare `hasManageCell: true` (factionOffice, recruitOffice, shop), `spawnBuilding` emits an `Interactable({ kind: 'manage' })` linked back to the building via the new `ManageCell` trait, and `interactionSystem` gates the verb on `Owner.kind === 'character' && Owner.entity === player`. The new `ManageFacilityDialog` (mounted in App.tsx, opened via the `ui:open-manage` sim event) shows the local roster + per-facility books and exposes an "assign idle members to this facility" verb backed by `assignIdleMembersToBuilding`. Bootstrap install for vacant seats works via this surface for any owned facility — no chicken/egg, even before the player owns a faction office. |
 | **5.5.5** | Player-faction creation dialogue. Aliasing → real entity migration. Diplomacy / war declaration verbs land as secretary stand-ins for Phase 6.4. |
-| **6.3** | Colony adds buildable facility classes (warship slipway, large MS factory). Sovereignty footing. |
+| **6.2** | Hangar facility class lands (surface tier in cities, drydock tier at orbital POIs). Hangar manager + workers job sites. Daily-throughput formula. State-owned rental hangars at major POIs as the early-game escape valve. Realtor's listings extend to drydock tab. Receive-delivery / repair-priority / scrap verbs on the manager. See [../fleet.md](../fleet.md). |
+| **6.2.5** | Manager's verb branch extends to refit / assemble. Secretary's auto-house-undelivered verb lands as the late-game scale valve. |
+| **6.3** | Colony adds buildable facility classes (warship slipway, large MS factory). Sovereignty footing. Player-owned hangars open to outside customers (revenue source activates). |
 | **6.4** | Diplomacy / governance promoted from secretary stand-ins to council-chamber scenes. |
 
 ## Related
@@ -548,6 +592,9 @@ nudge that makes the colony arc earn its weight.
   daily-economics formulas above
 - [faction-management.md](faction-management.md) — Phase 6 fleet /
   colony arc that inherits the abstractions defined here
+- [../fleet.md](../fleet.md) — fleet inventory lives in hangar
+  facilities authored here; the diegetic-fleet model depends on this
+  facility class
 - [relationships.md](relationships.md) — talk-verb opinion feeds
   recruitment quality and seller asking price
 - [../characters/effects.md](../characters/effects.md) — Effect +
