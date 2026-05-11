@@ -63,6 +63,11 @@ export interface TacticalSnapshot {
   enemies: EnemyShipSnap[]
   projectiles: ProjectileVisual[]
   beams: BeamFlashVisual[]
+  // Phase 6.1 — the player-launched MS (at most one in 6.1). Drawn
+  // alongside the flagship using the same friendly color but a smaller
+  // hull so it reads as an MS in the arena. Null when the MS is not
+  // currently in flight.
+  playerMs: ShipSnap | null
 }
 
 const PROJECTILE_COLOR = {
@@ -94,6 +99,7 @@ export class PixiTacticalRenderer {
   private root: Container
   private border: Graphics
   private playerNode: ShipNode
+  private playerMsNode: ShipNode
   private enemyNodes = new Map<number, ShipNode>()
   private enemyShipLayer: Container
   private projectileLayer: Container
@@ -102,6 +108,7 @@ export class PixiTacticalRenderer {
   private destroyed = false
   private beamLayerAttached = false
   private playerAttached = false
+  private playerMsAttached = false
   private arenaW: number
   private arenaH: number
   private viewW: number
@@ -135,9 +142,11 @@ export class PixiTacticalRenderer {
     // Ships rendered above projectiles, so projectile streams don't
     // visually intersect ship cores. Same lazy-attach pattern.
     this.playerNode = this.makeShipNode()
+    this.playerMsNode = this.makeShipNode()
     this.enemyShipLayer = new Container()
     this.root.addChild(this.enemyShipLayer)
     this.playerAttached = false
+    this.playerMsAttached = false
 
     this.applyFit()
   }
@@ -194,6 +203,7 @@ export class PixiTacticalRenderer {
     const t0 = PROF ? performance.now() : 0
 
     this.syncPlayer(snap.player)
+    this.syncPlayerMs(snap.playerMs)
     this.syncEnemies(snap.enemies)
     this.syncProjectiles(snap.projectiles)
     this.syncBeams(snap.beams)
@@ -216,6 +226,21 @@ export class PixiTacticalRenderer {
       this.root.addChild(node.shield)
       this.root.addChild(node.hull)
       this.playerAttached = true
+    }
+    this.drawShip(node, snap)
+  }
+
+  private syncPlayerMs(snap: ShipSnap | null): void {
+    const node = this.playerMsNode
+    if (!snap) {
+      node.hull.visible = false
+      node.shield.visible = false
+      return
+    }
+    if (!this.playerMsAttached) {
+      this.root.addChild(node.shield)
+      this.root.addChild(node.hull)
+      this.playerMsAttached = true
     }
     this.drawShip(node, snap)
   }

@@ -11,7 +11,7 @@ import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
 } from '../systems/combat'
-import { useCombatLog, type CombatLogEntry } from '../systems/combatLog'
+import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { combatConfig } from '../config'
 import { getWorld } from '../ecs/world'
 import { Ship, WeaponMount, CombatShipState, EntityKey } from '../ecs/traits'
@@ -25,6 +25,10 @@ import {
   type BeamFlashVisual,
 } from '../render/space/PixiTacticalRenderer'
 import { playUi } from '../audio/player'
+import {
+  useCockpit, dockMs, leaveBridge,
+} from '../sim/cockpit'
+import { emitSim } from '../sim/events'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -103,7 +107,9 @@ function snapshotEnemies(): EnemySnap[] {
   const out: EnemySnap[] = []
   for (const e of w.query(CombatShipState)) {
     const s = e.get(CombatShipState)!
-    if (s.isPlayer) continue   // player ship has its own HUD path
+    // Skip flagship + any player-side unit (MS) — they have their own
+    // HUD paths.
+    if (s.isFlagship || s.isPlayer || s.side === 'player') continue
     const ek = e.get(EntityKey)
     const key = ek ? ek.key : `enemy-${out.length}`
     out.push({
@@ -121,6 +127,36 @@ function snapshotEnemies(): EnemySnap[] {
     })
   }
   return out
+}
+
+interface MsSnap {
+  key: string
+  id: number
+  nameZh: string
+  pos: { x: number; y: number }
+  heading: number
+  hullCurrent: number; hullMax: number
+  armorCurrent: number; armorMax: number
+}
+
+function snapshotPlayerMs(): MsSnap | null {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const e of w.query(CombatShipState)) {
+    const s = e.get(CombatShipState)!
+    if (!s.isMs) continue
+    const ek = e.get(EntityKey)
+    const key = ek ? ek.key : 'player-ms'
+    return {
+      key,
+      id: hashKey(key),
+      nameZh: s.nameZh,
+      pos: { x: s.pos.x, y: s.pos.y },
+      heading: s.heading,
+      hullCurrent: s.hullCurrent, hullMax: s.hullMax,
+      armorCurrent: s.armorCurrent, armorMax: s.armorMax,
+    }
+  }
+  return null
 }
 
 function StatBar(props: { label: string; current: number; max: number; color: string }) {
@@ -161,6 +197,17 @@ function PlayerHud(props: { title: string; snap: PlayerSnap }) {
       <StatBar label="装甲" current={snap.armorCurrent} max={snap.armorMax} color="#a3a3a3" />
       <StatBar label="电荷" current={snap.fluxCurrent} max={snap.fluxMax} color="#3b82f6" />
       <StatBar label="战备" current={snap.crCurrent} max={snap.crMax} color="#f59e0b" />
+    </div>
+  )
+}
+
+function PlayerMsHud(props: { snap: MsSnap }) {
+  const { snap } = props
+  return (
+    <div className="tactical-hud tactical-hud-ms">
+      <div className="tactical-hud-title">{snap.nameZh}</div>
+      <StatBar label="船体" current={snap.hullCurrent} max={snap.hullMax} color="#60a5fa" />
+      <StatBar label="装甲" current={snap.armorCurrent} max={snap.armorMax} color="#a3a3a3" />
     </div>
   )
 }
@@ -206,6 +253,19 @@ function enemyVisual(e: EnemySnap): PixiEnemyShipSnap {
     shieldRadius: 28,
     color: 0xdc2626,
     shieldAlpha: e.hasShield && e.shieldUp ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
+  }
+}
+
+function playerMsVisual(m: MsSnap): PixiShipSnap {
+  return {
+    x: m.pos.x, y: m.pos.y,
+    heading: m.heading,
+    // Smaller hull than the freighter (18) so the MS reads as a fast,
+    // small unit alongside the lumbering ship.
+    hullRadius: 11,
+    shieldRadius: 18,
+    color: 0x60a5fa,    // friendly blue — distinct from the green flagship
+    shieldAlpha: 0,     // 6.1: MS has no shield model
   }
 }
 
@@ -255,10 +315,12 @@ export function TacticalView() {
         if (r) {
           const p = snapshotPlayer()
           const enemies = snapshotEnemies()
+          const ms = snapshotPlayerMs()
           const projectiles = useCombatStore.getState().getProjectiles()
           r.update({
             arenaW: ARENA_W, arenaH: ARENA_H,
             player: p ? playerVisual(p) : null,
+            playerMs: ms ? playerMsVisual(ms) : null,
             enemies: enemies.map(enemyVisual),
             projectiles: projectiles.map((pj) => ({
               id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
@@ -371,6 +433,7 @@ export function TacticalView() {
 
   const player = snapshotPlayer()
   const enemies = snapshotEnemies()
+  const ms = snapshotPlayerMs()
   if (!player || enemies.length === 0) return null
 
   const flashAge = performance.now() - lastFlashAtMs
@@ -411,20 +474,10 @@ export function TacticalView() {
       <CombatLogPanel />
       <CombatLogHistory />
 
-      <div className="tactical-topbar">
-        <div className="tactical-title">战术指挥</div>
-        <div className={`tactical-pause-state${paused ? ' is-paused' : ''}`}>
-          {paused ? '已暂停 ⏸' : '运行中 ▶'}
-        </div>
-        <button
-          className="tactical-btn"
-          onClick={() => { playUi('ui.tactical.toggle-pause'); useCombatStore.getState().togglePause() }}
-        >
-          {paused ? '继续 (空格)' : '暂停 (空格)'}
-        </button>
-      </div>
+      <CockpitTopbar paused={paused} flagshipName={playerCls.nameZh} msName={ms?.nameZh ?? null} />
 
       <PlayerHud title={playerCls.nameZh} snap={player} />
+      {ms && <PlayerMsHud snap={ms} />}
       <div className="tactical-enemy-stack">
         {enemies.map((en) => (
           <EnemyHud key={en.key} title={en.nameZh} snap={en} />
@@ -458,7 +511,7 @@ export function TacticalView() {
       </div>
 
       <div className="tactical-hint">
-        WASD 操控旗舰 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志
+        WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击
       </div>
     </div>
   )
@@ -503,6 +556,52 @@ function CombatLogPanel() {
         </div>
       ))}
       <div className="combat-log-tab-hint">TAB · 查看完整日志</div>
+    </div>
+  )
+}
+
+// Phase 6.1 — top bar: pause toggle + Bridge ↔ Cockpit verbs.
+// Visibility rules per piloting state:
+//   piloting='flagship' : show "下舰桥" (close overlay; flagship → AI).
+//                         No MS verb here — the player has to walk to
+//                         the hangar interactable to launch.
+//   piloting='ms'       : show "返航 (回收 MS)". Disabled until the MS
+//                         is within docking proximity of the flagship.
+//   piloting=null       : the overlay was closed externally (e.g. by
+//                         leaveBridge); shouldn't normally render here
+//                         since we early-return on !open above.
+function CockpitTopbar(props: { paused: boolean; flagshipName: string; msName: string | null }) {
+  const piloting = useCockpit((s) => s.piloting)
+  const togglePause = () => { playUi('ui.tactical.toggle-pause'); useCombatStore.getState().togglePause() }
+  const onLeaveBridge = () => { playUi('ui.tactical.toggle-pause'); leaveBridge() }
+  const onDock = () => {
+    playUi('ui.tactical.toggle-pause')
+    const r = dockMs()
+    if (!r.ok && r.reasonZh) emitSim('toast', { textZh: r.reasonZh })
+  }
+
+  const pilotingLabel = piloting === 'ms'
+    ? `驾驶 · ${props.msName ?? 'MS'}`
+    : piloting === 'flagship'
+      ? `驾驶 · ${props.flagshipName}`
+      : '旁观'
+
+  return (
+    <div className="tactical-topbar">
+      <div className="tactical-title">战术指挥</div>
+      <div className="tactical-piloting">{pilotingLabel}</div>
+      <div className={`tactical-pause-state${props.paused ? ' is-paused' : ''}`}>
+        {props.paused ? '已暂停 ⏸' : '运行中 ▶'}
+      </div>
+      <button className="tactical-btn" onClick={togglePause}>
+        {props.paused ? '继续 (空格)' : '暂停 (空格)'}
+      </button>
+      {piloting === 'flagship' && (
+        <button className="tactical-btn" onClick={onLeaveBridge}>下舰桥</button>
+      )}
+      {piloting === 'ms' && (
+        <button className="tactical-btn" onClick={onDock}>返航 (回收)</button>
+      )}
     </div>
   )
 }

@@ -2100,6 +2100,24 @@ html, body, #root {
 }
 .tactical-hud-player { left: 12px; border-color: #14532d; }
 .tactical-hud-enemy  { right: 12px; border-color: #7f1d1d; }
+/* Phase 6.1 — player MS HUD sits below the flagship HUD on the left,
+   in friendly-MS blue to match the renderer color and the climbIntoMs
+   floor tile. */
+.tactical-hud-ms {
+  left: 12px;
+  top: 198px;
+  width: 220px;
+  border-color: #1e3a8a;
+}
+.tactical-piloting {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text);
+  background: #1f1f27;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
 .tactical-enemy-stack {
   position: absolute;
   top: 12px;

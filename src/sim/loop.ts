@@ -264,9 +264,18 @@ function frame(now: number) {
       }
       prevHyperspeed = isHyperspeed
 
-      const wantMode = isHyperspeed ? 'committed' : 'normal'
-      if (useClock.getState().mode !== wantMode) {
-        useClock.getState().setMode(wantMode)
+      // Phase 6.1 — combat takes precedence over hyperspeed gating. When
+      // the player walks the ship interior mid-combat (leaveBridge / docked
+      // MS), the active world becomes playerShipInterior and the player
+      // gets an Action trait again — without this guard the wantMode check
+      // would stomp mode='combat' back to 'normal' and the combatSystem
+      // would stop ticking. startCombat / endCombat own the combat→normal
+      // transition; this block must not race them.
+      if (useClock.getState().mode !== 'combat') {
+        const wantMode = isHyperspeed ? 'committed' : 'normal'
+        if (useClock.getState().mode !== wantMode) {
+          useClock.getState().setMode(wantMode)
+        }
       }
     }
   }

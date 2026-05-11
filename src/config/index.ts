@@ -56,6 +56,9 @@ export type { SpaceConfig } from './space'
 export { combatConfig } from './combat'
 export type { CombatConfig } from './combat'
 
+export { cockpitConfig } from './cockpit'
+export type { CockpitConfig } from './cockpit'
+
 export { audioConfig } from './audio'
 export type { AudioConfig, AudioClipSpec, UiAudioId } from './audio'
 

@@ -39,11 +39,14 @@ import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
 import { setInCombat, damageHull, drainCR, getPlayerShipEntity } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { emitSim } from '../sim/events'
+import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
-import { pushCombatLog, useCombatLog } from './combatLog'
-import { combatConfig } from '../config'
+import { pushCombatLog, useCombatLog } from '../sim/combatLog'
+import { combatConfig, cockpitConfig } from '../config'
+import {
+  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
+} from '../sim/cockpit'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -198,6 +201,14 @@ export const useCombatStore = create<CombatState>((set) => ({
   getProjectiles: () => projectiles.slice(),
 }))
 
+// Phase 6.1 — sim/cockpit emits this when launching, docking, taking
+// the helm, or leaving the bridge. Combat owns useCombatStore.open so
+// the cockpit module (which is sim-layer) can't reach in directly.
+onSim('combat:set-overlay-open', ({ open }) => {
+  const store = useCombatStore.getState()
+  if (store.open !== open) store.setOpen(open)
+})
+
 function shipWorld(): World {
   return getWorld(SHIP_SCENE_ID)
 }
@@ -206,22 +217,34 @@ function getPlayerShip(): Entity | undefined {
   return shipWorld().queryFirst(Ship)
 }
 
-// All CombatShipState entities flagged as the player. There is exactly
-// one in a well-formed combat (the Ship singleton with CombatShipState
-// attached) — returns undefined when combat isn't open.
+// The flagship's CombatShipState row (legacy `isPlayer` discriminator).
+// There is exactly one in a well-formed engagement; returns undefined
+// when combat isn't open.
 function getPlayerCombatShip(): Entity | undefined {
   for (const e of shipWorld().query(CombatShipState)) {
-    if (e.get(CombatShipState)!.isPlayer) return e
+    const cs = e.get(CombatShipState)!
+    if (cs.isFlagship || cs.isPlayer) return e
   }
   return undefined
 }
 
-// All non-player CombatShipState entities. Excludes the player's
-// CombatShipState (which lives on the Ship singleton during combat).
+// All player-side CombatShipState rows (Phase 6.1+: flagship + any
+// active MS).
+function getPlayerSideEntities(): Entity[] {
+  const out: Entity[] = []
+  for (const e of shipWorld().query(CombatShipState)) {
+    const cs = e.get(CombatShipState)!
+    if (cs.side === 'player' || cs.isFlagship || cs.isPlayer) out.push(e)
+  }
+  return out
+}
+
+// All hostile CombatShipState rows.
 function getEnemyEntities(): Entity[] {
   const out: Entity[] = []
   for (const e of shipWorld().query(CombatShipState)) {
-    if (!e.get(CombatShipState)!.isPlayer) out.push(e)
+    const cs = e.get(CombatShipState)!
+    if (cs.side === 'enemy' && !cs.isFlagship && !cs.isPlayer) out.push(e)
   }
   return out
 }
@@ -256,6 +279,10 @@ function spawnEnemyShip(w: World, blueprintId: string, slotIdx: number, totalSlo
     CombatShipState({
       shipClassId: blueprint.id,
       nameZh: blueprint.nameZh,
+      side: 'enemy',
+      isFlagship: false,
+      isMs: false,
+      pilotedByPlayer: false,
       isPlayer: false,
       pos: { x: spawn.x, y: spawn.y },
       vel: { x: 0, y: 0 },
@@ -297,11 +324,13 @@ export function startCombat(
 ): void {
   const w = shipWorld()
 
-  // Strip prior combat state. Enemies are transient → destroy. The player's
-  // CombatShipState lives on the persistent Ship singleton entity → just
-  // remove the trait so the entity (and its long-arc Ship state) survives.
+  // Strip prior combat state. Enemies and stale player MS are transient
+  // → destroy. The player's flagship CombatShipState lives on the
+  // persistent Ship singleton entity → just remove the trait so the
+  // entity (and its long-arc Ship state) survives.
   for (const e of w.query(CombatShipState)) {
-    if (e.get(CombatShipState)!.isPlayer) e.remove(CombatShipState)
+    const cs = e.get(CombatShipState)!
+    if (cs.isFlagship || cs.isPlayer) e.remove(CombatShipState)
     else e.destroy()
   }
   projectiles.length = 0
@@ -327,6 +356,12 @@ export function startCombat(
     ship.add(CombatShipState({
       shipClassId: cls.id,
       nameZh: cls.nameZh,
+      side: 'player',
+      isFlagship: true,
+      isMs: false,
+      // Player starts at the helm by default — onCombatStarted() below
+      // also flips useCockpit.piloting to 'flagship'.
+      pilotedByPlayer: true,
       isPlayer: true,
       pos: { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y },
       vel: { x: 0, y: 0 },
@@ -368,6 +403,7 @@ export function startCombat(
   const fleetNote = fleet.length > 1 ? ` · 队伍 ${fleet.length} 艘` : ''
   logEvent(`战斗开始 · 对手: ${leadName}${fleetNote}`)
   pushCombatLog(`首次接触 · ${leadName}${fleetNote}`, 'crit')
+  onCombatStarted()
 }
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
@@ -467,10 +503,12 @@ function applyDefeatConsequence(): void {
 
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
-  // Same player-vs-enemy split as startCombat: keep the Ship singleton
-  // entity alive, just shed its CombatShipState; destroy enemy entities.
+  // Same flagship-vs-everything-else split as startCombat: keep the
+  // Ship singleton entity alive, just shed its CombatShipState; destroy
+  // enemy + player MS rows.
   for (const e of w.query(CombatShipState)) {
-    if (e.get(CombatShipState)!.isPlayer) e.remove(CombatShipState)
+    const cs = e.get(CombatShipState)!
+    if (cs.isFlagship || cs.isPlayer) e.remove(CombatShipState)
     else e.destroy()
   }
   projectiles.length = 0
@@ -486,6 +524,7 @@ export function endCombat(outcome: CombatOutcome): void {
   useClock.getState().setMode('normal')
   useClock.getState().setSpeed(1)
   useCombatStore.getState().reset()
+  resetCockpitForEndCombat()
 
   const campaignKey = activeCampaignEnemyKey
   activeCampaignEnemyKey = null
@@ -614,6 +653,34 @@ function applyDamageToPlayer(weapon: WeaponDef): { absorbed: boolean; destroyed:
   return { absorbed: false, destroyed: r.destroyed }
 }
 
+// Phase 6.1 — damage to a player MS lands on its own CombatShipState
+// hull (no flux/shield model on MS in 6.1; pure armor + hull).
+function applyDamageToMs(msEnt: Entity, weapon: WeaponDef): { absorbed: boolean; destroyed: boolean } {
+  const m = msEnt.get(CombatShipState)!
+  let armorCurrent = m.armorCurrent
+  let hullCurrent = m.hullCurrent
+  let remaining = weapon.damage * weapon.armorDamage
+  if (m.armorMax > 0 && armorCurrent > 0) {
+    const armorAbsorb = Math.min(armorCurrent, remaining * (armorCurrent / m.armorMax))
+    armorCurrent = Math.max(0, armorCurrent - armorAbsorb)
+    remaining = Math.max(0, remaining - armorAbsorb)
+  }
+  hullCurrent = Math.max(0, hullCurrent - remaining)
+  msEnt.set(CombatShipState, { ...m, armorCurrent, hullCurrent })
+  return { absorbed: false, destroyed: hullCurrent <= cockpitConfig.msHullEjectFloor }
+}
+
+// Route an incoming hostile hit at one specific player-side target. The
+// flagship still routes through the Ship singleton via applyDamageToPlayer
+// (so fluxes / armor / hull on the persistent trait are correct). MS hits
+// route to applyDamageToMs.
+function applyDamageToPlayerSide(targetEnt: Entity, weapon: WeaponDef): { absorbed: boolean; destroyed: boolean } {
+  const cs = targetEnt.get(CombatShipState)
+  if (!cs) return { absorbed: false, destroyed: false }
+  if (cs.isMs) return applyDamageToMs(targetEnt, weapon)
+  return applyDamageToPlayer(weapon)
+}
+
 // Geometry helpers
 function angleBetween(from: { x: number; y: number }, to: { x: number; y: number }): number {
   return Math.atan2(to.y - from.y, to.x - from.x)
@@ -707,14 +774,16 @@ function stepVelocity(
 
 // Spawn a projectile or instant-hit for `weapon` from `from` toward `to`.
 // Beams (projectileSpeed === 0) resolve as instant hits at distance check.
-// `targetEnemy` is required for player beams (multi-enemy disambiguation);
-// enemy beams always resolve against the player.
+// `targetEnt` is the entity being shot at (an enemy ship if ownerSide is
+// 'player'; a player-side unit — flagship or MS — if ownerSide is 'enemy').
+// Required for beams to disambiguate when multiple targets exist; for
+// projectiles it's only used as a hint, projectile collision is geometric.
 function fireWeapon(
   ownerSide: 'player' | 'enemy',
   weapon: WeaponDef,
   from: { x: number; y: number },
   to: { x: number; y: number },
-  targetEnemy: Entity | null,
+  targetEnt: Entity | null,
 ): void {
   if (weapon.projectileSpeed === 0) {
     // Instant beam — apply damage immediately.
@@ -727,23 +796,35 @@ function fireWeapon(
       lifetimeMs: BEAM_FLASH_LIFETIME_MS,
     })
     if (ownerSide === 'player') {
-      if (!targetEnemy) return
-      const enemyName = targetEnemy.get(CombatShipState)?.nameZh ?? '敌舰'
-      const r = applyDamageToEnemy(targetEnemy, weapon)
+      if (!targetEnt) return
+      const enemyName = targetEnt.get(CombatShipState)?.nameZh ?? '敌舰'
+      const r = applyDamageToEnemy(targetEnt, weapon)
       useCombatStore.getState().flash(
         r.absorbed ? `${weapon.nameZh} → 命中护盾` : `${weapon.nameZh} → 命中船体`,
       )
       if (r.destroyed) {
         pushCombatLog(`击毁敌舰 · ${enemyName}`, 'info')
-        targetEnemy.destroy()
+        targetEnt.destroy()
         if (getEnemyEntities().length === 0) endCombat('victory')
       }
     } else {
-      const r = applyDamageToPlayer(weapon)
+      // Enemy beam — `targetEnt` was picked by the firing routine as the
+      // closest player-side unit. Falls back to the flagship if missing.
+      const tgt = targetEnt ?? getPlayerCombatShip() ?? null
+      const tgtCs = tgt?.get(CombatShipState)
+      const r = tgt ? applyDamageToPlayerSide(tgt, weapon) : applyDamageToPlayer(weapon)
+      const tgtNameZh = tgtCs?.isMs ? tgtCs.nameZh : '旗舰'
       useCombatStore.getState().flash(
-        r.absorbed ? `敌方${weapon.nameZh} → 命中护盾` : `敌方${weapon.nameZh} → 命中船体`,
+        r.absorbed ? `敌方${weapon.nameZh} → 命中${tgtNameZh}护盾` : `敌方${weapon.nameZh} → 命中${tgtNameZh}船体`,
       )
-      if (r.destroyed) endCombat('defeat')
+      if (r.destroyed) {
+        if (tgtCs?.isMs) {
+          pushCombatLog(`MS 损毁 · ${tgtCs.nameZh}`, 'crit')
+          onMsDestroyed()
+        } else {
+          endCombat('defeat')
+        }
+      }
     }
     return
   }
@@ -767,7 +848,6 @@ function tickProjectiles(dtSec: number): void {
   if (!ship) return
   const playerEnt = getPlayerCombatShip()
   if (!playerEnt) return
-  const playerPos = playerEnt.get(CombatShipState)!.pos
   // Mutate-in-place + filter pattern.
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i]
@@ -810,15 +890,34 @@ function tickProjectiles(dtSec: number): void {
         }
       }
     } else {
-      // Enemy projectile — collide with player.
-      if (dist(p, playerPos) < 12) {
+      // Enemy projectile — collide with the closest player-side unit
+      // within hit radius (Phase 6.1: flagship OR launched MS).
+      const playerSide = getPlayerSideEntities()
+      let hit: Entity | null = null
+      for (const e of playerSide) {
+        const s = e.get(CombatShipState)
+        if (!s) continue
+        if (dist(p, s.pos) < 12) { hit = e; break }
+      }
+      if (hit) {
         const weapon = getWeapon(p.weaponId)
-        const r = applyDamageToPlayer(weapon)
+        const hitCs = hit.get(CombatShipState)!
+        const r = applyDamageToPlayerSide(hit, weapon)
+        const tgtNameZh = hitCs.isMs ? hitCs.nameZh : '旗舰'
         useCombatStore.getState().flash(
-          r.absorbed ? `敌方${weapon.nameZh} → 命中护盾` : `敌方${weapon.nameZh} → 命中船体`,
+          r.absorbed ? `敌方${weapon.nameZh} → 命中${tgtNameZh}护盾` : `敌方${weapon.nameZh} → 命中${tgtNameZh}船体`,
         )
         projectiles.splice(i, 1)
-        if (r.destroyed) { projectiles.length = 0; endCombat('defeat'); return }
+        if (r.destroyed) {
+          if (hitCs.isMs) {
+            pushCombatLog(`MS 损毁 · ${hitCs.nameZh}`, 'crit')
+            onMsDestroyed()
+          } else {
+            projectiles.length = 0
+            endCombat('defeat')
+            return
+          }
+        }
       }
     }
   }
@@ -841,16 +940,19 @@ export function combatSystem(_world: World, dtMs: number): void {
   const shipState = ship.get(Ship)!
 
   // -- 1. Per-ship AI directive + physics (unified) -------------------------
-  // Each ship — player and enemy — picks its nearest hostile and runs the
-  // same maintainRange-style directive: close in if too far, back away if
-  // too close, otherwise strafe. The player ship overrides this directive
-  // with WASD thrust + shift+mouse aim whenever those inputs are active;
-  // releasing input hands the helm back to the AI.
-  const allShips: Entity[] = [playerEnt, ...enemies]
+  // Each ship — flagship, MS, and enemies — picks its nearest hostile
+  // and runs the same maintainRange-style directive: close in if too far,
+  // back away if too close, otherwise strafe. WASD thrust + shift+mouse
+  // aim override the AI on whichever ship has `pilotedByPlayer=true`
+  // (Phase 6.1: at most one ship at a time — flagship by default; the
+  // launched MS while the player is in the cockpit). Releasing input
+  // hands the helm back to AI immediately.
+  const playerSide = getPlayerSideEntities()
+  const allShips: Entity[] = [...playerSide, ...enemies]
   for (const self of allShips) {
     const cs = self.get(CombatShipState)!
-    const isPlayer = cs.isPlayer
-    const hostiles = isPlayer ? enemies : [playerEnt]
+    const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
+    const hostiles = isPlayerSide ? enemies : playerSide
     let nearest: Entity | null = null
     let nearestRange = Infinity
     for (const h of hostiles) {
@@ -874,7 +976,7 @@ export function combatSystem(_world: World, dtMs: number): void {
       aimAngle = toAng
     }
 
-    if (isPlayer) {
+    if (cs.pilotedByPlayer) {
       // WASD overrides AI thrust whenever any axis is held.
       const axis = store.inputAxis
       const inputLen = Math.hypot(axis.forward, axis.strafe)
@@ -981,22 +1083,36 @@ export function combatSystem(_world: World, dtMs: number): void {
   }
 
   // -- 4. Per-enemy weapon charge + auto-fire (inline weapons array) -------
+  // Each enemy targets the closest player-side unit in range — which can
+  // be the flagship OR an MS. fireWeapon('enemy', ...) routes damage
+  // through applyDamageToTarget against the chosen entity so MS hits
+  // land on the MS's own CombatShipState hull, not the Ship singleton.
   for (const enemyEnt of enemies) {
     const e2 = enemyEnt.get(CombatShipState)
     if (!e2) continue
     const enemyPos = e2.pos
     const enemyHeading = e2.heading
-    const range = dist(enemyPos, playerPos)
+
+    // Pick the closest player-side unit (refresh per-enemy so two
+    // enemies in different corners can target different player units).
+    let target: { ent: Entity; pos: { x: number; y: number } } | null = null
+    let bestRange = Infinity
+    for (const ps of playerSide) {
+      const psState = ps.get(CombatShipState)!
+      const r = dist(enemyPos, psState.pos)
+      if (r < bestRange) { bestRange = r; target = { ent: ps, pos: psState.pos } }
+    }
+    const range = bestRange
 
     const updatedWeapons = e2.weapons.map((wpn) => {
       const def = getWeapon(wpn.weaponId)
       let charge = Math.min(def.chargeSec, wpn.chargeSec + dtSec * (0.5 + e2.ai.aggression))
       let ready = charge >= def.chargeSec
-      if (ready && range <= def.range) {
+      if (ready && target && range <= def.range) {
         const mountFacing = enemyHeading + wpn.facingRad
-        const angToPlayer = angleBetween(enemyPos, playerPos)
-        if (inArc(angToPlayer, mountFacing, wpn.firingArcRad)) {
-          fireWeapon('enemy', def, enemyPos, playerPos, null)
+        const angToTarget = angleBetween(enemyPos, target.pos)
+        if (inArc(angToTarget, mountFacing, wpn.firingArcRad)) {
+          fireWeapon('enemy', def, enemyPos, target.pos, target.ent)
           charge = 0
           ready = false
         }
@@ -1014,6 +1130,43 @@ export function combatSystem(_world: World, dtMs: number): void {
       fluxCurrent: enemyFlux,
       shieldUp: enemyShieldUp,
     })
+  }
+
+  // -- 4b. Player MS weapon charge + auto-fire (Phase 6.1) ----------------
+  // The launched MS fires from its inline weapons array (no per-MS ammo
+  // in 6.1; "run out of ammo" lands at 6.2.5). Same closest-in-arc rule
+  // as enemies, targeting the closest hostile.
+  for (const psEnt of playerSide) {
+    const psState = psEnt.get(CombatShipState)
+    if (!psState || !psState.isMs) continue
+    const msPos = psState.pos
+    const msHeading = psState.heading
+
+    let target: { ent: Entity; pos: { x: number; y: number } } | null = null
+    let bestRange = Infinity
+    for (const en of enemies) {
+      const es = en.get(CombatShipState)!
+      const r = dist(msPos, es.pos)
+      if (r < bestRange) { bestRange = r; target = { ent: en, pos: es.pos } }
+    }
+
+    const updatedWeapons = psState.weapons.map((wpn) => {
+      const def = getWeapon(wpn.weaponId)
+      let charge = Math.min(def.chargeSec, wpn.chargeSec + dtSec)
+      let ready = charge >= def.chargeSec
+      if (ready && target && bestRange <= def.range) {
+        const mountFacing = msHeading + wpn.facingRad
+        const angToTarget = angleBetween(msPos, target.pos)
+        if (inArc(angToTarget, mountFacing, wpn.firingArcRad)) {
+          fireWeapon('player', def, msPos, target.pos, target.ent)
+          charge = 0
+          ready = false
+        }
+      }
+      return { ...wpn, chargeSec: charge, ready }
+    })
+
+    psEnt.set(CombatShipState, { ...psState, weapons: updatedWeapons })
   }
 
   // -- 5. Projectiles + beam-flash decay -----------------------------------

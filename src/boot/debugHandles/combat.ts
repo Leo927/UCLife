@@ -11,6 +11,10 @@ import {
 import { useCombatStore, startCombat } from '../../systems/combat'
 import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
+import {
+  useCockpit, launchMs, dockMs, takeFlagshipControl, leaveBridge,
+  getPlayerMs, PLAYER_MS_KEY,
+} from '../../sim/cockpit'
 
 registerDebugHandle('useCombatStore', useCombatStore)
 registerDebugHandle('useTransition', useTransition)
@@ -53,4 +57,46 @@ registerDebugHandle('listEnemies', () => {
     })
   }
   return out
+})
+
+// Phase 6.1 cockpit + bridge-walk handles. Smoke tests drive these to
+// exercise launch/dock/leave-bridge without going through the in-game
+// hangar interactable + walk path.
+registerDebugHandle('useCockpit', useCockpit)
+registerDebugHandle('launchPlayerMs', () => launchMs())
+registerDebugHandle('dockPlayerMs', (force: boolean = false) => dockMs({ force }))
+registerDebugHandle('takeFlagshipControl', () => takeFlagshipControl())
+registerDebugHandle('leaveBridgeCheat', () => { leaveBridge(); return true })
+
+registerDebugHandle('combatEntities', () => {
+  const w = getWorld('playerShipInterior')
+  const out: { side: string; isFlagship: boolean; isMs: boolean; piloted: boolean; nameZh: string; hull: string }[] = []
+  for (const e of w.query(CombatShipState)) {
+    const cs = e.get(CombatShipState)!
+    out.push({
+      side: cs.side,
+      isFlagship: cs.isFlagship,
+      isMs: cs.isMs,
+      piloted: cs.pilotedByPlayer,
+      nameZh: cs.nameZh,
+      hull: `${cs.hullCurrent}/${cs.hullMax}`,
+    })
+  }
+  return out
+})
+
+registerDebugHandle('msState', () => {
+  const e = getPlayerMs()
+  if (!e) return null
+  const cs = e.get(CombatShipState)!
+  return {
+    key: PLAYER_MS_KEY,
+    nameZh: cs.nameZh,
+    pos: { x: cs.pos.x, y: cs.pos.y },
+    vel: { x: cs.vel.x, y: cs.vel.y },
+    heading: cs.heading,
+    hullCurrent: cs.hullCurrent,
+    hullMax: cs.hullMax,
+    pilotedByPlayer: cs.pilotedByPlayer,
+  }
 })

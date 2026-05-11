@@ -94,6 +94,10 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   // family as helm/manage so ship-command interactables read as one
   // group on the floor.
   captainsDesk:    { fill: 0x422006, stroke: 0xfcd34d },
+  // Phase 6.1 — climb-into-MS interactable on the hangar bay floor.
+  // Cool blue to read as the friendly-MS color used in the tactical
+  // arena (snap.color = 0x60a5fa).
+  climbIntoMs:     { fill: 0x172554, stroke: 0x60a5fa },
 }
 
 const BED_VISUAL: Record<BedTier, { fill: number; stroke: number; w: number; h: number; label: string }> = {

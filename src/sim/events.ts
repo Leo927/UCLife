@@ -39,6 +39,11 @@ export interface SimEventPayloads {
   'ui:open-dialog-npc':        { entity: Entity }
   'ui:open-manage':            { building: Entity }
   'ui:open-captains-office':   { reason: string }
+  // Phase 6.1 — set the tactical-overlay visibility (combat may keep
+  // running underneath while the overlay is hidden, so the player can
+  // walk the ship interior mid-engagement). Subscribed by combat.ts to
+  // mutate useCombatStore.open without an upward import from sim/.
+  'combat:set-overlay-open': { open: boolean }
   // Phase 6.0 — fires when tactical resolves in the player's favor with
   // a non-zero payout to acknowledge. The combat tally panel listens.
   'ui:open-combat-tally':      {

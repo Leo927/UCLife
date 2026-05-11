@@ -17,6 +17,7 @@ import { worldConfig, actionsConfig } from '../config'
 import { Flags, Ship } from '../ecs/traits'
 import { boardShip, disembarkShip } from '../sim/scene'
 import { takeHelm } from '../sim/helm'
+import { launchMs, takeFlagshipControl } from '../sim/cockpit'
 import { runTransition } from '../sim/transition'
 import { getActiveSceneId } from '../ecs/world'
 import { getPoi } from '../data/pois'
@@ -152,7 +153,27 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '操舵台仅在飞船舰桥内可用' })
         continue
       }
+      // Mid-combat helm = take direct flagship control + open the
+      // tactical overlay. Outside combat, helm = orbit-map view.
+      if (useClock.getState().mode === 'combat') {
+        const r = takeFlagshipControl()
+        if (!r.ok && r.reasonZh) emitSim('toast', { textZh: r.reasonZh })
+        continue
+      }
       takeHelm()
+      continue
+    }
+    if (nearestKind === 'climbIntoMs') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        emitSim('toast', { textZh: '只能在机库内登舱出击' })
+        continue
+      }
+      if (useClock.getState().mode !== 'combat') {
+        emitSim('toast', { textZh: '尚未进入战斗 · 无需出击' })
+        continue
+      }
+      const r = launchMs()
+      if (!r.ok && r.reasonZh) emitSim('toast', { textZh: r.reasonZh })
       continue
     }
     if (nearestKind === 'captainsDesk') {

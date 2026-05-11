@@ -1,0 +1,28 @@
+// Phase 6.1 cockpit / hangar tunables. Read by src/systems/cockpit.ts and
+// the tactical UI's launch / dock affordances.
+//
+// Phase 6.1 ships a single placeholder hangar door per ship — `dockApproachRadiusPx`
+// is the launch + dock proximity check against the flagship. Per-ship-class
+// authored `hangarDoors[]` + door queueing land in 6.2.5.
+{
+  // Where the MS spawns relative to the flagship's center, in arena units.
+  // Single placeholder door for 6.1 — sits to the flagship's port side
+  // (negative y) so the MS doesn't immediately collide with the flagship.
+  launchOffset: { x: 0, y: -40 },
+
+  // Initial velocity given to the MS at launch (arena units / sec). A
+  // small kick along +x so it clears the flagship before the player takes
+  // over.
+  launchVelocity: { x: 80, y: 0 },
+
+  // To dock back, the MS must be within this radius of the flagship and
+  // moving slower than dockApproachMaxRelVel relative to it.
+  dockApproachRadiusPx: 80,
+  dockApproachMaxRelVel: 60,
+
+  // MS combat hull is the only resource (per 6.1 design). Reaching 0 hull
+  // ejects the player; the MS is "lost" for the rest of the engagement
+  // and the player avatar respawns at the hangar bay.
+  // Phase 6.1 has no in-tactical recovery; that lands at 6.2.5.
+  msHullEjectFloor: 0,
+}

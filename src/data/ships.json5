@@ -124,6 +124,10 @@
           id: 'hangarBay', nameZh: '机库', bounds: { x: 4, y: 4, w: 2, h: 2 },
           interactables: [
             { kind: 'disembarkShip', label: '下船', offset: { dx: 0, dy: -0.5 } },
+            // Phase 6.1 — climb into the on-ship MS. Visible at all
+            // times; the interaction handler gates the actual launch
+            // on combat being engaged. Pre-combat clicks just toast.
+            { kind: 'climbIntoMs', label: '登舱出击', offset: { dx: 0.5, dy: 0.5 } },
           ],
         },
       ],

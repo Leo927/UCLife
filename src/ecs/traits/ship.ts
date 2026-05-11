@@ -142,20 +142,36 @@ export const MaintenanceLoad = trait({
 
 // Starsector-shape combat-time ship state during a tactical engagement.
 // Continuous-space position + heading + velocity + angular velocity, full
-// stat block, hardpoint list, and an AI directive block. Both the player
-// flagship and every enemy carry this trait during combat — the player's
-// `isPlayer: true`, enemies' `isPlayer: false`. This unifies the physics
-// + AI loop: every ship runs the same maintainRange-style AI; player
-// input overrides thrust + aim on the player ship only.
+// stat block, hardpoint list, and an AI directive block. Player flagship,
+// every enemy, and (Phase 6.1+) every player-launched MS carry this trait
+// during combat. The physics + AI loop is unified: every unit runs the
+// same maintainRange-style AI; player input overrides thrust + aim on
+// whichever unit `pilotedByPlayer` is currently true on.
 //
-// On the player ship, hull/armor/flux fields here are not the canonical
-// values — those still live on the persistent Ship singleton trait so
-// they survive endCombat. Damage routing keeps writing to Ship via
-// damageHull/applyDamageToPlayer; the player's CombatShipState fields
-// for hull/armor/flux/weapons stay zero/empty (and unread).
+// Discriminators:
+//   side='player' — friendly to player (flagship + launched MS)
+//   side='enemy'  — hostile (procedural enemies)
+//   isFlagship    — the persistent Ship singleton (hull lives on Ship,
+//                   not on this trait); CombatShipState's hull / armor /
+//                   weapons fields stay zero/empty for the flagship and
+//                   damage routes through sim/ship.ts:damageHull. Equal
+//                   to the legacy `isPlayer` discriminator on the
+//                   flagship row.
+//   isMs          — Phase 6.1 player-side mobile suit. Hull/armor/weapons
+//                   fields ARE used; damage routes to this trait directly.
+//   pilotedByPlayer — at most one unit at a time; combatSystem reads
+//                   the WASD axis + shift+mouse aim onto this unit and
+//                   leaves all others on AI.
 export const CombatShipState = trait(() => ({
   shipClassId: 'pirateLight' as string,
   nameZh: '',
+  side: 'enemy' as 'player' | 'enemy',
+  isFlagship: false,
+  isMs: false,
+  pilotedByPlayer: false,
+  // Legacy field — true on the flagship row, false everywhere else.
+  // Existing callers query `cs.isPlayer` to mean "this is the persistent
+  // Ship singleton entity"; new code prefers `isFlagship`.
   isPlayer: false,
   // Tactical position in map-units (combat arena is sized in arena units,
   // not normalized 0..100 like the campaign map).

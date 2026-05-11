@@ -1,0 +1,57 @@
+// Mobile Suit class blueprints — Phase 6.1.
+//
+// Phase 6.1 ships a single placeholder MS — the only frame the player can
+// climb into from the freighter's hangar. No per-MS resources yet
+// (currentPropellant / per-weapon ammo / life support land in 6.2.5);
+// the runtime MS instance carries hull + armor + a fixed weapon array.
+// MS retrofit (per-instance mountedWeapons + frameMods) is also 6.2.5.
+//
+// Schema (see ms.ts for the typed shape):
+//   id            — stable key
+//   nameZh        — zh-CN frame name
+//   descZh        — zh-CN one-liner
+//   hullMax       — total hull integrity (HP). 0 = ejection.
+//   armorMax      — armor before hull damage. Same proportional-absorb
+//                   model as ship armor.
+//   topSpeed      — tactical-arena units/sec at full thrust
+//   accel         — linear thrust acceleration (units/sec²)
+//   decel         — passive deceleration when no thrust input
+//   angularAccel  — radians/sec² of steering torque
+//   maxAngVel     — radians/sec hard cap on angular velocity
+//   weapons[]     — fixed weapon ids; no per-weapon ammo. Each entry
+//                   declares its size, firingArcDeg, facingDeg.
+//   ai            — when piloted by an NPC (or while the player walks
+//                   the ship), the MS runs this maintainRange directive
+//                   against the nearest hostile.
+
+{
+  ms: [
+    {
+      id: 'gm_pre',
+      nameZh: '原型 GM',
+      descZh: 'AE 早期评估机型；机库刚塞下一台。装甲薄但敏捷。',
+      hullMax: 320,
+      armorMax: 80,
+      // MS is 3× faster, 4× more agile than the freighter so the cockpit
+      // feels distinct from the bridge view. Numbers chosen to read as
+      // "fast small unit" vs. the ship's "lumbering platform" — light
+      // freighter is 60 / 60 / 30 / 4 / 1.5.
+      topSpeed: 180,
+      accel: 220,
+      decel: 110,
+      angularAccel: 12,
+      maxAngVel: 4.5,
+      weapons: [
+        // Single forward-mounted small beam — same as the ship's default
+        // hardpoint until retrofit lands in 6.2.5.
+        { weaponId: 'beamMk1', size: 'small', firingArcDeg: 60, facingDeg: 0 },
+      ],
+      ai: {
+        aggression: 0.7,
+        retreatThresholdPct: 0.15,
+        // Closer brawler band than the ship — MS prefer knife-fight range.
+        maintainRange: 130,
+      },
+    },
+  ],
+}
