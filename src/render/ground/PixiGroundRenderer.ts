@@ -90,6 +90,10 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   // service-side palette (those are now scenery-only and carry no
   // Interactable). 'manage' reads as 'this is your facility'.
   manage:          { fill: 0x713f12, stroke: 0xfbbf24 },
+  // Captain's desk — pre-launch readiness summary. Same warm palette
+  // family as helm/manage so ship-command interactables read as one
+  // group on the floor.
+  captainsDesk:    { fill: 0x422006, stroke: 0xfcd34d },
 }
 
 const BED_VISUAL: Record<BedTier, { fill: number; stroke: number; w: number; h: number; label: string }> = {

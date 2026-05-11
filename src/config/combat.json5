@@ -1,0 +1,30 @@
+// Phase 6.0 tactical-combat tunables. Read by src/systems/combat.ts,
+// src/systems/combatLog.ts, and src/ui/TacticalView.tsx.
+{
+  // Combat event log — Starsector-shape top-left fading scroll.
+  // logMaxEntries bounds memory; visible-window/fade durations gate
+  // how long an entry stays on-screen before fading and being purged
+  // from the active scroll (it lingers in the Tab-toggled full history
+  // until cleared at the next engagement).
+  logMaxEntries: 30,
+  // Entries stay fully visible for this many real-seconds.
+  logVisibleSec: 8,
+  // After the visible window, the entry fades to alpha 0 over this many
+  // real-seconds, then drops out of the live scroll.
+  logFadeSec: 1.2,
+
+  // Narrowed tactical auto-pause set (Phase 6.0): first-contact +
+  // flagship hull crosses these thresholds. Boarders + player-piloted
+  // MS at hull 0 land in 6.1; for now the 25 / 10 percentile thresholds
+  // are the entire set beyond first contact.
+  flagshipPauseHullPcts: [0.25, 0.1],
+
+  // Post-combat tally — minimum payout shape for Phase 6.0.
+  // Reward magnitudes for victory:
+  //   creditsMin / creditsMax — fiat reward range per engagement.
+  //   suppliesGain / fuelGain — flat material recovery on victory.
+  tallyCreditsMin: 800,
+  tallyCreditsMax: 1500,
+  tallySuppliesGain: 6,
+  tallyFuelGain: 2,
+}

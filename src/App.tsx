@@ -22,6 +22,8 @@ import { EngagementModal } from './ui/EngagementModal'
 import { TransitionOverlay } from './ui/TransitionOverlay'
 import { NPCDialog } from './ui/NPCDialog'
 import { ManageFacilityDialog } from './ui/ManageFacilityDialog'
+import { CaptainsOfficePanel } from './ui/CaptainsOfficePanel'
+import { CombatTallyPanel } from './ui/CombatTallyPanel'
 import { PortraitModal } from './ui/PortraitModal'
 import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
 import { SpriteTester } from './render/sprite/__debug__/SpriteTester'
@@ -56,6 +58,8 @@ export function App() {
       <EngagementModal />
       <NPCDialog />
       <ManageFacilityDialog />
+      <CaptainsOfficePanel />
+      <CombatTallyPanel />
       <PortraitModal />
       <DeathModal />
       <Toasts />

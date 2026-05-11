@@ -98,25 +98,37 @@
         maintainRange: 200,
       },
       priceFiat: 80000,
+      // Captain's office sits in its own row above the bridge so it's
+      // adjacent (south door into the bridge). Pre-launch readiness
+      // summary kiosk lives at the desk — `captainsDesk` interactable.
+      // Phase 6.2 will hang the comm panel here too; for now, just the
+      // readiness summary.
       rooms: [
         {
-          id: 'bridge', nameZh: '舰桥', bounds: { x: 0, y: 0, w: 2, h: 2 },
+          id: 'captainsOffice', nameZh: '船长室', bounds: { x: 0, y: 0, w: 2, h: 2 },
+          interactables: [
+            { kind: 'captainsDesk', label: '出航简报', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
+        {
+          id: 'bridge', nameZh: '舰桥', bounds: { x: 0, y: 2, w: 2, h: 2 },
           interactables: [
             { kind: 'helm', label: '操舵 / 航行', offset: { dx: 0, dy: -0.5 } },
           ],
         },
-        { id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 0, w: 2, h: 2 } },
-        { id: 'mess',       nameZh: '餐厅',     bounds: { x: 4, y: 0, w: 2, h: 2 } },
-        { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 2, w: 2, h: 2 } },
-        { id: 'medbay',     nameZh: '医务室',   bounds: { x: 2, y: 2, w: 2, h: 2 } },
+        { id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 2, w: 2, h: 2 } },
+        { id: 'mess',       nameZh: '餐厅',     bounds: { x: 4, y: 2, w: 2, h: 2 } },
+        { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 4, w: 2, h: 2 } },
+        { id: 'medbay',     nameZh: '医务室',   bounds: { x: 2, y: 4, w: 2, h: 2 } },
         {
-          id: 'hangarBay', nameZh: '机库', bounds: { x: 4, y: 2, w: 2, h: 2 },
+          id: 'hangarBay', nameZh: '机库', bounds: { x: 4, y: 4, w: 2, h: 2 },
           interactables: [
             { kind: 'disembarkShip', label: '下船', offset: { dx: 0, dy: -0.5 } },
           ],
         },
       ],
       doors: [
+        { roomA: 'captainsOffice', roomB: 'bridge',   side: 'south' },
         { roomA: 'bridge',     roomB: 'crewQ',      side: 'east' },
         { roomA: 'crewQ',      roomB: 'mess',       side: 'east' },
         { roomA: 'engineRoom', roomB: 'medbay',     side: 'east' },

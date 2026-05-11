@@ -2269,3 +2269,112 @@ html, body, #root {
     padding: 8px 10px;
   }
 }
+
+/* Captain's office readiness summary — Phase 6.0. */
+.captain-readiness {
+  margin: 4px 0;
+}
+.captain-readiness-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+.captain-readiness-label {
+  color: var(--text);
+}
+.captain-readiness-value {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.captain-readiness-track {
+  height: 8px;
+  background: #0a0a0d;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.captain-readiness-fill {
+  height: 100%;
+  transition: width 120ms linear;
+}
+
+/* Combat event log — Phase 6.0. Top-left fading scroll, Starsector shape.
+   Sits over the tactical canvas; pointer-events allow Tab toggle but the
+   log itself is read-only. Severity tier drives left-border color. */
+.combat-log {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 320px;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+.combat-log-entry {
+  padding: 5px 9px;
+  background: rgba(10, 10, 14, 0.72);
+  border-left: 3px solid var(--border);
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text);
+  transition: opacity 320ms linear;
+}
+.combat-log-entry.is-info { border-left-color: #94a3b8; }
+.combat-log-entry.is-warn { border-left-color: #fbbf24; }
+.combat-log-entry.is-crit { border-left-color: #f87171; }
+.combat-log-entry.is-narr { border-left-color: #a78bfa; font-style: italic; }
+.combat-log-tab-hint {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+.combat-log-history {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: rgba(10, 10, 14, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 3;
+  pointer-events: auto;
+}
+.combat-log-history h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+/* Post-combat tally minimum — Phase 6.0. Two-row read-only summary
+   (credits + supplies/fuel) acknowledged with one OK button. */
+.combat-tally-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.combat-tally-row:last-child {
+  border-bottom: none;
+}
+.combat-tally-row-label {
+  color: var(--text);
+}
+.combat-tally-row-value {
+  font-variant-numeric: tabular-nums;
+}
+.combat-tally-row-delta {
+  color: #4ade80;
+  margin-right: 6px;
+}

@@ -42,6 +42,8 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
+import { pushCombatLog, useCombatLog } from './combatLog'
+import { combatConfig } from '../config'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -103,6 +105,18 @@ const projectiles: ProjectileSnap[] = []
 // stored so endCombat('victory') can destroy it (otherwise the same
 // pirate re-prompts engagement after the cooldown expires).
 let activeCampaignEnemyKey: string | null = null
+
+// Narrowed tactical auto-pause set — Phase 6.0 (per Design/combat.md +
+// Design/post-combat.md): first-contact (handled in startCombat) + the
+// flagship hull threshold crossings here. Tracks the lowest threshold
+// already triggered so we don't re-pause as hull oscillates inside a
+// band. Reset on startCombat.
+let flagshipThresholdsHit: number[] = []
+function pauseTactical(reasonZh: string, severity: 'warn' | 'crit' = 'crit'): void {
+  const store = useCombatStore.getState()
+  if (!store.paused) store.togglePause()
+  pushCombatLog(reasonZh, severity)
+}
 
 // Default player spatial state when no CombatShipState exists yet (combat
 // not open) — UI snapshot helpers fall back to these so they never throw.
@@ -346,9 +360,14 @@ export function startCombat(
   useClock.getState().setSpeed(0)
   useCombatStore.getState().reset()
   useCombatStore.getState().setOpen(true)
+  // Fresh engagement → fresh combat log + threshold tracking. The first
+  // entry is the auto-paused first-contact briefing.
+  useCombatLog.getState().clear()
+  flagshipThresholdsHit = []
   const leadName = getEnemyShip(leadShipId).nameZh
   const fleetNote = fleet.length > 1 ? ` · 队伍 ${fleet.length} 艘` : ''
   logEvent(`战斗开始 · 对手: ${leadName}${fleetNote}`)
+  pushCombatLog(`首次接触 · ${leadName}${fleetNote}`, 'crit')
 }
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
@@ -473,13 +492,45 @@ export function endCombat(outcome: CombatOutcome): void {
 
   if (outcome === 'victory') {
     if (campaignKey) destroyCampaignEnemyByKey(campaignKey)
-    const reward = 800 + Math.floor(Math.random() * 700)
+    // Phase 6.0 tally minimum — credits + supplies + fuel deltas.
+    const creditsRange = combatConfig.tallyCreditsMax - combatConfig.tallyCreditsMin
+    const reward = combatConfig.tallyCreditsMin + Math.floor(Math.random() * (creditsRange + 1))
+    const supplyGain = combatConfig.tallySuppliesGain
+    const fuelGain = combatConfig.tallyFuelGain
     const player = findPlayer()
+    let creditsAfter = 0
     if (player) {
       const m = player.get(Money) ?? { amount: 0 }
-      player.set(Money, { amount: m.amount + reward })
+      creditsAfter = m.amount + reward
+      player.set(Money, { amount: creditsAfter })
+    }
+    // Replenish the flagship's supplies + fuel — capped at max.
+    const playerShip = getPlayerShipEntity()
+    let suppliesAfter = 0, suppliesMax = 0, fuelAfter = 0, fuelMax = 0
+    if (playerShip) {
+      const s = playerShip.get(Ship)!
+      suppliesMax = s.suppliesMax
+      fuelMax = s.fuelMax
+      suppliesAfter = Math.min(s.suppliesMax, s.suppliesCurrent + supplyGain)
+      fuelAfter = Math.min(s.fuelMax, s.fuelCurrent + fuelGain)
+      playerShip.set(Ship, {
+        ...s,
+        suppliesCurrent: suppliesAfter,
+        fuelCurrent: fuelAfter,
+      })
     }
     logEvent(`战斗胜利 · 缴获 ¥${reward}`)
+    pushCombatLog(`战斗胜利 · 缴获 ¥${reward}`, 'narr')
+    emitSim('ui:open-combat-tally', {
+      creditsDelta: reward,
+      creditsAfter,
+      suppliesDelta: supplyGain,
+      suppliesAfter,
+      suppliesMax,
+      fuelDelta: fuelGain,
+      fuelAfter,
+      fuelMax,
+    })
   } else if (outcome === 'defeat') {
     applyDefeatConsequence()
   } else {
@@ -677,11 +728,13 @@ function fireWeapon(
     })
     if (ownerSide === 'player') {
       if (!targetEnemy) return
+      const enemyName = targetEnemy.get(CombatShipState)?.nameZh ?? '敌舰'
       const r = applyDamageToEnemy(targetEnemy, weapon)
       useCombatStore.getState().flash(
         r.absorbed ? `${weapon.nameZh} → 命中护盾` : `${weapon.nameZh} → 命中船体`,
       )
       if (r.destroyed) {
+        pushCombatLog(`击毁敌舰 · ${enemyName}`, 'info')
         targetEnemy.destroy()
         if (getEnemyEntities().length === 0) endCombat('victory')
       }
@@ -740,12 +793,14 @@ function tickProjectiles(dtSec: number): void {
       }
       if (hit) {
         const weapon = getWeapon(p.weaponId)
+        const enemyName = hit.get(CombatShipState)?.nameZh ?? '敌舰'
         const r = applyDamageToEnemy(hit, weapon)
         useCombatStore.getState().flash(
           r.absorbed ? `${weapon.nameZh} → 命中护盾` : `${weapon.nameZh} → 命中船体`,
         )
         projectiles.splice(i, 1)
         if (r.destroyed) {
+          pushCombatLog(`击毁敌舰 · ${enemyName}`, 'info')
           hit.destroy()
           if (getEnemyEntities().length === 0) {
             projectiles.length = 0
@@ -970,8 +1025,22 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
   }
 
-  // -- 6. Resolution ------------------------------------------------------
+  // -- 6. Flagship hull threshold auto-pause (narrowed set, Phase 6.0) ----
+  // Crossing 25% or 10% pauses tactical and posts a crit log entry.
+  // Each threshold fires at most once per engagement — tracked in
+  // flagshipThresholdsHit (reset by startCombat).
   const shipNow = ship.get(Ship)!
+  if (shipNow.hullMax > 0) {
+    const hullPct = shipNow.hullCurrent / shipNow.hullMax
+    for (const pct of combatConfig.flagshipPauseHullPcts) {
+      if (hullPct <= pct && !flagshipThresholdsHit.includes(pct)) {
+        flagshipThresholdsHit.push(pct)
+        pauseTactical(`旗舰船体跌破 ${Math.round(pct * 100)}%`, 'crit')
+      }
+    }
+  }
+
+  // -- 7. Resolution ------------------------------------------------------
   if (shipNow.hullCurrent <= 0) { endCombat('defeat'); return }
   if (getEnemyEntities().length === 0) { endCombat('victory'); return }
 }

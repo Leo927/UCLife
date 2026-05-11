@@ -155,6 +155,14 @@ export function interactionSystem(world: World) {
       takeHelm()
       continue
     }
+    if (nearestKind === 'captainsDesk') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        emitSim('toast', { textZh: '船长简报仅在飞船内可用' })
+        continue
+      }
+      emitSim('ui:open-captains-office', { reason: 'captainsDesk' })
+      continue
+    }
     if (nearestKind === 'work') {
       const j = player.get(Job)
       const ws = j?.workstation ?? null

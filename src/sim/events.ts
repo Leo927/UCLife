@@ -38,6 +38,19 @@ export interface SimEventPayloads {
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }
   'ui:open-manage':            { building: Entity }
+  'ui:open-captains-office':   { reason: string }
+  // Phase 6.0 — fires when tactical resolves in the player's favor with
+  // a non-zero payout to acknowledge. The combat tally panel listens.
+  'ui:open-combat-tally':      {
+    creditsDelta: number
+    creditsAfter: number
+    suppliesDelta: number
+    suppliesAfter: number
+    suppliesMax: number
+    fuelDelta: number
+    fuelAfter: number
+    fuelMax: number
+  }
 }
 
 export type SimEventName = keyof SimEventPayloads

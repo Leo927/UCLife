@@ -11,6 +11,8 @@ import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
 } from '../systems/combat'
+import { useCombatLog, type CombatLogEntry } from '../systems/combatLog'
+import { combatConfig } from '../config'
 import { getWorld } from '../ecs/world'
 import { Ship, WeaponMount, CombatShipState, EntityKey } from '../ecs/traits'
 import { getShipClass } from '../data/ships'
@@ -306,6 +308,11 @@ export function TacticalView() {
         useCombatStore.getState().togglePause()
         return
       }
+      if (ev.code === 'Tab') {
+        ev.preventDefault()
+        useCombatLog.getState().toggleHistory()
+        return
+      }
       if (ev.code === 'ShiftLeft' || ev.code === 'ShiftRight') {
         useCombatStore.getState().setAimAtMouse(true)
         return
@@ -401,6 +408,9 @@ export function TacticalView() {
         />
       </div>
 
+      <CombatLogPanel />
+      <CombatLogHistory />
+
       <div className="tactical-topbar">
         <div className="tactical-title">战术指挥</div>
         <div className={`tactical-pause-state${paused ? ' is-paused' : ''}`}>
@@ -448,8 +458,73 @@ export function TacticalView() {
       </div>
 
       <div className="tactical-hint">
-        WASD 操控旗舰 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停
+        WASD 操控旗舰 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志
       </div>
+    </div>
+  )
+}
+
+// Top-left fading combat log scroll — Phase 6.0. Reads from
+// useCombatLog and re-renders at 4Hz to drive the visible-window fade
+// (entries older than combatConfig.logVisibleSec start fading out and
+// drop from the visible scroll once their fade window completes).
+function CombatLogPanel() {
+  const entries = useCombatLog((s) => s.entries)
+  const historyOpen = useCombatLog((s) => s.historyOpen)
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => (t + 1) & 0xffff), 250)
+    return () => window.clearInterval(id)
+  }, [])
+
+  if (historyOpen) return null
+
+  const now = performance.now()
+  const visibleMs = combatConfig.logVisibleSec * 1000
+  const fadeMs = combatConfig.logFadeSec * 1000
+  const live: { e: CombatLogEntry; opacity: number }[] = []
+  for (const e of entries) {
+    const age = now - e.pushedAtMs
+    if (age >= visibleMs + fadeMs) continue
+    const opacity = age <= visibleMs ? 1 : Math.max(0, 1 - (age - visibleMs) / fadeMs)
+    live.push({ e, opacity })
+  }
+  if (live.length === 0) return null
+
+  return (
+    <div className="combat-log">
+      {live.map(({ e, opacity }) => (
+        <div
+          key={e.id}
+          className={`combat-log-entry is-${e.severity}`}
+          style={{ opacity }}
+        >
+          {e.textZh}
+        </div>
+      ))}
+      <div className="combat-log-tab-hint">TAB · 查看完整日志</div>
+    </div>
+  )
+}
+
+// Tab-toggled full-history scroll — all entries from the current
+// engagement, regardless of age. Cleared by startCombat at the next
+// engagement.
+function CombatLogHistory() {
+  const entries = useCombatLog((s) => s.entries)
+  const open = useCombatLog((s) => s.historyOpen)
+  if (!open) return null
+  return (
+    <div className="combat-log-history">
+      <h3>战斗日志 · 全程</h3>
+      {entries.length === 0 && (
+        <div className="tactical-muted">尚无事件。</div>
+      )}
+      {entries.map((e) => (
+        <div key={e.id} className={`combat-log-entry is-${e.severity}`}>
+          {e.textZh}
+        </div>
+      ))}
     </div>
   )
 }

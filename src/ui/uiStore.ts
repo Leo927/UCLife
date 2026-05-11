@@ -7,6 +7,19 @@ export interface Toast {
   action?: { label: string; onClick: () => void }
 }
 
+// Phase 6.0 post-combat tally minimum: credits + supplies + fuel deltas.
+// 6.2 adds loot panel (parts inventory) + captured POW panel.
+export interface CombatTallyPayload {
+  creditsDelta: number
+  creditsAfter: number
+  suppliesDelta: number
+  suppliesAfter: number
+  suppliesMax: number
+  fuelDelta: number
+  fuelAfter: number
+  fuelMax: number
+}
+
 interface UIState {
   statusOpen: boolean
   inventoryOpen: boolean
@@ -24,6 +37,13 @@ interface UIState {
   // walks onto a 'manage' Interactable inside a building they own.
   // ManageFacilityDialog reads it to render local-bootstrap verbs.
   dialogManageBuilding: Entity | null
+  // Phase 6.0 captain's office — open while the readiness summary panel
+  // is on screen. Phase 6.2+ may extend this to a full captain-office UI
+  // with comm panel + prisoner verbs; today it's the pre-launch summary.
+  captainsOfficeOpen: boolean
+  // Phase 6.0 post-combat tally — null while no engagement has just
+  // resolved with a payout. Set when 'ui:open-combat-tally' fires.
+  combatTally: CombatTallyPayload | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -42,6 +62,8 @@ interface UIState {
   closeFlight: () => void
   setDialogNPC: (e: Entity | null) => void
   setDialogManageBuilding: (e: Entity | null) => void
+  setCaptainsOffice: (open: boolean) => void
+  setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -67,6 +89,8 @@ export const useUI = create<UIState>((set) => ({
   flightHubId: null,
   dialogNPC: null,
   dialogManageBuilding: null,
+  captainsOfficeOpen: false,
+  combatTally: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -85,6 +109,8 @@ export const useUI = create<UIState>((set) => ({
   closeFlight: () => set({ flightHubId: null }),
   setDialogNPC: (e) => set({ dialogNPC: e }),
   setDialogManageBuilding: (e) => set({ dialogManageBuilding: e }),
+  setCaptainsOffice: (open) => set({ captainsOfficeOpen: open }),
+  setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

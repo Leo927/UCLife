@@ -381,8 +381,9 @@
       titleZh: '玩家飞船 · 内部',
       sceneType: 'ship',
       shipClassId: 'lightFreighter',
-      // lightFreighter rooms span 6×4 tiles; envelope below leaves margin
-      // for camera bounds and Slice J's exterior walls/airlock.
+      // lightFreighter rooms span 6×6 tiles (captain's office row above
+      // the 3×2 main grid); envelope below leaves margin for camera
+      // bounds and Slice J's exterior walls/airlock.
       tilesX: 24,
       tilesY: 16,
       playerSpawnRoomId: 'bridge',
