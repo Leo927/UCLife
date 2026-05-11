@@ -13,6 +13,23 @@ import { SPACE_ENTITIES } from '../data/space-entities'
 import { derivedPos } from '../engine/space/orbits'
 import type { ParentResolver, OrbitalParams } from '../engine/space/types'
 import { getShipState } from './ship'
+import { isSpecialNpcId } from '../character/specialNpcs'
+
+function validateNotableCaptains(
+  entityId: string,
+  raw: Record<string, string> | undefined,
+): Record<string, string> {
+  if (!raw) return {}
+  for (const [slotKey, npcId] of Object.entries(raw)) {
+    if (!isSpecialNpcId(npcId)) {
+      throw new Error(
+        `spaceBootstrap: entity "${entityId}" notableCaptains slot ${slotKey} ` +
+        `references unknown special-npc id "${npcId}"`,
+      )
+    }
+  }
+  return { ...raw }
+}
 
 const SPACE_SCENE_ID = 'spaceCampaign'
 
@@ -118,6 +135,11 @@ export function bootstrapSpaceCampaign(): void {
       EnemyAI({
         shipClassId: e.shipClassId,
         escorts: [...(e.escorts ?? [])],
+        // npc-id-in-roster cross-check happens here because the data
+        // layer can't reach into src/character/. Surfaces an authoring
+        // typo at world boot rather than as a silent "named hostile
+        // doesn't show up" at runtime.
+        notableCaptains: validateNotableCaptains(e.id, e.notableCaptains),
         mode: e.aiMode,
         patrolPath: [...(e.patrolPath ?? [])],
         patrolIdx: 0,

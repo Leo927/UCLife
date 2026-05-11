@@ -22,7 +22,15 @@ interface EngagementState {
   // Lead ship's wingmen — joins the lead in the tactical arena. Empty
   // = solo encounter.
   enemyEscorts: string[]
-  prompt: (enemyKey: string, shipClassId: string, escorts: string[]) => void
+  // Phase 6.2 — slot-keyed named-captain ids carried through to
+  // startCombat so destruction events know which row to capture.
+  enemyNotableCaptains: Record<string, string>
+  prompt: (
+    enemyKey: string,
+    shipClassId: string,
+    escorts: string[],
+    notableCaptains: Record<string, string>,
+  ) => void
   resolve: (choice: EngagementChoice) => void
   dismiss: () => void
 }
@@ -37,9 +45,16 @@ export const useEngagement = create<EngagementState>((set, get) => ({
   enemyKey: null,
   enemyShipClassId: null,
   enemyEscorts: [],
-  prompt(enemyKey, shipClassId, escorts) {
+  enemyNotableCaptains: {},
+  prompt(enemyKey, shipClassId, escorts, notableCaptains) {
     if (get().open) return
-    set({ open: true, enemyKey, enemyShipClassId: shipClassId, enemyEscorts: escorts })
+    set({
+      open: true,
+      enemyKey,
+      enemyShipClassId: shipClassId,
+      enemyEscorts: escorts,
+      enemyNotableCaptains: notableCaptains,
+    })
   },
   resolve(choice) {
     const s = get()
@@ -47,12 +62,19 @@ export const useEngagement = create<EngagementState>((set, get) => ({
     const classId = s.enemyShipClassId
     const escorts = s.enemyEscorts
     const key = s.enemyKey
-    set({ open: false, enemyKey: null, enemyShipClassId: null, enemyEscorts: [] })
+    const captains = s.enemyNotableCaptains
+    set({
+      open: false,
+      enemyKey: null,
+      enemyShipClassId: null,
+      enemyEscorts: [],
+      enemyNotableCaptains: {},
+    })
     if (choice === 'engage') {
       if (classId) {
         const escortClassIds = escorts
           .map((id) => (isEnemyShipId(id) ? id : 'pirateLight'))
-        startCombat(resolveCombatClassId(classId), escortClassIds, key)
+        startCombat(resolveCombatClassId(classId), escortClassIds, key, captains)
       }
     } else if (choice === 'flee') {
       // Modal-flee disengages without committing to combat — applies the
@@ -64,7 +86,13 @@ export const useEngagement = create<EngagementState>((set, get) => ({
     }
   },
   dismiss() {
-    set({ open: false, enemyKey: null, enemyShipClassId: null, enemyEscorts: [] })
+    set({
+      open: false,
+      enemyKey: null,
+      enemyShipClassId: null,
+      enemyEscorts: [],
+      enemyNotableCaptains: {},
+    })
   },
 }))
 
@@ -78,5 +106,6 @@ export function resetEngagementCooldowns(): void {
     enemyKey: null,
     enemyShipClassId: null,
     enemyEscorts: [],
+    enemyNotableCaptains: {},
   })
 }

@@ -123,12 +123,17 @@
       fleeHullPct: 0.20,
     },
     // Lunar raider with two skirmisher wingmen — heaviest near-moon
-    // engagement, 1v3.
+    // engagement, 1v3. Lead is captained by Char Aznable in disguise
+    // (Phase 6.2 notable hostile); the player only knows him by the
+    // "Red Comet" rumor until they fight him and either kill or
+    // capture. Per Design/post-combat.md, capture happens when his
+    // ship is destroyed and the brig has capacity.
     {
       id: 'pirate-lunar-4',
       kind: 'enemyShip',
       shipClassId: 'pirate_raider',
       escorts: ['pirate_skirmisher', 'pirate_skirmisher'],
+      notableCaptains: { '0': 'char-aznable-0077-disguise' },
       spawn: { x: 19400, y: 12600 },
       aiMode: 'patrol',
       patrolPath: [
@@ -141,12 +146,14 @@
       fleeHullPct: 0.15,
     },
 
-    // Outer-belt raiders — heavier, near Axis/Pezun radii.
+    // Outer-belt raiders — heavier, near Axis/Pezun radii. Anavel
+    // Gato leads the easterly flotilla; Ramba Ral the westerly one.
     {
       id: 'pirate-outer-1',
       kind: 'enemyShip',
       shipClassId: 'pirate_raider',
       escorts: ['pirate_skirmisher'],
+      notableCaptains: { '0': 'gato-0077-corp-raider' },
       spawn: { x: 27000, y: 8400 },
       aiMode: 'patrol',
       patrolPath: [
@@ -162,6 +169,7 @@
       kind: 'enemyShip',
       shipClassId: 'pirate_raider',
       escorts: ['pirate_skirmisher'],
+      notableCaptains: { '0': 'ramba-ral-0077-corp-raider' },
       spawn: { x: 4200, y: 18800 },
       aiMode: 'idle',
       aggroRadius: 800,

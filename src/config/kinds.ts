@@ -30,6 +30,8 @@ export type InteractableKind =
   | 'helm'
   | 'manage'
   | 'captainsDesk'
+  | 'commPanel'
+  | 'brig'
   | 'climbIntoMs'
 
 export type ActionKind =

@@ -39,13 +39,21 @@ export interface SimEventPayloads {
   'ui:open-dialog-npc':        { entity: Entity }
   'ui:open-manage':            { building: Entity }
   'ui:open-captains-office':   { reason: string }
+  // Phase 6.2 — captain's-office comm-panel kiosk: officer face wall
+  // + named-POW intel reveal. Per-prisoner verbs land at 6.2.5; the
+  // panel today is read-only.
+  'ui:open-comm-panel':        { reason: string }
+  // Phase 6.2 — brig walk-up kiosk: occupant list, capacity gauge.
+  // Per-prisoner verbs land at 6.2.5.
+  'ui:open-brig-panel':        { reason: string }
   // Phase 6.1 — set the tactical-overlay visibility (combat may keep
   // running underneath while the overlay is hidden, so the player can
   // walk the ship interior mid-engagement). Subscribed by combat.ts to
   // mutate useCombatStore.open without an upward import from sim/.
   'combat:set-overlay-open': { open: boolean }
-  // Phase 6.0 — fires when tactical resolves in the player's favor with
-  // a non-zero payout to acknowledge. The combat tally panel listens.
+  // Phase 6.0 (left-panel loot) + Phase 6.2 (right-panel captures).
+  // Fires when tactical resolves in the player's favor; the combat
+  // tally panel listens.
   'ui:open-combat-tally':      {
     creditsDelta: number
     creditsAfter: number
@@ -55,6 +63,21 @@ export interface SimEventPayloads {
     fuelDelta: number
     fuelAfter: number
     fuelMax: number
+    // Phase 6.2 — named POWs captured this engagement. Empty when no
+    // named hostile died with brig capacity. Anonymous crew captures
+    // are out-of-scope at 6.2 (no recoverables dialogue yet); the
+    // captured panel hides when this is empty.
+    capturedPows: {
+      id: string
+      nameZh: string
+      titleZh?: string
+      contextZh: string
+    }[]
+    // Brig occupancy line shown beneath the captured list. Always set
+    // so the panel can render "Brig: N / M" even with zero captures
+    // (the player may have prior POWs aboard).
+    brigOccupied: number
+    brigCapacity: number
   }
 }
 

@@ -23,6 +23,11 @@ export interface SpaceEntity {
   // combat. Empty/missing = solo encounter. Each escort spawns its
   // own CombatShipState in the arena alongside the lead.
   escorts?: string[]
+  // Phase 6.2 — notable hostile captains pinned to slots of this
+  // fleet. Slot 0 is the lead (shipClassId); slots 1..N map to
+  // escorts[0..N-1]. Values are stable special-NPC ids — captured
+  // captains route via that id to the brig at end-of-combat.
+  notableCaptains?: Record<string, string>
   spawn: SpacePos
   aiMode: EnemyAiMode
   patrolPath?: SpacePos[]
@@ -76,6 +81,29 @@ for (const e of parsed.entities) {
       if (typeof esc !== 'string' || !isEnemyShipId(esc)) {
         throw new Error(`space-entities.json5: entity "${e.id}" escort "${esc}" not in enemyShips.json5`)
       }
+    }
+  }
+  if (e.notableCaptains !== undefined) {
+    if (typeof e.notableCaptains !== 'object' || Array.isArray(e.notableCaptains)) {
+      throw new Error(`space-entities.json5: entity "${e.id}" notableCaptains must be an object`)
+    }
+    const fleetSize = 1 + (e.escorts?.length ?? 0)
+    for (const [slotKey, npcId] of Object.entries(e.notableCaptains)) {
+      const slotIdx = Number(slotKey)
+      if (!Number.isInteger(slotIdx) || slotIdx < 0 || slotIdx >= fleetSize) {
+        throw new Error(
+          `space-entities.json5: entity "${e.id}" notableCaptains slot "${slotKey}" out of range [0, ${fleetSize})`,
+        )
+      }
+      if (typeof npcId !== 'string' || !npcId) {
+        throw new Error(
+          `space-entities.json5: entity "${e.id}" notableCaptains slot ${slotKey} npc id must be a non-empty string`,
+        )
+      }
+      // npc-id-in-roster is validated up-layer at spaceBootstrap time —
+      // src/data/ may only import from src/config/, so the
+      // special-npcs.json5 roster is checked by the sim-layer wiring
+      // when it spawns the EnemyAI entities.
     }
   }
   if (e.aiMode === 'patrol' && (!e.patrolPath || e.patrolPath.length < 2)) {

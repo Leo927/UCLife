@@ -127,6 +127,11 @@ export const EnemyAI = trait(() => ({
   // engagement triggers. Empty = solo. Each escort spawns its own
   // CombatShipState in the tactical arena.
   escorts: [] as string[],
+  // Phase 6.2 — named-hostile authoring per fleet slot. Slot 0 is the
+  // lead (shipClassId); slots 1..N map to escorts[0..N-1]. Values are
+  // special-NPC ids (src/character/special-npcs.json5). Captured /
+  // killed named captains route to brig / event log respectively.
+  notableCaptains: {} as Record<string, string>,
   mode: 'patrol' as 'patrol' | 'idle' | 'chase' | 'flee',
   patrolPath: [] as { x: number; y: number }[],
   patrolIdx: 0,
@@ -165,6 +170,10 @@ export const MaintenanceLoad = trait({
 export const CombatShipState = trait(() => ({
   shipClassId: 'pirateLight' as string,
   nameZh: '',
+  // Phase 6.2 — pinned named captain (special-NPC id). Empty string =
+  // anonymous. Used on destruction to push named-hostile log lines +
+  // optionally enqueue a brig capture.
+  captainId: '',
   side: 'enemy' as 'player' | 'enemy',
   isFlagship: false,
   isMs: false,

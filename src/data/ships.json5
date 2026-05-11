@@ -84,6 +84,18 @@
       fuelMax: 16,
       suppliesMax: 40,
       crewMax: 4,
+      // Civilian-spec hulls in the design get brigCapacity: 0; the
+      // lightFreighter ships a refit 2-cell brig so the named-hostile
+      // capture loop has somewhere to go in 6.2. A clean civilian
+      // variant — when added — would set brigCapacity: 0.
+      brigCapacity: 2,
+      // Bridge officer roster. 6.2 wires the adjutant only — comm-panel
+      // chatter (launch, dock, threshold, leave-bridge) reads the name
+      // from here instead of the 6.1 hardcoded "凯文". 6.2.5 expands the
+      // officer wall with chief mech / chief medical / etc.
+      officers: {
+        adjutant: { name: '凯文', title: '副官' },
+      },
       mounts: [
         // Two forward small hardpoints, both narrow ±15° arcs.
         { idx: 0, size: 'small', firingArcDeg: 30, facingDeg: 0 },
@@ -99,15 +111,18 @@
       },
       priceFiat: 80000,
       // Captain's office sits in its own row above the bridge so it's
-      // adjacent (south door into the bridge). Pre-launch readiness
-      // summary kiosk lives at the desk — `captainsDesk` interactable.
-      // Phase 6.2 will hang the comm panel here too; for now, just the
-      // readiness summary.
+      // adjacent (south door into the bridge). Hosts two kiosks: the
+      // readiness-summary desk (Phase 6.0) and the comm panel (Phase
+      // 6.2 — officer chatter, named-hostile context; prisoner verbs
+      // land at 6.2.5). The brig is two doors aft of the captain's
+      // office; the player walks from desk → comm to brig in roughly
+      // a hallway's length, so the captain ↔ POW loop reads diegetic.
       rooms: [
         {
           id: 'captainsOffice', nameZh: '船长室', bounds: { x: 0, y: 0, w: 2, h: 2 },
           interactables: [
-            { kind: 'captainsDesk', label: '出航简报', offset: { dx: 0, dy: -0.5 } },
+            { kind: 'captainsDesk', label: '出航简报', offset: { dx: -0.5, dy: -0.5 } },
+            { kind: 'commPanel',    label: '通讯面板', offset: { dx: 0.5,  dy: -0.5 } },
           ],
         },
         {
@@ -130,9 +145,22 @@
             { kind: 'climbIntoMs', label: '登舱出击', offset: { dx: 0.5, dy: 0.5 } },
           ],
         },
+        // Phase 6.2 — brig as ship-class room. Capacity is gated by
+        // brigCapacity above; per-prisoner verbs (interrogate / ransom
+        // / etc.) land at 6.2.5. The 'brig' interactable opens the
+        // occupant list panel. Sits east of the captain's office on
+        // the top row so the captain ↔ POW loop is a one-door walk.
+        {
+          id: 'brig', nameZh: '禁闭室', bounds: { x: 2, y: 0, w: 2, h: 2 },
+          interactables: [
+            { kind: 'brig', label: '查看囚犯', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
       ],
       doors: [
         { roomA: 'captainsOffice', roomB: 'bridge',   side: 'south' },
+        { roomA: 'captainsOffice', roomB: 'brig',     side: 'east' },
+        { roomA: 'brig',       roomB: 'crewQ',      side: 'south' },
         { roomA: 'bridge',     roomB: 'crewQ',      side: 'east' },
         { roomA: 'crewQ',      roomB: 'mess',       side: 'east' },
         { roomA: 'engineRoom', roomB: 'medbay',     side: 'east' },

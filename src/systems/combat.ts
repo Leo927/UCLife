@@ -47,6 +47,8 @@ import { combatConfig, cockpitConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
 } from '../sim/cockpit'
+import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
+import { getSpecialNpcById } from '../character/specialNpcs'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -272,13 +274,20 @@ function enemySpawnSlot(idx: number, total: number): { x: number; y: number } {
   }
 }
 
-function spawnEnemyShip(w: World, blueprintId: string, slotIdx: number, totalSlots: number): void {
+function spawnEnemyShip(
+  w: World,
+  blueprintId: string,
+  slotIdx: number,
+  totalSlots: number,
+  captainId: string,
+): void {
   const blueprint = getEnemyShip(blueprintId)
   const spawn = enemySpawnSlot(slotIdx, totalSlots)
   w.spawn(
     CombatShipState({
       shipClassId: blueprint.id,
       nameZh: blueprint.nameZh,
+      captainId,
       side: 'enemy',
       isFlagship: false,
       isMs: false,
@@ -321,6 +330,7 @@ export function startCombat(
   leadShipId: string,
   escortShipIds: string[] = [],
   campaignEnemyKey?: string | null,
+  notableCaptains: Record<string, string> = {},
 ): void {
   const w = shipWorld()
 
@@ -356,6 +366,7 @@ export function startCombat(
     ship.add(CombatShipState({
       shipClassId: cls.id,
       nameZh: cls.nameZh,
+      captainId: '',
       side: 'player',
       isFlagship: true,
       isMs: false,
@@ -388,7 +399,10 @@ export function startCombat(
   }
 
   const fleet = [leadShipId, ...escortShipIds]
-  fleet.forEach((id, slotIdx) => spawnEnemyShip(w, id, slotIdx, fleet.length))
+  fleet.forEach((id, slotIdx) => {
+    const captainId = notableCaptains[String(slotIdx)] ?? ''
+    spawnEnemyShip(w, id, slotIdx, fleet.length, captainId)
+  })
 
   setInCombat(true)
   useClock.getState().setMode('combat')
@@ -399,10 +413,24 @@ export function startCombat(
   // entry is the auto-paused first-contact briefing.
   useCombatLog.getState().clear()
   flagshipThresholdsHit = []
+  // Phase 6.2 — drop the per-fight captured queue so this engagement's
+  // tally only lists POWs taken this fight (not cumulative across a
+  // multi-engagement session).
+  clearBrigPendingTally()
   const leadName = getEnemyShip(leadShipId).nameZh
   const fleetNote = fleet.length > 1 ? ` · 队伍 ${fleet.length} 艘` : ''
   logEvent(`战斗开始 · 对手: ${leadName}${fleetNote}`)
   pushCombatLog(`首次接触 · ${leadName}${fleetNote}`, 'crit')
+  // Phase 6.2 — surface the named lead in the log on first contact so
+  // the player knows who they're up against from the start (the rumor
+  // becomes a face in the post-combat tally if they capture).
+  const leadCaptainId = notableCaptains['0']
+  if (leadCaptainId) {
+    const npc = getSpecialNpcById(leadCaptainId)
+    if (npc) {
+      pushCombatLog(`敌方旗舰 · ${npc.name}${npc.title ? ` (${npc.title})` : ''}`, 'crit')
+    }
+  }
   onCombatStarted()
 }
 
@@ -426,6 +454,47 @@ const DEFEAT_DROP_OPTIONS: { sceneId: 'vonBraunCity' | 'zumCity'; airportHubId: 
   { sceneId: 'vonBraunCity', airportHubId: 'vonBraunCityAirport', poiId: 'vonBraun' },
   { sceneId: 'zumCity',   airportHubId: 'zumCityAirport',   poiId: 'side3' },
 ]
+
+// Phase 6.2 — handle named-hostile bookkeeping at the moment an enemy
+// ship's hull crosses zero. If the destroyed ship has a pinned captain
+// (captainId on its CombatShipState row) and the player's brig has a
+// free slot, route the named NPC to the brig and push a "captured"
+// log line. Otherwise — full brig or anonymous ship — just announce
+// the death with name + "killed in action" framing.
+//
+// Anonymous ships (no captainId) push no extra log line here; the
+// generic "击毁敌舰" line lives at the caller alongside the destroy()
+// call.
+function onEnemyDestroyed(ent: Entity): void {
+  const cs = ent.get(CombatShipState)
+  if (!cs) return
+  const npcId = cs.captainId
+  if (!npcId) return
+  const npc = getSpecialNpcById(npcId)
+  if (!npc) return
+
+  const cap = getBrigOccupancy().capacity
+  const occ = getBrigOccupancy().occupied
+  const fits = cap > 0 && occ < cap
+
+  if (fits) {
+    const ok = useBrig.getState().add({
+      id: npcId,
+      nameZh: npc.name,
+      titleZh: npc.title,
+      contextZh: npc.contextZh ?? npc.title ?? '',
+      factionId: npc.factionRole?.faction ?? 'pirate',
+      capturedAtMs: performance.now(),
+    })
+    if (ok) {
+      pushCombatLog(`俘获 · ${npc.name}${npc.title ? ` (${npc.title})` : ''}`, 'narr')
+      return
+    }
+  }
+  // Brig full or duplicate id — named hostile dies. Surfaces as a crit
+  // log line so the player sees who they killed.
+  pushCombatLog(`击毙 · ${npc.name}${npc.title ? ` (${npc.title})` : ''}`, 'crit')
+}
 
 function destroyCampaignEnemyByKey(key: string): void {
   const space = getWorld('spaceCampaign')
@@ -560,6 +629,17 @@ export function endCombat(outcome: CombatOutcome): void {
     }
     logEvent(`战斗胜利 · 缴获 ¥${reward}`)
     pushCombatLog(`战斗胜利 · 缴获 ¥${reward}`, 'narr')
+    // Phase 6.2 — named POWs captured this fight + current brig
+    // occupancy. The brig store's pendingTally was wiped at
+    // startCombat; it now holds whoever ended up here as a result of
+    // notable-hostile capture in onEnemyDestroyed().
+    const capturedPows = useBrig.getState().pendingTally.map((p) => ({
+      id: p.id,
+      nameZh: p.nameZh,
+      titleZh: p.titleZh,
+      contextZh: p.contextZh,
+    }))
+    const { occupied: brigOccupied, capacity: brigCapacity } = getBrigOccupancy()
     emitSim('ui:open-combat-tally', {
       creditsDelta: reward,
       creditsAfter,
@@ -569,6 +649,9 @@ export function endCombat(outcome: CombatOutcome): void {
       fuelDelta: fuelGain,
       fuelAfter,
       fuelMax,
+      capturedPows,
+      brigOccupied,
+      brigCapacity,
     })
   } else if (outcome === 'defeat') {
     applyDefeatConsequence()
@@ -804,6 +887,7 @@ function fireWeapon(
       )
       if (r.destroyed) {
         pushCombatLog(`击毁敌舰 · ${enemyName}`, 'info')
+        onEnemyDestroyed(targetEnt)
         targetEnt.destroy()
         if (getEnemyEntities().length === 0) endCombat('victory')
       }
@@ -881,6 +965,7 @@ function tickProjectiles(dtSec: number): void {
         projectiles.splice(i, 1)
         if (r.destroyed) {
           pushCombatLog(`击毁敌舰 · ${enemyName}`, 'info')
+          onEnemyDestroyed(hit)
           hit.destroy()
           if (getEnemyEntities().length === 0) {
             projectiles.length = 0

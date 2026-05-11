@@ -42,6 +42,18 @@ export interface ShipMountDef {
   facingDeg: number       // mount center direction in degrees (0 = forward, +90 = starboard)
 }
 
+// Per-ship-class officer roster authoring. Phase 6.2 wires the adjutant
+// only — the comm-panel face wall in 6.2.5 expands this to chief mechanic,
+// chief medical, etc. The adjutant is the voice that narrates combat-log
+// chatter from the bridge (formerly hardcoded "副官 · 凯文").
+export interface ShipOfficerDef {
+  name: string
+  title?: string
+}
+export interface ShipOfficersDef {
+  adjutant: ShipOfficerDef
+}
+
 export interface ShipClassDef {
   id: string
   nameZh: string
@@ -62,6 +74,11 @@ export interface ShipClassDef {
   fuelMax: number
   suppliesMax: number
   crewMax: number
+  // Brig POW slots authored per-class. 0 for civilian-spec hulls per
+  // Design/fleet.md; lightFreighter ships a small 2-cell brig so the
+  // capture-by-named-hostile flow at 6.2 has somewhere to put them.
+  // Per-prisoner verbs land at 6.2.5; this phase gates capacity only.
+  brigCapacity: number
   mounts: ShipMountDef[]
   defaultWeapons: string[]
   ai: {
@@ -70,6 +87,7 @@ export interface ShipClassDef {
     maintainRange: number
   }
   priceFiat: number
+  officers: ShipOfficersDef
   rooms: ShipRoomDef[]
   doors: ShipDoorDef[]
 }
@@ -145,6 +163,15 @@ for (const ship of parsed.ships) {
   if (ship.suppliesMax < 0) throw new Error(`ships.json5: ship "${ship.id}" suppliesMax must be >= 0`)
   if (ship.crewMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crewMax must be > 0`)
   if (ship.priceFiat < 0) throw new Error(`ships.json5: ship "${ship.id}" priceFiat must be >= 0`)
+  if (typeof ship.brigCapacity !== 'number' || ship.brigCapacity < 0 || !Number.isInteger(ship.brigCapacity)) {
+    throw new Error(`ships.json5: ship "${ship.id}" brigCapacity must be a non-negative integer`)
+  }
+  if (!ship.officers || typeof ship.officers !== 'object') {
+    throw new Error(`ships.json5: ship "${ship.id}" missing officers block`)
+  }
+  if (!ship.officers.adjutant || typeof ship.officers.adjutant.name !== 'string' || !ship.officers.adjutant.name) {
+    throw new Error(`ships.json5: ship "${ship.id}" officers.adjutant.name must be a non-empty string`)
+  }
 
   // Mounts
   const mountIdxSeen = new Set<number>()

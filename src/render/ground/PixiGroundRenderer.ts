@@ -94,6 +94,12 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   // family as helm/manage so ship-command interactables read as one
   // group on the floor.
   captainsDesk:    { fill: 0x422006, stroke: 0xfcd34d },
+  // Phase 6.2 — comm panel in the captain's office. Cool teal so it
+  // reads as a sibling-but-distinct kiosk from the warm desk.
+  commPanel:       { fill: 0x0f3a3a, stroke: 0x2dd4bf },
+  // Phase 6.2 — brig occupant list. Muted iron tone to read as
+  // hostile-but-confined; distinct from the warm command palette.
+  brig:            { fill: 0x3a1212, stroke: 0xf87171 },
   // Phase 6.1 — climb-into-MS interactable on the hangar bay floor.
   // Cool blue to read as the friendly-MS color used in the tactical
   // arena (snap.color = 0x60a5fa).

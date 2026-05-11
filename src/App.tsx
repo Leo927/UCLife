@@ -23,6 +23,8 @@ import { TransitionOverlay } from './ui/TransitionOverlay'
 import { NPCDialog } from './ui/NPCDialog'
 import { ManageFacilityDialog } from './ui/ManageFacilityDialog'
 import { CaptainsOfficePanel } from './ui/CaptainsOfficePanel'
+import { CommPanelDialog } from './ui/CommPanelDialog'
+import { BrigPanel } from './ui/BrigPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
 import { PortraitModal } from './ui/PortraitModal'
 import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
@@ -59,6 +61,8 @@ export function App() {
       <NPCDialog />
       <ManageFacilityDialog />
       <CaptainsOfficePanel />
+      <CommPanelDialog />
+      <BrigPanel />
       <CombatTallyPanel />
       <PortraitModal />
       <DeathModal />

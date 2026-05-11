@@ -13,8 +13,10 @@ import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
 import {
   useCockpit, launchMs, dockMs, takeFlagshipControl, leaveBridge,
-  getPlayerMs, PLAYER_MS_KEY,
+  getPlayerMs, PLAYER_MS_KEY, getAdjutant,
 } from '../../sim/cockpit'
+import { useBrig, getBrigOccupancy } from '../../sim/brig'
+import { useUI } from '../../ui/uiStore'
 
 registerDebugHandle('useCombatStore', useCombatStore)
 registerDebugHandle('useTransition', useTransition)
@@ -25,12 +27,15 @@ registerDebugHandle('useEngagement', useEngagement)
 // The optional escortIds arg lists wingmen that join the lead in the arena.
 // The campaignEnemyKey arg is the spaceCampaign EntityKey of the lead (so
 // victory can clean up the right pirate); omit for synthetic combat.
+// notableCaptains pins special-NPC ids to fleet slots (lead = '0') so the
+// post-combat capture flow fires; pass `{}` for anonymous encounters.
 registerDebugHandle('startCombatCheat', (
   enemyShipId: string,
   escortIds: string[] = [],
   campaignEnemyKey: string | null = null,
+  notableCaptains: Record<string, string> = {},
 ) => {
-  startCombat(enemyShipId, escortIds, campaignEnemyKey)
+  startCombat(enemyShipId, escortIds, campaignEnemyKey, notableCaptains)
   return true
 })
 
@@ -84,6 +89,37 @@ registerDebugHandle('combatEntities', () => {
   }
   return out
 })
+
+// Phase 6.2 brig + comm-panel handles. Smoke tests drive the named-
+// hostile capture loop end-to-end via these. `forceCapture` short-
+// circuits the combat layer when verifying the brig record + tally
+// payload without staging an actual destruction sequence.
+registerDebugHandle('useBrig', useBrig)
+registerDebugHandle('brigState', () => {
+  const { occupied, capacity } = getBrigOccupancy()
+  return {
+    occupied,
+    capacity,
+    prisoners: useBrig.getState().prisoners.map((p) => ({
+      id: p.id,
+      nameZh: p.nameZh,
+      titleZh: p.titleZh,
+    })),
+  }
+})
+registerDebugHandle('clearBrig', () => { useBrig.getState().reset(); return true })
+registerDebugHandle('forceCapture', (npcId: string) => {
+  return useBrig.getState().add({
+    id: npcId,
+    nameZh: npcId,
+    contextZh: '(forced)',
+    factionId: 'pirate',
+    capturedAtMs: performance.now(),
+  })
+})
+registerDebugHandle('getAdjutant', () => getAdjutant())
+registerDebugHandle('openCommPanel', () => { useUI.getState().setCommPanel(true); return true })
+registerDebugHandle('openBrigPanel', () => { useUI.getState().setBrigPanel(true); return true })
 
 registerDebugHandle('msState', () => {
   const e = getPlayerMs()

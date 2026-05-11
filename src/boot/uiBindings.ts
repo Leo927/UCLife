@@ -29,5 +29,7 @@ export function bindUi(): void {
   onSim('ui:open-dialog-npc', ({ entity }) => useUI.getState().setDialogNPC(entity))
   onSim('ui:open-manage', ({ building }) => useUI.getState().setDialogManageBuilding(building))
   onSim('ui:open-captains-office', () => useUI.getState().setCaptainsOffice(true))
+  onSim('ui:open-comm-panel', () => useUI.getState().setCommPanel(true))
+  onSim('ui:open-brig-panel', () => useUI.getState().setBrigPanel(true))
   onSim('ui:open-combat-tally', (t) => useUI.getState().setCombatTally(t))
 }

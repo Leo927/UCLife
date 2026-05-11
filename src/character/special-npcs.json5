@@ -162,5 +162,37 @@
       factionRole: { faction: 'anaheim', role: 'staff' },
       workstation: 'ae_director',
     },
+
+    // === Phase 6.2 — notable hostile captains ===
+    // Virtual entries (no tileX/tileY); referenced by stable `id` from
+    // src/data/space-entities.json5 `notableCaptains: { <slotIdx>: <id> }`.
+    // Capture flow at 6.2: when the enemy ship hosting a notable captain
+    // is destroyed and the player's brig has capacity, the captain ends
+    // up in the brig as a POW. Per-prisoner verbs (interrogate / ransom
+    // / etc.) land at 6.2.5.
+
+    {
+      id: 'char-aznable-0077-disguise',
+      name: '夏亚·阿兹纳布尔',
+      color: '#dc2626',
+      title: '"红色彗星" · 假身份海盗',
+      contextZh: '机库流言里那个戴面具的红衣男人 — 据说在 Side 3 也有人见过他',
+      // No faction loyalty written here — until 6.2.5 prisoner verbs, the
+      // pre-capture identity stays "pirate" through the combat layer.
+    },
+    {
+      id: 'gato-0077-corp-raider',
+      name: '阿纳贝尔·加图',
+      color: '#92400e',
+      title: '原吉翁少校 · 现身于雇佣兵船团',
+      contextZh: '退役军官出身的雇佣兵 — 行事讲究规矩，但下手毫不留情',
+    },
+    {
+      id: 'ramba-ral-0077-corp-raider',
+      name: '兰巴·拉尔',
+      color: '#1d4ed8',
+      title: '"蓝色巨人" · 企业雇佣兵',
+      contextZh: '军礼周正的硬汉 — 据说他妻子哈蒙也在某条海盗船上做副官',
+    },
   ],
 }

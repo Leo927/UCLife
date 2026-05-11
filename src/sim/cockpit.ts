@@ -36,9 +36,10 @@ import { cockpitConfig, worldConfig } from '../config'
 import { useScene, migratePlayerToScene } from './scene'
 import { useClock } from './clock'
 import { emitSim } from './events'
-import { pushCombatLog } from './combatLog'
+import { pushCombatLog, type CombatLogSeverity } from './combatLog'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
 import { getShipClass } from '../data/ships'
+import { Ship } from '../ecs/traits'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 export const PLAYER_MS_KEY = 'player-ms-1'
@@ -66,6 +67,31 @@ function shipWorld() { return getWorld(SHIP_SCENE_ID) }
 
 function ensureTacticalOpen(open: boolean): void {
   emitSim('combat:set-overlay-open', { open })
+}
+
+// Phase 6.2 — read the adjutant's name + title off the current ship's
+// class authoring instead of hardcoding "副官 · 凯文". The comm panel
+// dialog reads the same field, so a single edit in ships.json5 updates
+// both the chatter and the captain's-office face wall.
+export function getAdjutant(): { name: string; title: string } {
+  const w = shipWorld()
+  const ent = w.queryFirst(Ship)
+  if (!ent) return { name: '副官', title: '副官' }
+  const s = ent.get(Ship)!
+  if (!s.classId) return { name: '副官', title: '副官' }
+  const cls = getShipClass(s.classId)
+  return {
+    name: cls.officers.adjutant.name,
+    title: cls.officers.adjutant.title ?? '副官',
+  }
+}
+
+// Format `<title> · <name>: 「<text>」` for bridge chatter. Centralized
+// so every cockpit log line reads the same shape and a future officer
+// reshuffle only touches one helper.
+function adjutantSay(textZh: string, severity: CombatLogSeverity): void {
+  const a = getAdjutant()
+  pushCombatLog(`${a.title} · ${a.name}：「${textZh}」`, severity)
 }
 
 function findFlagshipCombat(): Entity | undefined {
@@ -116,6 +142,7 @@ function spawnPlayerMs(): Entity | null {
     CombatShipState({
       shipClassId: ms.id,
       nameZh: ms.nameZh,
+      captainId: '',
       side: 'player',
       isFlagship: false,
       isMs: true,
@@ -212,7 +239,7 @@ export function launchMs(): { ok: boolean; reasonZh?: string } {
   useCockpit.getState().bumpMs()
   ensureTacticalOpen(true)
 
-  pushCombatLog('副官 · 凯文：「机库门已开 · 出击 · 一路顺风」', 'narr')
+  adjutantSay('机库门已开 · 出击 · 一路顺风', 'narr')
   pushCombatLog(`${getMsClass(PLAYER_MS_CLASS_ID).nameZh} · 出击`, 'info')
   logEvent(`登舱出击 · ${getMsClass(PLAYER_MS_CLASS_ID).nameZh}`)
   return { ok: true }
@@ -268,7 +295,7 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
   }
   ensureTacticalOpen(false)
 
-  pushCombatLog('副官 · 凯文：「MS 已入舱 · 欢迎回来」', 'narr')
+  adjutantSay('MS 已入舱 · 欢迎回来', 'narr')
   pushCombatLog(`${getMsClass(PLAYER_MS_CLASS_ID).nameZh} · 回收`, 'info')
   logEvent(`回收 MS · ${getMsClass(PLAYER_MS_CLASS_ID).nameZh}`)
   return { ok: true }
@@ -297,7 +324,8 @@ export function onMsDestroyed(): void {
   }
   ensureTacticalOpen(false)
 
-  pushCombatLog('MS 损毁 · 弹射成功 · 副官 · 凯文：「机师平安归来」', 'crit')
+  const a = getAdjutant()
+  pushCombatLog(`MS 损毁 · 弹射成功 · ${a.title} · ${a.name}：「机师平安归来」`, 'crit')
   logEvent('MS 损毁 · 弹射回收')
 }
 
@@ -315,7 +343,7 @@ export function takeFlagshipControl(): { ok: boolean; reasonZh?: string } {
 
   ensureTacticalOpen(true)
 
-  pushCombatLog('副官 · 凯文：「舰桥岗位已就绪」', 'narr')
+  adjutantSay('舰桥岗位已就绪', 'narr')
   return { ok: true }
 }
 
@@ -342,7 +370,7 @@ export function leaveBridge(): void {
   }
   ensureTacticalOpen(false)
 
-  pushCombatLog('副官 · 凯文：「舰长离桥 · 自动驾驶启动」', 'warn')
+  adjutantSay('舰长离桥 · 自动驾驶启动', 'warn')
   logEvent('离开舰桥 · 旗舰自动驾驶接管')
   // If the player is in space scene at helm, switch to ship scene so
   // they can actually walk around. (Combat keeps running because
@@ -364,9 +392,11 @@ export function resetCockpitForEndCombat(): void {
 
 // Called by combat.ts:startCombat after the flagship CombatShipState is
 // (re-)attached. Marks the flagship as piloted by the player by default
-// and posts the "副官" briefing chatter line into the log.
+// and posts the adjutant's briefing chatter line into the log. Name +
+// title route through ships.json5 authoring per the comm-panel reloc
+// at Phase 6.2.
 export function onCombatStarted(): void {
   useCockpit.getState().setPiloting('flagship')
   useCockpit.getState().bumpMs()
-  pushCombatLog('副官 · 凯文：「舰桥岗位准备完毕 · 等候指令」', 'narr')
+  adjutantSay('舰桥岗位准备完毕 · 等候指令', 'narr')
 }

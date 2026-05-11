@@ -112,6 +112,8 @@ jobs:
       - if: always()
         run: node scripts/check-cockpit.mjs
       - if: always()
+        run: node scripts/check-captains-office.mjs
+      - if: always()
         run: node scripts/check-realtor.mjs
       - if: always()
         run: node scripts/check-daily-economics.mjs

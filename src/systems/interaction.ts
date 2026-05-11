@@ -184,6 +184,22 @@ export function interactionSystem(world: World) {
       emitSim('ui:open-captains-office', { reason: 'captainsDesk' })
       continue
     }
+    if (nearestKind === 'commPanel') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        emitSim('toast', { textZh: '通讯面板仅在飞船内可用' })
+        continue
+      }
+      emitSim('ui:open-comm-panel', { reason: 'commPanel' })
+      continue
+    }
+    if (nearestKind === 'brig') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        emitSim('toast', { textZh: '禁闭室仅在飞船内可用' })
+        continue
+      }
+      emitSim('ui:open-brig-panel', { reason: 'brig' })
+      continue
+    }
     if (nearestKind === 'work') {
       const j = player.get(Job)
       const ws = j?.workstation ?? null

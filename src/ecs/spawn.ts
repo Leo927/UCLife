@@ -732,6 +732,10 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
 
 function spawnSpecialNpcs(): void {
   for (const sn of specialNpcs) {
+    // Virtual NPCs (notable hostiles, future off-screen characters) omit
+    // tile coords — they exist as referenceable rows only, not placed in
+    // any city tilemap.
+    if (sn.tileX === undefined || sn.tileY === undefined) continue
     const ent = spawnNPC(world, {
       name: sn.name,
       color: sn.color,

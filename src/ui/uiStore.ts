@@ -7,8 +7,14 @@ export interface Toast {
   action?: { label: string; onClick: () => void }
 }
 
-// Phase 6.0 post-combat tally minimum: credits + supplies + fuel deltas.
-// 6.2 adds loot panel (parts inventory) + captured POW panel.
+// Phase 6.0 (loot panel) + Phase 6.2 (captured POW panel + brig
+// occupancy). MS-parts inventory shows up at 6.2.5.
+export interface CombatTallyCapturedRow {
+  id: string
+  nameZh: string
+  titleZh?: string
+  contextZh: string
+}
 export interface CombatTallyPayload {
   creditsDelta: number
   creditsAfter: number
@@ -18,6 +24,9 @@ export interface CombatTallyPayload {
   fuelDelta: number
   fuelAfter: number
   fuelMax: number
+  capturedPows: CombatTallyCapturedRow[]
+  brigOccupied: number
+  brigCapacity: number
 }
 
 interface UIState {
@@ -38,9 +47,13 @@ interface UIState {
   // ManageFacilityDialog reads it to render local-bootstrap verbs.
   dialogManageBuilding: Entity | null
   // Phase 6.0 captain's office — open while the readiness summary panel
-  // is on screen. Phase 6.2+ may extend this to a full captain-office UI
-  // with comm panel + prisoner verbs; today it's the pre-launch summary.
+  // is on screen. The comm-panel + brig dialogs (6.2) are sibling
+  // kiosks in the same room and live as separate booleans so the
+  // player can switch between them without closing one to open the
+  // other.
   captainsOfficeOpen: boolean
+  commPanelOpen: boolean
+  brigPanelOpen: boolean
   // Phase 6.0 post-combat tally — null while no engagement has just
   // resolved with a payout. Set when 'ui:open-combat-tally' fires.
   combatTally: CombatTallyPayload | null
@@ -63,6 +76,8 @@ interface UIState {
   setDialogNPC: (e: Entity | null) => void
   setDialogManageBuilding: (e: Entity | null) => void
   setCaptainsOffice: (open: boolean) => void
+  setCommPanel: (open: boolean) => void
+  setBrigPanel: (open: boolean) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
@@ -90,6 +105,8 @@ export const useUI = create<UIState>((set) => ({
   dialogNPC: null,
   dialogManageBuilding: null,
   captainsOfficeOpen: false,
+  commPanelOpen: false,
+  brigPanelOpen: false,
   combatTally: null,
   enlargedPortrait: null,
   toasts: [],
@@ -110,6 +127,8 @@ export const useUI = create<UIState>((set) => ({
   setDialogNPC: (e) => set({ dialogNPC: e }),
   setDialogManageBuilding: (e) => set({ dialogManageBuilding: e }),
   setCaptainsOffice: (open) => set({ captainsOfficeOpen: open }),
+  setCommPanel: (open) => set({ commPanelOpen: open }),
+  setBrigPanel: (open) => set({ brigPanelOpen: open }),
   setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
