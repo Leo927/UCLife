@@ -8,9 +8,9 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useBrig, type PrisonerRecord } from './brig'
 
 vi.mock('../ecs/world', () => {
-  // Hand-built world stub: a single Ship singleton on the
+  // Hand-built world stub: a single flagship ship on the
   // playerShipInterior world with brigCapacity sourced from the ship
-  // class. The test seeds the singleton inside the stub so brig.add()'s
+  // class. The test seeds the flagship inside the stub so brig.add()'s
   // capacity lookup resolves without booting the full scene loader.
   return {
     getWorld: () => stubWorld,
@@ -19,20 +19,21 @@ vi.mock('../ecs/world', () => {
 
 vi.mock('../ecs/traits', () => {
   const Ship = Symbol('Ship-stub')
-  return { Ship }
+  const IsFlagshipMark = Symbol('IsFlagshipMark-stub')
+  return { Ship, IsFlagshipMark }
 })
 
-vi.mock('../data/ships', () => {
+vi.mock('../data/ship-classes', () => {
   return {
     getShipClass: () => ({ brigCapacity: 2 }),
   }
 })
 
-// Stubbed koota world for the test — queryFirst returns the singleton
-// (in this case a ship-shaped object); get(Ship) returns the class id
+// Stubbed koota world for the test — queryFirst returns the flagship
+// (in this case a ship-shaped object); get(Ship) returns the template id
 // the brig store uses to look up brigCapacity.
 const stubShipEntity = {
-  get: () => ({ classId: 'test-class' }),
+  get: () => ({ templateId: 'test-class' }),
 }
 const stubWorld = {
   queryFirst: () => stubShipEntity,

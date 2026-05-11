@@ -1,14 +1,14 @@
 // Phase 6.0 captain's office — pre-launch readiness summary.
 // Opened by walking onto the 'captainsDesk' interactable in the
-// captain's-office room. Reads the persistent Ship singleton directly;
+// captain's-office room. Reads the flagship's Ship trait directly;
 // closes back to the walkable scene without committing to any action.
 //
 // Phase 6.2+ will extend this panel to host the comm panel (officer
 // orders, prisoner verbs); today it's a read-only briefing.
 
 import { useTrait, useQueryFirst } from 'koota/react'
-import { Ship } from '../ecs/traits'
-import { getShipClass } from '../data/ships'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { getShipClass } from '../data/ship-classes'
 import { getPoi } from '../data/pois'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
@@ -22,13 +22,13 @@ export function CaptainsOfficePanel() {
   const activeId = useScene((s) => s.activeId)
   // Subscribe to the Ship trait so a re-render fires when hull / supplies
   // change after we've opened the panel (e.g. autosave + reload).
-  const shipEnt = useQueryFirst(Ship)
+  const shipEnt = useQueryFirst(Ship, IsFlagshipMark)
   const ship = useTrait(shipEnt, Ship)
 
   if (!open) return null
   if (activeId !== SHIP_SCENE_ID || !ship) return null
 
-  const cls = getShipClass(ship.classId)
+  const cls = getShipClass(ship.templateId)
   const poi = ship.dockedAtPoiId ? getPoi(ship.dockedAtPoiId) : undefined
   const dockState = ship.inCombat
     ? '战斗中'

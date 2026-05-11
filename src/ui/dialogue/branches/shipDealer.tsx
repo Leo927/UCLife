@@ -1,7 +1,7 @@
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Money, Attributes, Flags } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
-import { getShipClass } from '../../../data/ships'
+import { getShipClass } from '../../../data/ship-classes'
 import { getWeapon, isWeaponId } from '../../../data/weapons'
 import { getSkillXp } from '../../../character/skills'
 import { playUi } from '../../../audio/player'

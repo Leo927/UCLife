@@ -3,7 +3,7 @@
 // elapsed minutes are derived from the clock so any speed multiplier is
 // already baked in.
 
-import { spendSupplies, getShipState, getPlayerShipEntity } from '../sim/ship'
+import { spendSupplies, getShipState, getFlagshipEntity } from '../sim/ship'
 import { useCombatStore } from './combat'
 import { spaceConfig } from '../config'
 import { MaintenanceLoad } from '../ecs/traits'
@@ -30,7 +30,7 @@ export function supplyDrainSystem(now: Date): void {
   // Per-MS maintenance: read MaintenanceLoad off the player ship (slice 7
   // baseline is 0; future fleet-roster work multiplies this with carried
   // mech count).
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (ent) {
     const ml = ent.get(MaintenanceLoad)
     if (ml && ml.loadUnits > 0) {

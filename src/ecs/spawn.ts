@@ -10,12 +10,12 @@ import {
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
   FlightHub, Road,
-  Ship, ShipRoom, WeaponMount,
+  Ship, ShipRoom, WeaponMount, IsFlagshipMark,
   type InteractableKind,
 } from './traits'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
-import { getShipClass } from '../data/ships'
+import { getShipClass } from '../data/ship-classes'
 import { getWeapon } from '../data/weapons'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
@@ -899,11 +899,11 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   seedPrivateOwners(world, scene.id)
 }
 
-// Ship interior bootstrap. Spawns the walkable flagship: Ship singleton
-// (Starsector stat block), one ShipRoom per blueprint room (pure walkable
-// space — the FTL room/system/oxygen/fire model goes away), one
-// WeaponMount per hardpoint, and the starmap + disembark kiosks at the
-// bridge / hangar.
+// Ship interior bootstrap. Spawns the walkable flagship: Ship instance
+// (Starsector stat block) tagged with IsFlagshipMark so flagship helpers
+// can find it, one ShipRoom per blueprint room (pure walkable space — the
+// FTL room/system/oxygen/fire model goes away), one WeaponMount per
+// hardpoint, and the starmap + disembark kiosks at the bridge / hangar.
 function bootstrapShipScene(scene: ShipSceneConfig): void {
   const cls = getShipClass(scene.shipClassId)
 
@@ -914,7 +914,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
 
   world.spawn(
     Ship({
-      classId: cls.id,
+      templateId: cls.id,
       hullCurrent: cls.hullMax, hullMax: cls.hullMax,
       armorCurrent: cls.armorMax, armorMax: cls.armorMax,
       fluxMax: cls.fluxMax, fluxCurrent: 0,
@@ -933,6 +933,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       fleetPos,
       inCombat: false,
     }),
+    IsFlagshipMark(),
     EntityKey({ key: 'ship' }),
   )
 

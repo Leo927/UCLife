@@ -7,7 +7,7 @@
 //   (Movement is Newtonian: ships accumulate velocity from thrust × accel, glide
 //   under decel when not thrusting, cap at topSpeed, and steer via angularAccel
 //   torque clamped to maxAngVel. See systems/combat.ts.)
-//   mounts[]   — same hardpoint shape as ships.json5
+//   mounts[]   — same hardpoint shape as ship-classes.json5
 //   defaultWeapons[] — ordered list bound to mounts
 //   ai — { aggression: 0..1, retreatThresholdPct: 0..1, maintainRange: number }
 //

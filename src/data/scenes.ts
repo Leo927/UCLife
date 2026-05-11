@@ -2,7 +2,7 @@ import json5 from 'json5'
 import raw from './scenes.json5?raw'
 import type { DoorSide } from './buildingTypes'
 import { getBuildingType, isFixedSize } from './buildingTypes'
-import { isShipClassId, getShipClass } from './ships'
+import { isShipClassId, getShipClass } from './ship-classes'
 
 export type SceneType = 'micro' | 'macro' | 'ship' | 'space'
 

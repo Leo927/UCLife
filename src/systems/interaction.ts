@@ -14,7 +14,7 @@ import { isBarOpen } from './shop'
 import { useClock } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
-import { Flags, Ship } from '../ecs/traits'
+import { Flags, Ship, IsFlagshipMark } from '../ecs/traits'
 import { boardShip, disembarkShip } from '../sim/scene'
 import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
@@ -120,7 +120,7 @@ export function interactionSystem(world: World) {
     }
     if (nearestKind === 'disembarkShip') {
       if (getActiveSceneId() !== 'playerShipInterior') continue
-      const ship = world.queryFirst(Ship)
+      const ship = world.queryFirst(Ship, IsFlagshipMark)
       const dockedAt = ship?.get(Ship)?.dockedAtPoiId ?? ''
       const poi = dockedAt ? getPoi(dockedAt) : undefined
       const targetSceneId = poi?.sceneId

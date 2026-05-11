@@ -11,8 +11,8 @@
 
 import { create } from 'zustand'
 import { getWorld } from '../ecs/world'
-import { Ship } from '../ecs/traits'
-import { getShipClass } from '../data/ships'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { getShipClass } from '../data/ship-classes'
 
 // One captured POW. Identified by the special-NPC id so save round-trip
 // references the canonical character; `nameZh` / `titleZh` / `contextZh`
@@ -50,16 +50,16 @@ export interface SerializedBrig {
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
-// Read the current ship class's brigCapacity. Returns 0 when no ship
-// singleton exists yet (boot order quirk; brig.add called before ship
-// bootstrap should refuse rather than throw).
+// Read the flagship's brigCapacity. Returns 0 when no flagship exists yet
+// (boot order quirk; brig.add called before ship bootstrap should refuse
+// rather than throw).
 export function getBrigCapacity(): number {
   const w = getWorld(SHIP_SCENE_ID)
-  const ent = w.queryFirst(Ship)
+  const ent = w.queryFirst(Ship, IsFlagshipMark)
   if (!ent) return 0
   const s = ent.get(Ship)!
-  if (!s.classId) return 0
-  return getShipClass(s.classId).brigCapacity
+  if (!s.templateId) return 0
+  return getShipClass(s.templateId).brigCapacity
 }
 
 export const useBrig = create<BrigState>((set, get) => ({
@@ -98,12 +98,12 @@ export function clearBrigPendingTally(): void {
 // capacity in one tuple.
 export function getBrigOccupancy(): { occupied: number; capacity: number } {
   const w = getWorld(SHIP_SCENE_ID)
-  const ent = w.queryFirst(Ship)
+  const ent = w.queryFirst(Ship, IsFlagshipMark)
   if (!ent) return { occupied: useBrig.getState().prisoners.length, capacity: 0 }
   const s = ent.get(Ship)!
-  if (!s.classId) return { occupied: useBrig.getState().prisoners.length, capacity: 0 }
+  if (!s.templateId) return { occupied: useBrig.getState().prisoners.length, capacity: 0 }
   return {
     occupied: useBrig.getState().prisoners.length,
-    capacity: getShipClass(s.classId).brigCapacity,
+    capacity: getShipClass(s.templateId).brigCapacity,
   }
 }

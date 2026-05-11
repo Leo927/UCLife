@@ -38,8 +38,8 @@ import { useClock } from './clock'
 import { emitSim } from './events'
 import { pushCombatLog, type CombatLogSeverity } from './combatLog'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
-import { getShipClass } from '../data/ships'
-import { Ship } from '../ecs/traits'
+import { getShipClass } from '../data/ship-classes'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 export const PLAYER_MS_KEY = 'player-ms-1'
@@ -71,15 +71,15 @@ function ensureTacticalOpen(open: boolean): void {
 
 // Phase 6.2 — read the adjutant's name + title off the current ship's
 // class authoring instead of hardcoding "副官 · 凯文". The comm panel
-// dialog reads the same field, so a single edit in ships.json5 updates
-// both the chatter and the captain's-office face wall.
+// dialog reads the same field, so a single edit in ship-classes.json5
+// updates both the chatter and the captain's-office face wall.
 export function getAdjutant(): { name: string; title: string } {
   const w = shipWorld()
-  const ent = w.queryFirst(Ship)
+  const ent = w.queryFirst(Ship, IsFlagshipMark)
   if (!ent) return { name: '副官', title: '副官' }
   const s = ent.get(Ship)!
-  if (!s.classId) return { name: '副官', title: '副官' }
-  const cls = getShipClass(s.classId)
+  if (!s.templateId) return { name: '副官', title: '副官' }
+  const cls = getShipClass(s.templateId)
   return {
     name: cls.officers.adjutant.name,
     title: cls.officers.adjutant.title ?? '副官',
@@ -393,7 +393,7 @@ export function resetCockpitForEndCombat(): void {
 // Called by combat.ts:startCombat after the flagship CombatShipState is
 // (re-)attached. Marks the flagship as piloted by the player by default
 // and posts the adjutant's briefing chatter line into the log. Name +
-// title route through ships.json5 authoring per the comm-panel reloc
+// title route through ship-classes.json5 authoring per the comm-panel reloc
 // at Phase 6.2.
 export function onCombatStarted(): void {
   useCockpit.getState().setPiloting('flagship')

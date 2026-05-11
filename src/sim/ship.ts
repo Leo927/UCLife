@@ -1,9 +1,13 @@
-// High-level read/write helpers for the player ship. Callers (UI, systems,
-// other slices) should go through this instead of poking ECS traits
-// directly so the new Starsector-shape stat block stays consistent.
+// High-level read/write helpers for the player flagship. Callers (UI,
+// systems, other slices) should go through this instead of poking ECS
+// traits directly so the new Starsector-shape stat block stays consistent.
+//
+// Phase 6.1.5 pluralized the Ship roster: there can be multiple Ship
+// entities in the playerShipInterior world. The flagship is whichever one
+// carries IsFlagshipMark — `getFlagshipEntity` is the canonical lookup.
 
 import { getWorld } from '../ecs/world'
-import { Ship } from '../ecs/traits'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
 import { useDebug } from '../debug/store'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -12,17 +16,21 @@ function shipWorld() {
   return getWorld(SHIP_SCENE_ID)
 }
 
-export function getPlayerShipEntity() {
-  return shipWorld().queryFirst(Ship)
+export function getFlagshipEntity() {
+  return shipWorld().queryFirst(Ship, IsFlagshipMark)
+}
+
+export function getFleetEntities() {
+  return shipWorld().query(Ship)
 }
 
 export function getShipState() {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   return ent?.get(Ship) ?? null
 }
 
 export function spendFuel(amount: number): boolean {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return false
   if (useDebug.getState().infiniteFuelSupply) return true
   const s = ent.get(Ship)!
@@ -32,7 +40,7 @@ export function spendFuel(amount: number): boolean {
 }
 
 export function spendSupplies(amount: number): boolean {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return false
   if (useDebug.getState().infiniteFuelSupply) return true
   const s = ent.get(Ship)!
@@ -42,7 +50,7 @@ export function spendSupplies(amount: number): boolean {
 }
 
 export function refillFuelAndSupplies(): boolean {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return false
   const s = ent.get(Ship)!
   ent.set(Ship, { ...s, fuelCurrent: s.fuelMax, suppliesCurrent: s.suppliesMax })
@@ -53,7 +61,7 @@ export function refillFuelAndSupplies(): boolean {
 // remaining — Starsector style), then spill into hull. Returns destroyed
 // when hull drops to 0.
 export function damageHull(amount: number): { destroyed: boolean } {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return { destroyed: false }
   const s = ent.get(Ship)!
   let remaining = amount
@@ -69,7 +77,7 @@ export function damageHull(amount: number): { destroyed: boolean } {
 }
 
 export function repairHull(amount: number): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   const s = ent.get(Ship)!
   const hp = Math.min(s.hullMax, s.hullCurrent + amount)
@@ -77,14 +85,14 @@ export function repairHull(amount: number): void {
 }
 
 export function drainCR(amount: number): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   const s = ent.get(Ship)!
   ent.set(Ship, { ...s, crCurrent: Math.max(0, s.crCurrent - amount) })
 }
 
 export function restoreCR(amount: number): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   const s = ent.get(Ship)!
   ent.set(Ship, { ...s, crCurrent: Math.min(s.crMax, s.crCurrent + amount) })
@@ -97,7 +105,7 @@ export function getDockedPoiId(): string | null {
 }
 
 export function setDockedPoi(poiId: string, fleetPos?: { x: number; y: number }): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   const cur = ent.get(Ship)!
   ent.set(Ship, {
@@ -108,21 +116,21 @@ export function setDockedPoi(poiId: string, fleetPos?: { x: number; y: number })
 }
 
 export function setFleetPos(pos: { x: number; y: number }): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   const cur = ent.get(Ship)!
   ent.set(Ship, { ...cur, fleetPos: { x: pos.x, y: pos.y } })
 }
 
 export function clearDocked(): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   const cur = ent.get(Ship)!
   ent.set(Ship, { ...cur, dockedAtPoiId: '' })
 }
 
 export function setInCombat(inCombat: boolean): void {
-  const ent = getPlayerShipEntity()
+  const ent = getFlagshipEntity()
   if (!ent) return
   ent.set(Ship, { ...ent.get(Ship)!, inCombat })
 }

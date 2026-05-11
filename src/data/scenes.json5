@@ -11,7 +11,7 @@
 //   sceneType   — 'micro': top-down human-scale city.
 //                 'macro': MS/warship/fighter scale (future).
 //                 'ship':  player-ship interior; bootstraps from
-//                          src/data/ships.json5 via shipClassId.
+//                          src/data/ship-classes.json5 via shipClassId.
 //   tilesX/Y    — logical envelope in tiles. Camera bounds, grid lines,
 //                 click clamping, pathfinding, and the map panel viewBox.
 //   playerSpawnTile — initial player position (tile coords). Only meaningful
@@ -60,7 +60,7 @@
 //     type, tile{x,y}.
 //
 // Fields (ship scenes):
-//   shipClassId       — refs src/data/ships.json5. The bootstrap reads
+//   shipClassId       — refs src/data/ship-classes.json5. The bootstrap reads
 //                       rooms / mounts / defaultWeapons from there.
 //                       tilesX/tilesY must be wide enough to contain
 //                       every room with a small camera margin.

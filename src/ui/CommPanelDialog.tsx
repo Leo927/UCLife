@@ -7,8 +7,8 @@
 // recruit / execute / hand-over / release). Today it's read-only.
 
 import { useTrait, useQueryFirst } from 'koota/react'
-import { Ship } from '../ecs/traits'
-import { getShipClass } from '../data/ships'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { getShipClass } from '../data/ship-classes'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { useBrig } from '../sim/brig'
@@ -20,7 +20,7 @@ export function CommPanelDialog() {
   const open = useUI((s) => s.commPanelOpen)
   const close = useUI((s) => s.setCommPanel)
   const activeId = useScene((s) => s.activeId)
-  const shipEnt = useQueryFirst(Ship)
+  const shipEnt = useQueryFirst(Ship, IsFlagshipMark)
   const ship = useTrait(shipEnt, Ship)
   // Subscribe to brig store so a fresh capture re-renders without close/open.
   const prisoners = useBrig((s) => s.prisoners)
@@ -28,7 +28,7 @@ export function CommPanelDialog() {
   if (!open) return null
   if (activeId !== SHIP_SCENE_ID || !ship) return null
 
-  const cls = getShipClass(ship.classId)
+  const cls = getShipClass(ship.templateId)
   const adjutant = cls.officers.adjutant
 
   const onClose = () => {

@@ -14,8 +14,8 @@ import {
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { combatConfig } from '../config'
 import { getWorld } from '../ecs/world'
-import { Ship, WeaponMount, CombatShipState, EntityKey } from '../ecs/traits'
-import { getShipClass } from '../data/ships'
+import { Ship, WeaponMount, CombatShipState, EntityKey, IsFlagshipMark } from '../ecs/traits'
+import { getShipClass } from '../data/ship-classes'
 import { getWeapon } from '../data/weapons'
 import { PixiCanvas } from '../render/pixi'
 import {
@@ -33,7 +33,7 @@ import { emitSim } from '../sim/events'
 const SHIP_SCENE_ID = 'playerShipInterior'
 
 interface PlayerSnap {
-  classId: string
+  templateId: string
   pos: { x: number; y: number }
   heading: number
   hullCurrent: number; hullMax: number
@@ -64,7 +64,7 @@ interface EnemySnap {
 
 function snapshotPlayer(): PlayerSnap | null {
   const w = getWorld(SHIP_SCENE_ID)
-  const shipEnt = w.queryFirst(Ship)
+  const shipEnt = w.queryFirst(Ship, IsFlagshipMark)
   if (!shipEnt) return null
   const s = shipEnt.get(Ship)!
   const mounts: PlayerSnap['mounts'] = []
@@ -79,7 +79,7 @@ function snapshotPlayer(): PlayerSnap | null {
   }
   mounts.sort((a, b) => a.mountIdx - b.mountIdx)
   return {
-    classId: s.classId,
+    templateId: s.templateId,
     pos: getCombatPlayerPos(),
     heading: getCombatPlayerHeading(),
     hullCurrent: s.hullCurrent, hullMax: s.hullMax,
@@ -457,7 +457,7 @@ export function TacticalView() {
     rendererRef.current = new PixiTacticalRenderer(app, sz.w, sz.h, ARENA_W, ARENA_H)
   }
 
-  const playerCls = getShipClass(player.classId)
+  const playerCls = getShipClass(player.templateId)
 
   return (
     <div className="tactical-overlay">

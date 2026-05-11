@@ -447,7 +447,7 @@ Promote-to-flagship as a separate phase is **gone.** Flagship is just "the ship 
 
 ## Top risks
 
-1. **Save schema migration when singleton becomes plural.** `Ship` is currently a flat singleton; going plural means an array of ship entities each with template/instance state, plus a captain-EntityKey reference per ship and (eventually) MS/pilot back-references. Pre-6.2 saves must round-trip cleanly. **Mitigation:** treat 6.1.5 as a structural-only migration with explicit save handler; ship it before any new gameplay lands. Don't bundle migration with new content.
+1. **Save schema migration when singleton becomes plural.** `Ship` was a flat singleton before 6.1.5; the plural migration landed there — the save handler writes an array of ship entities each with template/instance state, the `IsFlagshipMark` marker survives the round-trip, and legacy single-ship payloads load as a one-ship fleet on the flagship entity. Captain-EntityKey references per ship and MS/pilot back-references land at 6.2 / 6.2.5.
 
 2. **Per-ship + per-MS supply UI legibility.** A 10-ship fleet × 4 MS each = 50 line items. **Mitigation:** roll up to ship-level totals on the campaign HUD; expand to per-MS only on the MS bay screen.
 
@@ -497,6 +497,6 @@ The proper hire flow (hire-as-captain / hire-as-pilot / hire-as-crew dialog bran
 - [social/faction-management.md](social/faction-management.md) — full hire flow + Phase 6.3+ colony layer
 - [social/diegetic-management.md](social/diegetic-management.md) — physical hubs + comm panel + council pattern that the surfaces above are projections of; the hangar facility and the captain's office are two of those hubs
 - [phasing.md](phasing.md) — Phase 6 phasing
-- `src/ecs/traits/ship.ts` — `Ship` singleton today; splits into template-lookup + instance traits at 6.1.5
-- `src/sim/ship.ts` — singleton helpers (`getPlayerShipEntity`) rename to flagship helpers + add `getFleetEntities`
-- `src/data/ships.json5` — restructure to `ship-classes.json5` at 6.1.5; add `ms-classes.json5`, `ms-weapons.json5`, `ms-frame-mods.json5` at 6.2.5. **No `turrets.json5`** — ship mounts are inline in the ship class.
+- `src/ecs/traits/ship.ts` — `Ship` plural-by-construction since 6.1.5; flagship found via `IsFlagshipMark` marker
+- `src/sim/ship.ts` — flagship helpers (`getFlagshipEntity`) + `getFleetEntities` (shipped at 6.1.5)
+- `src/data/ship-classes.json5` — shipped at 6.1.5 (renamed from `ships.json5`); add `ms-classes.json5`, `ms-weapons.json5`, `ms-frame-mods.json5` at 6.2.5. **No `turrets.json5`** — ship mounts are inline in the ship class.

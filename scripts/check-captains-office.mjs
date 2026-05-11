@@ -1,5 +1,5 @@
 // Phase 6.2 — verify the post-combat half of 6.2:
-//   1. Adjutant chatter pulls the name from ships.json5 (not hardcoded).
+//   1. Adjutant chatter pulls the name from ship-classes.json5 (not hardcoded).
 //   2. Notable-hostile capture lands a named POW in the brig.
 //   3. Brig respects brigCapacity — over-capacity captures are refused.
 //   4. Comm-panel + brig-panel UI surfaces respond to interactable kicks.
@@ -59,7 +59,7 @@ const ready = await waitFor(
 )
 if (!ready) { fail('__uclife__ phase 6.2 handle missing'); await browser.close(); process.exit(1) }
 
-// ── 1. Adjutant config check — name read from ships.json5 ────────────
+// ── 1. Adjutant config check — name read from ship-classes.json5 ────────────
 const adj = await page.evaluate(() => window.__uclife__.getAdjutant())
 if (!adj || typeof adj.name !== 'string' || adj.name.length === 0) {
   fail('getAdjutant() returned no name')

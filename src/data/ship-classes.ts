@@ -1,11 +1,11 @@
 import json5 from 'json5'
-import raw from './ships.json5?raw'
+import raw from './ship-classes.json5?raw'
 import { isWeaponId, getWeapon } from './weapons'
 import type { InteractableKind } from '../config/kinds'
 
-// Player ship blueprints (Starsector-shape). See ships.json5 for schema.
-// Validation is deliberate — silent typos here cause silent ship-fitout
-// bugs at runtime, and combat balance reads off these numbers.
+// Player ship class templates (Starsector-shape). See ship-classes.json5
+// for schema. Validation is deliberate — silent typos here cause silent
+// ship-fitout bugs at runtime, and combat balance reads off these numbers.
 
 export type ShipClassKind = 'civilian' | 'merc' | 'military' | 'capital'
 
@@ -99,7 +99,7 @@ interface ShipsFile {
 const parsed = json5.parse(raw) as ShipsFile
 
 if (!Array.isArray(parsed.ships) || parsed.ships.length === 0) {
-  throw new Error('ships.json5 must declare at least one ship class')
+  throw new Error('ship-classes.json5 must declare at least one ship class')
 }
 
 const VALID_CLASSES: ReadonlySet<ShipClassKind> = new Set<ShipClassKind>([
@@ -118,94 +118,94 @@ const SIZE_RANK: Record<MountSize, number> = { small: 1, medium: 2, large: 3 }
 
 const seen = new Set<string>()
 for (const ship of parsed.ships) {
-  if (!ship.id) throw new Error('ships.json5: ship missing id')
-  if (seen.has(ship.id)) throw new Error(`ships.json5: duplicate ship id "${ship.id}"`)
+  if (!ship.id) throw new Error('ship-classes.json5: ship missing id')
+  if (seen.has(ship.id)) throw new Error(`ship-classes.json5: duplicate ship id "${ship.id}"`)
   seen.add(ship.id)
 
   if (!VALID_CLASSES.has(ship.shipClass)) {
-    throw new Error(`ships.json5: ship "${ship.id}" invalid shipClass "${ship.shipClass}"`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" invalid shipClass "${ship.shipClass}"`)
   }
-  if (ship.hullMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" hullMax must be > 0`)
-  if (ship.armorMax < 0) throw new Error(`ships.json5: ship "${ship.id}" armorMax must be >= 0`)
-  if (ship.fluxMax < 0) throw new Error(`ships.json5: ship "${ship.id}" fluxMax must be >= 0`)
-  if (ship.fluxDissipation < 0) throw new Error(`ships.json5: ship "${ship.id}" fluxDissipation must be >= 0`)
+  if (ship.hullMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" hullMax must be > 0`)
+  if (ship.armorMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" armorMax must be >= 0`)
+  if (ship.fluxMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" fluxMax must be >= 0`)
+  if (ship.fluxDissipation < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" fluxDissipation must be >= 0`)
   if (typeof ship.hasShield !== 'boolean') {
-    throw new Error(`ships.json5: ship "${ship.id}" hasShield must be a boolean`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" hasShield must be a boolean`)
   }
-  if (ship.shieldEfficiency < 0) throw new Error(`ships.json5: ship "${ship.id}" shieldEfficiency must be >= 0`)
-  if (ship.topSpeed < 0) throw new Error(`ships.json5: ship "${ship.id}" topSpeed must be >= 0`)
+  if (ship.shieldEfficiency < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" shieldEfficiency must be >= 0`)
+  if (ship.topSpeed < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" topSpeed must be >= 0`)
   if (typeof ship.accel !== 'number' || ship.accel < 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" accel must be a number >= 0`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" accel must be a number >= 0`)
   }
   if (typeof ship.decel !== 'number' || ship.decel < 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" decel must be a number >= 0`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" decel must be a number >= 0`)
   }
   if (typeof ship.angularAccel !== 'number' || ship.angularAccel <= 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" angularAccel must be a number > 0`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" angularAccel must be a number > 0`)
   }
   if (typeof ship.maxAngVel !== 'number' || ship.maxAngVel <= 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" maxAngVel must be a number > 0`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" maxAngVel must be a number > 0`)
   }
   if (!ship.ai || typeof ship.ai !== 'object') {
-    throw new Error(`ships.json5: ship "${ship.id}" missing ai block`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" missing ai block`)
   }
   if (ship.ai.aggression < 0 || ship.ai.aggression > 1) {
-    throw new Error(`ships.json5: ship "${ship.id}" ai.aggression must be in [0,1]`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" ai.aggression must be in [0,1]`)
   }
   if (ship.ai.retreatThresholdPct < 0 || ship.ai.retreatThresholdPct > 1) {
-    throw new Error(`ships.json5: ship "${ship.id}" ai.retreatThresholdPct must be in [0,1]`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" ai.retreatThresholdPct must be in [0,1]`)
   }
   if (ship.ai.maintainRange <= 0) {
-    throw new Error(`ships.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
   }
-  if (ship.crMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crMax must be > 0`)
-  if (ship.fuelMax < 0) throw new Error(`ships.json5: ship "${ship.id}" fuelMax must be >= 0`)
-  if (ship.suppliesMax < 0) throw new Error(`ships.json5: ship "${ship.id}" suppliesMax must be >= 0`)
-  if (ship.crewMax <= 0) throw new Error(`ships.json5: ship "${ship.id}" crewMax must be > 0`)
-  if (ship.priceFiat < 0) throw new Error(`ships.json5: ship "${ship.id}" priceFiat must be >= 0`)
+  if (ship.crMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crMax must be > 0`)
+  if (ship.fuelMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" fuelMax must be >= 0`)
+  if (ship.suppliesMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" suppliesMax must be >= 0`)
+  if (ship.crewMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crewMax must be > 0`)
+  if (ship.priceFiat < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" priceFiat must be >= 0`)
   if (typeof ship.brigCapacity !== 'number' || ship.brigCapacity < 0 || !Number.isInteger(ship.brigCapacity)) {
-    throw new Error(`ships.json5: ship "${ship.id}" brigCapacity must be a non-negative integer`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" brigCapacity must be a non-negative integer`)
   }
   if (!ship.officers || typeof ship.officers !== 'object') {
-    throw new Error(`ships.json5: ship "${ship.id}" missing officers block`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" missing officers block`)
   }
   if (!ship.officers.adjutant || typeof ship.officers.adjutant.name !== 'string' || !ship.officers.adjutant.name) {
-    throw new Error(`ships.json5: ship "${ship.id}" officers.adjutant.name must be a non-empty string`)
+    throw new Error(`ship-classes.json5: ship "${ship.id}" officers.adjutant.name must be a non-empty string`)
   }
 
   // Mounts
   const mountIdxSeen = new Set<number>()
   for (const m of ship.mounts) {
     if (mountIdxSeen.has(m.idx)) {
-      throw new Error(`ships.json5: ship "${ship.id}" duplicate mount idx ${m.idx}`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" duplicate mount idx ${m.idx}`)
     }
     mountIdxSeen.add(m.idx)
     if (!VALID_MOUNT_SIZES.has(m.size)) {
-      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} invalid size "${m.size}"`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" mount ${m.idx} invalid size "${m.size}"`)
     }
     if (typeof m.firingArcDeg !== 'number' || m.firingArcDeg <= 0 || m.firingArcDeg > 360) {
-      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} firingArcDeg must be in (0, 360]`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" mount ${m.idx} firingArcDeg must be in (0, 360]`)
     }
     if (typeof m.facingDeg !== 'number') {
-      throw new Error(`ships.json5: ship "${ship.id}" mount ${m.idx} facingDeg must be a number`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" mount ${m.idx} facingDeg must be a number`)
     }
   }
 
   // Default weapons fit under mount sizes (in declared order).
   if (ship.defaultWeapons.length > ship.mounts.length) {
     throw new Error(
-      `ships.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} default weapons but only ${ship.mounts.length} mounts`,
+      `ship-classes.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} default weapons but only ${ship.mounts.length} mounts`,
     )
   }
   ship.defaultWeapons.forEach((wId, i) => {
     if (!isWeaponId(wId)) {
-      throw new Error(`ships.json5: ship "${ship.id}" defaultWeapons[${i}] unknown weapon "${wId}"`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" defaultWeapons[${i}] unknown weapon "${wId}"`)
     }
     const w = getWeapon(wId)
     const mountSize = ship.mounts[i].size
     if (SIZE_RANK[w.size] > SIZE_RANK[mountSize]) {
       throw new Error(
-        `ships.json5: ship "${ship.id}" default weapon "${wId}" (size ${w.size}) too large for mount ${i} (size ${mountSize})`,
+        `ship-classes.json5: ship "${ship.id}" default weapon "${wId}" (size ${w.size}) too large for mount ${i} (size ${mountSize})`,
       )
     }
   })
@@ -214,25 +214,25 @@ for (const ship of parsed.ships) {
   // decoupled from system slots so we don't enforce coverage anymore.
   const roomIds = new Set<string>()
   for (const room of ship.rooms) {
-    if (!room.id) throw new Error(`ships.json5: ship "${ship.id}" room missing id`)
+    if (!room.id) throw new Error(`ship-classes.json5: ship "${ship.id}" room missing id`)
     if (roomIds.has(room.id)) {
-      throw new Error(`ships.json5: ship "${ship.id}" duplicate room id "${room.id}"`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" duplicate room id "${room.id}"`)
     }
     roomIds.add(room.id)
     if (room.bounds.w <= 0 || room.bounds.h <= 0) {
-      throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" non-positive size`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" room "${room.id}" non-positive size`)
     }
     if (room.interactables) {
       for (const k of room.interactables) {
         if (typeof k.kind !== 'string' || !k.kind) {
-          throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" interactable missing kind`)
+          throw new Error(`ship-classes.json5: ship "${ship.id}" room "${room.id}" interactable missing kind`)
         }
         if (typeof k.label !== 'string' || !k.label) {
-          throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" missing label`)
+          throw new Error(`ship-classes.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" missing label`)
         }
         if (k.offset !== undefined) {
           if (typeof k.offset.dx !== 'number' || typeof k.offset.dy !== 'number') {
-            throw new Error(`ships.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" offset must be {dx,dy} numbers`)
+            throw new Error(`ship-classes.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" offset must be {dx,dy} numbers`)
           }
         }
       }
@@ -241,16 +241,16 @@ for (const ship of parsed.ships) {
 
   for (const door of ship.doors) {
     if (!roomIds.has(door.roomA)) {
-      throw new Error(`ships.json5: ship "${ship.id}" door references unknown room "${door.roomA}"`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" door references unknown room "${door.roomA}"`)
     }
     if (!roomIds.has(door.roomB)) {
-      throw new Error(`ships.json5: ship "${ship.id}" door references unknown room "${door.roomB}"`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" door references unknown room "${door.roomB}"`)
     }
     if (door.roomA === door.roomB) {
-      throw new Error(`ships.json5: ship "${ship.id}" door connects "${door.roomA}" to itself`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" door connects "${door.roomA}" to itself`)
     }
     if (!VALID_SIDES.has(door.side)) {
-      throw new Error(`ships.json5: ship "${ship.id}" door has invalid side "${door.side}"`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" door has invalid side "${door.side}"`)
     }
   }
 
@@ -276,7 +276,7 @@ for (const ship of parsed.ships) {
     }
     if (visited.size !== ship.rooms.length) {
       const unreached = ship.rooms.filter((r) => !visited.has(r.id)).map((r) => r.id)
-      throw new Error(`ships.json5: ship "${ship.id}" unreachable rooms: ${unreached.join(', ')}`)
+      throw new Error(`ship-classes.json5: ship "${ship.id}" unreachable rooms: ${unreached.join(', ')}`)
     }
   }
 }

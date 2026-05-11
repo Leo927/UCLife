@@ -11,7 +11,7 @@ import { IsPlayer, Position, MoveTarget, Action, Bed, Workstation } from '../ecs
 import { migratePlayerEntity } from '../character/migrate'
 import { markPathfindingDirty } from '../systems/pathfinding'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
-import { getShipClass } from '../data/ships'
+import { getShipClass } from '../data/ship-classes'
 import { worldConfig } from '../config'
 
 interface SceneState {

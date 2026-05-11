@@ -21,8 +21,8 @@
 // State lives in:
 //   - Ship trait on the player flagship (in playerShipInterior world)
 //   - One CombatShipState trait per ship in the engagement (player + enemies; same world)
-//     The player's CombatShipState is attached to the existing Ship singleton
-//     entity at startCombat and stripped at endCombat. `isPlayer:true` flags it.
+//     The player's CombatShipState is attached to the flagship entity
+//     at startCombat and stripped at endCombat. `isPlayer:true` flags it.
 //   - Module-local projectile pool (in-memory only, transient)
 //   - useCombatStore (UI state: open/paused/selectedMount/flash)
 
@@ -31,13 +31,13 @@ import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
-  EnemyAI, Flags,
+  EnemyAI, Flags, IsFlagshipMark,
 } from '../ecs/traits'
 import { getEnemyShip } from '../data/enemyShips'
-import { getShipClass } from '../data/ships'
+import { getShipClass } from '../data/ship-classes'
 import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
-import { setInCombat, damageHull, drainCR, getPlayerShipEntity } from '../sim/ship'
+import { setInCombat, damageHull, drainCR, getFlagshipEntity } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
@@ -216,7 +216,7 @@ function shipWorld(): World {
 }
 
 function getPlayerShip(): Entity | undefined {
-  return shipWorld().queryFirst(Ship)
+  return shipWorld().queryFirst(Ship, IsFlagshipMark)
 }
 
 // The flagship's CombatShipState row (legacy `isPlayer` discriminator).
@@ -336,7 +336,7 @@ export function startCombat(
 
   // Strip prior combat state. Enemies and stale player MS are transient
   // → destroy. The player's flagship CombatShipState lives on the
-  // persistent Ship singleton entity → just remove the trait so the
+  // persistent flagship entity → just remove the trait so the
   // entity (and its long-arc Ship state) survives.
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
@@ -349,7 +349,7 @@ export function startCombat(
   const ship = getPlayerShip()
   if (ship) {
     const s = ship.get(Ship)!
-    // Combat-time mutable state on the singleton: reset flux to a clean
+    // Combat-time mutable state on the flagship: reset flux to a clean
     // baseline and restore armor (Starsector pattern — armor regenerates
     // between encounters). Hull and CR carry over from prior fights.
     ship.set(Ship, {
@@ -360,9 +360,9 @@ export function startCombat(
     // Attach a CombatShipState to the player ship — same trait shape as
     // enemies. Spatial fields seed at the player spawn; combat stat
     // fields (hull/armor/flux/weapons) stay zero/empty here because
-    // damage routes through the Ship singleton + WeaponMount entities,
+    // damage routes through the Ship trait + WeaponMount entities,
     // not this trait. ai is sourced from the player ship class.
-    const cls = getShipClass(s.classId)
+    const cls = getShipClass(s.templateId)
     ship.add(CombatShipState({
       shipClassId: cls.id,
       nameZh: cls.nameZh,
@@ -526,13 +526,13 @@ function applyDefeatConsequence(): void {
   // Pick a random ground colony (rescue transport drop-off).
   const drop = DEFEAT_DROP_OPTIONS[Math.floor(Math.random() * DEFEAT_DROP_OPTIONS.length)]
 
-  // Reset Ship singleton to factory-fresh state so a re-acquired ship
+  // Reset the flagship to factory-fresh state so a re-acquired ship
   // starts clean. The owned-flag flip below means the player can't board
   // it until they re-buy from the dealer.
-  const ship = getPlayerShipEntity()
+  const ship = getFlagshipEntity()
   if (ship) {
     const s = ship.get(Ship)!
-    const cls = getShipClass(s.classId)
+    const cls = getShipClass(s.templateId)
     ship.set(Ship, {
       ...s,
       hullCurrent: cls.hullMax,
@@ -573,7 +573,7 @@ function applyDefeatConsequence(): void {
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
   // Same flagship-vs-everything-else split as startCombat: keep the
-  // Ship singleton entity alive, just shed its CombatShipState; destroy
+  // flagship entity alive, just shed its CombatShipState; destroy
   // enemy + player MS rows.
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
@@ -613,7 +613,7 @@ export function endCombat(outcome: CombatOutcome): void {
       player.set(Money, { amount: creditsAfter })
     }
     // Replenish the flagship's supplies + fuel — capped at max.
-    const playerShip = getPlayerShipEntity()
+    const playerShip = getFlagshipEntity()
     let suppliesAfter = 0, suppliesMax = 0, fuelAfter = 0, fuelMax = 0
     if (playerShip) {
       const s = playerShip.get(Ship)!
@@ -754,7 +754,7 @@ function applyDamageToMs(msEnt: Entity, weapon: WeaponDef): { absorbed: boolean;
 }
 
 // Route an incoming hostile hit at one specific player-side target. The
-// flagship still routes through the Ship singleton via applyDamageToPlayer
+// flagship still routes through the Ship trait via applyDamageToPlayer
 // (so fluxes / armor / hull on the persistent trait are correct). MS hits
 // route to applyDamageToMs.
 function applyDamageToPlayerSide(targetEnt: Entity, weapon: WeaponDef): { absorbed: boolean; destroyed: boolean } {
@@ -1113,7 +1113,7 @@ export function combatSystem(_world: World, dtMs: number): void {
     })
   }
 
-  // -- 2. Player flux + shield recovery (Ship-singleton fields) -------------
+  // -- 2. Player flux + shield recovery (Ship-trait fields) -------------
   ship.set(Ship, {
     ...shipState,
     fluxCurrent: Math.max(0, playerShield.fluxCurrent - shipState.fluxDissipation * dtSec),
@@ -1171,7 +1171,7 @@ export function combatSystem(_world: World, dtMs: number): void {
   // Each enemy targets the closest player-side unit in range — which can
   // be the flagship OR an MS. fireWeapon('enemy', ...) routes damage
   // through applyDamageToTarget against the chosen entity so MS hits
-  // land on the MS's own CombatShipState hull, not the Ship singleton.
+  // land on the MS's own CombatShipState hull, not the flagship's Ship trait.
   for (const enemyEnt of enemies) {
     const e2 = enemyEnt.get(CombatShipState)
     if (!e2) continue

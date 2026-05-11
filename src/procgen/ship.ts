@@ -1,7 +1,7 @@
 import { world } from '../ecs/world'
 import { Wall, Door, Position } from '../ecs/traits'
 import { worldConfig } from '../config'
-import type { ShipClassDef, ShipRoomDef, ShipDoorDef, DoorSide } from '../data/ships'
+import type { ShipClassDef, ShipRoomDef, ShipDoorDef, DoorSide } from '../data/ship-classes'
 
 // Translate a ShipClassDef's authored room+door layout into Wall + Door
 // entities in the active scene world. Mirrors the `enclose` idiom in

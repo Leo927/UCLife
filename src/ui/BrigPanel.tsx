@@ -1,11 +1,11 @@
 // Phase 6.2 brig walk-up — occupant list + capacity gauge. The room
-// itself is authored in ships.json5 per-class; this kiosk is the verb
-// surface the brig 'brig' interactable opens. Per-prisoner verbs land
-// at 6.2.5.
+// itself is authored in ship-classes.json5 per-class; this kiosk is the
+// verb surface the brig 'brig' interactable opens. Per-prisoner verbs
+// land at 6.2.5.
 
 import { useTrait, useQueryFirst } from 'koota/react'
-import { Ship } from '../ecs/traits'
-import { getShipClass } from '../data/ships'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { getShipClass } from '../data/ship-classes'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { useBrig } from '../sim/brig'
@@ -17,14 +17,14 @@ export function BrigPanel() {
   const open = useUI((s) => s.brigPanelOpen)
   const close = useUI((s) => s.setBrigPanel)
   const activeId = useScene((s) => s.activeId)
-  const shipEnt = useQueryFirst(Ship)
+  const shipEnt = useQueryFirst(Ship, IsFlagshipMark)
   const ship = useTrait(shipEnt, Ship)
   const prisoners = useBrig((s) => s.prisoners)
 
   if (!open) return null
   if (activeId !== SHIP_SCENE_ID || !ship) return null
 
-  const cls = getShipClass(ship.classId)
+  const cls = getShipClass(ship.templateId)
   const cap = cls.brigCapacity
   const over = prisoners.length > cap
 

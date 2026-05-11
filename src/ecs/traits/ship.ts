@@ -5,20 +5,24 @@
 import { trait } from 'koota'
 
 // Phase 6.0 — ship-as-scene. The ship interior is a normal koota world (its
-// own coordinate space, walls/doors, NPC roster). Ship-wide state is held on
-// a single Ship singleton spawned at scene-bootstrap time; per-room and
-// per-loadout state ride alongside on dedicated entities.
+// own coordinate space, walls/doors, NPC roster). Per-ship state lives on
+// a Ship trait instance per ship entity; per-room and per-loadout state
+// ride alongside on dedicated entities. Phase 6.1.5 pluralized the
+// previously-singleton roster — query by `IsFlagshipMark` to find the
+// ship the player is currently aboard, or by `Ship` to iterate the fleet.
 
-// Whole-ship state. One per ship-scene world. `dockedAtPoiId` empty string
-// means "in flight". `fleetPos` is the fleet token's position on the Earth
-// Sphere campaign map; snapped to a POI when docked.
+// Per-ship state. `templateId` keys into ship-classes.json5 for the
+// immutable template; the rest is per-instance runtime. `dockedAtPoiId`
+// empty string means "in flight". `fleetPos` is the fleet token's
+// position on the Earth Sphere campaign map; snapped to a POI when
+// docked.
 //
 // Starsector-shape combat stats (armor / fluxMax / fluxCurrent / fluxDissipation /
-// shieldEfficiency / topSpeed / accel / decel / angularAccel / maxAngVel) live
-// here as a single flat block — there's only ever one player flagship in 6.0,
-// and a flat shape keeps the save/load layer simple.
+// shieldEfficiency / topSpeed / accel / decel / angularAccel / maxAngVel) are
+// cached from the template at bootstrap; treat them as read-only mirrors
+// until the StatSheet migration in 6.2.
 export const Ship = trait({
-  classId: '',
+  templateId: '',
   hullCurrent: 0, hullMax: 0,
   armorMax: 0, armorCurrent: 0,
   fluxMax: 0, fluxCurrent: 0,
@@ -43,6 +47,12 @@ export const Ship = trait({
   fleetPos: { x: 0, y: 0 } as { x: number; y: number },
   inCombat: false,
 })
+
+// Marker — present iff the player is currently aboard this ship. Phase 6.1.5
+// pluralizes Ship; helpers that used to query the singleton now query by
+// this mark so the flagship is always the ship hosting the player body.
+// Switching flagship migrates the mark with the player's interior scene.
+export const IsFlagshipMark = trait({})
 
 // One per room in the ship class's roomLayout. Pure walkable space — the
 // FTL-era oxygen / fire / breach / system fields were dropped in the
@@ -156,7 +166,7 @@ export const MaintenanceLoad = trait({
 // Discriminators:
 //   side='player' — friendly to player (flagship + launched MS)
 //   side='enemy'  — hostile (procedural enemies)
-//   isFlagship    — the persistent Ship singleton (hull lives on Ship,
+//   isFlagship    — the persistent flagship entity (hull lives on Ship,
 //                   not on this trait); CombatShipState's hull / armor /
 //                   weapons fields stay zero/empty for the flagship and
 //                   damage routes through sim/ship.ts:damageHull. Equal
@@ -179,8 +189,8 @@ export const CombatShipState = trait(() => ({
   isMs: false,
   pilotedByPlayer: false,
   // Legacy field — true on the flagship row, false everywhere else.
-  // Existing callers query `cs.isPlayer` to mean "this is the persistent
-  // Ship singleton entity"; new code prefers `isFlagship`.
+  // Existing callers query `cs.isPlayer` to mean "this is the flagship
+  // entity"; new code prefers `isFlagship`.
   isPlayer: false,
   // Tactical position in map-units (combat arena is sized in arena units,
   // not normalized 0..100 like the campaign map).
