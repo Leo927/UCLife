@@ -86,15 +86,18 @@ Mount `position` + `weapon` lets the renderer and combat layer compute turret ar
 ECS entity in the campaign world. Carries only state that changes:
 
 - `templateId: string` — looks up the immutable template
-- `currentHull / currentArmor`
-- `combatReadiness` — Starsector CR; degrades with deployment, restored at safe POI
-- `currentSupply / currentFuel / currentCargo`
-- `hangarUnits: Array<msInstanceId>`
+- `currentHull / currentArmor` — projected onto the `ShipStatSheet` as the runtime damage state
+- `combatReadiness` — Starsector CR; degrades with deployment, restored at depot
+- `currentSupply / currentFuel / currentCargo` — drawn down by daily systems; replenished from the hosting hangar's `supplyStorage` / `fuelStorage`
+- `hangarUnits: Array<vehicleInstanceId>` — *sortie-loaded only*; storage lives in the depot hangar
 - `assignedCaptainId: EntityKey | null`
 - `crewIds: Array<EntityKey>` — NPC characters aboard, beyond the captain
+- `homeHangarId: EntityKey` — the hangar slot the ship returns to at rest
+- `transitDestinationId / transitArrivalDay` — set when in cross-POI transit; nullable
 - `mothballed: boolean`
-- `aggression: 'cautious' | 'steady' | 'aggressive'`
-- `formationSlot: int` — formation position in fleet
+- `IsInActiveFleet: boolean` — war-room-set; gates auto-launch + formation-keep + DP commit
+- `aggression: 'cautious' | 'steady' | 'aggressive'` — combat doctrine; orthogonal to active/reserve
+- `formationSlot: int` — only meaningful while `IsInActiveFleet` and not in transit
 - `IsFlagshipMark` — present iff the player is currently aboard
 
 Conspicuous by absence: no `mountedTurrets`. Ships do not have per-instance loadout state.
@@ -215,15 +218,17 @@ UI scope is broader than the previous draft because MS + pilot + retrofit manage
 
 | Screen | Question | Verb |
 |---|---|---|
-| **Fleet roster** | What ships do I have, where's each housed, who's on each, what's their state? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit through the hangar — not a roster verb) |
-| **Hangar floor** (per facility, opened from manager talk-verb) | What's in this hangar — units, repair state, units awaiting placement, current daily throughput? | Receive-delivery / repair-priority / scrap (manager owns these); per-unit verbs route to the unit itself in the bay |
-| **On-ship hangar deck** (per ship, opened from ship's hangar boss talk-verb) | Which MS are loaded onto *this ship* for the current/next sortie; what's the forward-repair state? | Pull-from-surface-hangar / unload-back-to-surface (loadout); repair-priority / inspect (forward repair, capped at `onShipRepairCap`); no refit, no assembly, no destroyed→ready — those route to a surface hangar |
-| **MS retrofit panel** (per MS, opened by walking up to the MS in the hangar) | What's this MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
-| **Pilot roster** | Who can pilot, who's assigned to which MS, who's idle? | Assign / reassign |
+| **Fleet roster** | What ships do I have, where's each housed, who's on each, what's their state (active / reserve / mothballed)? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit through the hangar — not a roster verb; *active-fleet selection* is the war-room verb, not a roster cell) |
+| **War-room plot table** (flagship bridge) | What ships are in my active fleet right now; what's the formation; what's the route; what's committed for the next engagement? | Drag-token-onto-formation / drag-token-back-to-reserve (sets `IsInActiveFleet`); formation slot arrangement; DP commit; route plan. The single allowed UI-dense surface per [social/diegetic-management.md](social/diegetic-management.md#the-war-room-is-the-one-allowed-abstraction). |
+| **Hangar floor** (per facility, opened from manager talk-verb) | What's in this hangar — units, repair state, units awaiting placement, current daily throughput, **current supply / fuel against storage cap**? | Receive-delivery / repair-priority / scrap / **transfer-unit-to-other-hangar** (paid + delayed) — manager owns these; per-unit verbs route to the unit itself in the bay |
+| **On-ship hangar deck** (per ship, opened from ship's hangar boss talk-verb) | Which vehicles are loaded onto *this ship* for the current/next sortie; what's the forward-repair state? | Pull-from-surface-hangar / unload-back-to-surface (loadout); repair-priority / inspect (forward repair, within `[onShipRepairFloor, onShipRepairCap]`); no refit, no assembly, no destroyed→ready — those route to a surface hangar |
+| **Vehicle retrofit panel** (per unit, opened by walking up to the unit in the hangar) | What's this fighter / MW / MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
+| **Pilot roster** | Who can pilot, who's assigned to which unit, who's idle? | Assign / reassign |
 | **Crew assignment** | Which NPCs are aboard which ships? | Move / hire / fire |
 | **Officer dialog** (existing NPC dialog) | Who is this person? | Hire-as-captain / hire-as-pilot / hire-as-crew / fire / talk |
-| **Buy/sell-ship dialog** (broker NPCs) | What ship hulls are available where; what will the broker pay for one of mine? | Purchase (queues delivery to a hangar with capacity) / sell (sell requires the ship be vacant of the player) |
-| **Buy-MS dialog** (broker NPCs at MS-trading POIs) | What MS frames + parts are available? | Purchase frame / purchase weapon / purchase mod (frames queue delivery; weapons / mods route to inventory) |
+| **Buy/sell-ship dialog** (AE sales rep at the spaceport; AE rep at Granada drydock for capital — POC implementation. Long-term: many brokers, rotating + rarity-gated inventories, La Vien Rose lead-time orders.) | What ship hulls are in this broker's current inventory; what will they pay for one of mine? | Purchase (queues delivery to a hangar with capacity) / sell (sell requires the ship be vacant of the player) |
+| **Buy-vehicle dialog** (AE fighter / MW broker at the spaceport — POC. MS aren't public in 0077; fighters and mobile workers are the early-game catalog.) | What fighter / mobile-worker frames + parts are available? | Purchase frame / purchase weapon / purchase mod (frames queue delivery against vehicle-slot capacity; weapons / mods route to depot parts inventory) |
+| **Supply-dealer dialog** (AE supply dealer at the industrial compound — POC; other industrial compounds host their own dealers later) | What's the price-per-unit of supply and fuel; what's my hangar inventory state? | Order supply / order fuel → confirm target hangar → confirm amount; shipment arrives ~2 in-game days later (configured per route). Secretary's bulk-order verb is the late-game scale shortcut. |
 | **Fleet HUD sliver** in starmap | What's my fleet doing right now? | Read-only awareness |
 
 There is **no ship retrofit panel**, anywhere. A buy-ship dialog produces a ship instance with the class's authored loadout; that's the fight-state for the rest of that ship's service life.
@@ -328,7 +333,37 @@ This also makes "buy a tender" a real loadout decision: a fleet with strong forw
 
 ### Storage stays on the surface
 
-MS / MA at rest still live in surface hangars, not aboard ships. On-ship hangars are sortie facilities, not storage. The pre-deployment loadout pull — *"send this Salamis with 4 GM Cannons or 4 GM Snipers?"* — happens at sortie time, in the surface hangar bay, by the manager's loadout verb. On return from sortie, MS unload back to the surface hangar (default), or stay aboard if a re-sortie is imminent. This avoids the split-inventory trap ("which Gundam is on which ship") while preserving the in-flight working hangar.
+MS / MA / fighters / mobile workers at rest still live in surface hangars, not aboard ships. On-ship hangars are sortie facilities, not storage. The pre-deployment loadout pull — *"send this Salamis with 4 fighters or 4 mobile workers?"* (and later, *"4 GM Cannons or 4 GM Snipers"*) — happens at sortie time, in the surface hangar bay, by the manager's loadout verb. On return from sortie, units unload back to the surface hangar (default), or stay aboard if a re-sortie is imminent. This avoids the split-inventory trap ("which Gundam is on which ship") while preserving the in-flight working hangar.
+
+### Cross-POI transit lives on the hangar manager
+
+A player who buys a vehicle at AE Von Braun but wants it at Granada drydock does **not** ferry it manually. The hangar manager exposes a **transfer-unit-to-other-hangar** verb: pick a destination hangar (any hangar the player owns or rents), pay the route fee, the unit ships out. Transit takes configured per-route in-game days (`transferDays` in `facility-types.json5`); the unit appears at the destination at the end of the window. While in transit the unit is unavailable for sortie, refit, repair — it's "in shipment."
+
+Same flow handles non-flagship active ships whose home hangar differs from the flagship's current POI: when the player launches the flagship, any active ship at a different POI auto-queues a transit to the flagship's POI and joins the formation when it arrives. This is one of the real costs the active/reserve distinction surfaces — you don't get instant fleet teleportation.
+
+## Active fleet composition (war-room verb)
+
+Owning a ship and *sortieing with it* are two different commitments. The `IsInActiveFleet` flag distinguishes them; the war-room plot table on the flagship bridge is the surface that sets it.
+
+### Three states per ship
+
+| State | Cost | Action |
+|---|---|---|
+| **Active** | Salary + supply drain; consumes a formation slot | Auto-launches with the flagship when it leaves a hangar; transits to the flagship's POI if at a different hangar; station-keeps in formation in space; participates in DP commit during tactical |
+| **Reserve** | Salary + supply drain; no formation slot | Sits in its home hangar; does not follow the flagship; available to be promoted to active at the war room |
+| **Mothballed** | No salary, no supply, no maintenance | Sits in its home hangar; off the books until un-mothballed |
+
+Reserve is the state that captures *"I own this freighter and I want to keep its crew paid and its cargo runs running, but I don't want it following me into combat"* — distinct from mothballing (no upkeep, no activity).
+
+### War-room mechanics
+
+The war-room plot table renders the player's fleet as **tokens**. Owned ships either sit on the formation grid (active) or in a side "reserve" tray. The player drags tokens between the two; doing so writes `IsInActiveFleet` and reshuffles formation slots. Mothballed ships do not appear on the table — un-mothballing is a roster-side verb that returns them to the reserve tray.
+
+This is the *only* place fleet composition is set. The fleet roster panel shows current state (active / reserve / mothballed) but is read-only for the active/reserve transition; the cell opens the war room when clicked. This preserves the rule that the bridge is where command happens.
+
+### Why this collapses three muddier ideas
+
+A previous draft of this design had a separate "follow-flagship doctrine," "formation membership," and "DP commit list" as three distinct data channels. They were all really the same selection. Folding them into `IsInActiveFleet` keeps one source of truth and one player-side verb. Aggression doctrine (cautious / steady / aggressive) stays separate — that's *how* an active ship fights, not *whether* it's in the fight.
 
 ## Ships, MS, MA as stat-bearing entities
 
@@ -375,6 +410,7 @@ Where the system can pick a sensible default, it does. Player can always overrid
 - **Ship captain.** Same shape: highest-Ship-Command idle officer.
 - **Hangar slot.** A purchased unit auto-routes to the first hangar (player-owned, then rented) with a free slot of the matching tier. If no slot exists, delivery queues at the broker until capacity opens.
 - **Crew.** Crew gap on a ship = auto-pull from idle hireable pool to fill `crewRequired - currentCrew`.
+- **Active-fleet membership.** The first ship the player buys (or already owns at the singleton-to-plural migration) is auto-marked `IsInActiveFleet = true` — otherwise launching the flagship alone would feel like a downgrade. Subsequent purchases default to **reserve** so the player explicitly opts each one into the active fleet via the war-room verb. Mothballed ships never auto-promote.
 
 Every auto-assignment is overridable from the relevant screen.
 
@@ -394,8 +430,8 @@ This is what makes the system testable end-to-end without grinding hire dialogs.
 | Phase | Scope |
 |---|---|
 | **6.1.5** | **Structural prep, no player-visible content.** Ship-template/instance split. Move existing flagship class data into `ship-classes.json5`. Singleton-`Ship` → plural with `templateId` lookup. Save handler in `saveHandlers/` for fleet roster. Pre-existing saves migrate to single-ship fleet cleanly. No new gameplay. |
-| **6.2** | **Fleet MVP (ships only, no retrofit). Hangar facility lands as part of this phase since fleet is now diegetic.** Two more ship classes (one escort, one small freighter). Surface-hangar facility class in `facility-types.json5` (small craft + MS slots). Orbital-drydock facility class (capital-ship slots) at one canonical drydock POI (Granada drydock). State-owned rental hangar at Von Braun. Hangar manager + workers job sites; receive-delivery, repair-priority, scrap verbs. Daily-throughput formula. Debug "grant fleet" function (above) — extends to "and place units in a default hangar." Per-ship + crew supply economics. Fleet roster + crew assignment screens. Hire-as-captain / hire-as-crew on NPC dialog. Buy-ship dialog at brokers — purchase queues delivery to player's hangar inventory; capacity gates the purchase. Mothballing. Persistent fleet damage between encounters; repair routes through the hangar throughput. Doctrine slider per ship. |
-| **6.2.5** | **MS + pilot + retrofit layer — the depth phase.** `ms-classes.json5`, `ms-weapons.json5`, `ms-frame-mods.json5`. MS runtime entity with `mountedWeapons` + `frameMods` per-instance state. Pilot roster, pilot assignment. Per-MS supply + per-MS repair-supply economics. **On-ship hangar deck = sortie loadout surface; surface-hangar facility = storage + retrofit surface.** MS retrofit panel opens by walking up to an MS in any hangar (player-owned or rented). Buy-MS dialog at MS brokers — frames queue delivery against MS-slot capacity; weapons + mods route to inventory. Hangar manager's refit / assemble verbs land here. Auto-assign + override flow. Secretary's auto-house-undelivered verb. |
+| **6.2** | **Fleet POC: two hulls, one broker, one drydock.** Two ship classes — one light hull (limited weaponry, one on-ship hangar slot) + Pegasus-class capital (White Base equivalent). AE sales rep NPC at Von Braun spaceport handles all ship sales for POC; AE rep at Granada drydock for capital. Surface-hangar facility class in `facility-types.json5` (light + MS / fighter / MW slot tiers). Orbital-drydock facility at Granada drydock POI (capital slots). State-owned rental hangars at Von Braun + Granada. Hangar manager + workers job sites; receive-delivery, repair-priority, scrap, **transfer-to-other-hangar** verbs. Daily-throughput formula. Per-hangar `supplyStorage` + `fuelStorage` caps. Supply dealer NPC at AE; order supply / fuel verbs with 2-day delivery. Secretary's bulk-order verb. Debug "grant fleet" function. Per-ship + crew supply economics. Fleet roster + crew assignment screens. **War-room plot table on the flagship bridge** — fleet composition (active / reserve toggle), formation slot arrangement, route plan. Hire-as-captain / hire-as-crew on NPC dialog. Buy-ship dialog — purchase queues delivery to player's hangar inventory; capacity gates the purchase. Mothballing. Active-fleet auto-launch + cross-POI auto-transit. Persistent fleet damage between encounters; repair routes through hangar throughput. Doctrine slider (aggression). `ShipStatSheet` + `ShipEffects` engine reused from character/faction. Long-term broker design (multiple brokers, rotating inventories, rarity gates, La Vien Rose lead-time orders) deferred. |
+| **6.2.5** | **Vehicle + pilot + retrofit layer — the depth phase.** `vehicle-classes.json5` (or split into `fighters.json5` + `mobile-workers.json5` + later `ms-classes.json5`), `vehicle-weapons.json5`, `vehicle-frame-mods.json5`. Runtime vehicle entity with `mountedWeapons` + `frameMods` per-instance state. Pilot roster, pilot assignment. Per-vehicle supply + repair-supply economics. **On-ship hangar deck = sortie loadout surface; surface-hangar facility = storage + retrofit surface.** Retrofit panel opens by walking up to a vehicle in any hangar (player-owned or rented). Buy-vehicle dialog at AE fighter / MW broker — frames queue delivery against vehicle-slot capacity; weapons + mods route to depot parts inventory. Hangar manager's refit / assemble verbs land here. `VehicleStatSheet` + `VehicleEffects`. Auto-assign + override flow. Secretary's auto-house-undelivered verb. |
 | **6.2.7** | **CP + DP.** Command points + deployment points wired into tactical. Doctrine sliders fully active. Out-of-CP standing-orders behavior. |
 | **6.3** | Mules / freighters as content (extra classes), salvage from wrecks (MS parts + frame mods only — no ship parts since ships don't refit), multi-ship walkable interior switching (player can move flagship freely between own ships at docked-with-fleet moments). |
 
