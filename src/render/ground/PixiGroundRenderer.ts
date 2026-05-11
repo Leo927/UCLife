@@ -83,6 +83,11 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   rough:           { fill: 0x262626, stroke: 0x737373 },
   transit:         { fill: 0x134e4a, stroke: 0x2dd4bf },
   ticketCounter:   { fill: 0x1e3a8a, stroke: 0x60a5fa },
+  // Phase 6.2.A.2 — orbital-lift kiosk. Magenta to read as distinct from
+  // the airport ticket counter (warm blue) and the intra-scene transit
+  // kiosk (teal). Same blue-ish family but pushed toward violet so the
+  // two cross-scene transit primitives don't blur together.
+  orbitalLift:     { fill: 0x4c1d95, stroke: 0xa78bfa },
   boardShip:       { fill: 0x0c4a6e, stroke: 0x38bdf8 },
   disembarkShip:   { fill: 0x1e293b, stroke: 0x94a3b8 },
   helm:            { fill: 0x3a1f4a, stroke: 0xa78bfa },

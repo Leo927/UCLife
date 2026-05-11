@@ -25,6 +25,7 @@ export type InteractableKind =
   | 'gym'
   | 'transit'
   | 'ticketCounter'
+  | 'orbitalLift'
   | 'boardShip'
   | 'disembarkShip'
   | 'helm'

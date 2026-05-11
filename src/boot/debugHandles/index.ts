@@ -23,3 +23,4 @@ import './jobs'       // fillJobVacancies — deterministic NPC/workstation setu
 import './ownership'  // Phase 5.5 — faction roster + per-building Owner snapshot
 import './research'   // Phase 5.5.6 — research lab + queue + planner + ticker
 import './hangar'     // Phase 6.2.A — hangar facility introspection
+import './orbitalLift' // Phase 6.2.A.2 — orbital-lift transit between scenes

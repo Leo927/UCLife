@@ -1,0 +1,37 @@
+// Phase 6.2.A.2 — orbital-lift catalog. A "lift" pairs two scenes with a
+// direct, fare-gated, clock-advancing transit. Lifts are the diegetic bridge
+// between a surface POI and its orbital companion (Von Braun spaceport ↔
+// Granada drydock at this slice; Earth-orbit dock complex and Side-colony
+// orbital sectors land in later slices).
+//
+// Unlike the airport `FlightHub` mechanism (which binds 1:1 to an `airport`
+// reservedRect in procgen and picks destinations from a list at the ticket
+// counter), an orbital lift is a two-endpoint pair with **one** destination
+// per side — board the lift kiosk and you go to the other end. No picker
+// modal, no multi-route catalog; the only player decision is whether to ride.
+//
+// Each row fields:
+//   id           — stable identifier; referenced by per-scene fixedInteractables
+//                  rows that spawn the lift kiosks.
+//   labelZh      — full player-facing name (used by debug surfaces only at MVP).
+//   shortZh      — the Interactable label on the kiosk.
+//   sceneIdA / sceneIdB — the two endpoints. Validated against scenes.json5.
+//   durationMin  — in-game minutes the ride costs; clock advances at midpoint.
+//   fare         — ¥ deducted up-front (consistent with flights / transit, so a
+//                  mid-transition cancel still reflects the commitment).
+//   description  — long-form blurb the player-facing UI may surface later.
+
+{
+  lifts: [
+    {
+      id: 'vonBraunGranadaLift',
+      labelZh: '冯·布劳恩—格拉纳达轨道升降梯',
+      shortZh: '轨道升降梯',
+      sceneIdA: 'vonBraunCity',
+      sceneIdB: 'granadaDrydock',
+      durationMin: 90,
+      fare: 500,
+      description: '冯·布劳恩航天港后侧的轨道升降梯。乘梯直达格拉纳达船坞群。',
+    },
+  ],
+}

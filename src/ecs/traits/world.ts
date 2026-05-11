@@ -115,6 +115,15 @@ export const FlightHub = trait({
   hubId: '',
 })
 
+// Phase 6.2.A.2 — orbital-lift kiosk binding. Sits alongside an Interactable
+// of kind 'orbitalLift'. `liftId` keys into orbital-lifts.json5 to resolve
+// the (durationMin, fare, paired-scene) economics; the interaction system
+// reads the kiosk's current-scene id off the active world to pick which
+// endpoint is the destination.
+export const OrbitalLift = trait({
+  liftId: '',
+})
+
 export const Helm = trait({
   // An interact tile in playerShipInterior that, when pressed E, takes
   // helm. Slice 5 wires the actual interaction; this trait is the

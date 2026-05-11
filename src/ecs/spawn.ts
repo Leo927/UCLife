@@ -11,10 +11,11 @@ import {
   EntityKey, Transit,
   FlightHub, Road,
   Ship, ShipRoom, WeaponMount, IsFlagshipMark,
-  Hangar,
+  Hangar, OrbitalLift,
   type InteractableKind,
 } from './traits'
 import { getHangarFacilityType } from '../data/facilityTypes'
+import { getOrbitalLift } from '../data/orbitalLifts'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ship-classes'
@@ -687,6 +688,28 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : (v > hi ? hi : v)
 }
 
+// ── FIXED INTERACTABLES ──────────────────────────────────────────────────────
+
+// Standalone kiosk spawn — no Building backing. Centered on the tile;
+// resolves any kind-specific extra traits (OrbitalLift today) by inspecting
+// the FixedInteractableRef payload.
+function spawnFixedInteractable(fi: import('../data/scenes').FixedInteractableRef): void {
+  const px = fi.tile.x * TILE + TILE / 2
+  const py = fi.tile.y * TILE + TILE / 2
+  if (fi.kind === 'orbitalLift') {
+    const liftId = fi.liftId
+    if (!liftId) throw new Error(`fixedInteractable orbitalLift missing liftId at (${fi.tile.x},${fi.tile.y})`)
+    const lift = getOrbitalLift(liftId)
+    if (!lift) throw new Error(`fixedInteractable orbitalLift references unknown liftId "${liftId}"`)
+    world.spawn(
+      Position({ x: px, y: py }),
+      Interactable({ kind: 'orbitalLift', label: fi.labelZh ?? lift.shortZh, fee: lift.fare }),
+      OrbitalLift({ liftId }),
+      EntityKey({ key: `orbital-lift-${liftId}-${fi.tile.x}-${fi.tile.y}` }),
+    )
+  }
+}
+
 function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
   const { rect } = slot
   const tilesW = Math.max(1, Math.floor(rect.w / TILE) - 1)
@@ -896,6 +919,14 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   for (const fb of scene.fixedBuildings ?? []) {
     const pb = placeFixedBuilding(fb.type, fb.tile, fixedRng, fb.door)
     spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
+  }
+
+  // Standalone fixed interactables — hand-placed kiosks that don't belong to
+  // any building footprint. Phase 6.2.A.2 ships the first kind: the orbital
+  // lift kiosk pairs two scenes; the interaction system reads
+  // orbital-lifts.json5 to resolve the destination + fare + duration.
+  for (const fi of scene.fixedInteractables ?? []) {
+    spawnFixedInteractable(fi)
   }
 
   // Special NPCs (AE board/managers/reception) and the AE workforce only

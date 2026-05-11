@@ -294,6 +294,36 @@
     },
   },
 
+  // Phase 6.2.A.2 drydock-tier hangar facility. Capital ships base in orbit
+  // (UC canon — lunar-surface industrial complexes are construction yards,
+  // not parking lots), so the drydock hosts cruisers / battleships +
+  // small-craft slots. Reached by riding the orbital lift up from the VB
+  // spaceport; the diegetic walk to manage capital ships is "spaceport →
+  // orbital-lift interactable → drydock concourse." Same facility-class
+  // spine as hangarSurface — only the slot tier + scale differ.
+  //
+  // stateLocked: civic infrastructure — the Granada state-rental drydock is
+  // the early-game escape valve for capital tonnage and cannot be bought.
+  hangarDrydock: {
+    labelZh: '轨道船坞',
+    size: { w: 20, h: 16 },
+    stateLocked: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'hangar_manager', role: 'supervisor', noInteractable: true, labelZh: '船坞主管' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.

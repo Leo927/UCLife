@@ -313,6 +313,20 @@
           },
         },
       ],
+
+      // Phase 6.2.A.2 — orbital-lift kiosk to Granada drydock. Sits on
+      // open ground between the airport's east wall (x=138) and the state
+      // hangar's west door (x=150), diegetically "behind the spaceport on
+      // the launch apron." Walk east from the airport, step into the
+      // lift, ride 90 minutes up to lunar orbit.
+      fixedInteractables: [
+        {
+          kind: 'orbitalLift',
+          tile: { x: 144, y: 30 },
+          liftId: 'vonBraunGranadaLift',
+          labelZh: '轨道升降梯 · 格拉纳达',
+        },
+      ],
     },
 
     {
@@ -395,6 +409,46 @@
               buildingsPerBlockMax: 1,
             },
           ],
+        },
+      ],
+    },
+
+    // Phase 6.2.A.2 — Granada orbital drydock concourse. Reached only via
+    // the orbital lift from Von Braun (no airport, no procgen city). A
+    // small walkable apron with one state-owned `hangarDrydock` facility
+    // (capital + smallCraft slots) at the south end; the orbital-lift
+    // kiosk sits at the north edge so the player walks down into the
+    // drydock floor after disembarking. UC canon: capital ships base in
+    // space; lunar-surface industrial complexes are construction yards,
+    // not parking lots, so capital tonnage is reachable only here.
+    {
+      id: 'granadaDrydock',
+      titleZh: '格拉纳达 · 轨道船坞',
+      sceneType: 'micro',
+      tilesX: 60,
+      tilesY: 50,
+
+      fixedBuildings: [
+        {
+          type: 'hangarDrydock',
+          tile: { x: 20, y: 24 },
+          door: { side: 'n', offsetTiles: 9 },
+          display: {
+            id: 'granadaStateDrydock',
+            nameZh: '格拉纳达国营船坞',
+            shortZh: '国营船坞',
+            kind: 'complex',
+            description: '格拉纳达船坞群的国营泊位——巡洋舰、战列舰一类的大吨位舰艇在此停泊和维护。船坞主管在大厅里调度泊位与轨道驳运。',
+          },
+        },
+      ],
+
+      fixedInteractables: [
+        {
+          kind: 'orbitalLift',
+          tile: { x: 30, y: 4 },
+          liftId: 'vonBraunGranadaLift',
+          labelZh: '轨道升降梯 · 冯·布劳恩',
         },
       ],
     },

@@ -3,7 +3,7 @@ import type { Entity } from 'koota'
 import {
   Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
   Money, Character, Bed, BarSeat, Workstation, RoughUse, RoughSpot, Transit,
-  FlightHub, ManageCell, Owner,
+  FlightHub, ManageCell, Owner, OrbitalLift,
   type InteractableKind,
 } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
@@ -15,17 +15,40 @@ import { useClock } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
 import { Flags, Ship, IsFlagshipMark } from '../ecs/traits'
-import { boardShip, disembarkShip } from '../sim/scene'
+import { boardShip, disembarkShip, migratePlayerToScene } from '../sim/scene'
 import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
 import { runTransition } from '../sim/transition'
-import { getActiveSceneId } from '../ecs/world'
+import { getActiveSceneId, getWorld } from '../ecs/world'
 import { getPoi } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
+import { getOrbitalLift, liftOtherEndpoint } from '../data/orbitalLifts'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
+
+// Pixel position to drop the player on at the other end of an orbital lift.
+// Resolves by querying the destination scene's OrbitalLift kiosk with the
+// matching liftId — keeps arrival data alongside the kiosk it pairs with,
+// so adding a new lift is one fixedInteractables row per endpoint and
+// nothing else. Returns null if the destination scene has no matching
+// kiosk (data drift — surfaces as a toast at call site).
+function findOrbitalLiftArrivalPx(
+  destSceneId: string,
+  liftId: string,
+): { x: number; y: number } | null {
+  const destWorld = getWorld(destSceneId)
+  for (const ent of destWorld.query(OrbitalLift, Position)) {
+    const ol = ent.get(OrbitalLift)!
+    if (ol.liftId !== liftId) continue
+    const p = ent.get(Position)!
+    // Drop the player one tile away from the kiosk along the +y axis so the
+    // arrival doesn't immediately retrigger the kiosk's proximity scan.
+    return { x: p.x, y: p.y + worldConfig.tilePx }
+  }
+  return null
+}
 
 function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): boolean {
   for (const bedEnt of world.query(Bed)) {
@@ -101,6 +124,45 @@ export function interactionSystem(world: World) {
         const fh = nearestEnt.get(FlightHub)
         if (fh) emitSim('ui:open-flight', { hubId: fh.hubId })
       }
+      continue
+    }
+    if (nearestKind === 'orbitalLift') {
+      if (!nearestEnt) continue
+      const ol = nearestEnt.get(OrbitalLift)
+      if (!ol) continue
+      const lift = getOrbitalLift(ol.liftId)
+      if (!lift) {
+        emitSim('toast', { textZh: '升降梯线路异常' })
+        continue
+      }
+      const fromSceneId = getActiveSceneId()
+      const destSceneId = liftOtherEndpoint(lift, fromSceneId)
+      if (!destSceneId) {
+        emitSim('toast', { textZh: '升降梯目的地异常' })
+        continue
+      }
+      const fare = lift.fare
+      const m = player.get(Money)
+      if (fare > 0 && (!m || m.amount < fare)) {
+        emitSim('toast', { textZh: `金钱不足 · 需 ¥${fare}` })
+        continue
+      }
+      // Charge fare up-front so a mid-transition cancel still reflects the
+      // commitment — same pattern as flights / transit. Resolve the arrival
+      // tile against the destination scene's kiosk so the player materialises
+      // next to the other end of the lift.
+      const arrivalPx = findOrbitalLiftArrivalPx(destSceneId, ol.liftId)
+      if (!arrivalPx) {
+        emitSim('toast', { textZh: '升降梯目的地舱口异常' })
+        continue
+      }
+      if (fare > 0 && m) player.set(Money, { amount: m.amount - fare })
+      runTransition({
+        midpoint: () => {
+          useClock.getState().advance(lift.durationMin)
+          migratePlayerToScene(destSceneId, arrivalPx)
+        },
+      })
       continue
     }
     if (nearestKind === 'manage') {

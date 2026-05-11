@@ -4,6 +4,22 @@ import type { DoorSide } from './buildingTypes'
 import { getBuildingType, isFixedSize } from './buildingTypes'
 import { isShipClassId, getShipClass } from './ship-classes'
 
+// Standalone hand-placed interactable, independent of any building footprint.
+// Phase 6.2.A.2 introduces this so the orbital-lift kiosk can sit on open
+// ground at a designed tile without a hosting Building. Generic enough to
+// hold any future fixed kiosk (lift, etc.). The kind drives spawn behavior
+// in ecs/spawn.ts:
+//   orbitalLift — attaches an OrbitalLift trait keyed by `liftId`; the
+//                 interaction system resolves the lift's paired scene and
+//                 transit economics against orbital-lifts.json5.
+export type FixedInteractableKind = 'orbitalLift'
+export type FixedInteractableRef = {
+  kind: FixedInteractableKind
+  tile: { x: number; y: number }
+  labelZh?: string
+  liftId?: string
+}
+
 export type SceneType = 'micro' | 'macro' | 'ship' | 'space'
 
 export type RoadGridConfig = {
@@ -136,6 +152,7 @@ export interface MicroSceneConfig {
   // road carver still doesn't know about holes.
   procgenZones?: ProcgenConfig[]
   fixedBuildings?: FixedBuildingRef[]
+  fixedInteractables?: FixedInteractableRef[]
   replenishment?: ReplenishmentConfig
 }
 
@@ -265,6 +282,20 @@ for (const s of parsed.scenes) {
           throw new Error(`scenes.json5: duplicate world-place id "${id}"`)
         }
         placeIds.add(id)
+      }
+    }
+  }
+  if (s.sceneType === 'micro' && s.fixedInteractables) {
+    for (const fi of s.fixedInteractables) {
+      if (fi.tile.x < 0 || fi.tile.y < 0 || fi.tile.x >= s.tilesX || fi.tile.y >= s.tilesY) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" fixedInteractable "${fi.kind}" tile (${fi.tile.x},${fi.tile.y}) is outside the ${s.tilesX}x${s.tilesY} envelope`,
+        )
+      }
+      if (fi.kind === 'orbitalLift' && !fi.liftId) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" fixedInteractable kind='orbitalLift' needs a liftId`,
+        )
       }
     }
   }
