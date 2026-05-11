@@ -97,9 +97,18 @@ export type ProcgenConfig = {
   display?: WorldPlaceDisplay
 }
 
+// `door` is required for non-crafted layouts (open_floor, etc.) since
+// those don't carry their own door list; crafted layouts ignore it.
+// `display` attaches a world-map marker covering the building footprint
+// — same shape as a reservedRect's display.
+// `resolvedRect` is filled in at load time so worldMap.ts can render the
+// marker without re-resolving against buildingTypes.
 export type FixedBuildingRef = {
   type: string
   tile: { x: number; y: number }
+  door?: ReservedDoorSpec
+  display?: WorldPlaceDisplay
+  resolvedRect?: { x: number; y: number; w: number; h: number }
 }
 
 // Per-scene NPC replenishment. Absence of this field means the scene never
@@ -234,6 +243,29 @@ for (const s of parsed.scenes) {
         }
       }
       zone.resolvedReservedRects = resolved
+    }
+  }
+  if (s.sceneType === 'micro' && s.fixedBuildings) {
+    for (const fb of s.fixedBuildings) {
+      const btype = getBuildingType(fb.type)
+      if (!isFixedSize(btype.size)) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" fixedBuilding "${fb.type}" must be a fixed-size building`,
+        )
+      }
+      if (btype.layout.algorithm !== 'crafted' && !fb.door) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" fixedBuilding "${fb.type}" (layout=${btype.layout.algorithm}) needs a door spec`,
+        )
+      }
+      fb.resolvedRect = { x: fb.tile.x, y: fb.tile.y, w: btype.size.w, h: btype.size.h }
+      if (fb.display) {
+        const id = fb.display.id
+        if (placeIds.has(id)) {
+          throw new Error(`scenes.json5: duplicate world-place id "${id}"`)
+        }
+        placeIds.add(id)
+      }
     }
   }
   if (s.sceneType === 'micro' && s.replenishment) {

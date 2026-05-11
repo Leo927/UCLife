@@ -26,6 +26,7 @@ export interface DialogueText {
     factoryManager: string
     jobSite: string
     talkHire: string
+    hangarManager: string
   }
   branches: {
     shop: { title: string; intro: string }
@@ -81,6 +82,13 @@ export interface DialogueText {
       decline: string
       gateClosed: string
       gateOpen: string
+    }
+    hangarManager: {
+      titleSuffix: string
+      tierLabel: { surface: string; drydock: string }
+      slotLabel: { ms: string; smallCraft: string; capital: string }
+      emptyHint: string
+      intro: string
     }
   }
 }

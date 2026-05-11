@@ -209,6 +209,9 @@
           ],
         },
 
+        // (Von Braun state hangar lands as a fixedBuilding east of this
+        // zone — see fixedBuildings below.)
+
         // ── AE Industrial District ────────────────────────────────────────
         // Self-contained sector built around the AE Complex. The complex
         // (28×26, crafted) sits at tile (400, 200) as a reservedRect — the
@@ -288,6 +291,26 @@
               buildingsPerBlockMax: 1,
             },
           ],
+        },
+      ],
+
+      // Phase 6.2.A — state-rental surface hangar. Sits east of the
+      // central procgen zone (40,4..140,84), diegetically adjacent to the
+      // airport (108,10..138,60) — civilian-grade hulls dock here. Door
+      // faces west toward the airport; player walks east from the
+      // spaceport to reach it.
+      fixedBuildings: [
+        {
+          type: 'hangarSurface',
+          tile: { x: 150, y: 16 },
+          door: { side: 'w', offsetTiles: 6 },
+          display: {
+            id: 'vonBraunStateHangar',
+            nameZh: '冯·布劳恩国营机库',
+            shortZh: '国营机库',
+            kind: 'complex',
+            description: '冯·布劳恩国营的小型机库——民用机型在这里租借泊位。机库主管和技工守在这里，每天调度泊位和补给。',
+          },
         },
       ],
     },

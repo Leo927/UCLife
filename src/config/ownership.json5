@@ -31,6 +31,10 @@
     factionOffice:   { kind: 'state' },
     recruitOffice:   { kind: 'state' },
     researchLab:     { kind: 'state' },
+    // Phase 6.2.A — state-rental hangar. stateLocked, no payroll modeling,
+    // BT-claimed manager + workers. Player-owned hangars (6.2.A.2 / 6.3)
+    // would not be 'state' here; that ownership flips at purchase time.
+    hangarSurface:   { kind: 'state' },
 
     // ── Faction-misc ──────────────────────────────────────────────────────
     aeComplex: { kind: 'faction', factionId: 'anaheim' },

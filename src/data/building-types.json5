@@ -265,6 +265,35 @@
     },
   },
 
+  // ── HANGAR ──────────────────────────────────────────────────────────────
+
+  // Phase 6.2.A surface-tier hangar facility. Spawned as a fixedBuilding
+  // east of the Von Braun central district (the diegetic neighbor of the
+  // airport — the state hangar where civilian-grade hulls dock). The
+  // facility-class shape (tier, slotCapacity) lives in facility-types.json5
+  // and is attached as the Hangar trait at spawn time. Capacity-only verbs
+  // ship here; ShipStatSheet + repair throughput at 6.2.B, supply/fuel at
+  // 6.2.F, transfer-to-other-hangar at 6.2.G.
+  //
+  // stateLocked: civic infrastructure — the state-rental hangar is the
+  // early-game escape valve and cannot be bought. The realtor never
+  // lists it.
+  hangarSurface: {
+    labelZh: '机库',
+    size: { w: 14, h: 14 },
+    stateLocked: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { type: 'workstation', specId: 'hangar_manager', role: 'supervisor', noInteractable: true, labelZh: '机库主管' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.

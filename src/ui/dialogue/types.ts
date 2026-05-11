@@ -42,6 +42,7 @@ export type DialogueRoles = {
   isResearcherOnDuty: boolean
   isShipDealerOnDuty: boolean
   isRecruitingManagerOnDuty: boolean
+  isHangarManagerOnDuty: boolean
   ownsPrivateFacility: boolean
   managerStation: Entity | null
 }

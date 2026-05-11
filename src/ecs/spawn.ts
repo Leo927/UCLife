@@ -11,8 +11,10 @@ import {
   EntityKey, Transit,
   FlightHub, Road,
   Ship, ShipRoom, WeaponMount, IsFlagshipMark,
+  Hangar,
   type InteractableKind,
 } from './traits'
+import { getHangarFacilityType } from '../data/facilityTypes'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ship-classes'
@@ -150,6 +152,18 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
       ManageCell({ building: buildingEnt }),
       EntityKey({ key: `manage-${buildingKey}` }),
     )
+  }
+
+  // Phase 6.2.A — hangar facility-class augmentation. Attaches the
+  // tier + slotCapacity from facility-types.json5 onto the building
+  // entity so the manager's talk-verb can read capacity counts off a
+  // single trait without re-deriving from typeId.
+  const hangarFacility = getHangarFacilityType(typeId)
+  if (hangarFacility) {
+    buildingEnt.add(Hangar({
+      tier: hangarFacility.tier,
+      slotCapacity: hangarFacility.slotCapacity,
+    }))
   }
 
   // Per the worker-not-workstation rule the former 'buyShip' kiosk is
@@ -880,7 +894,7 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   // doesn't perturb door offsets on hand-placed buildings.
   const fixedRng = SeededRng.fromString(`${scene.id}:fixed`)
   for (const fb of scene.fixedBuildings ?? []) {
-    const pb = placeFixedBuilding(fb.type, fb.tile, fixedRng)
+    const pb = placeFixedBuilding(fb.type, fb.tile, fixedRng, fb.door)
     spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
   }
 

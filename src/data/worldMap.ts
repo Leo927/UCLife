@@ -52,6 +52,10 @@ for (const s of scenes) {
       places.push(placeFromDisplay(s.id, r.display, resolved.rect))
     }
   }
+  for (const fb of s.fixedBuildings ?? []) {
+    if (!fb.display || !fb.resolvedRect) continue
+    places.push(placeFromDisplay(s.id, fb.display, fb.resolvedRect))
+  }
 }
 
 export const worldPlaces: readonly WorldPlace[] = places

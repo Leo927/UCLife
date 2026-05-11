@@ -81,6 +81,11 @@
     // Faction-misc with a canonical-faction owner (AE complex). Hidden from
     // the realtor; players don't buy AE's HQ from a desk clerk.
     aeComplex:       { category: 'hidden', buyable: false },
+
+    // Phase 6.2.A — state-rental hangar. stateLocked in building-types.json5;
+    // the realtor never lists it. Listed civic for legibility in case future
+    // tooling enumerates entries here.
+    hangarSurface:   { category: 'civic',  buyable: false },
   },
 
   listingMul: {

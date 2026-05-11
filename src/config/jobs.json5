@@ -315,6 +315,43 @@
       installOnly: true,
     },
 
+    // NPC-only role. Hangar manager at the state-rental hangar (Phase 6.2.A;
+    // owned hangars land at 6.2.A.2 / 6.3). The talk-verb is the surface for
+    // every owner-side and customer-side hangar verb — at 6.2.A capacity-only
+    // counts; 6.2.B adds repair-priority; 6.2.C1 adds receive-delivery;
+    // 6.2.F adds supply / fuel inspection; 6.2.G adds transfer-to-other-
+    // hangar. State hangars are baseline-staffed: the BT find-job path
+    // claims the seat naturally (NPC-only, no requirements, no installOnly).
+    hangar_manager: {
+      jobTitle: '机库主管',
+      wage: 200,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 20,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '调度机库泊位、补给与维修。',
+      playerHireable: false,
+    },
+
+    // NPC-only role. State-staffed hangar worker. No verb surface — workers
+    // contribute throughput (the dailyThroughput formula in fleet.md). At
+    // 6.2.A throughput is unread; lands at 6.2.B alongside the repair-
+    // priority verb on the manager.
+    hangar_worker: {
+      jobTitle: '机库技工',
+      wage: 110,
+      skillXp: 40,
+      skill: 'mechanics',
+      shiftStart: 8,
+      shiftEnd: 20,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '机库维修和补给体力劳动。',
+      playerHireable: false,
+    },
+
     // NPC-only role. Researcher at the player's researchLab. Phase 5.5.6 —
     // the seat is empty when the building is bought from the realtor; the
     // player installs a hired civilian via the per-facility manage cell

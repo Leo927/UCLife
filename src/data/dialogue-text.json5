@@ -64,6 +64,7 @@
     factoryManager: '本厂招聘',
     jobSite: '工位调整',
     talkHire: '邀请加入',
+    hangarManager: '机库状况',
   },
   branches: {
     shop: { title: '便利店', intro: '今天有这些。' },
@@ -148,6 +149,15 @@
       decline: '下次再说',
       gateClosed: '对方还在观望',
       gateOpen: '对方愿意听你说',
+    },
+    hangarManager: {
+      titleSuffix: ' · 机库主管',
+      // Tier labels for the capacity readout. Surface tier hosts MS +
+      // small craft; drydock hosts capital + small craft.
+      tierLabel: { surface: '地面机库', drydock: '轨道船坞' },
+      slotLabel: { ms: 'MS 泊位', smallCraft: '小艇泊位', capital: '主力舰泊位' },
+      emptyHint: '本机库尚未配置泊位类别。',
+      intro: '简单看一下本机库的状况：',
     },
   },
 }

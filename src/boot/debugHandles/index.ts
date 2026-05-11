@@ -22,3 +22,4 @@ import './save'       // saveGame / loadGame
 import './jobs'       // fillJobVacancies — deterministic NPC/workstation setup for smoke tests
 import './ownership'  // Phase 5.5 — faction roster + per-building Owner snapshot
 import './research'   // Phase 5.5.6 — research lab + queue + planner + ticker
+import './hangar'     // Phase 6.2.A — hangar facility introspection

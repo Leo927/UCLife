@@ -1,0 +1,36 @@
+// Phase 6.2.A — hangar facility class shapes. Per Design/fleet.md and
+// Design/social/facilities-and-ownership.md, hangars come in two tiers,
+// both authored from the same template. The tier governs which slot
+// classes are housed (surface = MS / fighter / MW; drydock = capital).
+//
+// Each row is keyed by a building-type id (in building-types.json5) and
+// carries the *facility-class* shape — capacities, storage caps, daily
+// economics that don't fit cleanly on BuildingType. Only one tier
+// (`hangarSurface`) is actually placed at Phase 6.2.A; the drydock row
+// is authored here so the schema locks in for 6.2.A.2 / 6.2.C2 without
+// a follow-up data churn.
+//
+// Slot classes:
+//   ms          — mobile-suit-sized bay (20m frames). Surface tier only.
+//   smallCraft  — fighters / mobile workers / shuttles. Both tiers.
+//   capital     — cruiser / battleship slip. Drydock tier only.
+//
+// Capacity-only verbs ship at 6.2.A; ShipStatSheet + persistent damage +
+// repair throughput land at 6.2.B; supply/fuel storage drain + dealer
+// orders at 6.2.F; transfer-to-other-hangar (paid + delayed) at 6.2.G or
+// E2 (whichever defines the shipment-day infra first). Authoring those
+// numerics here ahead of consumers would be speculative — keep this
+// minimal, grow with each slice that needs more.
+
+{
+  hangars: {
+    hangarSurface: {
+      tier: 'surface',
+      slotCapacity: { ms: 4, smallCraft: 4 },
+    },
+    hangarDrydock: {
+      tier: 'drydock',
+      slotCapacity: { capital: 4, smallCraft: 12 },
+    },
+  },
+}

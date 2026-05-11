@@ -190,6 +190,21 @@ export const FactionResearch = trait(() => ({
   completed: [] as string[],
 }))
 
+// Phase 6.2.A hangar facility. Sits alongside Building + Facility on
+// hangar entities (state-rental + player-owned). The tier governs which
+// slot classes the bay can hold; slotCapacity is the per-class cap. The
+// occupant table (which ship sits in which slot) is empty at 6.2.A —
+// ships don't enter hangars until 6.2.C1/C2 wire delivery placement.
+// Authoring the trait now keeps the manager's capacity-readout verb
+// reading from the same shape that 6.2.B's repair throughput will hang
+// off of, with no follow-up data churn.
+import type { HangarTier, HangarSlotClass } from '../../data/facilityTypes'
+export const Hangar = trait(() => ({
+  tier: 'surface' as HangarTier,
+  slotCapacity: {} as Partial<Record<HangarSlotClass, number>>,
+}))
+export type { HangarTier, HangarSlotClass }
+
 // Phase 5.5.4 recruiter station. Sits alongside Workstation on the
 // recruiter's desk (specId='recruiter'). The criteria block is the
 // auto-accept filter the player tunes via RecruiterDialog ("机师, 30
