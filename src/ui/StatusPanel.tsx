@@ -1,5 +1,5 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, QueuedTalk, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
 import {
   getConditionTemplate, severityTier,
   SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR, TREATMENT_TIER_ZH,
@@ -60,6 +60,7 @@ export function StatusPanel() {
     playUi('ui.status.walk-home')
     player.set(MoveTarget, { x: homeBedPos.x, y: homeBedPos.y })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    if (player.has(QueuedTalk)) player.remove(QueuedTalk)
     setOpen(false)
   }
 
@@ -68,6 +69,7 @@ export function StatusPanel() {
     playUi('ui.status.walk-job')
     player.set(MoveTarget, { x: wsPos.x, y: wsPos.y })
     if (!player.has(QueuedInteract)) player.add(QueuedInteract)
+    if (player.has(QueuedTalk)) player.remove(QueuedTalk)
     setOpen(false)
   }
 

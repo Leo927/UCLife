@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useQueryFirst, useTrait, useQuery } from 'koota/react'
-import { IsPlayer, Position, Building, MoveTarget, QueuedInteract, Action } from '../ecs/traits'
+import { IsPlayer, Position, Building, MoveTarget, QueuedInteract, QueuedTalk, Action } from '../ecs/traits'
 import { worldConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
@@ -311,6 +311,7 @@ export function MapPanel() {
     playUi('ui.map.right-click-navigate')
     player.set(MoveTarget, { x: px, y: py })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    if (player.has(QueuedTalk)) player.remove(QueuedTalk)
     setClickFx({ cx: u.x, cy: u.y, key: performance.now(), t: 0 })
   }
 

@@ -38,7 +38,7 @@ import type {
   PlayerSnap,
 } from './groundSnapshot'
 import {
-  Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, Action,
+  Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, QueuedTalk, Action,
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
   Active, Road, Appearance, ManageCell, Owner,
 } from '../ecs/traits'
@@ -48,7 +48,6 @@ import { BED_MULTIPLIERS, bedActiveOccupant } from '../systems/bed'
 import { setViewportHint } from '../systems/activeZone'
 import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
-import { useUI } from '../ui/uiStore'
 import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
 import { getActiveSceneDimensions, getActiveSceneId, getWorld, world } from '../ecs/world'
@@ -133,10 +132,27 @@ export function Game() {
   useEffect(() => {
     let raf = 0
     const onNpcClick = (ent: Entity) => {
-      // Mirror the legacy click priority: dialog opens for the clicked NPC.
-      // Dead NPCs are filtered upstream (the renderer disables their
-      // eventMode), so by the time we get here it's a living NPC.
-      useUI.getState().setDialogNPC(ent)
+      // Walk-then-chat: set the player's MoveTarget to the NPC and queue a
+      // QueuedTalk(target). talkSystem opens the dialog when the player
+      // arrives in talk range. Dead NPCs are filtered upstream (the renderer
+      // disables their eventMode), so by the time we get here it's a living
+      // NPC.
+      const player = world.queryFirst(IsPlayer, Position)
+      if (!player) return
+      const playerAction = player.get(Action)
+      if (
+        playerAction
+        && playerAction.kind !== 'idle'
+        && playerAction.kind !== 'walking'
+      ) {
+        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
+      }
+      const npos = ent.get(Position)
+      if (!npos) return
+      player.set(MoveTarget, { x: npos.x, y: npos.y })
+      if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+      if (player.has(QueuedTalk)) player.set(QueuedTalk, { target: ent })
+      else player.add(QueuedTalk({ target: ent }))
     }
     const onInteractableClick = (ent: Entity, _sx: number, _sy: number) => {
       // Resolve player + interactable position from ECS at click time.
@@ -163,6 +179,7 @@ export function Game() {
       }
       player.set(MoveTarget, { x: ipos.x, y: ipos.y })
       if (!player.has(QueuedInteract)) player.add(QueuedInteract)
+      if (player.has(QueuedTalk)) player.remove(QueuedTalk)
     }
 
     const loop = () => {
@@ -285,6 +302,7 @@ export function Game() {
               const ty = clamp(pos.y + ndy * LOOKAHEAD_PX, 0, H)
               player.set(MoveTarget, { x: tx, y: ty })
               if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+              if (player.has(QueuedTalk)) player.remove(QueuedTalk)
               lastDx = ndx
               lastDy = ndy
             }
@@ -332,6 +350,7 @@ export function Game() {
     if (!player) return
     player.set(MoveTarget, { x, y })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    if (player.has(QueuedTalk)) player.remove(QueuedTalk)
     lastHoldTargetRef.current = { x, y }
   }
 

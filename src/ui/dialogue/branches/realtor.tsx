@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
-  IsPlayer, Money, Bed, Position, MoveTarget, QueuedInteract, Home, Attributes, Owner, Building,
+  IsPlayer, Money, Bed, Position, MoveTarget, QueuedInteract, QueuedTalk, Home, Attributes, Owner, Building,
 } from '../../../ecs/traits'
 import type { BedTier } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
@@ -130,11 +130,14 @@ function RealtorPanel() {
 
   const walkToSeller = (listing: RealtyListing) => {
     if (!player || !listing.seller) return
-    const sellerPos = listing.seller.entity.get(Position)
+    const seller = listing.seller.entity
+    const sellerPos = seller.get(Position)
     if (!sellerPos) return
     playUi('ui.realtor.preview')
     player.set(MoveTarget, { x: sellerPos.x, y: sellerPos.y })
     if (player.has(QueuedInteract)) player.remove(QueuedInteract)
+    if (player.has(QueuedTalk)) player.set(QueuedTalk, { target: seller })
+    else player.add(QueuedTalk({ target: seller }))
     useUI.getState().showToast(`走向 ${listing.seller.name} · 找业主谈交易`)
     close()
   }

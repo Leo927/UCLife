@@ -130,6 +130,11 @@ export const Inventory = trait({
 export const IsPlayer = trait()
 export const QueuedInteract = trait()
 
+// Carries the NPC the player intends to chat with after walking up to them.
+// Set on NPC click; cleared by talkSystem on arrival, by background/keyboard
+// movement, or by any competing player intent (interactable click, etc.).
+export const QueuedTalk = trait(() => ({ target: null as Entity | null }))
+
 // The player always carries Active.
 export const Active = trait()
 

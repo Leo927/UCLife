@@ -158,20 +158,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/render/Game.tsx",
-    "to": "src/ui/uiStore.ts",
-    "unresolvedTo": "../ui/uiStore",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-up-from-render"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/render/portrait/react/Portrait.tsx",
     "to": "src/ui/uiStore.ts",
     "unresolvedTo": "../../../ui/uiStore",
@@ -567,6 +553,20 @@
     "from": "src/sim/loop.ts",
     "to": "src/systems/supplyDrain.ts",
     "unresolvedTo": "../systems/supplyDrain",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-up-from-sim-or-ai"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/sim/loop.ts",
+    "to": "src/systems/talk.ts",
+    "unresolvedTo": "../systems/talk",
     "dependencyTypes": [
       "local",
       "import"

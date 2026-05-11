@@ -4,6 +4,7 @@ import { useClock, gameDayNumber, setPartialMinute } from './clock'
 import { emitSim, onSim } from './events'
 import { movementSystem } from '../systems/movement'
 import { interactionSystem } from '../systems/interaction'
+import { talkSystem } from '../systems/talk'
 import { vitalsSystem } from '../systems/vitals'
 import { actionSystem } from '../systems/action'
 import { rentSystem } from '../systems/rent'
@@ -113,6 +114,7 @@ function frame(now: number) {
     movementSystem(world, minutesThisFrame)
     npcSystem(world, dt, sp)
     interactionSystem(world)
+    talkSystem(world)
 
     tickAccum += minutesThisFrame
     let ticks = 0
