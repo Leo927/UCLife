@@ -164,9 +164,9 @@ and explicit out of scope here.
 
 | Phase | Scope |
 |---|---|
-| **6.0** | Event engine: parser, choice resolver, blue-option qualifier evaluator, region / POI-type pool selection, pause-on-event rule. ~30 starter templates. |
+| **6.0** | Event engine: parser, choice resolver, blue-option qualifier evaluator, region / POI-type pool selection, pause-on-event rule (with the tactical-mode narrowing — see [post-combat.md](post-combat.md#combat-event-log)). ~30 starter templates. |
 | **6.1** | Combat-instigation path: events route into tactical-mode combat and back out cleanly. +~20 templates emphasizing combat-or-not choices. |
-| **6.2** | Multi-ship fleet aware events (escort losses, formation choices). Faction-flavored reskins. |
+| **6.2** | Multi-ship fleet aware events (escort losses, formation choices). Faction-flavored reskins. **Notable-hostile authoring** lands on `space-entities.json5` rows; encounter text-events can reference named hostiles in their copy ("the Red Comet rumor again"). |
 | **6.3** | Colony-defense events (raid alerts, refugee requests at your colony). |
 | **6.4** | Jupiter expedition event pool (~15–20 templates with frontier-flavor pool). Faction-tier diplomatic events. |
 | **7.0** | Wartime event pool: faction-control flips reshape which events fire where. New templates for conscription, refugee transit, war atrocities, hostile expeditions vs player colonies, etc. |

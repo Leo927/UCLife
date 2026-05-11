@@ -115,13 +115,14 @@ Sortie state survives save/load *during* tactical only if a tactical save is wri
 
 ## Phasing (implementation, not design)
 
-Design is locked above. Implementation can land in pieces:
+Design is locked above. Implementation lands in waves:
 
 | Phase | What ships |
 |---|---|
-| **6.1** | MS launch + cockpit transition + dock back; single hangar door per ship as a placeholder; no per-MS resources yet (MS combat is hull-only). Combat event log present with launch / dock / kill entries. |
-| **6.2.5** | `currentPropellant` + `currentAmmoByWeapon` + `currentLifeSupport`; mid-combat resupply protocol with full crew/boost formula; per-ship-class `hangarDoors[]` authoring; door queueing; recovery tug for stranded MS. |
-| **6.3+** | Frame mods that emit Effects against per-sortie resource caps. Tactical-save support (if pursued). Faction research lines that emit fleet-wide `resourceBoostMul`. |
+| **6.0** | Captain's office room exists as a per-ship walkable nook adjacent to the bridge; pre-launch readiness summary is read off the single-ship state (no per-MS data yet → reads ship supply / fuel / hangar-occupancy only). Combat event log surface (Starsector top-left, fading scroll, severity tiers, Tab full-history). Tactical auto-pause set narrowed to first-contact + flagship 25%/10% + boarders + player-eject. See [post-combat.md](post-combat.md#combat-event-log) for the log surface. |
+| **6.1** | MS launch + cockpit transition + dock-back. **Single placeholder hangar door per ship** (authored `hangarDoors[]` not yet on the template — one fixed launch position). **No per-MS resources** yet — MS combat is hull-only; "run out of ammo" isn't a state. Event log gets full content (launch / dock / kill / threshold entries + named-officer chatter). |
+| **6.2.5** | `currentPropellant` + `currentAmmoByWeapon` + `currentLifeSupport` on the MS runtime instance; `propellantStorage` + `lifeSupportMinutes` as template stats. **Mid-combat resupply protocol** with full `baseResupplySec / hangarBoss.workPerformance / (1 + Σ mechanicCrewEfficiency) / resourceBoostMul` formula. **Per-ship-class `hangarDoors[]` authoring** + door queueing + spawn-at-door-position. **Stranded-MS recovery tug** (`computers + mechanics` skill check; occupies a door for the duration). |
+| **6.3+** | Frame mods that emit Effects against per-sortie resource caps (extended propellant tank, autoloader, life-support pod). Faction research lines that emit fleet-wide `resourceBoostMul`. Tactical-save support (if pursued). |
 
 ## Related
 

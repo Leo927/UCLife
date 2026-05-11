@@ -149,16 +149,14 @@ A named hostile killed in combat (rather than captured) is announced in the comb
 
 ## Phasing (implementation, not design)
 
-Design is locked above. Implementation can land in waves:
+Design is locked above. Implementation lands in waves; the order is deliberate — log + tally (cheap) → notable hostiles (cheap, big payoff) → prisoners (a real subsystem) → ship recovery (expands the fleet acquisition channel — the moment of real economy impact). Each layer is a functioning surface alone; the sequence layers depth.
 
 | Phase | What ships |
 |---|---|
-| **6.1** | Combat event log surface (placeholder content + launch / dock / kill entries). Tally dialogue minimum: credits + supplies + fuel. No recoverables, no prisoners. |
-| **6.2** | Tally dialogue full surface. Notable-hostile authoring on space-entity rows (named captains visible in tactical, named in log on death). |
-| **6.2.5** | Prisoners surface (brig as ship-class room, talk-verb verbs, capacity gate, in-flight prisoner upkeep). MS-parts loot via salvage table. |
-| **6.3+** | Recoverables dialogue full (capture vs. salvage vs. scuttle, prize-crew gate). Salvaged-hull-in-flight pattern. `WasCaptured` marker + faction-relation hooks. Colony detention as brig-overflow target. Faction-specific ransom/handover branches. |
-
-The order is deliberate: log + tally (cheap) → notable hostiles (cheap, big payoff) → prisoners (a real subsystem) → ship recovery (expands the fleet acquisition channel — the moment of real economy impact). Each layer is a functioning surface alone; the sequence layers depth.
+| **6.0** | **Combat event log surface** — Starsector top-left, fading scroll, four severity tiers, Tab-toggled full history. Lands with the tactical foundation; populated with launch / dock / kill / threshold entries as those systems come online. **Tactical auto-pause set narrowed** to first-contact + flagship hull 25% / 10% + boarders + player-piloted-MS at hull 0; routine status changes route to the log instead. **Tally dialogue minimum** — credits + supplies + fuel only (parts inventory + brig don't exist yet). |
+| **6.2** | **Tally dialogue full surface** — loot panel routes credits / supplies / fuel / parts into fleet inventory per the rules above; captured-panel shows named POW portraits + one-line context (the brig itself is a 6.2 room with `brigCapacity`, but per-prisoner verbs land at 6.2.5). **Notable-hostile authoring on `space-entities.json5` rows** — `captainId` / `pilotId` reference into `special-npcs.json5`; named captains visible in tactical, named in the event log on death. |
+| **6.2.5** | **Prisoner system** — talk-verb verbs on the brig walk-up + the captain's office comm panel (interrogate / ransom / recruit / execute / hand-over / release). **In-flight prisoner upkeep** via brig-condition stats (food / water / medical) reusing the physiology pipeline. Brig-over-capacity routes to less-secure quarters with escape risk (loyalty/morale system). **MS-parts loot** via per-class salvage table — weapons + frame mods drop from broken-down hostile MS into the depot parts inventory at next dock. |
+| **6.3+** | **Recoverables dialogue full** — capture / salvage / scuttle each surviving hull and pod; prize-crew gate (idle crew aboard the flagship sized to `crewRequired / 4`). **Salvaged-hull-in-flight pattern** — recovered hull joins the fleet immediately with `homeHangarId = null`, station-keeps in formation, draws on its own halved bunkers; queues delivery to a hangar with capacity at the flagship's next dock, exactly like a fresh purchase. **`WasCaptured` marker + faction-relation hooks** (Federation rep penalty when keeping a Federation hull; AE buyback markup; hostile-faction ransom). **Colony detention** as brig-overflow target. Faction-specific ransom / hand-over branches. |
 
 ## Related
 
