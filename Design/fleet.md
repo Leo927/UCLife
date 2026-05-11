@@ -39,7 +39,6 @@ Sensors are **dropped entirely** — sensors don't work reliably in the UC unive
 
 - **Ship refit.** No ship loadout customization at any tier. A ship's mounts are part of the class template; what you buy is what you fight with. The interesting fleet-tier choice is "hire a third escort vs. buy a destroyer," not "underfit my flux." Customization energy goes into MS, where it belongs.
 - **Sensor strength by composition.** Sensors don't work in UC. Cut entirely.
-- **Salvage ship recovery from wrecks.** Defer to Phase 6.3+ when colonies create salvage demand.
 - **Officer skill trees.** Officers and pilots are Characters; characters already have skill XP. No second progression layer.
 - **Hard fleet-size cap by formula.** Ship count is gated by economics + command bandwidth, not by a player-skill formula. (CP and DP throughput, which gate per-engagement combat scale, *are* skill-gated — see below.)
 
@@ -65,6 +64,11 @@ Ships and MS follow the same authoring pattern: **template lives in data; instan
   fuelStorage: 240,
   cargoCapacity: 0,             // mules / freighters are where cargo lives
   hangarCapacity: 4,            // # of MS sortie slots aboard
+  hangarDoors: [                // physical launch/recovery ports — see sortie.md
+    { id: 'side-port', position: { x:  8, y: 0 }, facing:  90, bayId: 'bay-1' },
+    { id: 'side-stbd', position: { x: -8, y: 0 }, facing: -90, bayId: 'bay-2' },
+    // door count may be < hangarCapacity → MS share doors and queue
+  ],
   mechanicCrewSlots: 12,        // forward-repair crew complement
   onShipRepairCap: 0.8,         // hull/armor ceiling for in-sortie repair
   onShipRepairFloor: 0.4,       // integrity floor — units below this can't be touched aboard
@@ -74,7 +78,8 @@ Ships and MS follow the same authoring pattern: **template lives in data; instan
     // ...
   ],
   crewRequired: 220,
-  bridge: 'standard',           // hooks the walkable interior layout
+  brigCapacity: 4,              // POW slots; 0 for civilian-spec hulls — see post-combat.md
+  bridge: 'standard',           // hooks the walkable interior layout (bridge + captain's office room)
   dpCost: 6,                    // tactical deployment-points cost
 }
 ```
@@ -99,6 +104,8 @@ ECS entity in the campaign world. Carries only state that changes:
 - `aggression: 'cautious' | 'steady' | 'aggressive'` — combat doctrine; orthogonal to active/reserve
 - `formationSlot: int` — only meaningful while `IsInActiveFleet` and not in transit
 - `IsFlagshipMark` — present iff the player is currently aboard
+- `WasCaptured: boolean` — set true at recovery (see [post-combat.md](post-combat.md)); influences faction relations, ransom/buyback opportunities, and crew loyalty drift on this hull
+- `prisoners: Array<EntityKey>` — POWs in the brig; max `brigCapacity`. Surplus routes to less-secure quarters with escape risk (see [post-combat.md](post-combat.md#prisoners))
 
 Conspicuous by absence: no `mountedTurrets`. Ships do not have per-instance loadout state.
 
@@ -220,6 +227,7 @@ UI scope is broader than the previous draft because MS + pilot + retrofit manage
 |---|---|---|
 | **Fleet roster** | What ships do I have, where's each housed, who's on each, what's their state (active / reserve / mothballed)? | View / mothball / scrap / set-doctrine / assign-captain (switching flagship is physical transit through the hangar — not a roster verb; *active-fleet selection* is the war-room verb, not a roster cell) |
 | **War-room plot table** (flagship bridge) | What ships are in my active fleet right now; what's the formation; what's the route; what's committed for the next engagement? | Drag-token-onto-formation / drag-token-back-to-reserve (sets `IsInActiveFleet`); formation slot arrangement; DP commit; route plan. The single allowed UI-dense surface per [social/diegetic-management.md](social/diegetic-management.md#the-war-room-is-the-one-allowed-abstraction). |
+| **Captain's office** (per ship; flagship's also hosts fleet-wide) | Is *this ship* ready to sortie (supply / fuel / crew / MS / pilots)? Who do I want to talk to privately right now? Which prisoners are aboard? | Pre-launch readiness summary read off this ship's state; "**man the rest from idle pool**" delegation to the captain; comm-panel face wall for any first-touched crew member; prisoner verbs (interrogate / ransom / recruit / execute / hand-over / release) from the comm panel. See [social/diegetic-management.md](social/diegetic-management.md#captains-office). |
 | **Hangar floor** (per facility, opened from manager talk-verb) | What's in this hangar — units, repair state, units awaiting placement, current daily throughput, **current supply / fuel against storage cap**? | Receive-delivery / repair-priority / scrap / **transfer-unit-to-other-hangar** (paid + delayed) — manager owns these; per-unit verbs route to the unit itself in the bay |
 | **On-ship hangar deck** (per ship, opened from ship's hangar boss talk-verb) | Which vehicles are loaded onto *this ship* for the current/next sortie; what's the forward-repair state? | Pull-from-surface-hangar / unload-back-to-surface (loadout); repair-priority / inspect (forward repair, within `[onShipRepairFloor, onShipRepairCap]`); no refit, no assembly, no destroyed→ready — those route to a surface hangar |
 | **Vehicle retrofit panel** (per unit, opened by walking up to the unit in the hangar) | What's this fighter / MW / MS carrying; what frame mods are installed? | Swap-weapon / install-mod / uninstall-mod / set-role-tags |
@@ -375,10 +383,10 @@ The principle: *any number that can change at runtime is a stat.* Ship hull base
 
 Within each template (`ship-classes.json5`, `ms-classes.json5`, …), fields fall into two categories:
 
-- **Stat bases** (scalar numbers): `hullPoints`, `armorPoints`, `topSpeed`, `maneuverability`, `supplyPerDay`, `supplyStorage`, `fuelStorage`, `cargoCapacity`, `hangarCapacity`, `mechanicCrewSlots`, `onShipRepairCap`, `onShipRepairFloor`, `crewRequired`, `dpCost`. The template's value is the stat's `base`; runtime modifiers fold over it via `getStat(shipSheet, statId)`.
-- **Template-only fields** (compound / enum / structured): `id`, `name`, `hullClass`, `mounts: [...]`, `bridge: 'standard'`. These don't enter the StatSheet.
+- **Stat bases** (scalar numbers): `hullPoints`, `armorPoints`, `topSpeed`, `maneuverability`, `supplyPerDay`, `supplyStorage`, `fuelStorage`, `cargoCapacity`, `hangarCapacity`, `mechanicCrewSlots`, `onShipRepairCap`, `onShipRepairFloor`, `crewRequired`, `brigCapacity`, `dpCost`. The template's value is the stat's `base`; runtime modifiers fold over it via `getStat(shipSheet, statId)`.
+- **Template-only fields** (compound / enum / structured): `id`, `name`, `hullClass`, `mounts: [...]`, `hangarDoors: [...]`, `bridge: 'standard'`. These don't enter the StatSheet.
 
-For MS, the same split: scalars (`hullPoints`, `armorPoints`, `topSpeed`, `supplyPerDay`, `supplyPerRepairDay`, `dpCost`, plus per-MS new stats like `repairResistance` if a future frame mod wants to tweak how *this* MS responds to repair throughput) become stats; `hardpoints: [...]`, `defaultLoadout: {...}` stay template.
+For MS, the same split: scalars (`hullPoints`, `armorPoints`, `topSpeed`, `supplyPerDay`, `supplyPerRepairDay`, `dpCost`, **`propellantStorage`**, **`lifeSupportMinutes`**, plus per-MS new stats like `repairResistance` if a future frame mod wants to tweak how *this* MS responds to repair throughput) become stats; `hardpoints: [...]`, `defaultLoadout: {...}` stay template. The per-sortie resource fields on the MS instance (`currentPropellant`, `currentAmmoByWeapon`, `currentLifeSupport`) are runtime state, not template — see [sortie.md](sortie.md).
 
 ### Modifier sources
 
@@ -461,7 +469,7 @@ Promote-to-flagship as a separate phase is **gone.** Flagship is just "the ship 
 - **Not size-capped by a player-skill formula.** Ship count is capped by economics + command bandwidth. Per-engagement combat scale (CP, DP) stays skill-gated.
 - **Not freighter-less.** Mules and freighters are first-class fleet roles.
 - **Not officer skill trees.** Officers are characters with the existing skill XP system.
-- **Not a salvage / wreck-recovery economy at the ship tier.** MS-side salvage (parts, frame mods) is in scope from Phase 6.3+; ship hulls are not part-swap salvageable since ships don't refit.
+- **Not a part-swap salvage economy at the ship tier.** Hostile hulls are recovered whole (capture → join the fleet, see [post-combat.md](post-combat.md)) or broken down for raw materials + MS parts; they are *not* a source of swappable ship modules, because ships don't refit. MS-side parts salvage (weapons, frame mods) does drop from broken-down hulls.
 - **Not floating-data fleet inventory.** Every ship, MS, and MA the player owns sits in a physical hangar slot. There is no "in storage" abstraction. Capacity is a third gate alongside economics and command bandwidth — buying a hull you have no slot for blocks delivery until a slot opens.
 - **Not orbital station-keeping while at rest.** Idle non-flagship ships sit in hangar slots, not in formation around the flagship. Formation flying is a sortie behavior only.
 
@@ -481,11 +489,13 @@ The proper hire flow (hire-as-captain / hire-as-pilot / hire-as-crew dialog bran
 
 - [starmap.md](starmap.md) — campaign map; orbital drydock POIs (Phase 6.2) host capital-ship hangars
 - [combat.md](combat.md) — locks the no-hard-cap, walkable-flagship, permanent-loss commitments this file resolves into a data shape; combat.md's Starsector→UC mapping table reflects the MS-primary asymmetry
+- [sortie.md](sortie.md) — in-tactical MS lifecycle: per-sortie resources, mid-combat resupply protocol, hangar-door queueing, pilot recovery
+- [post-combat.md](post-combat.md) — combat event log + narrowed tactical auto-pause; recoverables / tally / prisoner dialogues; salvaged-hull-in-flight pattern; brig + named-hostile authoring
 - [social/facilities-and-ownership.md](social/facilities-and-ownership.md) — hangar facility class is the canonical home of fleet inventory; same Owner / payroll / maintenance / revenue spine as every other facility
 - [characters/skills.md](characters/skills.md) — Ship Command / Tactics / Leadership feed CP cap and doctrine effectiveness; `piloting` (existing unified skill) gates MS pilot quality; Mechanics gates hangar-worker throughput contribution
-- [characters/index.md](characters/index.md) — captains, pilots, crew, hangar managers, and hangar workers are full Character entities, including death pipeline
+- [characters/index.md](characters/index.md) — captains, pilots, crew, hangar managers, hangar workers, and POWs are full Character entities, including death pipeline
 - [social/faction-management.md](social/faction-management.md) — full hire flow + Phase 6.3+ colony layer
-- [social/diegetic-management.md](social/diegetic-management.md) — physical hubs + comm panel + council pattern that the surfaces above are projections of; the hangar facility is one of those hubs
+- [social/diegetic-management.md](social/diegetic-management.md) — physical hubs + comm panel + council pattern that the surfaces above are projections of; the hangar facility and the captain's office are two of those hubs
 - [phasing.md](phasing.md) — Phase 6 phasing
 - `src/ecs/traits/ship.ts` — `Ship` singleton today; splits into template-lookup + instance traits at 6.1.5
 - `src/sim/ship.ts` — singleton helpers (`getPlayerShipEntity`) rename to flagship helpers + add `getFleetEntities`

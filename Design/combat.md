@@ -237,6 +237,24 @@ When the player un-pauses, sim time continues. Game-clock during
 tactical combat runs at a slowed ratio (1 real-second ≈ 1 game-second;
 not the standard city-mode 25:24) so events are readable.
 
+### Combat event log
+
+Routine status changes do **not** auto-pause tactical. They post to a
+**combat event log** in the top-left of the tactical view, Starsector-shape
+— a fading scrolling list of recent events with portraits, severity tiers,
+and a Tab-toggled full-history scroll. MS launches, dock-backs, resupply
+completions, weapon depletions, threshold crossings, kill confirms,
+captain order acks, bridge chatter — all here. Full surface design lives
+in [post-combat.md](post-combat.md#combat-event-log).
+
+[encounters.md](encounters.md)'s pause-on-event rule still applies at the
+campaign layer (entering a POI, hostile fleet enters sensor range, fuel
+critical, mutiny risk). Once tactical begins, the auto-pause set
+**narrows** to: **first contact**, **flagship hull crosses 25% / 10%**,
+**boarders detected on the flagship**, **player-piloted MS at hull 0**.
+Everything else routes through the log so extended engagements aren't
+modal-spam.
+
 **Skill effect on tactical:** higher Ship Command makes the flagship's
 on-rails behavior smoother (better evasion, faster target switch).
 Higher Tactics gives a fleet-wide AI quality bonus (escorts make better
@@ -260,16 +278,31 @@ A skirmish is a sequence of these primitives. The MS has integrity
 in an escape pod). MS damage persists between sorties until repaired by
 the hangar crew.
 
+The full per-sortie lifecycle — launch from a per-ship-class hangar
+door, in-tactical resource economy (`currentPropellant`, per-weapon
+ammo, life support), dock-back, mid-combat resupply protocol (~15s
+tactical-time base, modified by hangar boss + crew + boost) — lives in
+[sortie.md](sortie.md). The cockpit minigame doesn't stop being itself
+when the MS runs dry; the dry-MS choice ("dock now or fight on without
+that weapon") is the moment the resource layer earns its keep.
+
 The tactical battle continues while the player is in cockpit. The
-player hears bridge chatter (zh-CN voice / log lines). The flagship is
-on AI while the player is away from the bridge — Ship Command + Tactics
-make this AI better. The player can return any time by ejecting or
-docking back into the hangar, then walking to the bridge.
+player hears bridge chatter (zh-CN voice / log lines via the combat
+event log). The flagship is on AI while the player is away from the
+bridge — Ship Command + Tactics make this AI better. The player can
+return any time by ejecting or docking back into the hangar, then
+walking to the bridge.
 
 **Switching is the design's central tension.** The player constantly
 chooses between piloting (high direct impact, no command) and bridge
 (coordinating, but no MS in the field). The walking-transit cost makes
 this a real decision, not a free toggle.
+
+After the engagement resolves, the post-combat sequence (recoverables
+dialogue, tally with named POW reveal, brig routing) lives in
+[post-combat.md](post-combat.md). Captured hulls join the fleet
+**in-flight** — the hangar question defers until the flagship next
+docks.
 
 ## Crew death and Starsector texture
 
@@ -463,6 +496,8 @@ The Starsector-shape calls are now locked. Specifically:
 
 - [starmap.md](starmap.md) — Earth Sphere continuous campaign map + Jupiter expedition; the geography this Starsector-shape combat is drawn against
 - [fleet.md](fleet.md) — multi-ship fleet roster, captains, MS + pilot layer, supply / CP / DP economics, doctrine — the layer this combat doc's "no hard cap" commitment resolves into
+- [sortie.md](sortie.md) — in-tactical MS lifecycle: per-sortie resources, mid-combat resupply, hangar-door queueing, pilot recovery
+- [post-combat.md](post-combat.md) — combat event log + narrowed tactical auto-pause set; recoverables / tally / prisoner dialogues; named-hostile authoring
 - [encounters.md](encounters.md) — form of node events; combat is reached through them, not directly
 - [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun

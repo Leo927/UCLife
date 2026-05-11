@@ -266,6 +266,8 @@ Earth Sphere regions (preserved labels):
 
 - [combat.md](combat.md) — consumes this scene for tactical encounters
 - [fleet.md](fleet.md) — multi-ship fleet management (Phase 6.1.5+) on top of this campaign map
+- [sortie.md](sortie.md) — in-tactical MS sortie loop (lives inside the tactical engagements this map hosts)
+- [post-combat.md](post-combat.md) — recovered-hull-in-flight pattern relies on this file's supply-zero behavior; named-hostile authoring sits on `space-entities.json5` rows
 - [encounters.md](encounters.md) — text-event form (still relevant for
   POI services and dialogues, just not for transit RNG)
 - [setting.md](setting.md) — UC astrography reference
@@ -276,6 +278,6 @@ Earth Sphere regions (preserved labels):
   faction control of POIs
 - `src/data/celestialBodies.json5` — body orbital table
 - `src/data/pois.json5` — POI table (orbits its host body)
-- `src/data/space-entities.json5` — hand-placed enemy spawns
+- `src/data/space-entities.json5` — hand-placed enemy spawns; carries optional named-hostile captain/pilot ids per [post-combat.md](post-combat.md#notable-hostiles-authoring)
 - `src/config/space.json5` — engine tunables
 - `src/data/scenes.json5` — `spaceCampaign` scene row

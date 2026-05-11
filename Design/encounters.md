@@ -109,6 +109,14 @@ This is FTL's discipline (and Starsector's) and it's effectively free
 to implement (one rule in the loop). Without it, hyperspeed eats
 moments the player should have responded to.
 
+**Once tactical begins, the pause set narrows.** Routine status changes
+(MS launches, dock-backs, resupply complete, weapon depleted, captain
+order acks) post to the [combat event log](post-combat.md#combat-event-log)
+instead of triggering a modal. The tactical auto-pause set is reduced
+to: first contact, flagship hull crossing 25% / 10%, boarders detected
+on the flagship, player-piloted MS at hull 0. Everything else flows
+through the log so extended engagements stay playable.
+
 ## Combat encounters as a subset
 
 Some choices resolve into combat ([combat.md](combat.md)). The event's
@@ -117,9 +125,13 @@ tree leads there: *"engage the patrol"* → tactical-mode combat begins;
 a text event can have, not a parallel system.**
 
 Once combat begins, the tactical Starsector-shape UI takes over until
-resolution. After resolution, the event re-opens for its post-combat
-beat (loot text, faction-rep delta, log line) and the player returns to
-the campaign map.
+resolution. After resolution, the **post-combat sequence** fires
+([post-combat.md](post-combat.md)): a recoverables dialogue (capture /
+salvage / scuttle each surviving hull and pod), then a tally dialogue
+(loot routed + named POWs captured with portraits). Per-prisoner
+verbs (interrogate / ransom / etc.) live on the brig walk-up later, not
+on the post-combat screen — the tally is the *reveal*, the brig is the
+*management*. Then the player returns to the campaign map.
 
 ## Authoring scale
 
@@ -164,6 +176,8 @@ and explicit out of scope here.
 
 - [starmap.md](starmap.md) — campaign map that hosts these events at POIs
 - [combat.md](combat.md) — combat-trigger subset
+- [post-combat.md](post-combat.md) — what fires after the tactical layer resolves; combat event log; named-hostile reveals
+- [sortie.md](sortie.md) — in-tactical MS resource layer; resupply complete is one of the events delivered through the log instead of a pause
 - [characters/skills.md](characters/skills.md) — blue-option skill qualifiers
 - [social/relationships.md](social/relationships.md) — crew NPCs supplying specialization qualifiers
 - [social/faction-management.md](social/faction-management.md) — player-faction tier qualifier; colony-defense events
