@@ -148,6 +148,15 @@
     },
 
     // ─── Phase 4.1 — injuries (body-part-scoped) ───────────────────────
+    // Five injury templates: sprain / cut / burn / fracture / concussion.
+    // Modifier targets are stat-level, not part-aware — a sprain on the
+    // ankle and a sprain on the hand both emit the same walkingSpeed +
+    // workPerfMul cuts. The body-part scope is what enforces left-vs-
+    // right stacking and what the future scar branch keys off when the
+    // chronic-stub spawn picks where to live. Reqd tier 1 covers
+    // sprain/cut/burn (pharmacy splint, bandage, salve); tier 2 covers
+    // fracture/concussion (clinic only).
+    //
     // Sprain: the canonical body-part injury demo. Immediate onset (no
     // incubation), short rising arc, untreated stalls at peak (pharmacy
     // splint flips to recovering). Walking is hobbled when ankle-scoped;
@@ -211,6 +220,270 @@
           modifiers: [
             { statId: 'walkingSpeed', type: 'cap', value: 0.4 },
             { statId: 'workingSpeed', type: 'percentMult', value: -0.30 },
+          ],
+        },
+      ],
+    },
+
+    // Cut: open wound, bleeds out slowly without first aid. Pharmacy
+    // bandage flips to recovering; left untreated, the stalled-loop
+    // complication roll spawns infection on this same part.
+    {
+      id: 'cut',
+      displayName: '割伤',
+      family: 'injury',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'treatment',
+      onsetPaths: ['environment'],
+
+      incubationDays: [0, 0],
+      riseDays: [1, 1],
+      peakSeverity: [30, 50],
+      peakDays: [1, 2],
+      peakSeverityFloor: 20,
+      baseRecoveryRate: 12,
+
+      requiredTreatmentTier: 1,
+
+      scarThreshold: 70,
+      scarConditionId: 'chronic_scar_skin',
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '你被划伤了，渗着血。',
+        moderate: '伤口持续渗血，刺痛感越来越重。',
+        severe:   '伤口血流不止，每动一下都钻心地疼。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你受了割伤。',
+        diagnosis:     '医生确诊：开放性创伤。',
+        recoveryClean: '你的割伤愈合了。',
+        recoveryScar:  '你的割伤愈合了，但留下了一道疤。',
+        complication:  '你的伤口感染了。',
+        stalled:       '你的割伤未见好转，伤口还在渗血。',
+      },
+
+      glyphRef: 'injury_cut',
+
+      effects: [
+        {
+          severityRange: [20, 100],
+          nameZh:    '割伤（出血）',
+          flavorZh:  '伤口持续渗血，刺痛感越来越重。',
+          glyphRef:  'injury_cut',
+          modifiers: [
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.20 },
+            { statId: 'workingSpeed', type: 'percentMult', value: -0.25 },
+          ],
+        },
+        {
+          severityRange: [55, 100],
+          nameZh:    '割伤（重创）',
+          flavorZh:  '伤口血流不止，每动一下都钻心地疼。',
+          glyphRef:  'injury_cut',
+          modifiers: [
+            { statId: 'strength', type: 'cap', value: 50 },
+            { statId: 'fatigueDrainMul', type: 'percentMult', value: 0.25 },
+          ],
+        },
+      ],
+    },
+
+    // Burn: hot surfaces in a workshop, scalding water at home. Pharmacy
+    // salve resolves it cleanly; untreated severe burns scar.
+    {
+      id: 'burn',
+      displayName: '烧伤',
+      family: 'injury',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'treatment',
+      onsetPaths: ['environment'],
+
+      incubationDays: [0, 0],
+      riseDays: [1, 1],
+      peakSeverity: [40, 60],
+      peakDays: [2, 3],
+      peakSeverityFloor: 25,
+      baseRecoveryRate: 9,
+
+      requiredTreatmentTier: 1,
+
+      scarThreshold: 70,
+      scarConditionId: 'chronic_scar_skin',
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '你的皮肤红肿，碰一下就疼。',
+        moderate: '烧伤起了水泡，时不时一阵刺痛。',
+        severe:   '烧伤深入皮下，剧痛和灼热感不断。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你被烧伤了。',
+        diagnosis:     '医生确诊：二度烧伤。',
+        recoveryClean: '你的烧伤好了。',
+        recoveryScar:  '你的烧伤好了，但留下了一片烫疤。',
+        complication:  null,
+        stalled:       '你的烧伤未见好转，需要药品介入。',
+      },
+
+      glyphRef: 'injury_burn',
+
+      effects: [
+        {
+          severityRange: [25, 100],
+          nameZh:    '烧伤（红肿）',
+          flavorZh:  '烧伤起了水泡，时不时一阵刺痛。',
+          glyphRef:  'injury_burn',
+          modifiers: [
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.25 },
+            { statId: 'workingSpeed', type: 'percentMult', value: -0.30 },
+          ],
+        },
+        {
+          severityRange: [60, 100],
+          nameZh:    '烧伤（重度）',
+          flavorZh:  '烧伤深入皮下，剧痛和灼热感不断。',
+          glyphRef:  'injury_burn',
+          modifiers: [
+            { statId: 'fatigueDrainMul', type: 'percentMult', value: 0.35 },
+            { statId: 'workingSpeed',    type: 'cap',         value: 0.3 },
+          ],
+        },
+      ],
+    },
+
+    // Fracture: clinic-only (requiredTier 2). Long arc, peaks hard,
+    // stalls outright without proper casting. Caps strength so heavy
+    // labor is out, walks slower if leg-scoped. Scar branch =
+    // chronic_weak_joint for limb parts (knee, wrist, ankle); spec
+    // leaves the per-part scar mapping to the scar-branch task.
+    {
+      id: 'fracture',
+      displayName: '骨折',
+      family: 'injury',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'treatment',
+      onsetPaths: ['environment'],
+
+      incubationDays: [0, 0],
+      riseDays: [1, 2],
+      peakSeverity: [55, 75],
+      peakDays: [3, 5],
+      peakSeverityFloor: 40,
+      baseRecoveryRate: 5,
+
+      requiredTreatmentTier: 2,  // Clinic — splint isn't enough.
+
+      scarThreshold: 80,
+      scarConditionId: 'chronic_weak_joint',
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '骨头深处隐隐作痛。',
+        moderate: '骨折处肿胀变形，剧痛难忍。',
+        severe:   '骨折严重，连基础动作都做不到。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你骨折了。',
+        diagnosis:     '医生确诊：骨折。',
+        recoveryClean: '你的骨折愈合了。',
+        recoveryScar:  '你的骨折愈合了，但旧伤会跟你一辈子。',
+        complication:  '你的骨折出现了愈合不正。',
+        stalled:       '你的骨折未见好转，需要诊所介入。',
+      },
+
+      glyphRef: 'injury_fracture',
+
+      effects: [
+        {
+          severityRange: [30, 100],
+          nameZh:    '骨折（疼痛）',
+          flavorZh:  '骨折处肿胀变形，剧痛难忍。',
+          glyphRef:  'injury_fracture',
+          modifiers: [
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.45 },
+            { statId: 'workingSpeed', type: 'percentMult', value: -0.45 },
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.40 },
+          ],
+        },
+        {
+          severityRange: [60, 100],
+          nameZh:    '骨折（重创）',
+          flavorZh:  '骨折严重，连基础动作都做不到。',
+          glyphRef:  'injury_fracture',
+          modifiers: [
+            { statId: 'strength', type: 'cap', value: 20 },
+            { statId: 'walkingSpeed', type: 'cap', value: 0.2 },
+          ],
+        },
+      ],
+    },
+
+    // Concussion: head-only injury, environment-onset (high-fatigue
+    // walk into a wall, dock accidents in Phase 5+ combat extension).
+    // Caps perception + reflex; clinic-only recovery. Scar = recurring
+    // headache (chronic stub).
+    {
+      id: 'concussion',
+      displayName: '脑震荡',
+      family: 'injury',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'treatment',
+      onsetPaths: ['environment'],
+
+      incubationDays: [0, 1],
+      riseDays: [1, 1],
+      peakSeverity: [50, 70],
+      peakDays: [2, 4],
+      peakSeverityFloor: 35,
+      baseRecoveryRate: 6,
+
+      requiredTreatmentTier: 2,
+
+      scarThreshold: 75,
+      scarConditionId: 'chronic_recurring_headache',
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '你的头有些发蒙，视线偶尔模糊。',
+        moderate: '你头痛欲裂，时不时眩晕。',
+        severe:   '你几乎站不稳，任何强光都让你头痛。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你脑震荡了。',
+        diagnosis:     '医生确诊：脑震荡。',
+        recoveryClean: '你的脑震荡症状消退了。',
+        recoveryScar:  '你的脑震荡好了，但偏头痛会反复发作。',
+        complication:  null,
+        stalled:       '你的脑震荡未见好转，需要诊所介入。',
+      },
+
+      glyphRef: 'injury_concussion',
+
+      effects: [
+        {
+          severityRange: [25, 100],
+          nameZh:    '脑震荡（头痛）',
+          flavorZh:  '你头痛欲裂，时不时眩晕。',
+          glyphRef:  'injury_concussion',
+          modifiers: [
+            { statId: 'reflex',       type: 'cap',         value: 40 },
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.35 },
+            { statId: 'readingSpeed', type: 'percentMult', value: -0.50 },
+          ],
+        },
+        {
+          severityRange: [55, 100],
+          nameZh:    '脑震荡（眩晕）',
+          flavorZh:  '你几乎站不稳，任何强光都让你头痛。',
+          glyphRef:  'injury_concussion',
+          modifiers: [
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.40 },
+            { statId: 'intelligence', type: 'cap',         value: 40 },
           ],
         },
       ],

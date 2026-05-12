@@ -247,6 +247,28 @@ describe('physiology — body-part scope (Phase 4.1)', () => {
   })
 })
 
+describe('physiology — injury catalog (Phase 4.1)', () => {
+  // Every authored injury template must spawn on at least one body
+  // part. concussion is head-only; everything else routes through a
+  // limb part the catalog supports.
+  const cases: Array<[id: string, bodyPart: string]> = [
+    ['sprain',     'left-ankle'],
+    ['cut',        'left-hand'],
+    ['burn',       'right-arm'],
+    ['fracture',   'left-arm'],
+    ['concussion', 'head'],
+  ]
+  for (const [id, bodyPart] of cases) {
+    it(`onsets ${id} on ${bodyPart}`, () => {
+      const { player } = setup()
+      const inst = forceOnset(player, id, 'env', 1, bodyPart)
+      expect(inst, `${id} should load and spawn`).not.toBeNull()
+      expect(inst!.bodyPart).toBe(bodyPart)
+      expect(inst!.templateId).toBe(id)
+    })
+  }
+})
+
 describe('physiology — diagnosis flag', () => {
   it('diagnoseCondition flips diagnosed=true and re-emits Effects with hidden=false', () => {
     const { world, player } = setup()
