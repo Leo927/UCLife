@@ -34,18 +34,33 @@
 //   shipStatSheetTopSpeed(key)  — read the post-Effect topSpeed off the
 //                                  ship's stat sheet (captain effect
 //                                  assertion).
+//
+// Phase 6.2.H — debug "grant fleet" function:
+//   grantFleet()                — single-call orchestrator that buys +
+//                                  receives a lunarMilitia and a
+//                                  pegasusClass, stocks both hangars,
+//                                  spawns ~30 idle NPCs, hires captains
+//                                  + fills crews via the existing slice
+//                                  helpers, and promotes the Pegasus
+//                                  into the active fleet. Idempotent —
+//                                  refuses when more than the flagship
+//                                  already exists.
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Workstation, Position, Building, Hangar, EntityKey, Ship, IsFlagshipMark,
-  Character, IsPlayer, ShipStatSheet, ShipEffectsList, IsInActiveFleet,
+  Character, IsPlayer, Money, ShipStatSheet, ShipEffectsList, IsInActiveFleet,
   CombatShipState, FleetEscort,
 } from '../../ecs/traits'
 import { useUI } from '../../ui/uiStore'
 import { getShipClass } from '../../data/ship-classes'
 import { getPoi } from '../../data/pois'
-import { poiIdForHangarScene } from '../../systems/shipDelivery'
+import {
+  poiIdForHangarScene, enqueueDelivery, receiveDelivery, shipDeliverySystem,
+} from '../../systems/shipDelivery'
+import { fleetConfig } from '../../config'
+import { useClock, gameDayNumber } from '../../sim/clock'
 import {
   findNpcByKey, findShipByKey, hireAsCaptain, hireAsCrew, fireCaptain,
   fireCrewMember, moveCrewMember, manRestFromIdlePool, snapshotCrewRoster,
@@ -564,4 +579,160 @@ registerDebugHandle('forceFillHangarSlots', (poiId: string, shipClassId: string,
     out.push(key)
   }
   return out
+})
+
+// ── Phase 6.2.H — debug "grant fleet" orchestrator ──────────────────────
+//
+// Single-call composition over the 6.2.A1..G slice helpers. The button in
+// DebugPanel.tsx invokes this; the check-grant-fleet.mjs smoke asserts
+// the resulting state. Idempotent — refuses with `already_granted` when
+// more than the flagship Ship exists.
+//
+// Flagship-captain decision: skipped here. The flagship represents the
+// player on the bridge — leaving `assignedCaptainId` empty matches the
+// shipped behavior in every existing smoke. The Pegasus + lunarMilitia
+// each get a hired captain.
+
+export interface GrantFleetResult {
+  ok: boolean
+  reason?: 'already_granted' | 'no_player' | 'no_vb_hangar' | 'no_drydock'
+    | 'lunar_militia_receive_failed' | 'pegasus_receive_failed'
+  pegasusKey?: string
+  lunarMilitiaKey?: string
+  npcsSpawned?: number
+  captainsHired?: number
+  lunarMilitiaCrewHired?: number
+  pegasusCrewHired?: number
+  pegasusInActiveFleet?: boolean
+}
+
+function findHangarByTypeId(typeId: string) {
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const b of w.query(Building, Hangar, EntityKey)) {
+      if (b.get(Building)!.typeId === typeId) return { entity: b, sceneId }
+    }
+  }
+  return null
+}
+
+function countShips(): number {
+  let n = 0
+  for (const _ of getWorld('playerShipInterior').query(Ship)) n += 1
+  return n
+}
+
+registerDebugHandle('grantFleet', (): GrantFleetResult => {
+  if (countShips() > 1) return { ok: false, reason: 'already_granted' }
+
+  const player = findPlayerEntity()
+  if (!player) return { ok: false, reason: 'no_player' }
+
+  const cfg = fleetConfig.grantFleet
+  const m = player.get(Money) ?? { amount: 0 }
+  player.set(Money, { amount: m.amount + cfg.moneyGrant })
+
+  const vb = findHangarByTypeId('hangarSurface')
+  if (!vb) return { ok: false, reason: 'no_vb_hangar' }
+  const dd = findHangarByTypeId('hangarDrydock')
+  if (!dd) return { ok: false, reason: 'no_drydock' }
+
+  const today = gameDayNumber(useClock.getState().gameDate)
+
+  // Enqueue both deliveries with zero lead so the same-day tick can flip
+  // both rows to 'arrived'. The hangar entities returned by findHangarByTypeId
+  // satisfy Hangar trait so enqueueDelivery's call site is safe.
+  enqueueDelivery(vb.entity, 'lunarMilitia', today, cfg.deliveryLeadDays)
+  enqueueDelivery(dd.entity, 'pegasusClass', today, cfg.deliveryLeadDays)
+  shipDeliverySystem(today + cfg.deliveryLeadDays)
+
+  const vbHangar = vb.entity.get(Hangar)!
+  const lmRowIdx = vbHangar.pendingDeliveries.findIndex(
+    (r) => r.shipClassId === 'lunarMilitia' && r.status === 'arrived',
+  )
+  const lmRx = receiveDelivery(vb.entity, vb.sceneId, lmRowIdx)
+  if (!lmRx.ok) return { ok: false, reason: 'lunar_militia_receive_failed' }
+
+  const ddHangar = dd.entity.get(Hangar)!
+  const pgRowIdx = ddHangar.pendingDeliveries.findIndex(
+    (r) => r.shipClassId === 'pegasusClass' && r.status === 'arrived',
+  )
+  const pgRx = receiveDelivery(dd.entity, dd.sceneId, pgRowIdx)
+  if (!pgRx.ok) return { ok: false, reason: 'pegasus_receive_failed' }
+
+  // Stock both hangars to max so subsequent supply drain ticks don't
+  // immediately deplete the brand-new fleet's reserves.
+  for (const h of [vb.entity, dd.entity]) {
+    const cur = h.get(Hangar)!
+    h.set(Hangar, { ...cur, supplyCurrent: cur.supplyMax, fuelCurrent: cur.fuelMax })
+  }
+
+  // Spawn the hireable NPC pool. spawn locations stack at (0,0) of the
+  // vonBraunCity scene — the BT disperses them on the next idle tick.
+  const npcKeys: string[] = []
+  for (let i = 0; i < cfg.npcPoolSize; i++) {
+    const key = `npc-grantfleet-${i}`
+    const w = getWorld('vonBraunCity')
+    const npc = spawnNPC(w, {
+      name: `Recruit-${i}`,
+      color: pickRandomColor(),
+      title: '市民',
+      x: 0, y: 0,
+      key,
+    })
+    npcKeys.push(npc.get(EntityKey)!.key)
+  }
+
+  // Hire captains on each new ship. The flagship's captain seat is left
+  // empty by design (see header comment).
+  let captainsHired = 0
+  const lmShipEnt = findShipByKey(lmRx.entityKey)
+  const pgShipEnt = findShipByKey(pgRx.entityKey)
+  if (lmShipEnt && npcKeys.length > 0) {
+    const npc0 = findNpcByKey(npcKeys[0])?.entity
+    if (npc0) {
+      const r = hireAsCaptain(player, npc0, lmShipEnt)
+      if (r.ok) captainsHired += 1
+    }
+  }
+  if (pgShipEnt && npcKeys.length > 1) {
+    const npc1 = findNpcByKey(npcKeys[1])?.entity
+    if (npc1) {
+      const r = hireAsCaptain(player, npc1, pgShipEnt)
+      if (r.ok) captainsHired += 1
+    }
+  }
+
+  // Fill crew on both ships from the remaining idle pool. The captain's
+  // -office "man the rest" verb is the canonical surface; reuse it.
+  let lmCrew = 0
+  let pgCrew = 0
+  if (lmShipEnt) {
+    const r = manRestFromIdlePool(player, lmShipEnt)
+    lmCrew = r.hired
+  }
+  if (pgShipEnt) {
+    const r = manRestFromIdlePool(player, pgShipEnt)
+    pgCrew = r.hired
+  }
+
+  // Promote the Pegasus into the active fleet at the first free slot.
+  let pegasusInActive = false
+  const promote = setIsInActiveFleet(pgRx.entityKey, true)
+  if (promote.ok) pegasusInActive = true
+
+  useUI.getState().showToast(
+    `舰队已就绪 · Pegasus + 1 轻型 + ${captainsHired + lmCrew + pgCrew} 名船员`,
+  )
+
+  return {
+    ok: true,
+    pegasusKey: pgRx.entityKey,
+    lunarMilitiaKey: lmRx.entityKey,
+    npcsSpawned: npcKeys.length,
+    captainsHired,
+    lunarMilitiaCrewHired: lmCrew,
+    pegasusCrewHired: pgCrew,
+    pegasusInActiveFleet: pegasusInActive,
+  }
 })

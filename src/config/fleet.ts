@@ -51,6 +51,12 @@ export interface FleetConfig {
   // Phase 6.2.G — paid-and-delayed transfer-to-other-hangar fee table.
   transferFeeDefault: number
   transferFees: Record<string, number>
+  // Phase 6.2.H — debug "grant fleet" function knobs.
+  grantFleet: {
+    moneyGrant: number
+    npcPoolSize: number
+    deliveryLeadDays: number
+  }
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

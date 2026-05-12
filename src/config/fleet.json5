@@ -239,4 +239,30 @@
     'vonBraun->granada': 2500,
     'granada->vonBraun': 2500,
   },
+
+  // ── Phase 6.2.H — debug "grant fleet" function ──────────────────────
+  //
+  // Single-click debug button on the dev panel. Composes the slices
+  // shipped across 6.2.A1..G into an end-to-end fleet ready to exercise
+  // the downstream phases — flagship + one lunarMilitia + one Pegasus,
+  // staffed by ~30 hired NPCs, both hangars stocked, Pegasus in active
+  // fleet. The button is idempotent: a second click is refused when more
+  // than just the flagship Ship exists. See Design/fleet.md "Debug
+  // grant-fleet function".
+  grantFleet: {
+    // One-shot money grant so subsequent ship purchases + hire signing
+    // fees + hangar transfers don't gate on player liquidity.
+    moneyGrant: 10000000,
+    // NPC pool spawned at the VB city scene as hireables. Sized large
+    // enough to staff lunarMilitia's crewMax (2) + a captain + as much
+    // of pegasusClass's crewMax (200) as the per-click cap allows. The
+    // pegasus stays partially crewed at this slice — full staffing is a
+    // tuning concern at 6.2.5+ when MS pilots layer on.
+    npcPoolSize: 30,
+    // Order/arrival day delta: both ships are queued at orderDay = today
+    // and shipDelivery is ticked at currentDay + leadDays so the rows
+    // flip to 'arrived' in one orchestrator call. Lead days are pinned
+    // to zero so the grant resolves in the same game day.
+    deliveryLeadDays: 0,
+  },
 }

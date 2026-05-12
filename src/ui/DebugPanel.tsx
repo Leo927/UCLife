@@ -90,6 +90,37 @@ export function DebugPanel() {
     useUI.getState().showToast('飞船已获得 · 操舵台开启')
   }
 
+  // Phase 6.2.H — debug "grant fleet" function. Buys + receives a
+  // lunarMilitia and a pegasusClass, stocks both hangars, spawns ~30
+  // idle NPCs, hires captains + fills crews, and promotes the Pegasus
+  // into the active fleet. Idempotent — second click is refused.
+  const grantFleet = () => {
+    playUi('ui.debug.give-money')
+    const handle = (globalThis as unknown as {
+      __uclife__?: { grantFleet?: () => {
+        ok: boolean
+        reason?: string
+        captainsHired?: number
+        lunarMilitiaCrewHired?: number
+        pegasusCrewHired?: number
+      } }
+    }).__uclife__
+    const r = handle?.grantFleet?.()
+    if (!r) {
+      useUI.getState().showToast('调试舰队接口不可用')
+      return
+    }
+    if (!r.ok) {
+      if (r.reason === 'already_granted') useUI.getState().showToast('舰队已发放 · 仅可发放一次')
+      else useUI.getState().showToast(`舰队发放失败：${r.reason}`)
+      return
+    }
+    const crewTotal = (r.captainsHired ?? 0)
+      + (r.lunarMilitiaCrewHired ?? 0)
+      + (r.pegasusCrewHired ?? 0)
+    useUI.getState().showToast(`舰队已就绪 · Pegasus + 1 轻型 + ${crewTotal} 名船员`)
+  }
+
   // Mirrors relationsSystem's bidirectional write — both A→B and B→A get the
   // same edge data so symmetric checks elsewhere stay consistent.
   const befriendAll = () => {
@@ -221,6 +252,13 @@ export function DebugPanel() {
             <span className="debug-row-desc">设置飞船持有标志，登船，从冯·布劳恩起航进入星图</span>
             <button className="debug-action" onClick={giveAndLaunchShip} disabled={!player}>
               起航
+            </button>
+          </div>
+          <div className="debug-row">
+            <span className="debug-row-label">发放舰队</span>
+            <span className="debug-row-desc">+ ¥1000 万 · 一艘月面民兵护卫艇 · 一艘飞马级母舰 · 30 名船员 · 母舰编入主力舰队</span>
+            <button className="debug-action" onClick={grantFleet} disabled={!player}>
+              发放
             </button>
           </div>
         </section>
