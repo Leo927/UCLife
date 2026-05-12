@@ -27,6 +27,7 @@ export type InteractableKind =
   | 'ticketCounter'
   | 'orbitalLift'
   | 'boardShip'
+  | 'inspectShip'
   | 'disembarkShip'
   | 'helm'
   | 'manage'

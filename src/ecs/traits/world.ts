@@ -130,6 +130,16 @@ export const OrbitalLift = trait({
   liftId: '',
 })
 
+// Scene-side anchor for a fleet ship parked in a hangar at this scene's
+// POI. The Ship entity itself lives in playerShipInterior world; this
+// marker is the Interactable representation rendered inside the hangar
+// scene so the player can see and click it. `shipKey` is the Ship's
+// EntityKey (stable across save/load); the marker sync system keeps the
+// set of markers aligned with currently-docked ships every tick.
+export const ShipMarker = trait({
+  shipKey: '',
+})
+
 export const Helm = trait({
   // An interact tile in playerShipInterior that, when pressed E, takes
   // helm. Slice 5 wires the actual interaction; this trait is the

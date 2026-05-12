@@ -3,7 +3,7 @@ import type { Entity } from 'koota'
 import {
   Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
   Money, Character, Bed, BarSeat, Workstation, RoughUse, RoughSpot, Transit,
-  FlightHub, ManageCell, Owner, OrbitalLift,
+  FlightHub, ManageCell, Owner, OrbitalLift, ShipMarker, EntityKey,
   type InteractableKind,
 } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
@@ -17,6 +17,7 @@ import { worldConfig, actionsConfig } from '../config'
 import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
 import { Flags, Ship, IsFlagshipMark } from '../ecs/traits'
 import { boardShip, disembarkShip, migratePlayerToScene } from '../sim/scene'
+import { getShipClass } from '../data/ship-classes'
 import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
 import { runTransition } from '../sim/transition'
@@ -179,6 +180,30 @@ export function interactionSystem(world: World) {
       }
       if (getActiveSceneId() === 'playerShipInterior') continue
       runTransition({ midpoint: () => boardShip() })
+      continue
+    }
+    if (nearestKind === 'inspectShip') {
+      // Per-ship marker for a fleet hull docked at this scene's POI.
+      // Resolve the linked Ship entity via the marker's shipKey; surface a
+      // short status toast (class + hull) until walkable interiors land
+      // for non-flagship hulls (6.3+).
+      const shipKey = nearestEnt?.get(ShipMarker)?.shipKey
+      const shipWorld = getWorld('playerShipInterior')
+      let shipEnt: Entity | null = null
+      if (shipKey) {
+        for (const e of shipWorld.query(Ship, EntityKey)) {
+          if (e.get(EntityKey)!.key === shipKey) { shipEnt = e; break }
+        }
+      }
+      const ship = shipEnt?.get(Ship)
+      if (!ship) {
+        emitSim('toast', { textZh: '舰艇已不在此停泊' })
+        continue
+      }
+      const cls = getShipClass(ship.templateId)
+      emitSim('toast', {
+        textZh: `${cls.nameZh} · 舰体 ${ship.hullCurrent}/${ship.hullMax}`,
+      })
       continue
     }
     if (nearestKind === 'disembarkShip') {
