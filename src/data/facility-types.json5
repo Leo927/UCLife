@@ -21,16 +21,28 @@
 // E2 (whichever defines the shipment-day infra first). Authoring those
 // numerics here ahead of consumers would be speculative — keep this
 // minimal, grow with each slice that needs more.
+//
+// Phase 6.2.F — per-tier supplyStorage / fuelStorage caps. Tuned so the
+// 6.2.F demo (single lightFreighter draining 4 supply/day off a fully-
+// stocked surface hangar with 1000 cap) reads "single-digit days to
+// empty" — the AE dealer's 2-day delivery window then visibly refills.
+// Drydock tier capacities are ~5× surface because capital tonnage burns
+// more supply than civilian hulls (authoring locked here so 6.2.C2's
+// Pegasus row doesn't churn this file).
 
 {
   hangars: {
     hangarSurface: {
       tier: 'surface',
       slotCapacity: { ms: 4, smallCraft: 4 },
+      supplyStorage: 1000,
+      fuelStorage: 400,
     },
     hangarDrydock: {
       tier: 'drydock',
       slotCapacity: { capital: 4, smallCraft: 12 },
+      supplyStorage: 5000,
+      fuelStorage: 2000,
     },
   },
 }

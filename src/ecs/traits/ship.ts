@@ -49,6 +49,11 @@ export const Ship = trait({
   dockedAtPoiId: '',
   fleetPos: { x: 0, y: 0 } as { x: number; y: number },
   inCombat: false,
+  // Phase 6.2.F defensive default — flipped by 6.2.G's mothball verb.
+  // Drains, salary, maintenance all gate on this. Authored here ahead
+  // of the verb so the daily drain tick can iterate without conditional
+  // trait checks; the G slice flips the source.
+  mothballed: false,
 })
 
 // Marker — present iff the player is currently aboard this ship. Phase 6.1.5

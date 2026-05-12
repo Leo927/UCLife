@@ -352,6 +352,25 @@
       playerHireable: false,
     },
 
+    // Phase 6.2.F — NPC-only AE supply dealer. Sits at a kiosk inside the
+    // AE Complex lobby; the talk-verb opens the order-supply / order-fuel
+    // panel (aeSupplyDealer dialog branch). family='anaheim_management'
+    // so AE building-passage permissions match the rest of the AE staff.
+    ae_supply_dealer: {
+      jobTitle: '补给商务代表',
+      wage: 220,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 20,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '亚纳海姆电子工业区的补给与燃料分销。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
     // NPC-only role. Researcher at the player's researchLab. Phase 5.5.6 —
     // the seat is empty when the building is bought from the realtor; the
     // player installs a hired civilian via the per-facility manage cell

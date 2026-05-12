@@ -68,6 +68,12 @@ export function projectShipSheet(
   sheet = setBase(sheet, 'brigCapacity', cls.brigCapacity)
   sheet = setBase(sheet, 'fuelStorage', cls.fuelMax)
   sheet = setBase(sheet, 'supplyStorage', cls.suppliesMax)
+  // Phase 6.2.F — drain stat. Templates that omit supplyPerDay fold to
+  // 0; the daily drain tick skips ships at zero drain (e.g. mothballed
+  // or hulls authored without the field yet).
+  if (cls.supplyPerDay !== undefined) {
+    sheet = setBase(sheet, 'supplyPerDay', cls.supplyPerDay)
+  }
   for (const id of Object.keys(extras) as ShipStatId[]) {
     sheet = setBase(sheet, id, extras[id]!)
   }

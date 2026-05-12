@@ -210,11 +210,36 @@ export const FactionResearch = trait(() => ({
 // throughput evenly across every damaged ship docked at this hangar's
 // POI. Non-empty = focus the full pool on that ship's EntityKey until
 // it's fully repaired (then the player picks the next one).
+//
+// Phase 6.2.F — supply + fuel storage caps and pending-delivery queue.
+// `supplyCurrent` / `supplyMax` (and the fuel pair) track the per-hangar
+// reserve fed by AE supply-dealer orders + secretary bulk-orders. Caps
+// project from facility-types.json5 at spawn time (deterministic from
+// the host typeId). `pendingSupplyDeliveries` carries an unresolved
+// order queue keyed by daysRemaining — the daily drain tick decrements
+// the counter, lands the units when it hits zero, and discards the row.
+// Distinct from ship-delivery pipelines (6.2.C1) so the two slices don't
+// fight over one infra; the trigger is the same `day:rollover:settled`
+// event but the storage and verbs live apart.
 import type { HangarTier, HangarSlotClass } from '../../data/facilityTypes'
+
+export type SupplyKind = 'supply' | 'fuel'
+
+export interface PendingSupplyDelivery {
+  kind: SupplyKind
+  qty: number
+  daysRemaining: number
+}
+
 export const Hangar = trait(() => ({
   tier: 'surface' as HangarTier,
   slotCapacity: {} as Partial<Record<HangarSlotClass, number>>,
   repairPriorityShipKey: '',
+  supplyCurrent: 0,
+  supplyMax: 0,
+  fuelCurrent: 0,
+  fuelMax: 0,
+  pendingSupplyDeliveries: [] as PendingSupplyDelivery[],
 }))
 export type { HangarTier, HangarSlotClass }
 

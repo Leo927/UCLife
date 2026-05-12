@@ -72,6 +72,7 @@ export function NPCDialog() {
     isRecruiterOnDuty: specId === 'recruiter' && onShift,
     isResearcherOnDuty: specId === 'researcher' && onShift,
     isHangarManagerOnDuty: specId === 'hangar_manager' && onShift,
+    isAeSupplyDealerOnDuty: specId === 'ae_supply_dealer' && onShift,
     // Ship purchase rides on the AE director's talk-verb until a dedicated
     // ship-dealer NPC role lands.
     isShipDealerOnDuty: isAEOnDuty,

@@ -160,12 +160,22 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
   // tier + slotCapacity from facility-types.json5 onto the building
   // entity so the manager's talk-verb can read capacity counts off a
   // single trait without re-deriving from typeId.
+  //
+  // Phase 6.2.F — supply / fuel reserves project from the same row.
+  // Spawn-time `supplyCurrent` / `fuelCurrent` start at the full cap
+  // (state hangars open stocked; player-owned hangars match because
+  // the initial transfer-in happens off-screen during procurement).
   const hangarFacility = getHangarFacilityType(typeId)
   if (hangarFacility) {
     buildingEnt.add(Hangar({
       tier: hangarFacility.tier,
       slotCapacity: hangarFacility.slotCapacity,
       repairPriorityShipKey: '',
+      supplyCurrent: hangarFacility.supplyStorage,
+      supplyMax: hangarFacility.supplyStorage,
+      fuelCurrent: hangarFacility.fuelStorage,
+      fuelMax: hangarFacility.fuelStorage,
+      pendingSupplyDeliveries: [],
     }))
   }
 

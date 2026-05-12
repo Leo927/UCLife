@@ -11,6 +11,11 @@ export type HangarSlotClass = 'ms' | 'smallCraft' | 'capital'
 export interface HangarFacilityType {
   tier: HangarTier
   slotCapacity: Partial<Record<HangarSlotClass, number>>
+  // Phase 6.2.F — per-hangar supply + fuel reserves. The hangar's daily
+  // drain tick draws against `supplyStorage`; AE dealer / secretary
+  // bulk-order verbs route incoming shipments to top them back up.
+  supplyStorage: number
+  fuelStorage: number
 }
 
 interface FacilityTypesRaw {
@@ -18,6 +23,15 @@ interface FacilityTypesRaw {
 }
 
 const parsed = json5.parse(raw) as FacilityTypesRaw
+
+for (const [id, def] of Object.entries(parsed.hangars)) {
+  if (typeof def.supplyStorage !== 'number' || def.supplyStorage < 0) {
+    throw new Error(`facility-types.json5: hangar "${id}" supplyStorage must be a non-negative number`)
+  }
+  if (typeof def.fuelStorage !== 'number' || def.fuelStorage < 0) {
+    throw new Error(`facility-types.json5: hangar "${id}" fuelStorage must be a non-negative number`)
+  }
+}
 
 export const hangarFacilityTypes: Readonly<Record<string, HangarFacilityType>> =
   parsed.hangars

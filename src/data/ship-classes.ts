@@ -73,6 +73,11 @@ export interface ShipClassDef {
   crMax: number
   fuelMax: number
   suppliesMax: number
+  // Per-day supply drain contribution. Aggregated by 6.2.F's fleet
+  // drain tick across every non-mothballed ship. Defaults to 0 if a
+  // template omits it (the validator below accepts undefined to keep
+  // legacy authoring loadable; new templates author explicitly).
+  supplyPerDay?: number
   crewMax: number
   // Brig POW slots authored per-class. 0 for civilian-spec hulls per
   // Design/fleet.md; lightFreighter ships a small 2-cell brig so the
@@ -161,6 +166,9 @@ for (const ship of parsed.ships) {
   if (ship.crMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crMax must be > 0`)
   if (ship.fuelMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" fuelMax must be >= 0`)
   if (ship.suppliesMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" suppliesMax must be >= 0`)
+  if (ship.supplyPerDay !== undefined && (typeof ship.supplyPerDay !== 'number' || ship.supplyPerDay < 0)) {
+    throw new Error(`ship-classes.json5: ship "${ship.id}" supplyPerDay must be a non-negative number`)
+  }
   if (ship.crewMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crewMax must be > 0`)
   if (ship.priceFiat < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" priceFiat must be >= 0`)
   if (typeof ship.brigCapacity !== 'number' || ship.brigCapacity < 0 || !Number.isInteger(ship.brigCapacity)) {

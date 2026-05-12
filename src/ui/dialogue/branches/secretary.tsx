@@ -2,14 +2,17 @@ import { useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
-  Building, Character, IsPlayer, Owner, Workstation,
+  Building, Character, Hangar, IsPlayer, Money, Owner, Workstation, EntityKey,
 } from '../../../ecs/traits'
-import { world } from '../../../ecs/world'
+import type { SupplyKind } from '../../../ecs/traits'
+import { world, getWorld, SCENE_IDS } from '../../../ecs/world'
 import { playUi } from '../../../audio/player'
 import {
   assignBeds, assignIdleMembers, bookSummary, factionStatus, sidewaysReport,
 } from '../../../systems/secretaryRoster'
 import { dialogueText } from '../../../data/dialogueText'
+import { fleetConfig } from '../../../config'
+import { enqueueSupplyDelivery } from '../../../systems/fleetSupplyDelivery'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 export function secretaryBranch(ctx: DialogueCtx): DialogueNode | null {
@@ -99,6 +102,38 @@ function SecretaryPanel({ secretary }: { secretary: Entity }) {
     setReply('正式成立faction的入口在 5.5.5 上线 · 现在你的钱包就是faction资金。')
   }
 
+  // Phase 6.2.F bulk-order: same shape as the AE supply dealer's order,
+  // but at a markup (faction logistics) and faster delivery. Targets
+  // the first available hangar — the secretary picks a destination on
+  // the player's behalf (this is the auto-batched scale valve).
+  const t = dialogueText.branches.secretaryBulkOrder
+  const placeBulk = (kind: SupplyKind) => {
+    playUi('ui.factory-manager.accept')
+    if (!player) return
+    const hangar = firstAvailableHangar()
+    if (!hangar) { setReply(t.bulkNoHangar); return }
+    const have = player.get(Money)?.amount ?? 0
+    const qty = fleetConfig.supplyOrderQuantum
+    const unit = kind === 'supply' ? fleetConfig.supplyPricePerUnit : fleetConfig.fuelPricePerUnit
+    const cost = Math.round(unit * fleetConfig.secretaryBulkOrderMarkup * qty)
+    const days = fleetConfig.secretaryBulkOrderDeliveryDays
+    if (have < cost) {
+      setReply(t.bulkInsufficient.replace('{need}', String(cost)).replace('{have}', String(have)))
+      return
+    }
+    player.set(Money, { amount: have - cost })
+    enqueueSupplyDelivery(hangar, kind, qty, days)
+    setReply(
+      t.bulkOrderPlaced
+        .replace('{qty}', String(qty))
+        .replace('{kind}', kind === 'supply' ? t.kindSupply : t.kindFuel)
+        .replace('{cost}', String(cost))
+        .replace('{days}', String(days)),
+    )
+  }
+
+  const markupPct = Math.round((fleetConfig.secretaryBulkOrderMarkup - 1) * 100)
+
   return (
     <>
       <h3>{secInfo?.name ?? '秘书'} · {dialogueText.branches.secretary.title}</h3>
@@ -113,8 +148,36 @@ function SecretaryPanel({ secretary }: { secretary: Entity }) {
         <button className="dialog-option" onClick={onSideways}>有没有出岔子？</button>
         <button className="dialog-option" onClick={onRestructure}>正式成立faction</button>
       </div>
+      <h3 style={{ marginTop: 12 }}>{t.header}</h3>
+      <div className="hr-intro">
+        {t.bulkUnit.replace('{qty}', String(fleetConfig.supplyOrderQuantum))}
+        {' · '}{t.bulkMarkup.replace('{pct}', String(markupPct))}
+        {' · '}{t.bulkEta.replace('{days}', String(fleetConfig.secretaryBulkOrderDeliveryDays))}
+      </div>
+      <div className="dialog-options">
+        <button
+          className="dialog-option"
+          data-bulk-order="supply"
+          onClick={() => placeBulk('supply')}
+        >{t.bulkSupplyButton}</button>
+        <button
+          className="dialog-option"
+          data-bulk-order="fuel"
+          onClick={() => placeBulk('fuel')}
+        >{t.bulkFuelButton}</button>
+      </div>
     </>
   )
+}
+
+function firstAvailableHangar(): Entity | null {
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const ent of w.query(Building, Hangar, EntityKey)) {
+      return ent
+    }
+  }
+  return null
 }
 
 function formatSigned(n: number): string {

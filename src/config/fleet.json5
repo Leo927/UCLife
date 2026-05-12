@@ -39,4 +39,36 @@
   // throughput to zero, and a perfect day can't double it.
   perfMin: 0.5,
   perfMax: 1.5,
+
+  // ── Phase 6.2.F — supply + fuel economy ─────────────────────────────
+  //
+  // AE supply dealer at the industrial compound sells supply / fuel by
+  // the unit. Player orders the qty, dealer charges price-per-unit × qty,
+  // shipment arrives N days later at the targeted hangar's
+  // supplyCurrent / fuelCurrent (capped at the storage max).
+  //
+  // Order quantum: the smallest order increment shown in the dealer's
+  // dialog. Keeps the UI from offering "1 unit of supply" — orders move
+  // in chunks the warehouse actually ships. 6.2.F uses one quantum for
+  // both supply and fuel; later phases may split by SKU.
+  supplyOrderQuantum: 100,
+
+  // Per-unit price the AE dealer charges. Secretary's bulk-order verb
+  // applies a faction-office markup multiplier on top (see below).
+  supplyPricePerUnit: 5,
+  fuelPricePerUnit: 12,
+
+  // In-game days from order placement to delivery at the destination
+  // hangar. Per-route overrides land at 6.2.G (transfer-to-other-hangar
+  // pipeline); 6.2.F supports one route (VB → VB state hangar).
+  supplyDeliveryDays: 2,
+  fuelDeliveryDays: 2,
+
+  // Secretary's bulk-order verb at the faction office — late-game scale
+  // valve per Design/fleet.md. Markup over the AE dealer price; faster
+  // turnaround than the dealer because the secretary leans on faction-
+  // tier logistics. Authored separately from the dealer numbers so
+  // tuning each surface is independent.
+  secretaryBulkOrderMarkup: 1.5,
+  secretaryBulkOrderDeliveryDays: 1,
 }

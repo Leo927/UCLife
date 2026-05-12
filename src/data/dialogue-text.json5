@@ -65,6 +65,7 @@
     jobSite: '工位调整',
     talkHire: '邀请加入',
     hangarManager: '机库状况',
+    aeSupplyDealer: '订补给',
   },
   branches: {
     shop: { title: '便利店', intro: '今天有这些。' },
@@ -168,6 +169,57 @@
       repairFocusButton: '集中修理',
       repairClearButton: '取消集中',
       repairShipDeficit: '损伤',
+      // Phase 6.2.F — supply / fuel reserves panel.
+      supplyHeader: '补给与燃料',
+      supplyLabel: '补给',
+      fuelLabel: '燃料',
+      supplyPending: '未到货：',
+      supplyPendingUnit: '天',
+      supplyDryBadge: ' · 缺补给',
+      fuelDryBadge: ' · 缺燃料',
+    },
+    // Phase 6.2.F — AE supply dealer dialog. The "title" line is the
+    // greeting; the two action verbs (orderSupply / orderFuel) live on
+    // the panel itself rendered by AESupplyDealerPanel.
+    aeSupplyDealer: {
+      titleSuffix: ' · 补给商务',
+      intro: '今天打算订一些补给还是燃料？两批货差不多两天到货，价格按吨。',
+      orderSupplyLabel: '订补给',
+      orderFuelLabel: '订燃料',
+      qtyLabel: '数量',
+      priceLabel: '单价',
+      totalLabel: '总价',
+      targetHangarLabel: '送往',
+      orderButton: '下单',
+      orderConfirmed: '订单已下，{days}天后到货。',
+      orderInsufficient: '钱不够 · 需要 ¥{need}，现在只有 ¥{have}。',
+      orderInvalid: '数量不合适。',
+      etaLabel: '预计到货',
+      etaUnit: '天后',
+      noHangars: '附近没有可送货的机库。',
+    },
+    // Phase 6.2.F — Secretary bulk-order verb. Adds two buttons to the
+    // existing 秘书 panel: bulk-order supply / bulk-order fuel. Same
+    // shape as the AE dealer but at a markup and with faster delivery.
+    secretaryBulkOrder: {
+      header: '批量补给单',
+      bulkSupplyButton: '批量订补给',
+      bulkFuelButton: '批量订燃料',
+      bulkUnit: '一批 = {qty} 单位',
+      bulkMarkup: '加价 {pct}%',
+      bulkEta: '{days} 天送达',
+      bulkOrderPlaced: '已下批量单 · {qty} 单位 {kind} · ¥{cost} · {days} 天后送达。',
+      bulkNoHangar: '没有可送货的机库。',
+      bulkInsufficient: '钱不够 · 需要 ¥{need}，现在只有 ¥{have}。',
+      kindSupply: '补给',
+      kindFuel: '燃料',
+    },
+    // Phase 6.2.F — campaign HUD fleet supply readout. Aggregate across
+    // every owned / rented hangar; rendered at the bottom-center of the
+    // SpaceView overlay alongside the existing fuel meter.
+    fleetSupplyHud: {
+      supplyLabel: '舰队补给',
+      fuelLabel: '舰队燃料',
     },
   },
 }

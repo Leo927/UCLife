@@ -27,6 +27,7 @@ export interface DialogueText {
     jobSite: string
     talkHire: string
     hangarManager: string
+    aeSupplyDealer: string
   }
   branches: {
     shop: { title: string; intro: string }
@@ -98,6 +99,47 @@ export interface DialogueText {
       repairFocusButton: string
       repairClearButton: string
       repairShipDeficit: string
+      supplyHeader: string
+      supplyLabel: string
+      fuelLabel: string
+      supplyPending: string
+      supplyPendingUnit: string
+      supplyDryBadge: string
+      fuelDryBadge: string
+    }
+    aeSupplyDealer: {
+      titleSuffix: string
+      intro: string
+      orderSupplyLabel: string
+      orderFuelLabel: string
+      qtyLabel: string
+      priceLabel: string
+      totalLabel: string
+      targetHangarLabel: string
+      orderButton: string
+      orderConfirmed: string
+      orderInsufficient: string
+      orderInvalid: string
+      etaLabel: string
+      etaUnit: string
+      noHangars: string
+    }
+    secretaryBulkOrder: {
+      header: string
+      bulkSupplyButton: string
+      bulkFuelButton: string
+      bulkUnit: string
+      bulkMarkup: string
+      bulkEta: string
+      bulkOrderPlaced: string
+      bulkNoHangar: string
+      bulkInsufficient: string
+      kindSupply: string
+      kindFuel: string
+    }
+    fleetSupplyHud: {
+      supplyLabel: string
+      fuelLabel: string
     }
   }
 }

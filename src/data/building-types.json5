@@ -375,6 +375,12 @@
         // talk-verb in NPCDialog.
         { type: 'workstation', specId: 'ae_director', relTile: { x: 3.5, y: 13.5 }, noInteractable: true, labelZh: '前台' },
 
+        // Phase 6.2.F — AE supply dealer kiosk. Sits in the lobby a few
+        // tiles south of the reception desk, still inside the lobby
+        // strip (cols 0–6). Talk-verb opens the order-supply /
+        // order-fuel panel (aeSupplyDealer dialog branch).
+        { type: 'workstation', specId: 'ae_supply_dealer', relTile: { x: 3.5, y: 18.5 }, noInteractable: true, labelZh: '补给柜台' },
+
         // Board row (y = 4.5)
         { type: 'workstation', specId: 'ae_board_chair',     relTile: { x: 8.5,  y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
         { type: 'workstation', specId: 'ae_board_cfo',       relTile: { x: 12.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },

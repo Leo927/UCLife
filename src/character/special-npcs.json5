@@ -163,6 +163,21 @@
       workstation: 'ae_director',
     },
 
+    // Phase 6.2.F — AE supply dealer at the industrial-compound lobby.
+    // The talk-verb opens the order-supply / order-fuel branch. tileY
+    // ≈ AE Complex row 18.5 → tile 218; tileX ≈ col 3.5 → tile 403.
+    {
+      name: '伊娃·瓦伦丁',
+      color: '#14b8a6',
+      title: 'AE 补给商务代表',
+      tileX: 403, tileY: 218,
+      fatigue: 14,
+      money: 8000,
+      skills: { mechanics: 800, computers: 1500 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_supply_dealer',
+    },
+
     // === Phase 6.2 — notable hostile captains ===
     // Virtual entries (no tileX/tileY); referenced by stable `id` from
     // src/data/space-entities.json5 `notableCaptains: { <slotIdx>: <id> }`.

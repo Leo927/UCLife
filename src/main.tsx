@@ -23,6 +23,10 @@ import './boot/researchTick'
 // Phase 6.2.B — hangar repair throughput rides the same event so the
 // repair tick lands after dailyEconomics + research settle for the day.
 import './boot/hangarRepairTick'
+// Phase 6.2.F — daily fleet supply drain + per-hangar delivery
+// advancement. Same event as repair; deliveries land first inside the
+// subscriber, then drain debits.
+import './boot/fleetSupplyTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'

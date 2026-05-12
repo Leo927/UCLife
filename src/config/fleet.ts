@@ -7,6 +7,14 @@ export interface FleetConfig {
   managerScaleMax: number
   perfMin: number
   perfMax: number
+  // Phase 6.2.F — supply / fuel economy. See fleet.json5 for rationale.
+  supplyOrderQuantum: number
+  supplyPricePerUnit: number
+  fuelPricePerUnit: number
+  supplyDeliveryDays: number
+  fuelDeliveryDays: number
+  secretaryBulkOrderMarkup: number
+  secretaryBulkOrderDeliveryDays: number
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

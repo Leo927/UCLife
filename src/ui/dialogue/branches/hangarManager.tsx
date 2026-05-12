@@ -54,7 +54,48 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
           ))}
         </ul>
       )}
+      <SupplyReservesPanel hangar={building} />
       {sceneId && <RepairPriorityPanel hangar={building} sceneId={sceneId} />}
+    </>
+  )
+}
+
+function SupplyReservesPanel({ hangar }: { hangar: Entity }) {
+  const h = useTrait(hangar, Hangar)
+  if (!h) return null
+  const t = dialogueText.branches.hangarManager
+  const dry = h.supplyCurrent <= 0
+  const fuelDry = h.fuelCurrent <= 0
+  const pending = h.pendingSupplyDeliveries
+  return (
+    <>
+      <h3 style={{ marginTop: 12 }}>{t.supplyHeader}</h3>
+      <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+        <li className="dev-row">
+          <span className="dev-key">{t.supplyLabel}</span>
+          <span data-supply-current>
+            {Math.round(h.supplyCurrent)} / {h.supplyMax}{dry ? t.supplyDryBadge : ''}
+          </span>
+        </li>
+        <li className="dev-row">
+          <span className="dev-key">{t.fuelLabel}</span>
+          <span data-fuel-current>
+            {Math.round(h.fuelCurrent)} / {h.fuelMax}{fuelDry ? t.fuelDryBadge : ''}
+          </span>
+        </li>
+        {pending.length > 0 && (
+          <li className="dev-row" data-supply-pending>
+            <span className="dev-key">{t.supplyPending}</span>
+            <span>
+              {pending.map((d, i) => (
+                <span key={i} style={{ marginRight: 8 }}>
+                  +{d.qty} {d.kind === 'supply' ? t.supplyLabel : t.fuelLabel} ({d.daysRemaining}{t.supplyPendingUnit})
+                </span>
+              ))}
+            </span>
+          </li>
+        )}
+      </ul>
     </>
   )
 }

@@ -8,15 +8,23 @@
 // real-time loop scheduling.
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
-import { world, getWorld } from '../../ecs/world'
+import { world, getWorld, SCENE_IDS } from '../../ecs/world'
 import {
-  Building, Character, EntityKey, Hangar, Owner, Position, Workstation, Ship,
+  Action, Building, Character, EntityKey, Hangar, Job, Owner, Position, Workstation, Ship,
   IsFlagshipMark, ShipStatSheet,
-  type HangarSlotClass, type HangarTier,
+  type HangarSlotClass, type HangarTier, type SupplyKind,
 } from '../../ecs/traits'
 import { worldConfig } from '../../config'
 import { hangarRepairSystem, describeHangarRepair } from '../../systems/hangarRepair'
+import {
+  fleetSupplyDrainSystem, aggregateHangarReserves,
+} from '../../systems/fleetSupplyDrain'
+import {
+  fleetSupplyDeliverySystem, enqueueSupplyDelivery,
+} from '../../systems/fleetSupplyDelivery'
 import { getStat } from '../../stats/sheet'
+import { spawnNPC } from '../../character/spawn'
+import { pickFreshName, pickRandomColor } from '../../character/nameGen'
 
 const TILE = worldConfig.tilePx
 
@@ -199,4 +207,155 @@ registerDebugHandle('hangarRepairDescribe', (buildingKey: string) => {
 // not gate on the value yet so the smoke can pass any monotone counter.
 registerDebugHandle('runHangarRepairTick', (gameDay: number = 0) => {
   return hangarRepairSystem(gameDay)
+})
+
+// ── Phase 6.2.F supply / fuel debug handles ─────────────────────────────
+
+// Find a hangar entity across every scene world by buildingKey.
+function findHangarByKey(buildingKey: string): { entity: ReturnType<typeof world.queryFirst>; sceneId: string } | null {
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const b of w.query(Building, Hangar, EntityKey)) {
+      if (b.get(EntityKey)!.key === buildingKey) return { entity: b, sceneId }
+    }
+  }
+  return null
+}
+
+interface HangarSupplySnapshot {
+  buildingKey: string
+  supplyCurrent: number
+  supplyMax: number
+  fuelCurrent: number
+  fuelMax: number
+  pending: Array<{ kind: SupplyKind; qty: number; daysRemaining: number }>
+}
+
+// Read the supply/fuel reserves on a single hangar by buildingKey.
+registerDebugHandle('hangarSupplySnapshot', (buildingKey: string): HangarSupplySnapshot | null => {
+  const hit = findHangarByKey(buildingKey)
+  if (!hit) return null
+  const h = hit.entity!.get(Hangar)!
+  return {
+    buildingKey,
+    supplyCurrent: h.supplyCurrent,
+    supplyMax: h.supplyMax,
+    fuelCurrent: h.fuelCurrent,
+    fuelMax: h.fuelMax,
+    pending: h.pendingSupplyDeliveries.map((d) => ({ ...d })),
+  }
+})
+
+// Force-set a hangar's supply/fuel current. Smoke uses this to seed
+// "almost dry" and "exactly at the run-dry threshold" states without
+// running the drain N times.
+registerDebugHandle('setHangarSupply', (buildingKey: string, supplyCurrent: number, fuelCurrent: number) => {
+  const hit = findHangarByKey(buildingKey)
+  if (!hit) return null
+  const cur = hit.entity!.get(Hangar)!
+  hit.entity!.set(Hangar, {
+    ...cur,
+    supplyCurrent: Math.max(0, Math.min(supplyCurrent, cur.supplyMax)),
+    fuelCurrent: Math.max(0, Math.min(fuelCurrent, cur.fuelMax)),
+  })
+  return { supplyCurrent: cur.supplyCurrent, fuelCurrent: cur.fuelCurrent }
+})
+
+// Enqueue a delivery directly. Smoke uses this to bypass the dialog UI
+// when asserting the delivery pipeline (the dialog path is exercised
+// in its own assertion block).
+registerDebugHandle('enqueueHangarDelivery', (buildingKey: string, kind: SupplyKind, qty: number, days: number) => {
+  const hit = findHangarByKey(buildingKey)
+  if (!hit) return null
+  enqueueSupplyDelivery(hit.entity!, kind, qty, days)
+  return hit.entity!.get(Hangar)!.pendingSupplyDeliveries.map((d) => ({ ...d }))
+})
+
+// Run one daily fleet-supply tick (deliveries first, then drain). Smoke
+// drives this in place of the loop's day:rollover:settled event so the
+// scenario is deterministic.
+registerDebugHandle('runFleetSupplyTick', (gameDay: number = 0) => {
+  const shipWorld = getWorld('playerShipInterior')
+  const out = {
+    deliveriesLanded: 0,
+    unitsAppliedSupply: 0,
+    unitsAppliedFuel: 0,
+    drainSupply: 0,
+    hangarsRunDry: 0,
+  }
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    const dr = fleetSupplyDeliverySystem(w, gameDay)
+    out.deliveriesLanded += dr.deliveriesLanded
+    out.unitsAppliedSupply += dr.unitsAppliedSupply
+    out.unitsAppliedFuel += dr.unitsAppliedFuel
+    const dn = fleetSupplyDrainSystem(w, shipWorld, gameDay)
+    out.drainSupply += dn.totalDrainSupply
+    out.hangarsRunDry += dn.hangarsRunDry
+  }
+  return out
+})
+
+// Aggregate fleet-wide supply / fuel — the HUD's source-of-truth value.
+registerDebugHandle('fleetSupplyTotals', () => {
+  let sc = 0, sm = 0, fc = 0, fm = 0
+  for (const sceneId of SCENE_IDS) {
+    const r = aggregateHangarReserves(getWorld(sceneId))
+    sc += r.supplyCurrent
+    sm += r.supplyMax
+    fc += r.fuelCurrent
+    fm += r.fuelMax
+  }
+  return { supplyCurrent: sc, supplyMax: sm, fuelCurrent: fc, fuelMax: fm }
+})
+
+// Resolve the AE supply dealer NPC entity by spec id (talk-verb target).
+registerDebugHandle('aeSupplyDealerEntity', () => {
+  for (const ws of world.query(Workstation)) {
+    const w = ws.get(Workstation)!
+    if (w.specId !== 'ae_supply_dealer') continue
+    return w.occupant ?? null
+  }
+  return null
+})
+
+// Resolve the secretary NPC entity. Smoke uses this to drive the bulk-
+// order verbs without DOM-clicking through hire-secretary first.
+registerDebugHandle('secretaryEntity', () => {
+  for (const ws of world.query(Workstation)) {
+    const w = ws.get(Workstation)!
+    if (w.specId !== 'secretary') continue
+    return w.occupant ?? null
+  }
+  return null
+})
+
+// Force-seat the secretary workstation with a fresh NPC, bypassing the
+// installOnly gate. Avoids the full install-via-manage-cell flow for the
+// smoke. Mirrors fillJobVacancies but writes Workstation.occupant
+// directly instead of going through claimJob.
+registerDebugHandle('forceSeatSecretary', () => {
+  for (const ws of world.query(Workstation, Position)) {
+    const w = ws.get(Workstation)!
+    if (w.specId !== 'secretary') continue
+    if (w.occupant) return w.occupant
+    const wp = ws.get(Position)!
+    const npc = spawnNPC(world, {
+      name: pickFreshName(world),
+      color: pickRandomColor(),
+      title: '秘书',
+      x: wp.x, y: wp.y,
+    })
+    ws.set(Workstation, { ...w, occupant: npc })
+    // Job → Workstation link is required for NPCDialog's wsSpec lookup
+    // (the dialog reads specId off `job.workstation.Workstation`, not the
+    // bare Workstation table). Without this, isSecretaryOnDuty stays
+    // false because the dialog thinks the NPC is unemployed.
+    npc.set(Job, { workstation: ws, unemployedSinceMs: 0 })
+    // Pin the action to 'working' so the on-duty role flag fires
+    // without waiting on shift hours.
+    npc.set(Action, { kind: 'working', remaining: 999_999_999, total: 999_999_999 })
+    return npc
+  }
+  return null
 })

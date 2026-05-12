@@ -83,6 +83,10 @@
       crMax: 100,
       fuelMax: 16,
       suppliesMax: 40,
+      // Per-day supply drain (Starsector model — aggregated across the
+      // fleet by the daily drain tick at 6.2.F). A civilian light hull
+      // burns a token amount; bigger hulls (Pegasus, etc.) author higher.
+      supplyPerDay: 4,
       crewMax: 4,
       // Civilian-spec hulls in the design get brigCapacity: 0; the
       // lightFreighter ships a refit 2-cell brig so the named-hostile

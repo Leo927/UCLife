@@ -8,8 +8,10 @@ import type { Application } from 'pixi.js'
 import { PixiCanvas } from '../render/pixi'
 import { PixiSpaceRenderer } from '../render/space/PixiSpaceRenderer'
 import type { SpaceSnapshot, BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot } from '../render/spaceSnapshot'
-import { getWorld } from '../ecs/world'
+import { getWorld, SCENE_IDS } from '../ecs/world'
 import { IsPlayer, Position, Body, PoiTag, Velocity, Course, EnemyAI, EntityKey } from '../ecs/traits'
+import { dialogueText } from '../data/dialogueText'
+import { aggregateHangarReserves } from '../systems/fleetSupplyDrain'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
@@ -132,6 +134,26 @@ interface ContextMenuState {
 
 interface FuelHud { current: number; max: number }
 
+interface FleetSupplyHud {
+  supplyCurrent: number; supplyMax: number;
+  fuelCurrent: number; fuelMax: number;
+}
+
+function readFleetSupply(): FleetSupplyHud {
+  // Aggregate across every scene world that hosts hangar facilities.
+  // Today: vonBraunCity + granadaDrydock; the iteration is safe on
+  // worlds with no hangars (the inner query just yields nothing).
+  let sc = 0, sm = 0, fc = 0, fm = 0
+  for (const sceneId of SCENE_IDS) {
+    const r = aggregateHangarReserves(getWorld(sceneId))
+    sc += r.supplyCurrent
+    sm += r.supplyMax
+    fc += r.fuelCurrent
+    fm += r.fuelMax
+  }
+  return { supplyCurrent: sc, supplyMax: sm, fuelCurrent: fc, fuelMax: fm }
+}
+
 // Fuel below this is treated as empty: spaceSim drops thrust as soon as
 // the per-frame fuel demand exceeds fuelCurrent, which happens long
 // before fuelCurrent reaches strict zero. 0.05 is a few frames of full
@@ -143,6 +165,7 @@ export function SpaceView() {
   const [fitMode, setFitMode] = useState(false)
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [fuelHud, setFuelHud] = useState<FuelHud | null>(null)
+  const [fleetSupply, setFleetSupply] = useState<FleetSupplyHud | null>(null)
 
   // Latest menu/fitMode in refs so the render loop and key handlers can
   // read them without restarting the loop on every state change.
@@ -188,6 +211,7 @@ export function SpaceView() {
         lastFuelPoll = now
         const s = getShipState()
         if (s) setFuelHud({ current: s.fuelCurrent, max: s.fuelMax })
+        setFleetSupply(readFleetSupply())
       }
       const r = rendererRef.current
       if (r) {
@@ -353,6 +377,33 @@ export function SpaceView() {
           </div>
         )
       })()}
+      {fleetSupply && fleetSupply.supplyMax > 0 && (
+        <div
+          data-fleet-supply-hud
+          style={{
+            position: 'absolute', bottom: 12, left: 168,
+            background: 'rgba(15, 23, 42, 0.92)',
+            border: '1px solid #475569',
+            color: '#e2e8f0',
+            padding: '8px 14px',
+            fontFamily: 'system-ui, sans-serif', fontSize: 13,
+            borderRadius: 4, minWidth: 160,
+          }}
+        >
+          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>
+            {dialogueText.branches.fleetSupplyHud.supplyLabel}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600 }} data-fleet-supply>
+            {Math.round(fleetSupply.supplyCurrent)} / {fleetSupply.supplyMax}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+            {dialogueText.branches.fleetSupplyHud.fuelLabel}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 500 }} data-fleet-fuel>
+            {Math.round(fleetSupply.fuelCurrent)} / {fleetSupply.fuelMax}
+          </div>
+        </div>
+      )}
       <button
         onClick={() => { playUi('ui.space.leave-helm'); leaveHelm() }}
         style={{
