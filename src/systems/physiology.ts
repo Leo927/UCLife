@@ -14,7 +14,7 @@
 
 import type { World, Entity } from 'koota'
 import {
-  Character, Conditions, IsPlayer, EntityKey, Health,
+  Character, Conditions, IsPlayer, EntityKey, Health, Vitals,
   type ConditionInstance,
 } from '../ecs/traits'
 import {
@@ -27,6 +27,7 @@ import { SeededRng } from '../procgen/rng'
 import { emitSim } from '../sim/events'
 import { useClock } from '../sim/clock'
 import { statValue } from './attributes'
+import { physiologyConfig } from '../config'
 
 // Single source of truth for log timestamps — game time, not wall
 // time. Other systems (sim/helm.ts) follow the same pattern.
@@ -538,3 +539,34 @@ export function forceOnset(
 // Exposed for the day-rollover binding so it can fan onset rolls
 // through paths without importing the system internals scattered.
 export { rngFor }
+
+// ──────────────────────────────────────────────────────────────────────
+// Environmental onset path — physiology.md § Onset paths. Daily roll on
+// every character carrying high fatigue (and tomorrow: low-reflex on
+// labor shifts). Each eligible template rolls its own environmentRisk;
+// on hit, the spawn picks a body part from the template's catalog.
+// ──────────────────────────────────────────────────────────────────────
+function pickBodyPart(rng: SeededRng, candidates: readonly string[]): BodyPart | null {
+  if (candidates.length === 0) return null
+  const i = Math.floor(rng.uniform() * candidates.length)
+  return candidates[Math.min(i, candidates.length - 1)] as BodyPart
+}
+
+export function rollEnvironmentalOnsets(world: World, dayNumber: number): void {
+  const fatigueGate = physiologyConfig.fatigueForEnvironmentInjury
+  for (const entity of world.query(Vitals, Conditions, Health)) {
+    const h = entity.get(Health)
+    if (h?.dead) continue
+    const v = entity.get(Vitals)!
+    if (v.fatigue < fatigueGate) continue
+    for (const template of templatesForOnsetPath('environment')) {
+      if (!template.environmentRisk || !template.eligibleBodyParts?.length) continue
+      const rng = rngFor(entity, dayNumber, `onset:env:${template.id}`)
+      if (rng.uniform() >= template.environmentRisk) continue
+      const part = pickBodyPart(rng, template.eligibleBodyParts)
+      if (part === null) continue
+      onsetCondition(entity, template.id, '日常意外', dayNumber, rng, part)
+      break  // One environment injury per character per day.
+    }
+  }
+}

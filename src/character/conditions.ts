@@ -82,6 +82,13 @@ export interface ConditionTemplate {
   complicationRisk?: number
   complicationConditionId?: string | null
 
+  // Environmental onset path: daily probability when the trigger
+  // (high fatigue, etc.) is met. 0 / unauthored disables the roll
+  // for this template. Templates that ship via this path must also
+  // author eligibleBodyParts so the roll knows where to spawn.
+  environmentRisk?: number
+  eligibleBodyParts?: readonly string[]
+
   // Player-facing strings.
   symptomBlurbs: { mild: string; moderate: string; severe: string }
   eventLogTemplates: {
@@ -182,6 +189,24 @@ for (const c of parsed.conditions) {
   if (c.complicationConditionId !== undefined && c.complicationConditionId !== null) {
     if (typeof c.complicationConditionId !== 'string' || !c.complicationConditionId) {
       throw new Error(`conditions.json5: "${c.id}" complicationConditionId must be string or null`)
+    }
+  }
+  if (c.environmentRisk !== undefined) {
+    if (typeof c.environmentRisk !== 'number' || c.environmentRisk < 0 || c.environmentRisk > 1) {
+      throw new Error(`conditions.json5: "${c.id}" environmentRisk must be number in [0,1]`)
+    }
+    if (!Array.isArray(c.eligibleBodyParts) || c.eligibleBodyParts.length === 0) {
+      throw new Error(`conditions.json5: "${c.id}" environmentRisk requires non-empty eligibleBodyParts`)
+    }
+  }
+  if (c.eligibleBodyParts !== undefined) {
+    if (!Array.isArray(c.eligibleBodyParts)) {
+      throw new Error(`conditions.json5: "${c.id}" eligibleBodyParts must be array`)
+    }
+    for (const p of c.eligibleBodyParts) {
+      if (typeof p !== 'string' || !p) {
+        throw new Error(`conditions.json5: "${c.id}" eligibleBodyParts entries must be non-empty strings`)
+      }
     }
   }
 }

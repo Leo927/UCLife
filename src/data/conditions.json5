@@ -184,6 +184,9 @@
       scarConditionId: 'chronic_weak_joint',
       scarTalentPenalty: null,
 
+      environmentRisk: 0.04,
+      eligibleBodyParts: ['left-ankle', 'right-ankle'],
+
       symptomBlurbs: {
         mild:     '关节有些发热，不太敢用力。',
         moderate: '你一瘸一拐，关节肿胀疼痛。',
@@ -252,6 +255,9 @@
       complicationRisk: 0.20,
       complicationConditionId: 'infection_wound',
 
+      environmentRisk: 0.03,
+      eligibleBodyParts: ['left-hand', 'right-hand', 'left-arm', 'right-arm', 'torso'],
+
       symptomBlurbs: {
         mild:     '你被划伤了，渗着血。',
         moderate: '伤口持续渗血，刺痛感越来越重。',
@@ -315,6 +321,9 @@
       scarThreshold: 70,
       scarConditionId: 'chronic_scar_skin',
       scarTalentPenalty: null,
+
+      environmentRisk: 0.015,
+      eligibleBodyParts: ['left-hand', 'right-hand', 'left-arm', 'right-arm', 'torso'],
 
       symptomBlurbs: {
         mild:     '你的皮肤红肿，碰一下就疼。',
@@ -383,6 +392,9 @@
       scarConditionId: 'chronic_weak_joint',
       scarTalentPenalty: null,
 
+      environmentRisk: 0.01,
+      eligibleBodyParts: ['left-ankle', 'right-ankle', 'left-arm', 'right-arm'],
+
       symptomBlurbs: {
         mild:     '骨头深处隐隐作痛。',
         moderate: '骨折处肿胀变形，剧痛难忍。',
@@ -449,6 +461,9 @@
       scarThreshold: 75,
       scarConditionId: 'chronic_recurring_headache',
       scarTalentPenalty: null,
+
+      environmentRisk: 0.005,
+      eligibleBodyParts: ['head'],
 
       symptomBlurbs: {
         mild:     '你的头有些发蒙，视线偶尔模糊。',

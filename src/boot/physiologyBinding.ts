@@ -14,29 +14,23 @@ import { SCENE_IDS, getWorld } from '../ecs/world'
 import { useClock, gameDayNumber } from '../sim/clock'
 import {
   physiologySystem, onsetCondition, rngFor, templatesForOnsetPath,
+  rollEnvironmentalOnsets,
 } from '../systems/physiology'
 import { Vitals, Conditions, Health } from '../ecs/traits'
+import { physiologyConfig } from '../config'
 import type { World } from 'koota'
 
-// Vitals saturation thresholds — physiology.md § Onset paths. Hygiene
-// >= 70 sustained is the cold-trigger signal. Each player/NPC entity
-// rolls once per day if the condition is met.
-const HYGIENE_SATURATION = 70
-
 function rollVitalsSaturationOnsets(world: World, day: number): void {
+  const gate = physiologyConfig.hygieneSaturation
+  const roll = physiologyConfig.vitalsSaturationDailyRoll
   for (const entity of world.query(Vitals, Conditions, Health)) {
     const h = entity.get(Health)
     if (h?.dead) continue
     const v = entity.get(Vitals)!
-    if (v.hygiene < HYGIENE_SATURATION) continue
-    // Walk eligible templates and roll. For Phase 4.0 the only
-    // vitals_saturation template is cold_common, but the loop is
-    // forward-compatible with seasonal additions.
+    if (v.hygiene < gate) continue
     for (const template of templatesForOnsetPath('vitals_saturation')) {
       const rng = rngFor(entity, day, `onset:${template.id}`)
-      // Daily 8% roll while saturated. Tunable per-template later by
-      // moving the value into the JSON5 row.
-      if (rng.uniform() >= 0.08) continue
+      if (rng.uniform() >= roll) continue
       onsetCondition(entity, template.id, '卫生欠佳', day, rng)
       break  // One condition per saturation event per day.
     }
@@ -55,6 +49,7 @@ export function bindPhysiology(): void {
       // Onset rolls run before the phase tick so a fresh onset's
       // incubating phase counts the day correctly.
       rollVitalsSaturationOnsets(w, day)
+      rollEnvironmentalOnsets(w, day)
       physiologySystem(w, day)
     }
   })

@@ -1,0 +1,27 @@
+// Phase 4 physiology tunables. Per-template authoring (peak severity,
+// duration, scarThreshold, complicationRisk, environmentRisk,
+// eligibleBodyParts) lives on individual rows in data/conditions.json5.
+// This file holds binding-side constants — the thresholds the daily
+// onset rolls read off the character to decide whether to fire.
+{
+  // Hygiene above this value sustained → cold roll fires per
+  // vitalsSaturationDailyRoll. Author chose 70 to keep "showered this
+  // week" players safe; pushing it lower turns colds into a tax.
+  hygieneSaturation: 70,
+
+  // Per-day probability that the vitals-saturation path picks a
+  // template and onsets it (when the character meets the path's
+  // trigger). 0.08 ≈ once every two weeks at saturation.
+  vitalsSaturationDailyRoll: 0.08,
+
+  // Fatigue above this value sustained → the environment path is
+  // eligible for the daily injury roll (sprain, fracture, etc).
+  // Walking exhausted on a lunar concourse is the canonical setup.
+  fatigueForEnvironmentInjury: 70,
+
+  // Reflex stat at or below this value → labor-work envinjury risk is
+  // doubled. Phase 4.1 ships the threshold; the labor-multiplier
+  // wiring lands once the work-shift hook exists (currently the daily
+  // tick covers the general case).
+  reflexForLaborInjury: 40,
+}

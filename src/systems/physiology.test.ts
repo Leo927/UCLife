@@ -7,10 +7,11 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { createWorld } from 'koota'
 import { spawnPlayer, spawnNPC } from '../character/spawn'
 import {
-  Conditions, Effects, Attributes, IsPlayer, Health,
+  Conditions, Effects, Attributes, IsPlayer, Health, Vitals,
 } from '../ecs/traits'
 import {
   forceOnset, physiologySystem, diagnoseCondition, commitTreatment,
+  rollEnvironmentalOnsets,
 } from './physiology'
 import { getStat } from '../stats/sheet'
 
@@ -298,6 +299,51 @@ describe('physiology — injury catalog (Phase 4.1)', () => {
       expect(inst!.templateId).toBe(id)
     })
   }
+})
+
+describe('physiology — environmental onset rolls (Phase 4.1)', () => {
+  // Exposed helper takes the fatigue (and reflex) the binding would
+  // have read off Vitals/Attributes. Tested in isolation here; the
+  // binding layer is exercised by the smoke suite.
+  it('high-fatigue characters eventually pick up a body-part injury', () => {
+    const { world, player } = setup()
+    // Pin player vitals high-fatigue. Vitals trait exists by default.
+    const v = player.get(Vitals)!
+    player.set(Vitals, { ...v, fatigue: 90 })
+    let injurySeen = false
+    for (let day = 1; day <= 60; day++) {
+      rollEnvironmentalOnsets(world, day)
+      const list = player.get(Conditions)?.list ?? []
+      const env = list.find((c) =>
+        ['sprain', 'cut', 'burn', 'fracture', 'concussion'].includes(c.templateId),
+      )
+      if (env) {
+        injurySeen = true
+        expect(env.bodyPart, `${env.templateId} must have a body part`).not.toBeNull()
+        break
+      }
+    }
+    expect(injurySeen, 'sustained high fatigue should produce an injury within 60 days').toBe(true)
+  })
+
+  it('low-fatigue characters do not pick up environment injuries', () => {
+    const { world, player } = setup()
+    const v = player.get(Vitals)!
+    player.set(Vitals, { ...v, fatigue: 10 })
+    for (let day = 1; day <= 60; day++) rollEnvironmentalOnsets(world, day)
+    const list = player.get(Conditions)?.list ?? []
+    expect(list).toHaveLength(0)
+  })
+
+  it('a dead character is never injured', () => {
+    const { world, player } = setup()
+    const v = player.get(Vitals)!
+    player.set(Vitals, { ...v, fatigue: 100 })
+    player.set(Health, { ...player.get(Health)!, dead: true })
+    for (let day = 1; day <= 60; day++) rollEnvironmentalOnsets(world, day)
+    const list = player.get(Conditions)?.list ?? []
+    expect(list).toHaveLength(0)
+  })
 })
 
 describe('physiology — permadeath gate (Phase 4.1)', () => {

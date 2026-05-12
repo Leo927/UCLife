@@ -65,4 +65,7 @@ export type { CockpitConfig } from './cockpit'
 export { audioConfig } from './audio'
 export type { AudioConfig, AudioClipSpec, UiAudioId } from './audio'
 
+export { physiologyConfig } from './physiology'
+export type { PhysiologyConfig } from './physiology'
+
 export type { BedTier, RoadKind, InteractableKind, ActionKind, RoughKind } from './kinds'
