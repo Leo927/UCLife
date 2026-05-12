@@ -10,6 +10,7 @@ import { bindUi } from './boot/uiBindings'
 import { bindPhysiology } from './boot/physiologyBinding'
 import { bindFleetLaunch } from './boot/fleetLaunchBinding'
 import { bootstrapApp } from './boot/lifecycle'
+import { preloadArt } from './render/assets/registry'
 // Side-effect imports: register save handlers for every persisted
 // subsystem (clock, population, ship, space, ...). Adding a new
 // persisted subsystem == one new file under src/boot/saveHandlers/.
@@ -49,6 +50,11 @@ bindAutosave()
 bindUi()
 bindPhysiology()
 bindFleetLaunch()
+// Fire-and-forget the art bundle so textures are ready by the time
+// the renderer first asks for them. The renderer falls back to a
+// null-texture sprite during the load window, so this purely avoids
+// the first-paint flicker — it never blocks bootstrap.
+void preloadArt()
 // Bring the sim world up + start the per-frame loop. Must precede
 // createRoot().render so the first React commit reads a populated world.
 bootstrapApp()

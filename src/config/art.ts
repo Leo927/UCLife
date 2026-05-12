@@ -1,15 +1,15 @@
 import json5 from 'json5'
 import raw from './art.json5?raw'
-import type { BedTier } from './kinds'
 
-export interface BedAssetSpec {
-  assetPath: string
-  w: number
-  h: number
+export interface ArtAssetSpec {
+  /** Path under Vite's public root, e.g. `/art/objects/bed-flop.png`. */
+  path: string
 }
 
+export type ArtId = string
+
 export interface ArtConfig {
-  bedAssets: Partial<Record<BedTier, BedAssetSpec>>
+  catalog: Record<ArtId, ArtAssetSpec>
 }
 
 export const artConfig: ArtConfig = json5.parse(raw)

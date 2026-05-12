@@ -51,6 +51,7 @@ import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
 import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
+import { worldObjects } from '../data/worldObjects'
 import { getActiveSceneDimensions, getActiveSceneId, getWorld, world } from '../ecs/world'
 import { startAnimTicker, useAnimTick } from './sprite/animTick'
 import type { LpcDirection } from './sprite/types'
@@ -496,7 +497,7 @@ function buildSnapshot(
     const bed = ent.get(Bed)
     if (!bed) continue
     const it = ent.get(Interactable)
-    const v = BED_VISUAL_FALLBACK[bed.tier as BedTier]
+    const v = worldObjects.beds[bed.tier as BedTier]
     if (!v) continue
     const active = bedActiveOccupant(bed, gameMs)
     const occupied = active !== null
@@ -697,13 +698,3 @@ function computeFacing(
   return dir
 }
 
-// Local fallback for bed visual sizes (mirrors PixiGroundRenderer's BED_VISUAL).
-// Used here for the snapshot builder to read sizing/labels without coupling to
-// the renderer's internal table.
-const BED_VISUAL_FALLBACK: Record<BedTier, { w: number; h: number; label: string }> = {
-  luxury:    { w: 28, h: 18, label: '高级床' },
-  apartment: { w: 26, h: 16, label: '床' },
-  dorm:      { w: 22, h: 14, label: '宿舍床' },
-  lounge:    { w: 26, h: 14, label: '员工沙发' },
-  flop:      { w: 20, h: 14, label: '投币床' },
-}

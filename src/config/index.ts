@@ -69,6 +69,7 @@ export { physiologyConfig } from './physiology'
 export type { PhysiologyConfig } from './physiology'
 
 export { artConfig } from './art'
-export type { ArtConfig, BedAssetSpec } from './art'
+export type { ArtConfig, ArtAssetSpec, ArtId } from './art'
+
 
 export type { BedTier, RoadKind, InteractableKind, ActionKind, RoughKind } from './kinds'
