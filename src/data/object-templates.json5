@@ -1,0 +1,115 @@
+// Authored data registry for every kind of object that can be
+// placed in a building. Building-items reference templates by id
+// (`{ template: 'bed-flop', count: 4, role: 'bed_row' }`); the
+// spawn dispatcher reads the template, decides which ECS traits
+// to construct, and stamps `TemplateRef({ id })` on the entity so
+// runtime can find its authored origin.
+//
+// What templates own (authored, immutable):
+//   - `kind`              spawn dispatcher discriminator
+//   - kind-specific params (tier, specId, interactableKind, …)
+//   - `labelZh`           zh-CN object name where the renderer needs one
+//   - `fee`               default Interactable fee where applicable
+//
+// What templates do NOT own:
+//   - Placement (count, role, relTile) — belongs on the building-item
+//   - Visuals (size, palette, asset binding) — keyed off traits in
+//     `world-objects.json5`; renderer reads those off the spawned
+//     entity's Bed/Interactable/etc. traits, not via TemplateRef
+//   - Runtime state (occupant, rentPaidUntilMs) — lives on traits
+//
+// Reuse-across-facilities is the point: `bed-flop` is one template
+// the flophouse uses 4 of and a luxury suite uses 0 of; adding a
+// chair to four different buildings is one template + four building
+// rows.
+{
+  templates: {
+    // ── Beds ─────────────────────────────────────────────────────
+    'bed-flop':      { kind: 'bed', tier: 'flop' },
+    'bed-dorm':      { kind: 'bed', tier: 'dorm' },
+    'bed-apartment': { kind: 'bed', tier: 'apartment' },
+    'bed-luxury':    { kind: 'bed', tier: 'luxury' },
+    'bed-lounge':    { kind: 'bed', tier: 'lounge' },
+
+    // ── Bar seat ─────────────────────────────────────────────────
+    'bar-seat': { kind: 'bar_seat', labelZh: '酒吧座位', fee: 10 },
+
+    // ── Queue point ──────────────────────────────────────────────
+    // Anchor for the bar's customer queue. Spawn registers a
+    // 'barQueue' landmark at the placement coordinate; no entity is
+    // created. Templated so future queue variants (clinic queue,
+    // ticket-window queue) reuse the same machinery.
+    'queue-point-bar': { kind: 'queue_point', landmarkRole: 'barQueue' },
+
+    // ── Landmarks ────────────────────────────────────────────────
+    // Named coordinates used by NPC behavior trees. No entity, no
+    // visual — just a registered landmark at the placement point.
+    'landmark-shop-counter':  { kind: 'landmark', landmarkRole: 'shopCounter' },
+    'landmark-shop-approach': { kind: 'landmark', landmarkRole: 'shopApproach' },
+    'landmark-shop-entry':    { kind: 'landmark', landmarkRole: 'shopEntry' },
+    'landmark-shop-exit':     { kind: 'landmark', landmarkRole: 'shopExit' },
+
+    // ── Partition ────────────────────────────────────────────────
+    // Horizontal internal wall with a door cutout. Per-instance
+    // params (rowFromTop, doorTiedToPrimary) stay on the building-
+    // item; the template just declares the kind of structural
+    // directive this is.
+    'partition-horizontal': { kind: 'partition', orientation: 'h' },
+
+    // ── Workstations ─────────────────────────────────────────────
+    // Each template binds a Workstation to one NPC spec (specId).
+    // `interactableKind: null` => scenery desk (no badge, talk-verb
+    // lives on the seated NPC's body per the worker-not-workstation
+    // rule). When set, the desk gets an Interactable badge of that
+    // kind on the floor.
+
+    // — Commercial / service —
+    'workstation-bartender':           { kind: 'workstation', specId: 'bartender',           labelZh: '吧台',         interactableKind: 'work' },
+    'workstation-city-hr-clerk':       { kind: 'workstation', specId: 'city_hr_clerk',       labelZh: '招聘窗口',     interactableKind: null },
+    'workstation-realtor':             { kind: 'workstation', specId: 'realtor',             labelZh: '中介台',       interactableKind: null },
+    'workstation-recruiter':           { kind: 'workstation', specId: 'recruiter',           labelZh: '招聘办公桌',   interactableKind: null, addRecruiterTrait: true },
+    'workstation-researcher':          { kind: 'workstation', specId: 'researcher',          labelZh: '研究台',       interactableKind: null },
+    'workstation-secretary':           { kind: 'workstation', specId: 'secretary',           labelZh: '秘书办公桌',   interactableKind: null },
+    'workstation-civilian-doctor':     { kind: 'workstation', specId: 'civilian_doctor',     labelZh: '诊台',         interactableKind: null },
+    'workstation-civilian-pharmacist': { kind: 'workstation', specId: 'civilian_pharmacist', labelZh: '药品柜台',     interactableKind: null },
+    'workstation-shop-clerk-morning':  { kind: 'workstation', specId: 'shop_morning_clerk',  labelZh: '柜台',         interactableKind: null },
+    'workstation-shop-clerk-afternoon':{ kind: 'workstation', specId: 'shop_afternoon_clerk',                         interactableKind: null },
+
+    // — Factory —
+    'workstation-factory-manager':         { kind: 'workstation', specId: 'factory_manager',         labelZh: '经理办公桌', interactableKind: null, factoryManagerHub: true },
+    'workstation-factory-engineer':        { kind: 'workstation', specId: 'factory_engineer',                                                       interactableKind: 'work' },
+    'workstation-factory-worker-morning':  { kind: 'workstation', specId: 'factory_worker_morning',                                                 interactableKind: 'work' },
+    'workstation-factory-worker-early':    { kind: 'workstation', specId: 'factory_worker_early',                                                   interactableKind: 'work' },
+    'workstation-factory-worker-day':      { kind: 'workstation', specId: 'factory_worker_day',                                                     interactableKind: 'work' },
+
+    // — Hangar (state-rental) —
+    'workstation-hangar-manager':  { kind: 'workstation', specId: 'hangar_manager', labelZh: '机库主管', interactableKind: null },
+    'workstation-hangar-worker':   { kind: 'workstation', specId: 'hangar_worker',                       interactableKind: 'work' },
+
+    // — Anaheim Electronics complex —
+    'workstation-ae-director':         { kind: 'workstation', specId: 'ae_director',         labelZh: '前台',         interactableKind: null },
+    'workstation-ae-supply-dealer':    { kind: 'workstation', specId: 'ae_supply_dealer',    labelZh: '补给柜台',     interactableKind: null },
+    'workstation-ae-doctor':           { kind: 'workstation', specId: 'ae_doctor',           labelZh: 'AE 诊台',      interactableKind: null },
+    'workstation-ae-board-chair':      { kind: 'workstation', specId: 'ae_board_chair',      labelZh: '董事办公桌',   interactableKind: 'work' },
+    'workstation-ae-board-cfo':        { kind: 'workstation', specId: 'ae_board_cfo',        labelZh: '董事办公桌',   interactableKind: 'work' },
+    'workstation-ae-board-cto':        { kind: 'workstation', specId: 'ae_board_cto',        labelZh: '董事办公桌',   interactableKind: 'work' },
+    'workstation-ae-board-coo':        { kind: 'workstation', specId: 'ae_board_coo',        labelZh: '董事办公桌',   interactableKind: 'work' },
+    'workstation-ae-board-cmo':        { kind: 'workstation', specId: 'ae_board_cmo',        labelZh: '董事办公桌',   interactableKind: 'work' },
+    'workstation-ae-floor-manager':    { kind: 'workstation', specId: 'ae_floor_manager',    labelZh: '经理办公桌',   interactableKind: 'work' },
+    'workstation-ae-design-lead':      { kind: 'workstation', specId: 'ae_design_lead',      labelZh: '经理办公桌',   interactableKind: 'work' },
+    'workstation-ae-ops-manager':      { kind: 'workstation', specId: 'ae_ops_manager',      labelZh: '经理办公桌',   interactableKind: 'work' },
+    'workstation-ae-hr-manager':       { kind: 'workstation', specId: 'ae_hr_manager',       labelZh: '经理办公桌',   interactableKind: 'work' },
+    'workstation-ae-quality-manager':  { kind: 'workstation', specId: 'ae_quality_manager',  labelZh: '经理办公桌',   interactableKind: 'work' },
+    'workstation-ae-senior-engineer':  { kind: 'workstation', specId: 'ae_senior_engineer',                            interactableKind: 'work' },
+    'workstation-ae-engineer':         { kind: 'workstation', specId: 'ae_engineer',                                   interactableKind: 'work' },
+    'workstation-ae-technician':       { kind: 'workstation', specId: 'ae_technician',                                 interactableKind: 'work' },
+    'workstation-ae-assembler':        { kind: 'workstation', specId: 'ae_assembler',                                  interactableKind: 'work' },
+
+    // ── AE fixtures (interactables) ──────────────────────────────
+    'gym-treadmill':     { kind: 'interactable', interactableKind: 'gym', labelZh: '跑步机' },
+    'gym-barbell':       { kind: 'interactable', interactableKind: 'gym', labelZh: '杠铃' },
+    'gym-dumbbell-rack': { kind: 'interactable', interactableKind: 'gym', labelZh: '哑铃台' },
+    'snack-cabinet':     { kind: 'interactable', interactableKind: 'eat', labelZh: '零食柜', fee: 0 },
+    'water-dispenser':   { kind: 'interactable', interactableKind: 'tap', labelZh: '饮水机' },
+  },
+}

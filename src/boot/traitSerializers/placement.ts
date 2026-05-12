@@ -8,7 +8,15 @@
 // here", not "remove this trait".
 
 import { registerTraitSerializer } from '../../save/traitRegistry'
-import { Bed, BarSeat, RoughSpot, Workstation } from '../../ecs/traits'
+import { Bed, BarSeat, RoughSpot, Workstation, TemplateRef } from '../../ecs/traits'
+
+interface TemplateRefSnap { id: string }
+registerTraitSerializer<TemplateRefSnap>({
+  id: 'templateRef',
+  trait: TemplateRef,
+  read: (e) => ({ id: e.get(TemplateRef)!.id }),
+  write: (e, v) => e.set(TemplateRef, { id: v.id }),
+})
 
 interface BedSnap {
   occupant: string | null

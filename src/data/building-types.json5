@@ -1,3 +1,7 @@
+// Building catalog. Every item is a `template` reference into
+// `object-templates.json5` plus placement params (role, count,
+// relTile, …). Authored data about each object kind lives in
+// the template; this file only declares which objects go where.
 {
   // ── OPEN FLOOR: commercial ──────────────────────────────────────────────
 
@@ -7,9 +11,9 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'bartender', role: 'supervisor', labelZh: '吧台' },
-        { type: 'bar_seat', role: 'customer_row', count: 5 },
-        { type: 'queue_point', role: 'queue' },
+        { template: 'workstation-bartender', role: 'supervisor' },
+        { template: 'bar-seat', role: 'customer_row', count: 5 },
+        { template: 'queue-point-bar', role: 'queue' },
       ],
     },
   },
@@ -26,7 +30,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'city_hr_clerk', role: 'supervisor', noInteractable: true, labelZh: '招聘窗口' },
+        { template: 'workstation-city-hr-clerk', role: 'supervisor' },
       ],
     },
   },
@@ -39,7 +43,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'realtor', role: 'supervisor', noInteractable: true, labelZh: '中介台' },
+        { template: 'workstation-realtor', role: 'supervisor' },
       ],
     },
   },
@@ -58,7 +62,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'recruiter', role: 'supervisor', noInteractable: true, labelZh: '招聘办公桌' },
+        { template: 'workstation-recruiter', role: 'supervisor' },
       ],
     },
   },
@@ -77,7 +81,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'researcher', role: 'supervisor', noInteractable: true, labelZh: '研究台' },
+        { template: 'workstation-researcher', role: 'supervisor' },
       ],
     },
   },
@@ -95,7 +99,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'secretary', role: 'supervisor', noInteractable: true, labelZh: '秘书办公桌' },
+        { template: 'workstation-secretary', role: 'supervisor' },
       ],
     },
   },
@@ -109,7 +113,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'civilian_doctor', role: 'supervisor', noInteractable: true, labelZh: '诊台' },
+        { template: 'workstation-civilian-doctor', role: 'supervisor' },
       ],
     },
   },
@@ -125,7 +129,7 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'civilian_pharmacist', role: 'supervisor', noInteractable: true, labelZh: '药品柜台' },
+        { template: 'workstation-civilian-pharmacist', role: 'supervisor' },
       ],
     },
   },
@@ -141,12 +145,12 @@
       algorithm: 'open_floor',
       extraDoors: [{ side: 'n', tiedToPrimary: false }],
       items: [
-        { type: 'workstation', specId: 'shop_morning_clerk',   role: 'counter', noInteractable: true, labelZh: '柜台' },
-        { type: 'workstation', specId: 'shop_afternoon_clerk', role: 'counter', noInteractable: true },
-        { type: 'landmark', role: 'shop_counter'  },
-        { type: 'landmark', role: 'shop_approach' },
-        { type: 'landmark', role: 'shop_entry'    },
-        { type: 'landmark', role: 'shop_exit'     },
+        { template: 'workstation-shop-clerk-morning',   role: 'counter' },
+        { template: 'workstation-shop-clerk-afternoon', role: 'counter' },
+        { template: 'landmark-shop-counter',  role: 'shopCounter'  },
+        { template: 'landmark-shop-approach', role: 'shopApproach' },
+        { template: 'landmark-shop-entry',    role: 'shopEntry'    },
+        { template: 'landmark-shop-exit',     role: 'shopExit'     },
       ],
     },
   },
@@ -163,16 +167,16 @@
       primaryDoor: 'n',
       extraDoors: [{ side: 's', tiedToPrimary: true }],
       items: [
-        { type: 'partition', orientation: 'h', rowFromTop: 3, doorTiedToPrimary: true },
+        { template: 'partition-horizontal', rowFromTop: 3, doorTiedToPrimary: true },
         // The factory_manager's desk is scenery — hire-verbs render via
         // FactoryManagerConversation on the talk-verb to the seated
         // manager. spawn.ts links worker stations to this desk by
         // matching specId, not by an Interactable kind.
-        { type: 'workstation', specId: 'factory_manager',        role: 'supervisor', noInteractable: true, labelZh: '经理办公桌' },
-        { type: 'workstation', specId: 'factory_engineer',        role: 'worker' },
-        { type: 'workstation', specId: 'factory_worker_morning',  role: 'worker' },
-        { type: 'workstation', specId: 'factory_worker_early',    role: 'worker' },
-        { type: 'workstation', specId: 'factory_worker_day',      role: 'worker' },
+        { template: 'workstation-factory-manager',        role: 'supervisor' },
+        { template: 'workstation-factory-engineer',       role: 'worker' },
+        { template: 'workstation-factory-worker-morning', role: 'worker' },
+        { template: 'workstation-factory-worker-early',   role: 'worker' },
+        { template: 'workstation-factory-worker-day',     role: 'worker' },
       ],
     },
   },
@@ -230,7 +234,7 @@
       algorithm: 'cells',
       minCells: 3,
       maxCells: 6,
-      cellItems: [{ type: 'bed', tier: 'apartment', role: 'bed_row' }],
+      cellItems: [{ template: 'bed-apartment', role: 'bed_row' }],
     },
   },
 
@@ -241,7 +245,7 @@
       algorithm: 'cells',
       minCells: 2,
       maxCells: 4,
-      cellItems: [{ type: 'bed', tier: 'luxury', role: 'bed_row' }],
+      cellItems: [{ template: 'bed-luxury', role: 'bed_row' }],
     },
   },
 
@@ -251,7 +255,7 @@
     layout: {
       algorithm: 'open_floor',
       primaryDoor: 'n',
-      items: [{ type: 'bed', tier: 'flop', role: 'bed_row', count: 4 }],
+      items: [{ template: 'bed-flop', role: 'bed_row', count: 4 }],
     },
   },
 
@@ -261,7 +265,7 @@
     layout: {
       algorithm: 'open_floor',
       primaryDoor: 'e',
-      items: [{ type: 'bed', tier: 'dorm', role: 'bed_row', count: 2 }],
+      items: [{ template: 'bed-dorm', role: 'bed_row', count: 2 }],
     },
   },
 
@@ -285,11 +289,11 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'hangar_manager', role: 'supervisor', noInteractable: true, labelZh: '机库主管' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { template: 'workstation-hangar-manager', role: 'supervisor' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
       ],
     },
   },
@@ -311,15 +315,15 @@
     layout: {
       algorithm: 'open_floor',
       items: [
-        { type: 'workstation', specId: 'hangar_manager', role: 'supervisor', noInteractable: true, labelZh: '船坞主管' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
-        { type: 'workstation', specId: 'hangar_worker',  role: 'worker' },
+        { template: 'workstation-hangar-manager', role: 'supervisor' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
+        { template: 'workstation-hangar-worker',  role: 'worker' },
       ],
     },
   },
@@ -373,33 +377,33 @@
         // Reception — desk is scenery; AEConversation +
         // ShipDealerConversation render via the on-duty ae_director's
         // talk-verb in NPCDialog.
-        { type: 'workstation', specId: 'ae_director', relTile: { x: 3.5, y: 13.5 }, noInteractable: true, labelZh: '前台' },
+        { template: 'workstation-ae-director', relTile: { x: 3.5, y: 13.5 } },
 
         // Phase 6.2.F — AE supply dealer kiosk. Sits in the lobby a few
         // tiles south of the reception desk, still inside the lobby
         // strip (cols 0–6). Talk-verb opens the order-supply /
         // order-fuel panel (aeSupplyDealer dialog branch).
-        { type: 'workstation', specId: 'ae_supply_dealer', relTile: { x: 3.5, y: 18.5 }, noInteractable: true, labelZh: '补给柜台' },
+        { template: 'workstation-ae-supply-dealer', relTile: { x: 3.5, y: 18.5 } },
 
         // Phase 4.2 — AE clinic kiosk. Same lobby strip; talk-verb opens
         // the aeClinic branch (rep-gated diagnose+treat flow with AE
         // perks). The on-duty NPC's specId === 'ae_doctor' drives the
         // role flag in NPCDialog.
-        { type: 'workstation', specId: 'ae_doctor', relTile: { x: 3.5, y: 22.5 }, noInteractable: true, labelZh: 'AE 诊台' },
+        { template: 'workstation-ae-doctor', relTile: { x: 3.5, y: 22.5 } },
 
         // Board row (y = 4.5)
-        { type: 'workstation', specId: 'ae_board_chair',     relTile: { x: 8.5,  y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
-        { type: 'workstation', specId: 'ae_board_cfo',       relTile: { x: 12.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
-        { type: 'workstation', specId: 'ae_board_cto',       relTile: { x: 16.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
-        { type: 'workstation', specId: 'ae_board_coo',       relTile: { x: 20.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
-        { type: 'workstation', specId: 'ae_board_cmo',       relTile: { x: 24.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
+        { template: 'workstation-ae-board-chair', relTile: { x: 8.5,  y: 4.5 } },
+        { template: 'workstation-ae-board-cfo',   relTile: { x: 12.5, y: 4.5 } },
+        { template: 'workstation-ae-board-cto',   relTile: { x: 16.5, y: 4.5 } },
+        { template: 'workstation-ae-board-coo',   relTile: { x: 20.5, y: 4.5 } },
+        { template: 'workstation-ae-board-cmo',   relTile: { x: 24.5, y: 4.5 } },
 
         // Manager row (y = 10.5)
-        { type: 'workstation', specId: 'ae_floor_manager',   relTile: { x: 8.5,  y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
-        { type: 'workstation', specId: 'ae_design_lead',     relTile: { x: 12.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
-        { type: 'workstation', specId: 'ae_ops_manager',     relTile: { x: 16.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
-        { type: 'workstation', specId: 'ae_hr_manager',      relTile: { x: 20.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
-        { type: 'workstation', specId: 'ae_quality_manager', relTile: { x: 24.5, y: 10.5 }, kind: 'work', labelZh: '经理办公桌' },
+        { template: 'workstation-ae-floor-manager',   relTile: { x: 8.5,  y: 10.5 } },
+        { template: 'workstation-ae-design-lead',     relTile: { x: 12.5, y: 10.5 } },
+        { template: 'workstation-ae-ops-manager',     relTile: { x: 16.5, y: 10.5 } },
+        { template: 'workstation-ae-hr-manager',      relTile: { x: 20.5, y: 10.5 } },
+        { template: 'workstation-ae-quality-manager', relTile: { x: 24.5, y: 10.5 } },
 
         // Factory floor — 5×4 grid starting at (8.5, 18.5), colStride=4, rowStride=2.
         {
@@ -407,27 +411,27 @@
           relTile: { x: 8.5, y: 18.5 },
           cols: 5, rows: 4,
           colStride: 4, rowStride: 2,
-          specIds: [
-            'ae_senior_engineer', 'ae_engineer',   'ae_engineer',   'ae_engineer',   'ae_senior_engineer',
-            'ae_engineer',        'ae_technician', 'ae_technician', 'ae_technician', 'ae_technician',
-            'ae_technician',      'ae_assembler',  'ae_assembler',  'ae_assembler',  'ae_assembler',
-            'ae_assembler',       'ae_assembler',  'ae_assembler',  'ae_assembler',  'ae_technician',
+          templates: [
+            'workstation-ae-senior-engineer', 'workstation-ae-engineer',   'workstation-ae-engineer',   'workstation-ae-engineer',   'workstation-ae-senior-engineer',
+            'workstation-ae-engineer',        'workstation-ae-technician', 'workstation-ae-technician', 'workstation-ae-technician', 'workstation-ae-technician',
+            'workstation-ae-technician',      'workstation-ae-assembler',  'workstation-ae-assembler',  'workstation-ae-assembler',  'workstation-ae-assembler',
+            'workstation-ae-assembler',       'workstation-ae-assembler',  'workstation-ae-assembler',  'workstation-ae-assembler',  'workstation-ae-technician',
           ],
         },
 
         // Lounge beds (y = 15.5)
-        { type: 'bed', tier: 'lounge', relTile: { x: 16, y: 15.5 } },
-        { type: 'bed', tier: 'lounge', relTile: { x: 19, y: 15.5 } },
-        { type: 'bed', tier: 'lounge', relTile: { x: 22, y: 15.5 } },
-        { type: 'bed', tier: 'lounge', relTile: { x: 25, y: 15.5 } },
+        { template: 'bed-lounge', relTile: { x: 16, y: 15.5 } },
+        { template: 'bed-lounge', relTile: { x: 19, y: 15.5 } },
+        { template: 'bed-lounge', relTile: { x: 22, y: 15.5 } },
+        { template: 'bed-lounge', relTile: { x: 25, y: 15.5 } },
 
         // Amenity row (y = 14.5 for gym; y = 14 for tap/snack — tile-aligned)
-        { type: 'gym_equipment', labelZh: '跑步机', relTile: { x: 8.5,  y: 14.5 } },
-        { type: 'gym_equipment', labelZh: '杠铃',   relTile: { x: 10.5, y: 14.5 } },
-        { type: 'gym_equipment', labelZh: '哑铃台', relTile: { x: 12.5, y: 14.5 } },
-        { type: 'snack_cabinet',                    relTile: { x: 15,   y: 14   } },
-        { type: 'snack_cabinet',                    relTile: { x: 22,   y: 14   } },
-        { type: 'water_dispenser',                  relTile: { x: 26,   y: 14   } },
+        { template: 'gym-treadmill',     relTile: { x: 8.5,  y: 14.5 } },
+        { template: 'gym-barbell',       relTile: { x: 10.5, y: 14.5 } },
+        { template: 'gym-dumbbell-rack', relTile: { x: 12.5, y: 14.5 } },
+        { template: 'snack-cabinet',     relTile: { x: 15,   y: 14   } },
+        { template: 'snack-cabinet',     relTile: { x: 22,   y: 14   } },
+        { template: 'water-dispenser',   relTile: { x: 26,   y: 14   } },
       ],
     },
   },

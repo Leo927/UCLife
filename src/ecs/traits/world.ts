@@ -16,6 +16,12 @@ export type { BedTier, InteractableKind, RoadKind }
 // the realtor and daily-economics systems.
 export type OwnerKind = 'state' | 'faction' | 'character'
 
+// Authored-data backref. Stamped on every entity spawned from an
+// object template (`src/data/object-templates.json5`) so runtime
+// code can recover the entity's design-time origin. Inspector,
+// save/load, and future "swap template" tooling all key off this.
+export const TemplateRef = trait({ id: '' })
+
 export const Wall = trait({ x: 0, y: 0, w: 0, h: 0 })
 
 // Procgen road surface — purely visual + semantic; the pathfinder treats

@@ -1,7 +1,7 @@
 import type {
-  ProcgenItem, ProcgenWorkstationItem, ProcgenBedItem,
-  ProcgenBarSeatItem, ProcgenQueueItem,
+  ProcgenItem, ProcgenPlacedItem, ProcgenPartitionItem,
 } from '../data/buildingTypes'
+import { getObjectTemplate } from '../data/objectTemplates'
 import type { DoorPlacement } from './slots'
 import { worldConfig } from '../config'
 
@@ -11,8 +11,20 @@ const WALL_T = worldConfig.wallThicknessPx
 export type PlacedProcgenItem = {
   x: number
   y: number
-  item: ProcgenItem
-  specId?: string  // resolved for workstation items
+  item: ProcgenPlacedItem
+}
+
+function isPlacedItem(item: ProcgenItem): item is ProcgenPlacedItem {
+  return 'role' in item
+}
+
+function isPartition(item: ProcgenItem): item is ProcgenPartitionItem {
+  return !isPlacedItem(item) && getObjectTemplate(item.template).kind === 'partition'
+}
+
+export function findPartition(items: ProcgenItem[]): ProcgenPartitionItem | null {
+  for (const it of items) if (isPartition(it)) return it
+  return null
 }
 
 // Place items for an open_floor building. partitionY is the pixel Y of the
@@ -25,6 +37,7 @@ export function layoutOpenFloorItems(
   partitionY: number | null,
 ): PlacedProcgenItem[] {
   const result: PlacedProcgenItem[] = []
+  const placed = items.filter(isPlacedItem)
 
   const centerX = rect.x + Math.floor(rect.w / TILE / 2) * TILE + TILE / 2
   const supervisorY = rect.y + TILE + TILE / 2
@@ -34,27 +47,20 @@ export function layoutOpenFloorItems(
     : rect.y + Math.floor(rect.h * 0.4)
 
   // Supervisor / counter workstations — all land at the same center position.
-  const supervisorItems = items.filter(
-    (i): i is ProcgenWorkstationItem =>
-      i.type === 'workstation' && (i.role === 'supervisor' || i.role === 'counter'),
+  // Each item materializes once; multi-shift counters appear as multiple items
+  // (e.g. shop_morning_clerk + shop_afternoon_clerk) all referencing the same
+  // supervisor coordinate.
+  const supervisorItems = placed.filter(
+    (i) => i.role === 'supervisor' || i.role === 'counter',
   )
   for (const item of supervisorItems) {
-    const specIds = item.specIds ?? (item.specId ? [item.specId] : [])
-    for (const specId of specIds) {
-      result.push({ x: centerX, y: supervisorY, item, specId })
-    }
-    // Handle items with no specId/specIds (no-Interactable counter workstations)
-    if (item.noInteractable && !item.specId && !item.specIds) {
-      result.push({ x: centerX, y: supervisorY, item })
-    }
+    result.push({ x: centerX, y: supervisorY, item })
   }
 
   // Customer row — placed 1 tile below supervisor, centered.
-  const customerRowItems = items.filter(
-    (i): i is ProcgenBarSeatItem => i.type === 'bar_seat' && i.role === 'customer_row',
-  )
+  const customerRowItems = placed.filter((i) => i.role === 'customer_row')
   for (const item of customerRowItems) {
-    const count = item.count
+    const count = item.count ?? 1
     const rowY = supervisorY + TILE
     const startX = centerX - Math.floor((count - 1) / 2) * TILE
     for (let i = 0; i < count; i++) {
@@ -63,10 +69,7 @@ export function layoutOpenFloorItems(
   }
 
   // Worker grid — 2-column grid centered in the zone below partition.
-  const workerItems = items.filter(
-    (i): i is ProcgenWorkstationItem =>
-      i.type === 'workstation' && i.role === 'worker',
-  )
+  const workerItems = placed.filter((i) => i.role === 'worker')
   if (workerItems.length > 0) {
     const gridCols = Math.min(2, workerItems.length)
     const gridRows = Math.ceil(workerItems.length / gridCols)
@@ -85,15 +88,12 @@ export function layoutOpenFloorItems(
         x: gridStartX + col * spacing,
         y: gridStartY + row * spacing,
         item,
-        specId: item.specId,
       })
     })
   }
 
   // Bed row — evenly spaced along the south wall.
-  const bedRowItems = items.filter(
-    (i): i is ProcgenBedItem => i.type === 'bed' && i.role === 'bed_row',
-  )
+  const bedRowItems = placed.filter((i) => i.role === 'bed_row')
   for (const item of bedRowItems) {
     const count = item.count ?? 1
     const bedY = rect.y + rect.h - TILE - WALL_T / 2
@@ -103,13 +103,27 @@ export function layoutOpenFloorItems(
   }
 
   // Queue point — near the primary door.
-  const queueItem = items.find((i): i is ProcgenQueueItem => i.type === 'queue_point')
+  const queueItem = placed.find((i) => i.role === 'queue')
   if (queueItem) {
     const qx = rect.x + primaryDoor.offsetPx + primaryDoor.widthPx / 2
     const qy = (primaryDoor.side === 's' || primaryDoor.side === 'e')
       ? rect.y + rect.h - WALL_T - 12
       : rect.y + WALL_T + 12
     result.push({ x: qx, y: qy, item: queueItem })
+  }
+
+  // Shop landmarks have their own roles (shopCounter / shopApproach /
+  // shopEntry / shopExit). They don't get x/y here — spawn computes
+  // their positions from the resolved counter + door geometry. Push them
+  // with placeholder coords so the per-item walk still iterates them
+  // and the spawn dispatcher sees the landmark templates.
+  const landmarkRoles: ProcgenPlacedItem['role'][] = [
+    'shopCounter', 'shopApproach', 'shopEntry', 'shopExit',
+  ]
+  for (const item of placed) {
+    if (landmarkRoles.includes(item.role)) {
+      result.push({ x: 0, y: 0, item })
+    }
   }
 
   return result

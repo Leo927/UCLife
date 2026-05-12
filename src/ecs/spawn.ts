@@ -11,9 +11,14 @@ import {
   EntityKey, Transit,
   FlightHub, Road,
   Ship, ShipRoom, WeaponMount, IsFlagshipMark, IsInActiveFleet,
-  Hangar, OrbitalLift,
+  Hangar, OrbitalLift, TemplateRef,
   type InteractableKind,
 } from './traits'
+import {
+  getObjectTemplate,
+  type ObjectTemplateId, type WorkstationTemplate, type BedTemplate,
+  type BarSeatTemplate, type InteractableTemplate,
+} from '../data/objectTemplates'
 import { getHangarFacilityType } from '../data/facilityTypes'
 import { getOrbitalLift } from '../data/orbitalLifts'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
@@ -37,13 +42,12 @@ import {
 } from '../procgen'
 import { placeFixedBuilding } from '../procgen/slots'
 import type { DoorPlacement, DoorSide, PlacedSlot } from '../procgen/slots'
-import { layoutOpenFloorItems } from '../procgen/itemLayout'
+import { layoutOpenFloorItems, findPartition } from '../procgen/itemLayout'
 import { layoutShipInterior } from '../procgen/ship'
 import {
-  getBuildingType,
-  type CraftedItem, type ProcgenItem, type OpenFloorLayout,
-  type CellsLayout, type CraftedLayout, type ParkLayout,
-  type ProcgenWorkstationItem,
+  getBuildingType, isWorkstationGrid,
+  type CraftedItem, type ProcgenPlacedItem,
+  type OpenFloorLayout, type CellsLayout, type CraftedLayout, type ParkLayout,
 } from '../data/buildingTypes'
 import type { TransitTerminal, TransitPlacementKind } from '../data/transit'
 import { setLandmark, clearLandmarks, addRoughSource, setShopRect } from '../data/landmarks'
@@ -207,8 +211,8 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
 
   // Spawn partition (if any) and compute its Y for zone splitting.
   let partitionY: number | null = null
-  const partItem = layout.items.find((i) => i.type === 'partition')
-  if (partItem?.type === 'partition') {
+  const partItem = findPartition(layout.items)
+  if (partItem) {
     partitionY = rect.y + partItem.rowFromTop * TILE
     const doorOffsetPx = partItem.doorTiedToPrimary
       ? primaryDoor.offsetPx
@@ -230,27 +234,32 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
   const counters: Record<string, number> = {}
   let counterPos: { x: number; y: number } | undefined
 
-  // Workers in a building with a recruiting-manager supervisor (today
-  // only `factory_manager`) get their hires routed through that
-  // manager's desk via the FactoryManagerConversation talk-verb. Collect
-  // refs in pass 1, link in pass 2. specId-keyed because the workstation
-  // entity itself carries no Interactable kind anymore — it's scenery.
+  // Workers whose supervisor is the factory manager get their hires
+  // routed through the manager's desk (FactoryManagerConversation
+  // talk-verb). Templates flag the hub via `factoryManagerHub: true`;
+  // we collect refs in pass 1, link in pass 2.
   let managerStation: Entity | null = null
   const workerStations: Entity[] = []
+  let hasBarSeats = false
+  let hasShopLandmarks = false
 
   for (const pi of placedItems) {
-    if (pi.item.type === 'workstation') {
-      const role = (pi.item as ProcgenWorkstationItem).role
-      if ((role === 'supervisor' || role === 'counter') && counterPos === undefined) {
+    const template = getObjectTemplate(pi.item.template)
+    if (template.kind === 'workstation') {
+      if ((pi.item.role === 'supervisor' || pi.item.role === 'counter') && counterPos === undefined) {
         counterPos = { x: pi.x, y: pi.y }
       }
+    } else if (template.kind === 'bar_seat') {
+      hasBarSeats = true
+    } else if (template.kind === 'landmark') {
+      hasShopLandmarks = true
     }
+
     const ent = spawnProcgenItem(pi, counters)
-    if (ent && pi.item.type === 'workstation') {
-      const wsItem = pi.item as ProcgenWorkstationItem
-      if (wsItem.role === 'supervisor' && wsItem.specId === 'factory_manager') {
+    if (ent && template.kind === 'workstation') {
+      if (pi.item.role === 'supervisor' && template.factoryManagerHub) {
         managerStation = ent
-      } else if (wsItem.role === 'worker') {
+      } else if (pi.item.role === 'worker') {
         workerStations.push(ent)
       }
     }
@@ -264,10 +273,9 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
   }
 
   // Shop setup: shop_rect + 4 landmarks derived from door/counter positions.
-  // After road procgen, the shop's primary door faces the road and its
-  // extra door sits on the opposite parallel wall. Customer entry uses the
-  // extra door, exit uses the primary.
-  const hasShopLandmarks = layout.items.some((i) => i.type === 'landmark')
+  // The landmark templates declare which named landmark to register; we
+  // resolve the position from door/counter geometry rather than the item's
+  // placeholder coords (procgen layout doesn't compute landmark positions).
   if (hasShopLandmarks) {
     setShopRect(rect)
     if (counterPos) {
@@ -280,82 +288,114 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
   }
 
   // Bar setup: barCounter landmark from the supervisor workstation position.
-  const hasBarSeats = layout.items.some((i) => i.type === 'bar_seat')
   if (hasBarSeats && counterPos) {
     setLandmark('barCounter', counterPos)
   }
 }
 
 function spawnProcgenItem(
-  pi: { x: number; y: number; item: ProcgenItem; specId?: string },
+  pi: { x: number; y: number; item: ProcgenPlacedItem },
   counters: Record<string, number>,
 ): Entity | null {
-  const { x, y, item, specId } = pi
+  const { x, y, item } = pi
+  const template = getObjectTemplate(item.template)
 
-  switch (item.type) {
-    case 'workstation': {
-      const sid = specId
-      if (!sid) return null
-      const wsItem = item as ProcgenWorkstationItem
-      const idx = counters[sid] ?? 0
-      counters[sid] = idx + 1
-      const ent = wsItem.noInteractable
-        ? world.spawn(
-            Position({ x, y }),
-            Workstation({ specId: sid, occupant: null }),
-            EntityKey({ key: `ws-${sid}` }),
-          )
-        : world.spawn(
-            Position({ x, y }),
-            Interactable({ kind: (wsItem.kind ?? 'work') as InteractableKind, label: wsItem.labelZh ?? '工位' }),
-            Workstation({ specId: sid, occupant: null }),
-            EntityKey({ key: `ws-${sid}` }),
-          )
-      // Phase 5.5.4 — recruiter desk carries a Recruiter trait (criteria
-      // block + per-day counters). Keep the trait attachment co-located
-      // with workstation creation so a player who buys the office sees a
-      // valid Recruiter trait from day one. Applies regardless of
-      // noInteractable: the trait is independent of the cell-verb.
-      if (sid === 'recruiter') ent.add(Recruiter)
-      return ent
-    }
-
-    case 'bar_seat': {
-      const idx = counters['bar_seat'] ?? 0
-      counters['bar_seat'] = idx + 1
-      world.spawn(
-        Position({ x, y }),
-        Interactable({ kind: 'bar', label: '酒吧座位', fee: 10 }),
-        BarSeat({ occupant: null }),
-        EntityKey({ key: `barseat-${idx}` }),
-      )
+  switch (template.kind) {
+    case 'workstation':
+      return spawnWorkstation(item.template, template, { x, y })
+    case 'bar_seat':
+      return spawnBarSeat(item.template, template, { x, y }, counters)
+    case 'bed':
+      return spawnBed(item.template, template, { x, y }, counters)
+    case 'queue_point':
+      setLandmark(template.landmarkRole, { x, y })
       return null
-    }
-
-    case 'bed': {
-      const tier = item.type === 'bed' ? item.tier : 'flop'
-      const rent = bedRent(tier)
-      const idx = counters[`bed-${tier}`] ?? 0
-      counters[`bed-${tier}`] = idx + 1
-      world.spawn(
-        Position({ x, y }),
-        Interactable({ kind: 'sleep', label: bedLabel(tier), fee: rent }),
-        Bed({ tier, nightlyRent: rent, occupant: null, rentPaidUntilMs: 0 }),
-        EntityKey({ key: `bed-${tier}-${idx}` }),
-      )
-      return null
-    }
-
-    case 'queue_point': {
-      setLandmark('barQueue', { x, y })
-      return null
-    }
-
     case 'landmark':
+      // Position resolved by spawnOpenFloor's geometry walk; nothing to do here.
+      return null
     case 'partition':
-      return null  // handled separately in spawnOpenFloor
+      return null
+    case 'interactable':
+      return spawnInteractable(item.template, template, { x, y })
   }
-  return null
+}
+
+// ── Template → entity instantiation helpers ────────────────────────────────
+
+function spawnWorkstation(
+  templateId: ObjectTemplateId,
+  template: WorkstationTemplate,
+  pos: { x: number; y: number },
+): Entity {
+  const traits = template.interactableKind === null
+    ? [
+        Position(pos),
+        Workstation({ specId: template.specId, occupant: null }),
+        EntityKey({ key: `ws-${template.specId}` }),
+        TemplateRef({ id: templateId }),
+      ]
+    : [
+        Position(pos),
+        Interactable({ kind: template.interactableKind, label: template.labelZh ?? '工位' }),
+        Workstation({ specId: template.specId, occupant: null }),
+        EntityKey({ key: `ws-${template.specId}` }),
+        TemplateRef({ id: templateId }),
+      ]
+  const ent = world.spawn(...traits)
+  if (template.addRecruiterTrait) ent.add(Recruiter)
+  return ent
+}
+
+function spawnBarSeat(
+  templateId: ObjectTemplateId,
+  template: BarSeatTemplate,
+  pos: { x: number; y: number },
+  counters: Record<string, number>,
+): Entity {
+  const idx = counters[templateId] ?? 0
+  counters[templateId] = idx + 1
+  return world.spawn(
+    Position(pos),
+    Interactable({ kind: 'bar', label: template.labelZh, fee: template.fee }),
+    BarSeat({ occupant: null }),
+    EntityKey({ key: `barseat-${idx}` }),
+    TemplateRef({ id: templateId }),
+  )
+}
+
+function spawnBed(
+  templateId: ObjectTemplateId,
+  template: BedTemplate,
+  pos: { x: number; y: number },
+  counters: Record<string, number>,
+): Entity {
+  const tier = template.tier
+  const rent = bedRent(tier)
+  const idx = counters[templateId] ?? 0
+  counters[templateId] = idx + 1
+  return world.spawn(
+    Position(pos),
+    Interactable({ kind: 'sleep', label: bedLabel(tier), fee: rent }),
+    Bed({ tier, nightlyRent: rent, occupant: null, rentPaidUntilMs: 0 }),
+    EntityKey({ key: `bed-${tier}-${idx}` }),
+    TemplateRef({ id: templateId }),
+  )
+}
+
+function spawnInteractable(
+  templateId: ObjectTemplateId,
+  template: InteractableTemplate,
+  pos: { x: number; y: number },
+): Entity {
+  return world.spawn(
+    Position(pos),
+    Interactable({
+      kind: template.interactableKind,
+      label: template.labelZh,
+      fee: template.fee ?? 0,
+    }),
+    TemplateRef({ id: templateId }),
+  )
 }
 
 // ── CELL ALGORITHM ───────────────────────────────────────────────────────────
@@ -378,14 +418,17 @@ function spawnCells(typeId: string, layout: CellsLayout, slot: PlacedSlot, rng: 
 
   const beds = cellLayout.cells.map((c, i) => {
     const item = layout.cellItems[0]
-    if (!item || item.type !== 'bed') return null
-    const tier = item.tier
+    if (!item || !('role' in item)) return null
+    const template = getObjectTemplate(item.template)
+    if (template.kind !== 'bed') return null
+    const tier = template.tier
     const rent = bedRent(tier)
     return world.spawn(
       Position({ x: c.bedPos.x, y: c.bedPos.y }),
       Interactable({ kind: 'sleep', label: bedLabel(tier), fee: rent }),
       Bed({ tier, nightlyRent: rent, occupant: null, rentPaidUntilMs: 0 }),
       EntityKey({ key: `bed-${typeId}-${i}` }),
+      TemplateRef({ id: item.template }),
     )
   })
 
@@ -446,96 +489,52 @@ function spawnCraftedItem(
   rect: { x: number; y: number; w: number; h: number },
   counters: Record<string, number>,
 ): void {
-  switch (item.type) {
-    case 'workstation': {
-      const px = rect.x + item.relTile.x * TILE
-      const py = rect.y + item.relTile.y * TILE
-      // `noInteractable: true` makes the desk pure scenery — used for
-      // service-side workstations (cashier, clinic, secretary, etc.)
-      // where the verb lives on the worker on duty's body, not the
-      // tile. See Design/social/diegetic-management.md.
-      if (item.noInteractable) {
+  if (isWorkstationGrid(item)) {
+    let idx = 0
+    for (let r = 0; r < item.rows; r++) {
+      for (let c = 0; c < item.cols; c++) {
+        const templateId = item.templates[idx]
+        const template = getObjectTemplate(templateId)
+        if (template.kind !== 'workstation') {
+          throw new Error(`workstation_grid template "${templateId}" is not a workstation`)
+        }
+        const px = rect.x + (item.relTile.x + c * item.colStride) * TILE
+        const py = rect.y + (item.relTile.y + r * item.rowStride) * TILE
+        const kind: InteractableKind = template.interactableKind ?? 'work'
         world.spawn(
           Position({ x: px, y: py }),
-          Workstation({ specId: item.specId, occupant: null }),
-          EntityKey({ key: `ws-${item.specId}` }),
+          Interactable({ kind, label: `工位 ${idx + 1}` }),
+          Workstation({ specId: template.specId, occupant: null }),
+          EntityKey({ key: `ws-ae-floor-${idx}` }),
+          TemplateRef({ id: templateId }),
         )
-        break
+        idx++
       }
-      world.spawn(
-        Position({ x: px, y: py }),
-        Interactable({ kind: (item.kind ?? 'work') as InteractableKind, label: item.labelZh ?? '工位' }),
-        Workstation({ specId: item.specId, occupant: null }),
-        EntityKey({ key: `ws-${item.specId}` }),
-      )
-      break
     }
+    return
+  }
 
-    case 'workstation_grid': {
-      let idx = 0
-      for (let r = 0; r < item.rows; r++) {
-        for (let c = 0; c < item.cols; c++) {
-          const specId = item.specIds[idx]
-          const px = rect.x + (item.relTile.x + c * item.colStride) * TILE
-          const py = rect.y + (item.relTile.y + r * item.rowStride) * TILE
-          world.spawn(
-            Position({ x: px, y: py }),
-            Interactable({ kind: 'work', label: `工位 ${idx + 1}` }),
-            Workstation({ specId, occupant: null }),
-            EntityKey({ key: `ws-ae-floor-${idx}` }),
-          )
-          idx++
-        }
-      }
+  const template = getObjectTemplate(item.template)
+  const px = rect.x + item.relTile.x * TILE
+  const py = rect.y + item.relTile.y * TILE
+  switch (template.kind) {
+    case 'workstation':
+      spawnWorkstation(item.template, template, { x: px, y: py })
       break
-    }
-
-    case 'bed': {
-      const px = rect.x + item.relTile.x * TILE
-      const py = rect.y + item.relTile.y * TILE
-      const tier = item.tier
-      const rent = bedRent(tier)
-      const idx = counters[`bed-${tier}`] ?? 0
-      counters[`bed-${tier}`] = idx + 1
-      world.spawn(
-        Position({ x: px, y: py }),
-        Interactable({ kind: 'sleep', label: bedLabel(tier), fee: rent }),
-        Bed({ tier, nightlyRent: rent, occupant: null, rentPaidUntilMs: 0 }),
-        EntityKey({ key: `bed-${tier}-${idx}` }),
-      )
+    case 'bed':
+      spawnBed(item.template, template, { x: px, y: py }, counters)
       break
-    }
-
-    case 'gym_equipment': {
-      const px = rect.x + item.relTile.x * TILE
-      const py = rect.y + item.relTile.y * TILE
-      world.spawn(
-        Position({ x: px, y: py }),
-        Interactable({ kind: 'gym', label: item.labelZh }),
-      )
+    case 'interactable':
+      spawnInteractable(item.template, template, { x: px, y: py })
       break
-    }
-
-    case 'snack_cabinet': {
-      const px = rect.x + item.relTile.x * TILE
-      const py = rect.y + item.relTile.y * TILE
-      world.spawn(
-        Position({ x: px, y: py }),
-        Interactable({ kind: 'eat', label: '零食柜', fee: 0 }),
-      )
+    case 'bar_seat':
+      spawnBarSeat(item.template, template, { x: px, y: py }, counters)
       break
-    }
-
-    case 'water_dispenser': {
-      const px = rect.x + item.relTile.x * TILE
-      const py = rect.y + item.relTile.y * TILE
-      // No addRoughSource — corporate water is clean (no hygiene penalty).
-      world.spawn(
-        Position({ x: px, y: py }),
-        Interactable({ kind: 'tap', label: '饮水机' }),
-      )
+    case 'queue_point':
+    case 'landmark':
+    case 'partition':
+      // Not applicable in crafted layout context.
       break
-    }
   }
 }
 

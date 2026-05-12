@@ -1,5 +1,6 @@
 import json5 from 'json5'
 import raw from './building-types.json5?raw'
+import type { ObjectTemplateId } from './objectTemplates'
 
 export type DoorSide = 'n' | 's' | 'e' | 'w'
 
@@ -10,103 +11,59 @@ export type ProcgenItemRole =
   | 'customer_row'  // N items in row below supervisor
   | 'bed_row'       // N items along south wall
   | 'queue'         // 1 item near primary door
+  | 'shopCounter' | 'shopApproach' | 'shopEntry' | 'shopExit'  // shop landmark anchors
 
-export type ProcgenWorkstationItem = {
-  type: 'workstation'
-  specId?: string
-  specIds?: string[]
+// ── Procgen items (open_floor / cells layouts) ──────────────────────────────
+//
+// All procgen items carry a `template` reference into objectTemplates.json5
+// plus placement params relevant to the open_floor / cells algorithms. The
+// spawn dispatcher resolves the template to figure out which traits to
+// construct; this file only declares the placement intent.
+
+export interface ProcgenPlacedItem {
+  template: ObjectTemplateId
   role: ProcgenItemRole
-  kind?: string
-  labelZh?: string
-  noInteractable?: boolean
-}
-
-export type ProcgenBedItem = {
-  type: 'bed'
-  tier: 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge'
-  role: 'bed_row'
+  /** Bed rows and customer rows declare a count; other roles spawn one item. */
   count?: number
 }
 
-export type ProcgenBarSeatItem = {
-  type: 'bar_seat'
-  role: 'customer_row'
-  count: number
-}
-
-export type ProcgenQueueItem = {
-  type: 'queue_point'
-  role: 'queue'
-}
-
-export type ProcgenLandmarkItem = {
-  type: 'landmark'
-  role: 'shop_counter' | 'shop_approach' | 'shop_entry' | 'shop_exit'
-}
-
-export type ProcgenPartitionItem = {
-  type: 'partition'
-  orientation: 'h'
+export interface ProcgenPartitionItem {
+  template: ObjectTemplateId
   rowFromTop: number
   doorTiedToPrimary: boolean
 }
 
-export type ProcgenItem =
-  | ProcgenWorkstationItem
-  | ProcgenBedItem
-  | ProcgenBarSeatItem
-  | ProcgenQueueItem
-  | ProcgenLandmarkItem
-  | ProcgenPartitionItem
+export type ProcgenItem = ProcgenPlacedItem | ProcgenPartitionItem
 
-export type CraftedWorkstationItem = {
-  type: 'workstation'
-  specId: string
+// ── Crafted items (crafted layouts) ─────────────────────────────────────────
+//
+// Crafted items are placed at fixed relative-tile coordinates. workstation_grid
+// is a special structural directive that references an array of templates (one
+// per cell) rather than a single one.
+
+export interface CraftedPlacedItem {
+  template: ObjectTemplateId
   relTile: { x: number; y: number }
-  kind?: string
-  labelZh?: string
-  noInteractable?: boolean
 }
 
-export type CraftedWorkstationGridItem = {
+export interface CraftedWorkstationGridItem {
   type: 'workstation_grid'
   relTile: { x: number; y: number }
   cols: number
   rows: number
   colStride: number
   rowStride: number
-  specIds: string[]
+  /** One template per grid cell, row-major (`cols * rows` entries). */
+  templates: ObjectTemplateId[]
 }
 
-export type CraftedBedItem = {
-  type: 'bed'
-  tier: 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge'
-  relTile: { x: number; y: number }
+export type CraftedItem = CraftedPlacedItem | CraftedWorkstationGridItem
+
+export function isWorkstationGrid(item: CraftedItem): item is CraftedWorkstationGridItem {
+  return 'type' in item && item.type === 'workstation_grid'
 }
 
-export type CraftedGymItem = {
-  type: 'gym_equipment'
-  labelZh: string
-  relTile: { x: number; y: number }
-}
-
-export type CraftedSnackItem = {
-  type: 'snack_cabinet'
-  relTile: { x: number; y: number }
-}
-
-export type CraftedWaterItem = {
-  type: 'water_dispenser'
-  relTile: { x: number; y: number }
-}
-
-export type CraftedItem =
-  | CraftedWorkstationItem
-  | CraftedWorkstationGridItem
-  | CraftedBedItem
-  | CraftedGymItem
-  | CraftedSnackItem
-  | CraftedWaterItem
+// ── Layouts ─────────────────────────────────────────────────────────────────
 
 type ExtraDoorSpec = {
   side: DoorSide
