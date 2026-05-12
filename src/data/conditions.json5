@@ -249,6 +249,9 @@
       scarConditionId: 'chronic_scar_skin',
       scarTalentPenalty: null,
 
+      complicationRisk: 0.20,
+      complicationConditionId: 'infection_wound',
+
       symptomBlurbs: {
         mild:     '你被划伤了，渗着血。',
         moderate: '伤口持续渗血，刺痛感越来越重。',
@@ -484,6 +487,73 @@
           modifiers: [
             { statId: 'walkingSpeed', type: 'percentMult', value: -0.40 },
             { statId: 'intelligence', type: 'cap',         value: 40 },
+          ],
+        },
+      ],
+    },
+
+    // ─── Phase 4.1 — complication-spawned conditions ───────────────────
+    // Layered on top of a stalled wound. Slow but punishing if it goes
+    // untreated — pharmacy or clinic resolves it; left to fester, it
+    // can scar the same body part again with chronic_scar_skin.
+    {
+      id: 'infection_wound',
+      displayName: '伤口感染',
+      family: 'acute',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'treatment',
+      onsetPaths: [],  // Spawned only by complication branching from cut / similar wounds.
+
+      incubationDays: [0, 1],
+      riseDays: [1, 2],
+      peakSeverity: [50, 70],
+      peakDays: [2, 3],
+      peakSeverityFloor: 35,
+      baseRecoveryRate: 8,
+
+      requiredTreatmentTier: 1,
+
+      scarThreshold: 80,
+      scarConditionId: 'chronic_scar_skin',
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '伤口周围有些发烫。',
+        moderate: '伤口红肿化脓，全身发热。',
+        severe:   '高烧不退，伤口流脓，连呼吸都吃力。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你的伤口感染了。',
+        diagnosis:     '医生确诊：伤口感染。',
+        recoveryClean: '你的伤口感染消退了。',
+        recoveryScar:  '感染消退了，但留下了更明显的伤疤。',
+        complication:  null,
+        stalled:       '你的伤口感染未见好转，需要药店或诊所介入。',
+      },
+
+      glyphRef: 'illness_infection',
+
+      effects: [
+        {
+          severityRange: [25, 100],
+          nameZh:    '伤口感染（发热）',
+          flavorZh:  '伤口红肿化脓，全身发热。',
+          glyphRef:  'illness_infection',
+          modifiers: [
+            { statId: 'workPerfMul',     type: 'percentMult', value: -0.25 },
+            { statId: 'fatigueDrainMul', type: 'percentMult', value: 0.40 },
+          ],
+        },
+        {
+          severityRange: [55, 100],
+          nameZh:    '伤口感染（高烧）',
+          flavorZh:  '高烧不退，伤口流脓，连呼吸都吃力。',
+          glyphRef:  'illness_infection',
+          modifiers: [
+            { statId: 'strength',     type: 'cap',         value: 30 },
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.30 },
+            { statId: 'workingSpeed', type: 'percentMult', value: -0.50 },
           ],
         },
       ],

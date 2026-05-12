@@ -300,6 +300,41 @@ describe('physiology — injury catalog (Phase 4.1)', () => {
   }
 })
 
+describe('physiology — complication rolls (Phase 4.1)', () => {
+  it('cut left untreated eventually spawns infection_wound on the same body part', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'cut', '工地划伤', 1, 'left-hand')!
+    let infectionSeen = false
+    let stalledSeen = false
+    for (let day = 2; day <= 40; day++) {
+      physiologySystem(world, day)
+      const list = player.get(Conditions)!.list
+      if (list.some((c) => c.templateId === 'cut' && c.phase === 'stalled')) stalledSeen = true
+      const inf = list.find((c) => c.templateId === 'infection_wound')
+      if (inf) {
+        infectionSeen = true
+        expect(inf.bodyPart).toBe('left-hand')
+        break
+      }
+      // Sanity: the cut should remain on the list (untreated).
+      if (!list.some((c) => c.instanceId === inst.instanceId)) break
+    }
+    expect(stalledSeen, 'cut should reach stalled phase').toBe(true)
+    expect(infectionSeen, 'infection should spawn from stalled cut').toBe(true)
+  })
+
+  it('sprain (no complicationConditionId) never spawns a complication', () => {
+    const { world, player } = setup()
+    forceOnset(player, 'sprain', '滑倒', 1, 'left-ankle')
+    for (let day = 2; day <= 30; day++) physiologySystem(world, day)
+    const list = player.get(Conditions)!.list
+    // No infection_wound or any non-sprain/non-scar template appeared.
+    for (const c of list) {
+      expect(['sprain', 'chronic_weak_joint']).toContain(c.templateId)
+    }
+  })
+})
+
 describe('physiology — scar branching (Phase 4.1)', () => {
   // Drive the instance's severity past scarThreshold by direct mutation
   // through the Conditions trait — same shape the phase machine uses,

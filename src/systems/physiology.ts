@@ -322,7 +322,29 @@ function advanceInstance(
       return true
     }
   } else if (instance.phase === 'stalled') {
-    // Severity holds; treatment upgrade flips back to recovering.
+    // Severity holds; modifiers stay live. Each stalled day rolls a
+    // complication probability — on hit, spawn the linked condition on
+    // the same body part. Treatment upgrade flips back to recovering.
+    if (
+      template.complicationConditionId &&
+      typeof template.complicationRisk === 'number' &&
+      template.complicationRisk > 0
+    ) {
+      const cRng = rngFor(entity, dayNumber, `complication:${instance.instanceId}`)
+      if (cRng.uniform() < template.complicationRisk) {
+        onsetCondition(
+          entity,
+          template.complicationConditionId,
+          `并发自${template.displayName}`,
+          dayNumber,
+          rngFor(entity, dayNumber, `complication-spawn:${instance.instanceId}`),
+          instance.bodyPart,
+        )
+        if (entity.has(IsPlayer) && template.eventLogTemplates.complication) {
+          emitSim('log', { textZh: template.eventLogTemplates.complication, atMs: nowGameMs() })
+        }
+      }
+    }
     if (instance.currentTreatmentTier >= template.requiredTreatmentTier) {
       instance.phase = 'recovering'
     }

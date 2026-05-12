@@ -75,6 +75,13 @@ export interface ConditionTemplate {
   scarConditionId: string | null
   scarTalentPenalty: { stat: StatId; capDelta: number } | null
 
+  // Stalled-state complication roll. Each game-day spent stalled
+  // rolls complicationRisk against [0,1]; on hit, the linked
+  // condition spawns on the same body part as this instance.
+  // 0 disables the roll.
+  complicationRisk?: number
+  complicationConditionId?: string | null
+
   // Player-facing strings.
   symptomBlurbs: { mild: string; moderate: string; severe: string }
   eventLogTemplates: {
@@ -166,6 +173,16 @@ for (const c of parsed.conditions) {
   }
   if (c.scarConditionId !== null && !c.scarConditionId) {
     throw new Error(`conditions.json5: "${c.id}" scarConditionId must be string or null`)
+  }
+  if (c.complicationRisk !== undefined) {
+    if (typeof c.complicationRisk !== 'number' || c.complicationRisk < 0 || c.complicationRisk > 1) {
+      throw new Error(`conditions.json5: "${c.id}" complicationRisk must be number in [0,1]`)
+    }
+  }
+  if (c.complicationConditionId !== undefined && c.complicationConditionId !== null) {
+    if (typeof c.complicationConditionId !== 'string' || !c.complicationConditionId) {
+      throw new Error(`conditions.json5: "${c.id}" complicationConditionId must be string or null`)
+    }
   }
 }
 
