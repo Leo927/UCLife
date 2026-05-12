@@ -131,16 +131,26 @@ export function onsetCondition(
   // Initial band reconcile — at severity 0 only [0,0] bands are active,
   // but reconciler is the same path so we use it for symmetry.
   reconcileBands(entity, instance, template)
-  // Player-only side effects.
+  // Player-only side effects. Phase 4.2 — when the contagion path
+  // stamps a `source` string ("感染自李明（流感）"), surface it on the
+  // toast/log tail so the player can read who they caught it from.
+  // Source strings authored by non-contagion paths (rest, ingestion,
+  // environment, the "测试" force-onset string) are skipped so the log
+  // doesn't get noisy with self-evident causes.
+  const sourceTail = source.startsWith('感染自') ? `（${source}）` : ''
   if (entity.has(IsPlayer)) {
     const onset = template.eventLogTemplates.onset
-    if (onset) emitSim('toast', { textZh: onset, durationMs: 5000 })
-    if (onset) emitSim('log', { textZh: onset, atMs: nowGameMs() })
+    if (onset) {
+      const text = sourceTail ? `${onset}${sourceTail}` : onset
+      emitSim('toast', { textZh: text, durationMs: 5000 })
+      emitSim('log', { textZh: text, atMs: nowGameMs() })
+    }
   } else {
     const ch = entity.get(Character)
     if (ch?.name && template.eventLogTemplates.onset) {
+      const base = `${ch.name}${template.eventLogTemplates.onset.replace('你', '')}`
       emitSim('log', {
-        textZh: `${ch.name}${template.eventLogTemplates.onset.replace('你', '')}`,
+        textZh: sourceTail ? `${base}${sourceTail}` : base,
         atMs: nowGameMs(),
       })
     }
