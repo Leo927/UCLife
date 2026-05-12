@@ -89,6 +89,14 @@ export interface ConditionTemplate {
   environmentRisk?: number
   eligibleBodyParts?: readonly string[]
 
+  // Contagion (Phase 4.2). When `infectious=true`, every symptomatic
+  // carrier (phase ∈ rising/peak/recovering/stalled) rolls
+  // transmissionRate against susceptibles within contactRadius tiles
+  // on each active-zone tick. `contactRadius` is in tiles.
+  infectious?: boolean
+  transmissionRate?: number
+  contactRadius?: number
+
   // Player-facing strings.
   symptomBlurbs: { mild: string; moderate: string; severe: string }
   eventLogTemplates: {
@@ -207,6 +215,20 @@ for (const c of parsed.conditions) {
       if (typeof p !== 'string' || !p) {
         throw new Error(`conditions.json5: "${c.id}" eligibleBodyParts entries must be non-empty strings`)
       }
+    }
+  }
+  if (c.infectious !== undefined && typeof c.infectious !== 'boolean') {
+    throw new Error(`conditions.json5: "${c.id}" infectious must be boolean`)
+  }
+  if (c.infectious) {
+    if (typeof c.transmissionRate !== 'number' || c.transmissionRate < 0 || c.transmissionRate > 1) {
+      throw new Error(`conditions.json5: "${c.id}" infectious requires transmissionRate in [0,1]`)
+    }
+    if (typeof c.contactRadius !== 'number' || c.contactRadius <= 0) {
+      throw new Error(`conditions.json5: "${c.id}" infectious requires contactRadius > 0`)
+    }
+    if (!c.onsetPaths.includes('contagion')) {
+      throw new Error(`conditions.json5: "${c.id}" infectious must include 'contagion' in onsetPaths`)
     }
   }
 }

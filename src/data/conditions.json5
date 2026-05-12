@@ -80,6 +80,85 @@
       ],
     },
 
+    // Phase 4.2 contagion demo. Higher peak than a cold (modifiers
+    // actually bite), requires pharmacy to recover — an untreated flu
+    // can stall and complicate where a cold rides itself out. Spreads
+    // through active-zone contact (SIR layer in src/systems/contagion.ts).
+    // The intended demo loop: a flu sweeps a workplace, the player has
+    // to skip a shift, push through, or burn money on a clinic visit.
+    {
+      id: 'flu',
+      displayName: '流感',
+      family: 'acute',
+      bodyPartScope: 'systemic',
+      recoveryMode: 'treatment',
+      onsetPaths: ['contagion'],
+
+      // 5–7 game-day arc from infection to clean. Higher peak than the
+      // cold's ~50 — modifiers below stack onto walkingSpeed + drains.
+      incubationDays: [1, 3],
+      riseDays: [1, 2],
+      peakSeverity: [55, 75],
+      peakDays: [1, 2],
+      peakSeverityFloor: 35,
+      baseRecoveryRate: 10,
+
+      requiredTreatmentTier: 1,  // Pharmacy or clinic; untreated stalls.
+
+      scarThreshold: 90,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      // Contagion fields. 0.05 per active-zone tick (~1 game-min) at
+      // contactRadius 1.5 tiles is "co-located conversation distance."
+      // A short workplace exposure on a saturated day still has a real
+      // probability of landing.
+      infectious: true,
+      transmissionRate: 0.05,
+      contactRadius: 1.5,
+
+      symptomBlurbs: {
+        mild:     '你浑身发冷，关节酸痛。',
+        moderate: '你高烧不退，几乎下不了床。',
+        severe:   '你高烧昏沉，每动一下都剧烈头痛。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你感染了流感。',
+        diagnosis:     '医生确诊：流感。',
+        recoveryClean: '你的流感症状消退了。',
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       '你的流感未见好转，需要药店或诊所介入。',
+      },
+
+      glyphRef: 'illness_respiratory',
+
+      effects: [
+        {
+          severityRange: [20, 100],
+          nameZh:    '流感（轻症）',
+          flavorZh:  '你浑身发冷，关节酸痛。',
+          glyphRef:  'illness_respiratory',
+          modifiers: [
+            { statId: 'fatigueDrainMul', type: 'percentMult', value: 0.40 },
+            { statId: 'workPerfMul',     type: 'percentMult', value: -0.30 },
+          ],
+        },
+        {
+          severityRange: [55, 100],
+          nameZh:    '流感（高烧）',
+          flavorZh:  '你高烧不退，几乎下不了床。',
+          glyphRef:  'illness_respiratory',
+          modifiers: [
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.30 },
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.40 },
+            { statId: 'strength',     type: 'cap',         value: 40 },
+          ],
+        },
+      ],
+    },
+
     {
       id: 'food_poisoning',
       displayName: '食物中毒',
