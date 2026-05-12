@@ -30,7 +30,7 @@ import {
 import { CONDITIONS, type ConditionTemplate } from '../character/conditions'
 import { onsetCondition } from './physiology'
 import { SeededRng } from '../procgen/rng'
-import { worldConfig } from '../config'
+import { worldConfig, physiologyConfig } from '../config'
 
 const TILE = worldConfig.tilePx
 const TICK_MS = worldConfig.activeZone.membershipTickMin * 60 * 1000
@@ -234,4 +234,68 @@ export function prevalenceForTemplate(world: World, templateId: string): { carri
     }
   }
   return { carriers, total }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Inactive-zone aggregate SIR — per game-day, every non-Active living
+// character rolls one transmission chance scaled by the scene's
+// prevalence. Models the "rest of the city" without paying per-tick
+// contact-radius scans for thousands of off-camera NPCs.
+//
+// Formula (per template):
+//   p = prevalence × physiologyConfig.contagionAggregateDailyScalar
+// On hit: onset with source = '日常接触感染（{condition}）'. Active
+// characters are skipped — they're already covered by the per-tick SIR
+// loop in contagionSystem.
+//
+// Determinism: per-(scene, day, target, template). Same scene + same
+// day + same target ⇒ same roll, so reload-as-undo behaves predictably.
+// ──────────────────────────────────────────────────────────────────
+function aggregateRng(sceneSeed: string, day: number, targetKey: string, templateId: string): SeededRng {
+  return SeededRng.fromString(`contagion-agg:${sceneSeed}:${day}:${targetKey}:${templateId}`)
+}
+
+export function contagionAggregateSystem(world: World, dayNumber: number, sceneSeed: string): void {
+  const ifx = getInfectiousTemplates()
+  if (ifx.length === 0) return
+  const scalar = physiologyConfig.contagionAggregateDailyScalar
+  if (scalar <= 0) return
+
+  // Compute per-template prevalence in one pass over the scene.
+  const carriers = new Map<string, number>()
+  let total = 0
+  const livingNonActive: Entity[] = []
+  for (const entity of world.query(Character, Conditions, Health)) {
+    const h = entity.get(Health)
+    if (h?.dead) continue
+    total++
+    if (!entity.has(Active)) livingNonActive.push(entity)
+    const list = entity.get(Conditions)!.list
+    for (const inst of list) {
+      if (!isSymptomatic(inst.phase)) continue
+      for (const t of ifx) {
+        if (t.id === inst.templateId) {
+          carriers.set(t.id, (carriers.get(t.id) ?? 0) + 1)
+          break
+        }
+      }
+    }
+  }
+  if (total === 0 || livingNonActive.length === 0) return
+
+  for (const template of ifx) {
+    const count = carriers.get(template.id) ?? 0
+    if (count === 0) continue
+    const prevalence = count / total
+    const dailyP = prevalence * scalar
+    if (dailyP <= 0) continue
+    for (const target of livingNonActive) {
+      // Skip already-carriers.
+      const cond = target.get(Conditions)
+      if (cond?.list.some((c) => c.templateId === template.id)) continue
+      const rng = aggregateRng(sceneSeed, dayNumber, keyOf(target), template.id)
+      if (rng.uniform() >= dailyP) continue
+      onsetCondition(target, template.id, `日常接触感染（${template.displayName}）`, dayNumber, rng)
+    }
+  }
 }

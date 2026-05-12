@@ -30,4 +30,13 @@
   // First Aid is a planned skill split; until then, the player's
   // medicine level gates this verb.
   selfTreatMinSkillLevel: 30,
+
+  // Phase 4.2 — inactive-zone aggregate SIR. The active zone runs the
+  // per-tick contact-radius SIR (src/systems/contagion.ts); for every
+  // non-Active living character we instead do one daily aggregate
+  // roll: prevalence × aggregateDailyScalar. Tuned so an outbreak at
+  // ~10% scene prevalence yields ~1% daily new infections among the
+  // unexposed off-camera population — "a flu is going around" without
+  // burning the off-screen city to the ground.
+  contagionAggregateDailyScalar: 0.10,
 }

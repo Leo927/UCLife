@@ -16,6 +16,7 @@ import {
   physiologySystem, onsetCondition, rngFor, templatesForOnsetPath,
   rollEnvironmentalOnsets,
 } from '../systems/physiology'
+import { contagionAggregateSystem } from '../systems/contagion'
 import { Vitals, Conditions, Health } from '../ecs/traits'
 import { physiologyConfig } from '../config'
 import type { World } from 'koota'
@@ -50,6 +51,11 @@ export function bindPhysiology(): void {
       // incubating phase counts the day correctly.
       rollVitalsSaturationOnsets(w, day)
       rollEnvironmentalOnsets(w, day)
+      // Phase 4.2 — inactive-zone aggregate SIR: every non-Active living
+      // character in this scene rolls one transmission chance scaled by
+      // current prevalence. Active characters are handled per-tick by
+      // contagionSystem (sim/loop.ts).
+      contagionAggregateSystem(w, day, id)
       physiologySystem(w, day)
     }
   })

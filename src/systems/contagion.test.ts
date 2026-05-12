@@ -7,11 +7,12 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { createWorld, type Entity, type World } from 'koota'
 import { spawnPlayer, spawnNPC } from '../character/spawn'
 import {
-  Active, Conditions, Health, IsPlayer,
+  Active, Conditions, EntityKey, Health, IsPlayer,
 } from '../ecs/traits'
 import { forceOnset, physiologySystem } from './physiology'
 import {
   contagionSystem, resetContagion, prevalenceForTemplate,
+  contagionAggregateSystem,
 } from './contagion'
 import { worldConfig } from '../config'
 
@@ -241,6 +242,104 @@ describe('contagion — integration with physiology phase machine', () => {
         expect(['incubating', 'rising', 'peak', 'recovering', 'stalled']).toContain(flu.phase)
       }
     }
+  })
+})
+
+describe('contagion — inactive-zone aggregate SIR', () => {
+  // Per-day rollover: non-Active characters roll a single transmission
+  // chance scaled by scene prevalence. Active characters are handled by
+  // the per-tick contagionSystem instead and must be skipped here.
+
+  function buildScene(infectedCount: number, targetCount: number): {
+    world: World
+    targets: Entity[]
+    activeTarget: Entity
+  } {
+    const world = createWorld()
+    worlds.push(world)
+    spawnPlayer(world, { x: 0, y: 0 })
+    // Carriers all infected with flu, advanced past incubation so they
+    // count toward prevalence.
+    for (let i = 0; i < infectedCount; i++) {
+      const c = spawnNPC(world, { name: `感染${i}`, color: '#aaa', x: 0, y: 0, key: `carrier-${i}` })
+      forceOnset(c, 'flu', 'seed', 1)
+      advancePastIncubation(c)
+    }
+    // Inactive (non-Active) targets — eligible for aggregate rolls.
+    const targets: Entity[] = []
+    for (let i = 0; i < targetCount; i++) {
+      targets.push(spawnNPC(world, { name: `背景${i}`, color: '#aaa', x: 0, y: 0, key: `bg-${i}` }))
+    }
+    // Active target — must be skipped by the aggregate roll.
+    const activeTarget = spawnNPC(world, { name: '在场', color: '#aaa', x: 0, y: 0, key: 'active-target' })
+    activeTarget.add(Active)
+    return { world, targets, activeTarget }
+  }
+
+  it('high-prevalence scene eventually infects non-Active targets via aggregate roll', () => {
+    const { world, targets } = buildScene(/* infected */ 40, /* targets */ 50)
+    let anyInfected = false
+    for (let day = 1; day <= 30; day++) {
+      contagionAggregateSystem(world, day, 'seed-1')
+      if (targets.some((t) => t.get(Conditions)?.list.some((c) => c.templateId === 'flu'))) {
+        anyInfected = true
+        break
+      }
+    }
+    expect(anyInfected).toBe(true)
+  })
+
+  it('zero-prevalence scene never infects anyone', () => {
+    const { world, targets } = buildScene(/* infected */ 0, /* targets */ 20)
+    for (let day = 1; day <= 30; day++) {
+      contagionAggregateSystem(world, day, 'seed-2')
+    }
+    expect(targets.some((t) => t.get(Conditions)?.list.some((c) => c.templateId === 'flu'))).toBe(false)
+  })
+
+  it('Active characters are skipped by aggregate (covered by per-tick SIR)', () => {
+    const { world, activeTarget } = buildScene(/* infected */ 30, /* targets */ 0)
+    for (let day = 1; day <= 30; day++) {
+      contagionAggregateSystem(world, day, 'seed-3')
+    }
+    expect(activeTarget.get(Conditions)?.list.some((c) => c.templateId === 'flu')).toBe(false)
+  })
+
+  it('already-carrying targets are not re-rolled', () => {
+    const world = createWorld()
+    worlds.push(world)
+    // Pre-infect a target, then run aggregate — its existing instance
+    // must persist (same instanceId), not get replaced.
+    const c = spawnNPC(world, { name: '感染', color: '#aaa', x: 0, y: 0, key: 'c' })
+    forceOnset(c, 'flu', 'seed', 1)
+    advancePastIncubation(c)
+    const target = spawnNPC(world, { name: '已染', color: '#aaa', x: 0, y: 0, key: 't' })
+    forceOnset(target, 'flu', 'pre', 1)
+    const originalId = target.get(Conditions)!.list[0].instanceId
+    for (let day = 1; day <= 5; day++) contagionAggregateSystem(world, day, 'seed-4')
+    const fluInstances = target.get(Conditions)!.list.filter((c) => c.templateId === 'flu')
+    expect(fluInstances).toHaveLength(1)
+    expect(fluInstances[0].instanceId).toBe(originalId)
+  })
+
+  it('aggregate roll is deterministic across reruns (same scene seed + day)', () => {
+    function infectedKeys(): string[] {
+      const world = createWorld()
+      worlds.push(world)
+      const c = spawnNPC(world, { name: '感染', color: '#aaa', x: 0, y: 0, key: 'c' })
+      forceOnset(c, 'flu', 'seed', 1)
+      advancePastIncubation(c)
+      const targets: Entity[] = []
+      for (let i = 0; i < 30; i++) {
+        targets.push(spawnNPC(world, { name: `t${i}`, color: '#aaa', x: 0, y: 0, key: `t-${i}` }))
+      }
+      for (let day = 1; day <= 10; day++) contagionAggregateSystem(world, day, 'pin-seed')
+      return targets
+        .filter((t) => t.get(Conditions)?.list.some((c) => c.templateId === 'flu'))
+        .map((t) => t.get(EntityKey)?.key ?? String(t))
+        .sort()
+    }
+    expect(infectedKeys()).toEqual(infectedKeys())
   })
 })
 

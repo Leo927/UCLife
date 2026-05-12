@@ -19,6 +19,8 @@ import {
 } from '../ecs/traits'
 import { worldConfig } from '../config'
 import { worldSingleton } from '../ecs/resources'
+import { contagionSystem } from './contagion'
+import { useClock, gameDayNumber } from '../sim/clock'
 
 const TILE = worldConfig.tilePx
 const FLOOR_HALF_PX = worldConfig.activeZone.activeRadiusTiles * TILE
@@ -167,4 +169,10 @@ export function activeZoneSystem(world: World, gameMs: number): void {
     if (entity.has(ChatTarget)) breakChat(entity)
     entity.remove(Active)
   }
+
+  // Phase 4.2 — contagion runs after the Active set is current, on the
+  // same throttle (membershipTickMin). Hosted here rather than in
+  // sim/loop so the dependency arrow stays systems→{sim,ecs} downward,
+  // not sim→systems upward.
+  contagionSystem(world, gameMs, gameDayNumber(useClock.getState().gameDate))
 }
