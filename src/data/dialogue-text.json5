@@ -66,7 +66,7 @@
     talkHire: '邀请加入',
     hangarManager: '机库状况',
     aeSupplyDealer: '订补给',
-    aeShipSales: '看看护卫艇',
+    aeShipSales: '看看机型',
   },
   branches: {
     shop: { title: '便利店', intro: '今天有这些。' },
@@ -152,9 +152,11 @@
       gateClosed: '对方还在观望',
       gateOpen: '对方愿意听你说',
     },
-    // Phase 6.2.C1 — AE Von Braun spaceport ship sales rep.
+    // Phase 6.2.C1 + 6.2.C2 — AE ship sales rep (VB spaceport + Granada
+    // drydock). Same panel shape; the SKU is picked by the rep's
+    // workstation specId via fleetConfig.salesRepCatalog.
     aeShipSales: {
-      title: 'AE 销售台 · 轻型机型',
+      title: 'AE 销售台',
       moneyLabel: '钱包',
       statHull: '船体',
       statArmor: '装甲',
@@ -170,10 +172,10 @@
       buyButton: '下单',
       buyDisabledMoney: '金钱不足',
       buyDisabledNoSlot: '无空闲泊位',
-      gateNoHangar: '本地没有可交付的机库 —— 先在冯·布劳恩国营机库租一个泊位再回来。',
-      gateNoSlot: '没有空闲机库位 — 去冯·布劳恩国营机库租一个。',
+      gateNoHangar: '本地没有可交付的机库 —— 先在邻近的国营机库租一个泊位再回来。',
+      gateNoSlot: '没有空闲机库位 — 去邻近的国营机库租一个。',
       gateNoMoney: '现金不足 · 单价 ¥{price}。',
-      toastNoHangar: '找不到目标机库 —— 先在冯·布劳恩国营机库租一个泊位。',
+      toastNoHangar: '找不到目标机库 —— 先在邻近的国营机库租一个泊位。',
       toastBought: '已下单：{ship} → {hangar}。{days} 个工作日后由机库主管交付。',
       pendingHeader: '在途订单',
       pendingDays: '还需 {n} 天',
@@ -257,6 +259,31 @@
     fleetSupplyHud: {
       supplyLabel: '舰队补给',
       fuelLabel: '舰队燃料',
+    },
+    // Phase 6.2.C2 — fleet roster notebook surface. Opened from the
+    // captain's office "船长简报" panel. Read-mostly list of every owned
+    // ship + state + captain. Mothball / scrap buttons are stubs at
+    // 6.2.C2 (real verbs land at 6.2.G); a click shows a toast.
+    fleetRoster: {
+      title: '舰队名册',
+      openButton: '舰队名册',
+      empty: '舰队中尚无飞船。',
+      colShip: '机型',
+      colState: '状态',
+      colHangar: '所在机库',
+      colCaptain: '舰长',
+      colHull: '船体',
+      colArmor: '装甲',
+      colActions: '操作',
+      stateInPort: '在港',
+      stateActive: '执行任务',
+      stateReserve: '预备',
+      flagshipBadge: '旗舰',
+      captainEmpty: '—',
+      mothballButton: '封存',
+      scrapButton: '拆解',
+      mothballStubToast: '封存功能将在 6.2.G 启用。',
+      scrapStubToast: '拆解功能尚未启用。',
     },
   },
 }

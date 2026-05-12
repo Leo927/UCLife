@@ -28,6 +28,7 @@ import { attachShipStatSheet } from '../../ecs/shipEffects'
 import { serializeSheet, attachFormulas, type SerializedSheet } from '../../stats/sheet'
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { SHIP_STAT_IDS, SHIP_STAT_FORMULAS, type ShipStatId } from '../../stats/shipSchema'
+import { getShipClass } from '../../data/ship-classes'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -124,6 +125,41 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
   for (const e of w.query(EntityKey)) {
     if (e.get(EntityKey)!.key === entityKey) { shipEnt = e; break }
   }
+  // Phase 6.2.C2 — non-flagship ships (bought + delivered via C1's
+  // shipDelivery pipeline) are not re-spawned by bootstrapShipScene, so a
+  // missing entity here means we need to materialize one. Only the new
+  // (`ShipBlock`) shape carries `templateId`; the legacy single-ship
+  // payload is always the flagship and gets matched by EntityKey 'ship'
+  // above (already spawned by bootstrap).
+  const newBlock = block as ShipBlock
+  if (!shipEnt && newBlock.templateId) {
+    const cls = getShipClass(newBlock.templateId)
+    shipEnt = w.spawn(
+      Ship({
+        templateId: cls.id,
+        hullCurrent: cls.hullMax, hullMax: cls.hullMax,
+        armorCurrent: cls.armorMax, armorMax: cls.armorMax,
+        fluxMax: cls.fluxMax, fluxCurrent: 0,
+        fluxDissipation: cls.fluxDissipation,
+        hasShield: cls.hasShield,
+        shieldEfficiency: cls.shieldEfficiency,
+        topSpeed: cls.topSpeed,
+        accel: cls.accel,
+        decel: cls.decel,
+        angularAccel: cls.angularAccel,
+        maxAngVel: cls.maxAngVel,
+        crCurrent: cls.crMax, crMax: cls.crMax,
+        fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
+        suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
+        dockedAtPoiId: '',
+        fleetPos: { x: 0, y: 0 },
+        inCombat: false,
+      }),
+      EntityKey({ key: entityKey }),
+    )
+    if (newBlock.isFlagship) shipEnt.add(IsFlagshipMark)
+    attachShipStatSheet(shipEnt)
+  }
   if (!shipEnt) return
   const cur = shipEnt.get(Ship)
   if (!cur) return
@@ -147,7 +183,6 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
   // Phase 6.2.B — restore ShipStatSheet + ShipEffectsList. Legacy saves
   // (or any block missing statSheet) re-project from the template so
   // the sheet always lands valid post-restore.
-  const newBlock = block as ShipBlock
   if (newBlock.statSheet) {
     if (!shipEnt.has(ShipStatSheet)) shipEnt.add(ShipStatSheet)
     if (!shipEnt.has(ShipEffectsList)) shipEnt.add(ShipEffectsList)

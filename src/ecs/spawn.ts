@@ -793,12 +793,17 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
 
 // ── NPC SPAWNING ─────────────────────────────────────────────────────────────
 
-function spawnSpecialNpcs(): void {
+function spawnSpecialNpcs(sceneId: SceneId): void {
   for (const sn of specialNpcs) {
     // Virtual NPCs (notable hostiles, future off-screen characters) omit
     // tile coords — they exist as referenceable rows only, not placed in
     // any city tilemap.
     if (sn.tileX === undefined || sn.tileY === undefined) continue
+    // Phase 6.2.C2 — NPCs default to vonBraunCity (initialSceneId) when
+    // `sceneId` is omitted, matching every legacy entry. Reps pinned to
+    // other scenes (Granada drydock, etc.) declare an explicit sceneId.
+    const targetScene = sn.sceneId ?? initialSceneId
+    if (targetScene !== sceneId) continue
     const ent = spawnNPC(world, {
       name: sn.name,
       color: sn.color,
@@ -824,6 +829,19 @@ function spawnSpecialNpcs(): void {
       }
     }
   }
+}
+
+// Phase 6.2.C2 — Granada drydock AE sales desk. Standalone workstation
+// (no Building backing) at the configured concourse tile so the rep's
+// special-NPC entry can pre-claim the seat via specId match. Mirrors
+// the VB desk shape in spawnAirport, but for a scene without an airport.
+function spawnGranadaShipSalesDesk(): void {
+  const deskTile = fleetConfig.shipSalesDeskTileGranada
+  world.spawn(
+    Position({ x: TILE * deskTile.x, y: TILE * deskTile.y }),
+    Workstation({ specId: 'ae_ship_sales_granada', occupant: null, managerStation: null }),
+    EntityKey({ key: 'ws-ae_ship_sales_granada' }),
+  )
 }
 
 function spawnAeWorkforce(): void {
@@ -955,11 +973,19 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
     spawnFixedInteractable(fi)
   }
 
-  // Special NPCs (AE board/managers/reception) and the AE workforce only
-  // make sense in the scene that hosts aeComplex. Founding civilians spawn
-  // wherever the player starts.
+  // Phase 6.2.C2 — Granada drydock concourse AE sales desk. Spawned in
+  // its own scene so the granada-bound rep entry in special-npcs.json5
+  // can pre-claim the seat. Other scenes get nothing.
+  if (scene.id === 'granadaDrydock') {
+    spawnGranadaShipSalesDesk()
+  }
+
+  // Per-scene specials. AE board / managers / reception and the AE
+  // workforce only make sense in vonBraunCity (aeComplex host). The
+  // Granada rep is filtered in by sceneId on its row. Founding civilians
+  // spawn in the initial scene only.
+  spawnSpecialNpcs(scene.id)
   if (scene.id === initialSceneId) {
-    spawnSpecialNpcs()
     spawnAeWorkforce()
     spawnFoundingCivilians(scene)
   }

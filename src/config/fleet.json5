@@ -87,4 +87,24 @@
   // equal these so the spawn loop's Workstation.occupant ↔ Job.workstation
   // linkage succeeds.
   shipSalesDeskTileVB: { x: 124, y: 27 },
+
+  // Phase 6.2.C2 — AE ship-sales desk tile inside the Granada drydock
+  // concourse. Granada drydock building sits at tile (20,24) with size
+  // (20,16) and a north-facing door at offsetTiles=9 (top edge tile
+  // x=29). The desk sits on open concourse a few tiles south of the
+  // orbital lift (lift at tile (30,4)) and north of the drydock door,
+  // so the player walks down from the lift, passes the AE sales desk,
+  // and reaches the drydock manager beyond it. The rep's special-NPC
+  // tileX/tileY MUST equal these so spawn linkage succeeds.
+  shipSalesDeskTileGranada: { x: 30, y: 16 },
+
+  // Phase 6.2.C2 — sales-rep catalog. Maps each AE sales workstation
+  // specId to the single hull class that rep sells. Adding a new rep
+  // is one new spec + one new row here; the aeShipSales branch is
+  // generic over the entry. Each shipClassId must resolve to a row in
+  // ship-classes.json5.
+  salesRepCatalog: {
+    ae_ship_sales_vb:      { shipClassId: 'lunarMilitia' },
+    ae_ship_sales_granada: { shipClassId: 'pegasusClass' },
+  },
 }

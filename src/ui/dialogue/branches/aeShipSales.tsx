@@ -1,19 +1,21 @@
-// Phase 6.2.C1 — AE Von Braun spaceport ship sales branch. Surfaces on
-// the AE sales rep stationed at the airport (ae_ship_sales_vb spec).
-// Lists the rep's product line (one light hull for the demo), gates the
-// buy on (1) money and (2) an open `hangarSlotClass` slot in a reachable
-// hangar, and on click enqueues a delivery row on the target hangar.
+// Phase 6.2.C1 — AE Von Braun spaceport ship sales branch.
+// Phase 6.2.C2 — generalized so each AE sales rep sells exactly one hull,
+// per the fleet.json5 salesRepCatalog mapping (specId → shipClassId).
+// VB rep sells the lunarMilitia light hull; Granada drydock rep sells
+// the Pegasus-class capital. The buy gates on (1) money, (2) the chosen
+// hangar having a free slot of the hull's hangarSlotClass; on click an
+// in-transit row is enqueued on the target Hangar and the ship entity
+// materializes only at receive-delivery time (hangar manager click).
 //
-// "Reachable" at 6.2.C1 = the Von Braun state surface hangar — capital
-// hulls ship from Granada at 6.2.C2, so the cross-hangar picker is a
-// stub today (single option). The buy is a pure data write: the ship
-// entity itself materializes only at receive-delivery time (player
-// click on the hangar manager's verb).
+// "Reachable" at 6.2.C2 = the rep's local hangar (active scene only):
+// VB rep → VB surface hangar (smallCraft slots); Granada rep → Granada
+// drydock (capital slots). Cross-hangar transfer is a 6.2.G concern.
 
 import { useState } from 'react'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import {
-  IsPlayer, Money, Building, Hangar, EntityKey, type ShipDeliveryRow,
+  IsPlayer, Money, Building, Hangar, EntityKey, Job, Workstation,
+  type ShipDeliveryRow,
 } from '../../../ecs/traits'
 import { useScene } from '../../../sim/scene'
 import { world } from '../../../ecs/world'
@@ -27,17 +29,29 @@ import {
 } from '../../../systems/shipDelivery'
 import type { DialogueCtx, DialogueNode } from '../types'
 
-// Single light-hull SKU at 6.2.C1 — `lunarMilitia`. Capital hulls land at
-// 6.2.C2 from a separate AE rep at the Granada drydock.
-const VB_SALES_CATALOG = ['lunarMilitia'] as const
+// Per-class delivery lead-time lookup. Civilian/merc hulls slot into
+// smallCraft bays and ship on the lightHull schedule; capital tonnage
+// ships on the longer capital schedule.
+function leadTimeForClass(hangarSlotClass: string): number {
+  return hangarSlotClass === 'capital'
+    ? fleetConfig.delivery.capital
+    : fleetConfig.delivery.lightHull
+}
 
 export function aeShipSalesBranch(ctx: DialogueCtx): DialogueNode | null {
   if (!ctx.roles.isAEShipSalesOnDuty) return null
+  // The npc's workstation specId picks the hull this rep sells; if the
+  // catalog has no entry (e.g. a misconfigured spec), bail rather than
+  // render an empty panel.
+  const wsEnt = ctx.npc.get(Job)?.workstation ?? null
+  const specId = wsEnt?.get(Workstation)?.specId ?? ''
+  const entry = fleetConfig.salesRepCatalog[specId]
+  if (!entry) return null
   return {
     id: 'aeShipSales',
     label: dialogueText.buttons.aeShipSales,
     info: dialogueText.branches.aeShipSales.title,
-    specialUI: () => <AEShipSalesPanel />,
+    specialUI: () => <AEShipSalesPanel shipClassId={entry.shipClassId} />,
   }
 }
 
@@ -49,15 +63,15 @@ interface HangarOption {
   occupied: number
 }
 
-function AEShipSalesPanel() {
+function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
   const t = dialogueText.branches.aeShipSales
 
   // Subscribe to every Hangar in the active scene so the slot count
-  // refreshes after a save/load or after a delivery is received. 6.2.C1
-  // ships VB only (civilian-grade light hulls), so the active-scene
-  // query covers the canonical case.
+  // refreshes after a save/load or after a delivery is received. Each
+  // rep is reached only from within its own scene (VB / Granada drydock),
+  // so the active-scene query is the right local picker for both reps.
   const activeSceneId = useScene((s) => s.activeId)
   const localHangars = useQuery(Building, Hangar, EntityKey)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -66,16 +80,20 @@ function AEShipSalesPanel() {
 
   const playerMoney = money?.amount ?? 0
 
-  // Only one product at 6.2.C1.
-  const cls = getShipClass(VB_SALES_CATALOG[0])
+  // One product per rep, chosen by the sales-rep catalog.
+  const cls = getShipClass(shipClassId)
+  const leadDays = leadTimeForClass(cls.hangarSlotClass)
 
-  // Gather reachable surface hangars in the active scene. Per
-  // Design/fleet.md the AE VB sales rep delivers to the Von Braun state
-  // hangar only; capital tonnage from Granada lands at 6.2.C2.
+  // Gather reachable hangars in the active scene whose slot class matches
+  // the hull. The tier (surface vs. drydock) follows from the hull's
+  // hangarSlotClass — civilian/merc hulls slot into smallCraft (either
+  // tier could host them, but at 6.2.C2 only the surface-tier VB hangar
+  // has smallCraft slots reachable from the VB rep's scene); capital
+  // hulls slot into capital (drydock-tier only, reachable from the
+  // Granada rep's scene).
   const options: HangarOption[] = []
   for (const b of localHangars) {
     const h = b.get(Hangar)!
-    if (h.tier !== 'surface') continue
     const cap = h.slotCapacity[cls.hangarSlotClass] ?? 0
     if (cap <= 0) continue
     const poiId = poiIdForHangarScene(activeSceneId)
@@ -136,12 +154,11 @@ function AEShipSalesPanel() {
     if (!m || m.amount < cls.priceFiat) return
     player.set(Money, { amount: m.amount - cls.priceFiat })
     const today = gameDayNumber(useClock.getState().gameDate)
-    const lead = fleetConfig.delivery.lightHull
-    enqueueDelivery(hangarEnt, cls.id, today, lead)
+    enqueueDelivery(hangarEnt, cls.id, today, leadDays)
     useUI.getState().showToast(
       t.toastBought
         .replace('{ship}', cls.nameZh)
-        .replace('{days}', String(lead))
+        .replace('{days}', String(leadDays))
         .replace('{hangar}', selected.labelZh),
     )
     useUI.getState().setDialogNPC(null)

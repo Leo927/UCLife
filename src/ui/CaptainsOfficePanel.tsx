@@ -13,6 +13,7 @@ import { getPoi } from '../data/pois'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { playUi } from '../audio/player'
+import { dialogueText } from '../data/dialogueText'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -65,6 +66,16 @@ export function CaptainsOfficePanel() {
         </section>
         <section className="status-section">
           <div className="dialog-options">
+            <button
+              className="dialog-option"
+              data-fleet-roster-open
+              onClick={() => {
+                playUi('ui.npc.open')
+                useUI.getState().setFleetRoster(true)
+              }}
+            >
+              {dialogueText.branches.fleetRoster.openButton}
+            </button>
             <button className="dialog-option" onClick={onClose}>关闭</button>
           </div>
         </section>

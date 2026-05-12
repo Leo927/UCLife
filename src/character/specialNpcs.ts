@@ -25,6 +25,10 @@ export interface SpecialNpc {
   // them.
   tileX?: number
   tileY?: number
+  // Phase 6.2.C2 — which scene to spawn into. Defaults to the initial
+  // scene (vonBraunCity) when omitted, matching every legacy entry.
+  // Other valid scene ids are validated at spawn time.
+  sceneId?: string
   fatigue?: number
   hunger?: number
   thirst?: number

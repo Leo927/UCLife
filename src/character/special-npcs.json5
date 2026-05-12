@@ -197,6 +197,26 @@
       workstation: 'ae_ship_sales_vb',
     },
 
+    // === Phase 6.2.C2 — AE Granada drydock ship sales rep ===
+    // Sits at the AE sales desk inside the Granada drydock concourse.
+    // The desk is spawned programmatically in ecs/spawn.ts when the
+    // granadaDrydock scene bootstraps; tile coords below mirror
+    // fleet.json5's shipSalesDeskTileGranada so the spawn linkage
+    // (Workstation.occupant ↔ Job.workstation) succeeds. Capital-grade
+    // catalog (Pegasus only at 6.2.C2; more hulls join here later).
+    {
+      name: '卡米尔·罗德',
+      color: '#1e3a8a',
+      title: 'AE 销售代表',
+      sceneId: 'granadaDrydock',
+      tileX: 30, tileY: 16,
+      fatigue: 14,
+      money: 12000,
+      skills: { mechanics: 2200, computers: 1800 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_ship_sales_granada',
+    },
+
     // === Phase 6.2 — notable hostile captains ===
     // Virtual entries (no tileX/tileY); referenced by stable `id` from
     // src/data/space-entities.json5 `notableCaptains: { <slotIdx>: <id> }`.

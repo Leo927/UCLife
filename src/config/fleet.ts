@@ -21,6 +21,11 @@ export interface FleetConfig {
     capital: number
   }
   shipSalesDeskTileVB: { x: number; y: number }
+  // Phase 6.2.C2 — Granada drydock concourse sales desk + sales-rep
+  // catalog. The catalog maps each rep's workstation specId to the
+  // single hull class that rep sells.
+  shipSalesDeskTileGranada: { x: number; y: number }
+  salesRepCatalog: Record<string, { shipClassId: string }>
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

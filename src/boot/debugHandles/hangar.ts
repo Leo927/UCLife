@@ -65,6 +65,13 @@ function buildingContains(bld: { x: number; y: number; w: number; h: number }, p
 }
 
 function snapshotHangar(b: ReturnType<typeof world.query>[number]): HangarSnapshot {
+  return snapshotHangarInScene(world, b)
+}
+
+function snapshotHangarInScene(
+  sw: ReturnType<typeof getWorld>,
+  b: ReturnType<typeof world.query>[number],
+): HangarSnapshot {
   const bld = b.get(Building)!
   const key = b.get(EntityKey)?.key ?? ''
   const h = b.get(Hangar)!
@@ -73,7 +80,7 @@ function snapshotHangar(b: ReturnType<typeof world.query>[number]): HangarSnapsh
   let manager: HangarSnapshot['manager'] = null
   let workerCount = 0
   let workersSeated = 0
-  for (const ws of world.query(Workstation, Position)) {
+  for (const ws of sw.query(Workstation, Position)) {
     const w = ws.get(Workstation)!
     const wp = ws.get(Position)!
     if (!buildingContains(bld, wp)) continue
@@ -112,6 +119,22 @@ registerDebugHandle('listHangars', (): HangarSnapshot[] => {
   const out: HangarSnapshot[] = []
   for (const b of world.query(Building, Hangar, Owner, EntityKey)) {
     out.push(snapshotHangar(b))
+  }
+  return out
+})
+
+// Phase 6.2.C2 — multi-scene variant. Smokes that need to see hangars
+// across every scene world (e.g. Pegasus buy at Granada drydock without
+// first riding the orbital lift) call this one. The legacy listHangars
+// remains active-scene-only so existing smokes (orbital-lift, hangar,
+// fleet-supply) keep their per-scene assertions stable.
+registerDebugHandle('listHangarsAllScenes', (): HangarSnapshot[] => {
+  const out: HangarSnapshot[] = []
+  for (const sceneId of SCENE_IDS) {
+    const sw = getWorld(sceneId)
+    for (const b of sw.query(Building, Hangar, Owner, EntityKey)) {
+      out.push(snapshotHangarInScene(sw, b))
+    }
   }
   return out
 })

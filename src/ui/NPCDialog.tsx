@@ -7,6 +7,7 @@ import { useUI } from './uiStore'
 import { actionLabel } from '../data/actions'
 import { getJobSpec } from '../data/jobs'
 import { DEBUG_AVAILABLE } from '../debug/store'
+import { fleetConfig } from '../config'
 import { tierOf, TIER_LABEL_ZH, topRelationsFor } from '../systems/relations'
 import { Portrait } from '../render/portrait/react/Portrait'
 import { DialogueRunner } from './dialogue/runner'
@@ -73,12 +74,11 @@ export function NPCDialog() {
     isResearcherOnDuty: specId === 'researcher' && onShift,
     isHangarManagerOnDuty: specId === 'hangar_manager' && onShift,
     isAeSupplyDealerOnDuty: specId === 'ae_supply_dealer' && onShift,
-    // Phase 6.2.C1 — AE light-hull sales rep at the VB airport. Distinct
-    // from `ae_director` (engineering-ladder promotion gate) and from the
-    // existing `isShipDealerOnDuty` (flagship purchase at the airport
-    // ticket counter via the AE director). This NPC's verb is the new
-    // multi-hull buy + delivery-queue flow.
-    isAEShipSalesOnDuty: specId === 'ae_ship_sales_vb' && onShift,
+    // Phase 6.2.C1+C2 — AE ship sales reps. The salesRepCatalog in
+    // fleet.json5 maps each rep's workstation specId to the single hull
+    // it sells; the role flag fires for any rep in the catalog so the
+    // branch surface generalises to "this rep sells one ship class."
+    isAEShipSalesOnDuty: specId in fleetConfig.salesRepCatalog && onShift,
     // Ship purchase rides on the AE director's talk-verb until a dedicated
     // ship-dealer NPC role lands.
     isShipDealerOnDuty: isAEOnDuty,

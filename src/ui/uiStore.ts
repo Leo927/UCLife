@@ -54,6 +54,10 @@ interface UIState {
   captainsOfficeOpen: boolean
   commPanelOpen: boolean
   brigPanelOpen: boolean
+  // Phase 6.2.C2 — fleet roster notebook surface. Opened from the
+  // captain's office "舰队名册" button. Standalone modal — closing it
+  // returns to the captain's-office panel underneath.
+  fleetRosterOpen: boolean
   // Phase 6.0 post-combat tally — null while no engagement has just
   // resolved with a payout. Set when 'ui:open-combat-tally' fires.
   combatTally: CombatTallyPayload | null
@@ -78,6 +82,7 @@ interface UIState {
   setCaptainsOffice: (open: boolean) => void
   setCommPanel: (open: boolean) => void
   setBrigPanel: (open: boolean) => void
+  setFleetRoster: (open: boolean) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
@@ -107,6 +112,7 @@ export const useUI = create<UIState>((set) => ({
   captainsOfficeOpen: false,
   commPanelOpen: false,
   brigPanelOpen: false,
+  fleetRosterOpen: false,
   combatTally: null,
   enlargedPortrait: null,
   toasts: [],
@@ -129,6 +135,7 @@ export const useUI = create<UIState>((set) => ({
   setCaptainsOffice: (open) => set({ captainsOfficeOpen: open }),
   setCommPanel: (open) => set({ commPanelOpen: open }),
   setBrigPanel: (open) => set({ brigPanelOpen: open }),
+  setFleetRoster: (open) => set({ fleetRosterOpen: open }),
   setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {

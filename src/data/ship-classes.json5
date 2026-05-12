@@ -251,5 +251,112 @@
         { roomA: 'engineRoom', roomB: 'hangarBay',  side: 'east' },
       ],
     },
+
+    // Phase 6.2.C2 — Pegasus-class assault carrier. UC canon: the Pegasus
+    // family (White Base / Pegasus II / Albion) is the Federation's fast
+    // capital-grade carrier-cruiser — heavily armored, MS-hangar-equipped,
+    // capable of cracking a destroyer or shielding a strike fleet. The
+    // Granada AE drydock sells a refurbished hull through the surface
+    // sales rep; player parks it in the Granada state drydock's `capital`
+    // slot. Aspirational mid-game content — substantially pricier than the
+    // lightFreighter / lunarMilitia (multi-million ¥) so the climb feels
+    // earned. Walkable interior is bigger (bridge, captain's office, comm
+    // room, war room, crew, mess, engine, medbay, hangar bay, brig) so
+    // 6.2.5+ retrofit/officer wall content has authored rooms to surface
+    // in without re-authoring the template. The hangar bay declares a
+    // higher MS capacity via the future MS-aboard mechanic at 6.2.5; the
+    // field can live on the schema today (ShipStatSheet at 6.2.B added
+    // hangarCapacity already, no consumer yet).
+    {
+      id: 'pegasusClass',
+      nameZh: '飞马级强袭母舰',
+      descZh: '联邦"飞马"系列改装舰 · 强装甲快速航母 · 内置 MS 机库与重型武装 · 在 AE 格拉纳达船坞二次出售给民间。',
+      shipClass: 'capital',
+      hangarSlotClass: 'capital',
+      hullMax: 6000,
+      armorMax: 1800,
+      fluxMax: 9000,
+      fluxDissipation: 360,
+      hasShield: false,
+      shieldEfficiency: 1.0,
+      topSpeed: 50,
+      accel: 30,
+      decel: 18,
+      angularAccel: 1.2,
+      maxAngVel: 0.8,
+      crMax: 100,
+      fuelMax: 80,
+      suppliesMax: 400,
+      supplyPerDay: 18,
+      crewMax: 200,
+      brigCapacity: 8,
+      officers: {
+        adjutant: { name: '布莱特·诺亚', title: '副官' },
+      },
+      mounts: [
+        { idx: 0, size: 'large',  firingArcDeg: 45,  facingDeg: 0    },
+        { idx: 1, size: 'medium', firingArcDeg: 90,  facingDeg: 90   },
+        { idx: 2, size: 'medium', firingArcDeg: 90,  facingDeg: -90  },
+        { idx: 3, size: 'medium', firingArcDeg: 60,  facingDeg: 0    },
+        { idx: 4, size: 'small',  firingArcDeg: 180, facingDeg: 180  },
+        { idx: 5, size: 'small',  firingArcDeg: 180, facingDeg: 180  },
+      ],
+      defaultWeapons: ['beamMk1'],
+      ai: {
+        aggression: 0.4,
+        retreatThresholdPct: 0.15,
+        maintainRange: 320,
+      },
+      priceFiat: 1200000,
+      rooms: [
+        {
+          id: 'bridge', nameZh: '舰桥', bounds: { x: 0, y: 0, w: 3, h: 2 },
+          interactables: [
+            { kind: 'helm', label: '操舵 / 航行', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
+        {
+          id: 'captainsOffice', nameZh: '船长室', bounds: { x: 3, y: 0, w: 3, h: 2 },
+          interactables: [
+            { kind: 'captainsDesk', label: '出航简报', offset: { dx: -0.5, dy: -0.5 } },
+            { kind: 'commPanel',    label: '通讯面板', offset: { dx: 0.5,  dy: -0.5 } },
+          ],
+        },
+        { id: 'commRoom',  nameZh: '通讯室', bounds: { x: 6, y: 0, w: 2, h: 2 } },
+        { id: 'warRoom',   nameZh: '作战室', bounds: { x: 0, y: 2, w: 3, h: 2 } },
+        { id: 'crewQ',     nameZh: '船员舱', bounds: { x: 3, y: 2, w: 3, h: 2 } },
+        { id: 'mess',      nameZh: '餐厅',   bounds: { x: 6, y: 2, w: 2, h: 2 } },
+        { id: 'engineRoom', nameZh: '引擎室', bounds: { x: 0, y: 4, w: 3, h: 2 } },
+        { id: 'medbay',    nameZh: '医务室', bounds: { x: 3, y: 4, w: 2, h: 2 } },
+        {
+          id: 'brig', nameZh: '禁闭室', bounds: { x: 5, y: 4, w: 3, h: 2 },
+          interactables: [
+            { kind: 'brig', label: '查看囚犯', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
+        {
+          id: 'hangarBay', nameZh: '机库', bounds: { x: 0, y: 6, w: 8, h: 2 },
+          interactables: [
+            { kind: 'disembarkShip', label: '下船', offset: { dx: -2, dy: -0.5 } },
+            { kind: 'climbIntoMs',   label: '登舱出击', offset: { dx: 2, dy: -0.5 } },
+          ],
+        },
+      ],
+      doors: [
+        { roomA: 'bridge',         roomB: 'captainsOffice', side: 'east' },
+        { roomA: 'captainsOffice', roomB: 'commRoom',       side: 'east' },
+        { roomA: 'bridge',         roomB: 'warRoom',        side: 'south' },
+        { roomA: 'captainsOffice', roomB: 'crewQ',          side: 'south' },
+        { roomA: 'commRoom',       roomB: 'mess',           side: 'south' },
+        { roomA: 'warRoom',        roomB: 'crewQ',          side: 'east' },
+        { roomA: 'crewQ',          roomB: 'mess',           side: 'east' },
+        { roomA: 'warRoom',        roomB: 'engineRoom',     side: 'south' },
+        { roomA: 'crewQ',          roomB: 'medbay',         side: 'south' },
+        { roomA: 'mess',           roomB: 'brig',           side: 'south' },
+        { roomA: 'engineRoom',     roomB: 'hangarBay',      side: 'south' },
+        { roomA: 'medbay',         roomB: 'hangarBay',      side: 'south' },
+        { roomA: 'brig',           roomB: 'hangarBay',      side: 'south' },
+      ],
+    },
   ],
 }

@@ -150,6 +150,27 @@ export interface DialogueText {
       supplyLabel: string
       fuelLabel: string
     }
+    fleetRoster: {
+      title: string
+      openButton: string
+      empty: string
+      colShip: string
+      colState: string
+      colHangar: string
+      colCaptain: string
+      colHull: string
+      colArmor: string
+      colActions: string
+      stateInPort: string
+      stateActive: string
+      stateReserve: string
+      flagshipBadge: string
+      captainEmpty: string
+      mothballButton: string
+      scrapButton: string
+      mothballStubToast: string
+      scrapStubToast: string
+    }
     aeShipSales: {
       title: string
       moneyLabel: string

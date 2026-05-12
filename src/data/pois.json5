@@ -48,6 +48,12 @@
       factionControlPre: 'ae',
       factionControlPost: 'ae',
       services: ['refuel', 'repair', 'refit', 'hire'],
+      // Phase 6.2.C2 — bind to the walkable Granada drydock scene so
+      // poiIdForHangarScene('granadaDrydock') resolves to 'granada'. The
+      // C1 ship-delivery + capacity-derivation surfaces both walk POIS
+      // looking for this pairing; without it the drydock hangar can't
+      // receive Pegasus deliveries.
+      sceneId: 'granadaDrydock',
       bodyId: 'moon',
       orbitRadius: 190,
       orbitPeriodDays: 0.5,

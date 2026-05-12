@@ -3,7 +3,8 @@
 // procgen building placement or BT scheduling.
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
-import { world } from '../../ecs/world'
+import type { Entity, World } from 'koota'
+import { world, getWorld, SCENE_IDS, getActiveSceneId } from '../../ecs/world'
 import { Workstation, Action } from '../../ecs/traits'
 import { spawnNPC } from '../../character/spawn'
 import { pickFreshName, pickRandomColor } from '../../character/nameGen'
@@ -14,33 +15,47 @@ import { claimJob } from '../../systems/market'
 const WORK_FOREVER = 999_999_999
 
 function ensureWorkerForSpec(specId: string): boolean {
-  let ws = null
-  for (const e of world.query(Workstation)) {
-    const w = e.get(Workstation)
-    if (w?.specId === specId) {
-      ws = e
-      break
+  // Phase 6.2.C2 — workstation lookup checks the active scene first so
+  // smokes that swap scenes (e.g. ride the orbital lift to Granada
+  // drydock then fillJobVacancies(['hangar_manager'])) seat the manager
+  // in the *current* scene, not whichever scene comes first in
+  // SCENE_IDS. Falls back to other scenes when the active scene has no
+  // matching workstation — that's how a smoke can seat a workstation
+  // in another scene without first migrating the player there.
+  let ws: Entity | null = null
+  let wsWorld: World | null = null
+  let fallbackWs: Entity | null = null
+  let fallbackWorld: World | null = null
+  const activeId = getActiveSceneId()
+  const ordered = [activeId, ...SCENE_IDS.filter((id) => id !== activeId)]
+  for (const sceneId of ordered) {
+    const sw = getWorld(sceneId)
+    for (const e of sw.query(Workstation)) {
+      const w = e.get(Workstation)
+      if (w?.specId !== specId) continue
+      if (!fallbackWs) { fallbackWs = e; fallbackWorld = sw }
+      if (w.occupant === null) { ws = e; wsWorld = sw; break }
     }
+    if (ws) break
   }
+  if (!ws) { ws = fallbackWs; wsWorld = fallbackWorld }
 
-  // If no building was placed for this specId, create a synthetic workstation
-  // entity. uclifePinClerk only queries Workstation — it doesn't require a
-  // Building or Position sibling.
   if (!ws) {
     ws = world.spawn(Workstation({ specId, occupant: null, managerStation: null }))
+    wsWorld = world
   }
 
   const w = ws.get(Workstation)!
   let npc = w.occupant
 
   if (!npc) {
-    npc = spawnNPC(world, {
-      name: pickFreshName(world),
+    npc = spawnNPC(wsWorld!, {
+      name: pickFreshName(wsWorld!),
       color: pickRandomColor(),
       x: 0,
       y: 0,
     })
-    claimJob(world, npc, ws)
+    claimJob(wsWorld!, npc, ws)
   }
 
   // Force-set the working action so the NPC stays on shift regardless of BT
