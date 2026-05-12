@@ -46,6 +46,10 @@ export interface SimEventPayloads {
   // Phase 6.2 — brig walk-up kiosk: occupant list, capacity gauge.
   // Per-prisoner verbs land at 6.2.5.
   'ui:open-brig-panel':        { reason: string }
+  // Phase 6.2.E1 — war-room plot table on the flagship bridge. Renders
+  // the fleet roster as drag-and-drop tokens against a formation grid;
+  // sets per-ship IsInActiveFleet + formationSlot + aggression.
+  'ui:open-war-room':          { reason: string }
   // Phase 6.1 — set the tactical-overlay visibility (combat may keep
   // running underneath while the overlay is hidden, so the player can
   // walk the ship interior mid-engagement). Subscribed by combat.ts to

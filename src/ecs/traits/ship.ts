@@ -65,6 +65,16 @@ export const Ship = trait({
   // crewIds.length; vacancy = getStat(sheet, 'crewRequired') - crewIds.length.
   assignedCaptainId: '',
   crewIds: [] as string[],
+  // Phase 6.2.E1 — combat doctrine. Per-ship aggression slider read by
+  // the future tactical AI; orthogonal to active/reserve state. Allowed
+  // values are authored in fleet.json5 → aggressionLevels so the UI +
+  // smoke read from one place. Default is 'steady'.
+  aggression: 'steady' as string,
+  // Phase 6.2.E1 — war-room formation slot index. Only meaningful while
+  // IsInActiveFleet is present and the ship is not in transit. Encoded
+  // as `row * grid.cols + col` for the war-room plot table grid. -1 =
+  // no slot (the ship is in reserve, or hasn't been placed yet).
+  formationSlot: -1,
 })
 
 // Marker — present iff the player is currently aboard this ship. Phase 6.1.5
@@ -72,6 +82,15 @@ export const Ship = trait({
 // this mark so the flagship is always the ship hosting the player body.
 // Switching flagship migrates the mark with the player's interior scene.
 export const IsFlagshipMark = trait({})
+
+// Phase 6.2.E1 — war-room-set membership. Present iff the ship is
+// committed to the player's active fleet (auto-launches with the
+// flagship, holds a formation slot, participates in DP commit). The
+// flagship always carries this marker. Cleared by dragging the ship's
+// token off the formation grid in the war-room plot table. Mirrors the
+// IsFlagshipMark pattern: a separate marker trait keeps the predicate
+// query cheap and self-documenting at call sites.
+export const IsInActiveFleet = trait({})
 
 // Phase 6.2.B — per-ship StatSheet. Mirrors the per-character + per-faction
 // pattern. Ship-class scalars project here as stat bases at spawn; Effects

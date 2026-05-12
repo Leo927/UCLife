@@ -329,6 +329,26 @@
       toastFailed: '招募失败',
       toastNoFunds: '资金不足 · 需 ¥{fee}。',
     },
+    // Phase 6.2.E1 — war-room plot table on the flagship bridge.
+    // Drag-token UX between an active formation grid + reserve tray;
+    // per-ship aggression doctrine slider. Roster panel reflects state
+    // read-only — the verb lives at the war room only.
+    warRoom: {
+      title: '战略图台 · 舰队编成',
+      intro: '点选预备区的舰艇令牌，再点空槽位即可编入主力。点选已在编舰艇可再次调整位置；点回预备区将其撤出编制。旗舰锚定中央槽位，不可调出主力舰队。',
+      activeGridHeader: '主力编成',
+      reserveTrayHeader: '预备舰艇',
+      reserveEmpty: '预备区无舰艇。',
+      aggressionHeader: '战斗节奏',
+      emptySlotLabel: '空槽位',
+      flagshipBadge: '旗舰',
+      stateActive: '在编',
+      stateReserve: '预备',
+      toastFlagshipLocked: '旗舰锚定主力舰队，无法调整编制。',
+      toastMoveFailed: '调整失败：{reason}',
+      rosterStateLabel: '编制状态',
+      rosterAggressionLabel: '战斗节奏',
+    },
     // Phase 6.2.D — captain's-office "man the rest" verb.
     captainsOfficeManRest: {
       buttonIdle: '从待业池征募补员',

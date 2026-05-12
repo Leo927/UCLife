@@ -58,6 +58,11 @@ interface UIState {
   // captain's office "舰队名册" button. Standalone modal — closing it
   // returns to the captain's-office panel underneath.
   fleetRosterOpen: boolean
+  // Phase 6.2.E1 — war-room plot table on the flagship bridge. Opened
+  // by walking onto the 'warRoom' interactable. Composition verb
+  // surface: drag-and-drop tokens between the active grid + reserve
+  // tray, per-ship aggression doctrine slider.
+  warRoomOpen: boolean
   // Phase 6.0 post-combat tally — null while no engagement has just
   // resolved with a payout. Set when 'ui:open-combat-tally' fires.
   combatTally: CombatTallyPayload | null
@@ -83,6 +88,7 @@ interface UIState {
   setCommPanel: (open: boolean) => void
   setBrigPanel: (open: boolean) => void
   setFleetRoster: (open: boolean) => void
+  setWarRoom: (open: boolean) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
@@ -113,6 +119,7 @@ export const useUI = create<UIState>((set) => ({
   commPanelOpen: false,
   brigPanelOpen: false,
   fleetRosterOpen: false,
+  warRoomOpen: false,
   combatTally: null,
   enlargedPortrait: null,
   toasts: [],
@@ -136,6 +143,7 @@ export const useUI = create<UIState>((set) => ({
   setCommPanel: (open) => set({ commPanelOpen: open }),
   setBrigPanel: (open) => set({ brigPanelOpen: open }),
   setFleetRoster: (open) => set({ fleetRosterOpen: open }),
+  setWarRoom: (open) => set({ warRoomOpen: open }),
   setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {

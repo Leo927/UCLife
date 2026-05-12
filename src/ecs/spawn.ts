@@ -10,7 +10,7 @@ import {
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
   FlightHub, Road,
-  Ship, ShipRoom, WeaponMount, IsFlagshipMark,
+  Ship, ShipRoom, WeaponMount, IsFlagshipMark, IsInActiveFleet,
   Hangar, OrbitalLift,
   type InteractableKind,
 } from './traits'
@@ -1029,8 +1029,16 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       dockedAtPoiId: 'vonBraun',
       fleetPos,
       inCombat: false,
+      // Phase 6.2.E1 — flagship anchors at the center slot of the
+      // war-room formation grid and starts with the default aggression.
+      aggression: fleetConfig.aggressionDefault,
+      formationSlot: fleetConfig.activeFleetGrid.flagshipSlot,
     }),
     IsFlagshipMark(),
+    // Phase 6.2.E1 — the flagship is always in the active fleet (the
+    // ship the player is on can't be in reserve). The war-room UI
+    // enforces the constraint; the marker is the source of truth.
+    IsInActiveFleet(),
     EntityKey({ key: 'ship' }),
   )
   // Phase 6.2.B — project the class scalars into the per-ship StatSheet

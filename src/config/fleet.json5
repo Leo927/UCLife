@@ -145,4 +145,36 @@
   // city scene. Stops at the configured maximum hires per click OR at
   // `crewRequired` OR at money — whichever comes first.
   manFromIdlePoolMaxPerClick: 20,
+
+  // ── Phase 6.2.E1 — war-room composition surface ────────────────────
+  //
+  // The war-room plot table renders the player's owned ships as drag-
+  // and-drop tokens against an `activeFleetGrid` formation grid. Cell
+  // index for a ship in (row, col) is `row * cols + col`; -1 means the
+  // ship is in the reserve tray. Grid dimensions stay small so the
+  // surface is legible — early fleet scale is two-to-five ships.
+  //
+  // `flagshipSlot` pins the flagship to a fixed grid cell — the war-
+  // room's UX constraint is that the flagship can't be moved out of
+  // the active fleet (it's the ship the player is on), so the grid
+  // visually anchors it at the center. Computed as
+  // `floor(rows/2) * cols + floor(cols/2)`; encoded here so the smoke
+  // can assert it without recomputing.
+  activeFleetGrid: {
+    cols: 4,
+    rows: 3,
+    flagshipSlot: 6,
+  },
+
+  // Aggression doctrine — three-position slider on every active ship.
+  // Authored as a list so smoke + UI iterate the same source. The
+  // default applied at spawn is the first entry's id ('steady'), with
+  // the other two flanking it on the UI. Real combat-AI reads land at
+  // 6.2.E2 + 6.2.7 (DP / CP layer); 6.2.E1 ships only the data channel.
+  aggressionLevels: [
+    { id: 'cautious',  labelZh: '谨慎' },
+    { id: 'steady',    labelZh: '稳健' },
+    { id: 'aggressive', labelZh: '激进' },
+  ],
+  aggressionDefault: 'steady',
 }

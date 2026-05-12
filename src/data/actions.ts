@@ -11,7 +11,7 @@ export type ActionDef = {
 // helm mode; manage opens the per-facility owner-control surface.
 // None of those kinds resolve to an Action — interactionSystem returns
 // before reaching ACTIONS[kind].
-type ActionableInteractableKind = Exclude<InteractableKind, 'transit' | 'ticketCounter' | 'orbitalLift' | 'boardShip' | 'disembarkShip' | 'helm' | 'manage' | 'captainsDesk' | 'commPanel' | 'brig' | 'climbIntoMs'>
+type ActionableInteractableKind = Exclude<InteractableKind, 'transit' | 'ticketCounter' | 'orbitalLift' | 'boardShip' | 'disembarkShip' | 'helm' | 'manage' | 'captainsDesk' | 'commPanel' | 'brig' | 'warRoom' | 'climbIntoMs'>
 
 // Durations here are defaults — interaction.ts overrides at runtime for
 // sleep/bar/work.

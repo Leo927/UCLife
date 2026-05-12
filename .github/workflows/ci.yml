@@ -138,6 +138,8 @@ jobs:
       - if: always()
         run: node scripts/check-hire-crew.mjs
       - if: always()
+        run: node scripts/check-war-room.mjs
+      - if: always()
         run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
 
       - name: Upload screenshots on failure

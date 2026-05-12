@@ -21,9 +21,10 @@
 import { registerSaveHandler } from '../../save/registry'
 import { getWorld, type SceneId } from '../../ecs/world'
 import {
-  Ship, WeaponMount, EntityKey, IsFlagshipMark,
+  Ship, WeaponMount, EntityKey, IsFlagshipMark, IsInActiveFleet,
   ShipStatSheet, ShipEffectsList,
 } from '../../ecs/traits'
+import { fleetConfig } from '../../config'
 import { attachShipStatSheet } from '../../ecs/shipEffects'
 import { serializeSheet, attachFormulas, type SerializedSheet } from '../../stats/sheet'
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
@@ -56,6 +57,13 @@ interface ShipBlock {
   // land as no-captain + empty crew, matching the trait default.
   assignedCaptainId?: string
   crewIds?: string[]
+  // Phase 6.2.E1 — war-room composition state. `isInActiveFleet` mirrors
+  // the IsInActiveFleet marker presence; `aggression` + `formationSlot`
+  // are Ship trait fields. All optional — pre-6.2.E1 saves default to
+  // reserve + steady + no slot, matching the trait defaults.
+  isInActiveFleet?: boolean
+  aggression?: string
+  formationSlot?: number
 }
 
 interface FleetBlock {
@@ -115,6 +123,9 @@ function snapshotFleet(): FleetBlock | undefined {
       effects: effects ? effects.map((eff) => ({ ...eff })) : undefined,
       assignedCaptainId: s.assignedCaptainId,
       crewIds: [...s.crewIds],
+      isInActiveFleet: e.has(IsInActiveFleet),
+      aggression: s.aggression,
+      formationSlot: s.formationSlot,
     })
   }
   if (ships.length === 0) return undefined
@@ -162,6 +173,8 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
         dockedAtPoiId: '',
         fleetPos: { x: 0, y: 0 },
         inCombat: false,
+        aggression: fleetConfig.aggressionDefault,
+        formationSlot: -1,
       }),
       EntityKey({ key: entityKey }),
     )
@@ -190,7 +203,18 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // trait's empty captain + empty crew shape.
     assignedCaptainId: newBlock.assignedCaptainId ?? '',
     crewIds: newBlock.crewIds ? [...newBlock.crewIds] : [],
+    // Phase 6.2.E1 — war-room composition state. Pre-6.2.E1 blocks
+    // omit these; defaults match the trait's reserve + steady + no slot.
+    aggression: newBlock.aggression ?? fleetConfig.aggressionDefault,
+    formationSlot: newBlock.formationSlot ?? -1,
   })
+
+  // IsInActiveFleet marker presence — round-trip independently from
+  // the trait fields. Defaults to true for the flagship (matches the
+  // bootstrap invariant) when the block predates 6.2.E1.
+  const wantActive = newBlock.isInActiveFleet ?? !!newBlock.isFlagship
+  if (wantActive && !shipEnt.has(IsInActiveFleet)) shipEnt.add(IsInActiveFleet)
+  else if (!wantActive && shipEnt.has(IsInActiveFleet)) shipEnt.remove(IsInActiveFleet)
 
   // Phase 6.2.B — restore ShipStatSheet + ShipEffectsList. Legacy saves
   // (or any block missing statSheet) re-project from the template so

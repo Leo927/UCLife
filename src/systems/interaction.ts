@@ -262,6 +262,14 @@ export function interactionSystem(world: World) {
       emitSim('ui:open-brig-panel', { reason: 'brig' })
       continue
     }
+    if (nearestKind === 'warRoom') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        emitSim('toast', { textZh: '战略图台仅在飞船内可用' })
+        continue
+      }
+      emitSim('ui:open-war-room', { reason: 'warRoom' })
+      continue
+    }
     if (nearestKind === 'work') {
       const j = player.get(Job)
       const ws = j?.workstation ?? null

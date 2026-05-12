@@ -26,6 +26,7 @@ import { CaptainsOfficePanel } from './ui/CaptainsOfficePanel'
 import { CommPanelDialog } from './ui/CommPanelDialog'
 import { BrigPanel } from './ui/BrigPanel'
 import { FleetRosterPanel } from './ui/FleetRosterPanel'
+import { WarRoomPanel } from './ui/WarRoomPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
 import { PortraitModal } from './ui/PortraitModal'
 import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
@@ -65,6 +66,7 @@ export function App() {
       <CommPanelDialog />
       <BrigPanel />
       <FleetRosterPanel />
+      <WarRoomPanel />
       <CombatTallyPanel />
       <PortraitModal />
       <DeathModal />

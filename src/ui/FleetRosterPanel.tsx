@@ -14,9 +14,10 @@
 
 import { useState } from 'react'
 import {
-  Ship, IsFlagshipMark, EntityKey, Building, Hangar, IsPlayer, Character,
+  Ship, IsFlagshipMark, IsInActiveFleet, EntityKey, Building, Hangar, IsPlayer, Character,
   type HangarSlotClass,
 } from '../ecs/traits'
+import { fleetConfig } from '../config'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getShipClass } from '../data/ship-classes'
 import { getPoi } from '../data/pois'
@@ -45,6 +46,11 @@ interface RosterRow {
   inCombat: boolean
   crewCount: number
   crewMax: number
+  // Phase 6.2.E1 — read-only mirrors of war-room state. The verb to
+  // toggle these lives at the war-room plot table on the flagship
+  // bridge; the roster only reflects.
+  isInActiveFleet: boolean
+  aggression: string
 }
 
 function collectRoster(): RosterRow[] {
@@ -76,6 +82,8 @@ function collectRoster(): RosterRow[] {
       inCombat: s.inCombat,
       crewCount: s.crewIds.length,
       crewMax: cls.crewMax,
+      isInActiveFleet: e.has(IsInActiveFleet),
+      aggression: s.aggression,
     })
   }
   return out
@@ -193,6 +201,16 @@ function RosterList({
               </span>
               <span data-roster-state style={{ flex: '0 0 auto' }}>
                 {r.inCombat ? t.stateActive : t.stateInPort}
+              </span>
+              <span data-roster-active-fleet={r.isInActiveFleet ? '1' : '0'} style={{ flex: '0 0 auto' }}>
+                {dialogueText.branches.warRoom.rosterStateLabel}: {r.isInActiveFleet
+                  ? dialogueText.branches.warRoom.stateActive
+                  : dialogueText.branches.warRoom.stateReserve}
+              </span>
+              <span data-roster-aggression={r.aggression} style={{ flex: '0 0 auto' }}>
+                {dialogueText.branches.warRoom.rosterAggressionLabel}: {
+                  fleetConfig.aggressionLevels.find((a) => a.id === r.aggression)?.labelZh ?? r.aggression
+                }
               </span>
               <span data-roster-hull style={{ flex: '0 0 auto' }}>
                 {t.colHull} {Math.round(r.hullCurrent)} / {r.hullMax}

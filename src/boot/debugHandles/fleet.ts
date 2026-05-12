@@ -50,6 +50,9 @@ import {
   fireCrewMember, moveCrewMember, manRestFromIdlePool, snapshotCrewRoster,
   captainEffectId,
 } from '../../systems/fleetCrew'
+import {
+  warRoomDescribe, setIsInActiveFleet, setFormationSlot, setAggression,
+} from '../../systems/fleetWarRoom'
 import { spawnNPC } from '../../character/spawn'
 import { pickRandomColor } from '../../character/nameGen'
 import { buildNpcDialogue } from '../../ui/dialogue/builder'
@@ -294,4 +297,27 @@ registerDebugHandle('shipEffectIds', (shipKey: string): string[] => {
 
 registerDebugHandle('captainEffectIdForKey', (captainKey: string) => {
   return captainEffectId(captainKey)
+})
+
+// ── Phase 6.2.E1 — war-room composition + aggression debug handles ──────
+
+registerDebugHandle('warRoomDescribe', () => warRoomDescribe())
+
+registerDebugHandle('setIsInActiveFleet', (
+  shipKey: string,
+  active: boolean,
+  targetSlot?: number,
+) => setIsInActiveFleet(shipKey, active, targetSlot))
+
+registerDebugHandle('setFormationSlot', (shipKey: string, targetSlot: number) =>
+  setFormationSlot(shipKey, targetSlot),
+)
+
+registerDebugHandle('setShipAggression', (shipKey: string, aggression: string) =>
+  setAggression(shipKey, aggression),
+)
+
+registerDebugHandle('setWarRoomOpen', (open: boolean) => {
+  useUI.getState().setWarRoom(open)
+  return useUI.getState().warRoomOpen
 })

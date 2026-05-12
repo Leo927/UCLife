@@ -35,6 +35,14 @@ export interface FleetConfig {
   captainEffectStat: string
   captainEffectPerLevel: number
   manFromIdlePoolMaxPerClick: number
+  // Phase 6.2.E1 — war-room formation grid + aggression doctrine list.
+  activeFleetGrid: {
+    cols: number
+    rows: number
+    flagshipSlot: number
+  }
+  aggressionLevels: { id: string; labelZh: string }[]
+  aggressionDefault: string
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

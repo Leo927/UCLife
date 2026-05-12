@@ -18,6 +18,7 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getShipClass } from '../data/ship-classes'
 import { attachShipStatSheet } from '../ecs/shipEffects'
 import { POIS } from '../data/pois'
+import { fleetConfig } from '../config'
 
 export interface ShipDeliveryResult {
   hangarsTicked: number
@@ -113,6 +114,12 @@ export function spawnDeliveredShip(
       dockedAtPoiId: poiId,
       fleetPos: { x: 0, y: 0 },
       inCombat: false,
+      // Phase 6.2.E1 — newly-delivered ships default to reserve (no
+      // IsInActiveFleet marker, no formationSlot) so the player opts
+      // each subsequent hull into the active fleet from the war-room
+      // plot table. Aggression starts at the configured default.
+      aggression: fleetConfig.aggressionDefault,
+      formationSlot: -1,
     }),
     EntityKey({ key }),
   )

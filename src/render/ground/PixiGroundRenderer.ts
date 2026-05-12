@@ -105,6 +105,10 @@ const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }
   // Phase 6.2 — brig occupant list. Muted iron tone to read as
   // hostile-but-confined; distinct from the warm command palette.
   brig:            { fill: 0x3a1212, stroke: 0xf87171 },
+  // Phase 6.2.E1 — war-room plot table. Deep indigo + cool steel —
+  // reads as the strategic/composition surface, distinct from the
+  // warm ship-command interactables and the iron-toned brig.
+  warRoom:         { fill: 0x1e1b4b, stroke: 0x818cf8 },
   // Phase 6.1 — climb-into-MS interactable on the hangar bay floor.
   // Cool blue to read as the friendly-MS color used in the tactical
   // arena (snap.color = 0x60a5fa).

@@ -221,6 +221,22 @@ export interface DialogueText {
       toastNoFunds: string
       toastCap: string
     }
+    warRoom: {
+      title: string
+      intro: string
+      activeGridHeader: string
+      reserveTrayHeader: string
+      reserveEmpty: string
+      aggressionHeader: string
+      emptySlotLabel: string
+      flagshipBadge: string
+      stateActive: string
+      stateReserve: string
+      toastFlagshipLocked: string
+      toastMoveFailed: string
+      rosterStateLabel: string
+      rosterAggressionLabel: string
+    }
     aeShipSales: {
       title: string
       moneyLabel: string
