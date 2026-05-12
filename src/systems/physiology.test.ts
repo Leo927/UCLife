@@ -3,7 +3,7 @@
 // advances days, and verifies severity / phase / Effects emission /
 // modifier presence on the StatSheet at each step.
 
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { createWorld } from 'koota'
 import { spawnPlayer, spawnNPC } from '../character/spawn'
 import {
@@ -14,12 +14,21 @@ import {
 } from './physiology'
 import { getStat } from '../stats/sheet'
 
+// Koota caps active worlds at 16. Track every world setup() creates and
+// destroy them after each test so the suite can grow past that bound.
+const worlds: ReturnType<typeof createWorld>[] = []
+
 function setup() {
   const world = createWorld()
+  worlds.push(world)
   const player = spawnPlayer(world, { x: 0, y: 0 })
   const npc = spawnNPC(world, { name: '李明', color: '#888', x: 0, y: 0, key: 'npc-test-1' })
   return { world, player, npc }
 }
+
+afterEach(() => {
+  while (worlds.length) worlds.pop()!.destroy()
+})
 
 describe('physiology — onset + spawn', () => {
   let world: ReturnType<typeof setup>['world']
@@ -194,6 +203,47 @@ describe('physiology — banded reconciler emits Effects', () => {
       }
     }
     expect(multiActive).toBe(true)
+  })
+})
+
+describe('physiology — body-part scope (Phase 4.1)', () => {
+  it('body-part-scoped onset accepts a bodyPart and tags the instance', () => {
+    const { player } = setup()
+    const inst = forceOnset(player, 'sprain', '滑倒', 1, 'left-ankle')
+    expect(inst).not.toBeNull()
+    expect(inst!.bodyPart).toBe('left-ankle')
+  })
+
+  it('same body-part-scoped template on different parts both succeed', () => {
+    const { player } = setup()
+    expect(forceOnset(player, 'sprain', 'a', 1, 'left-ankle')).not.toBeNull()
+    expect(forceOnset(player, 'sprain', 'b', 1, 'right-ankle')).not.toBeNull()
+    expect(player.get(Conditions)!.list).toHaveLength(2)
+  })
+
+  it('same body-part-scoped template on same part refused', () => {
+    const { player } = setup()
+    expect(forceOnset(player, 'sprain', 'a', 1, 'left-ankle')).not.toBeNull()
+    expect(forceOnset(player, 'sprain', 'b', 1, 'left-ankle')).toBeNull()
+    expect(player.get(Conditions)!.list).toHaveLength(1)
+  })
+
+  it('body-part-scoped template without a bodyPart is refused', () => {
+    const { player } = setup()
+    expect(forceOnset(player, 'sprain', '?', 1)).toBeNull()
+    expect(player.get(Conditions)!.list).toHaveLength(0)
+  })
+
+  it('systemic template with a bodyPart is refused', () => {
+    const { player } = setup()
+    expect(forceOnset(player, 'cold_common', '?', 1, 'head')).toBeNull()
+    expect(player.get(Conditions)!.list).toHaveLength(0)
+  })
+
+  it('unknown bodyPart id is refused', () => {
+    const { player } = setup()
+    expect(forceOnset(player, 'sprain', '?', 1, 'tail')).toBeNull()
+    expect(player.get(Conditions)!.list).toHaveLength(0)
   })
 })
 

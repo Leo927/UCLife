@@ -1,0 +1,19 @@
+// Body part catalog for Phase 4.1 injury conditions. Eight parts cover
+// the authored injury templates (sprain, cut, burn, fracture,
+// concussion) — bigger ontology is unnecessary at the simulation depth
+// the game runs at. Add a row to grow the set; the loader validates.
+//
+// `paired` flags symmetric body parts so player-facing strings can
+// stay zh-CN-natural (the left/right is part of the label already).
+{
+  bodyParts: [
+    { id: 'left-ankle',  labelZh: '左脚踝', paired: true  },
+    { id: 'right-ankle', labelZh: '右脚踝', paired: true  },
+    { id: 'left-hand',   labelZh: '左手',   paired: true  },
+    { id: 'right-hand',  labelZh: '右手',   paired: true  },
+    { id: 'left-arm',    labelZh: '左臂',   paired: true  },
+    { id: 'right-arm',   labelZh: '右臂',   paired: true  },
+    { id: 'head',        labelZh: '头部',   paired: false },
+    { id: 'torso',       labelZh: '躯干',   paired: false },
+  ],
+}

@@ -22,6 +22,7 @@ import {
   type ConditionTemplate, type OnsetPath,
 } from '../character/conditions'
 import { addEffect, removeEffect } from '../character/effects'
+import { isBodyPart, type BodyPart } from '../character/bodyParts'
 import { SeededRng } from '../procgen/rng'
 import { emitSim } from '../sim/events'
 import { useClock } from '../sim/clock'
@@ -73,6 +74,7 @@ export function spawnConditionInstance(
   rng: SeededRng,
   onsetDay: number,
   source: string,
+  bodyPart: BodyPart | null = null,
 ): ConditionInstance {
   return {
     instanceId: freshInstanceId(template.id, rng),
@@ -80,7 +82,7 @@ export function spawnConditionInstance(
     phase: 'incubating',
     severity: 0,
     peakTracking: 0,
-    bodyPart: null,
+    bodyPart,
     onsetDay,
     incubationDays: rollFromRange(rng, template.incubationDays),
     riseDays: rollFromRange(rng, template.riseDays),
@@ -98,26 +100,30 @@ export function spawnConditionInstance(
 }
 
 // Returns the new instance, or null if onset was rejected (template
-// missing, or character already carries an instance of this template
-// at the same body part — design rule, physiology-data.md §
-// Stacking is upstream's job).
+// missing, scope/bodyPart mismatch, unknown bodyPart, or character
+// already carries an instance of this template at the same body part —
+// design rule, physiology-data.md § Stacking is upstream's job).
 export function onsetCondition(
   entity: Entity,
   templateId: string,
   source: string,
   dayNumber: number,
   rng: SeededRng,
+  bodyPart: BodyPart | null = null,
 ): ConditionInstance | null {
   const template = getConditionTemplate(templateId)
   if (!template) return null
+  if (template.bodyPartScope === 'bodyPart') {
+    if (bodyPart === null || !isBodyPart(bodyPart)) return null
+  } else {
+    if (bodyPart !== null) return null
+  }
   if (!entity.has(Conditions)) entity.add(Conditions)
   const cond = entity.get(Conditions)!
-  // Stacking rule: at most one instance per (templateId, bodyPart). For
-  // Phase 4.0 templates are systemic, so this is just a templateId check.
   for (const inst of cond.list) {
-    if (inst.templateId === templateId && inst.bodyPart === null) return null
+    if (inst.templateId === templateId && inst.bodyPart === bodyPart) return null
   }
-  const instance = spawnConditionInstance(template, rng, dayNumber, source)
+  const instance = spawnConditionInstance(template, rng, dayNumber, source, bodyPart)
   entity.set(Conditions, { list: [...cond.list, instance] })
   // Initial band reconcile — at severity 0 only [0,0] bands are active,
   // but reconciler is the same path so we use it for symmetry.
@@ -457,9 +463,10 @@ export function forceOnset(
   templateId: string,
   source: string,
   dayNumber: number,
+  bodyPart: BodyPart | null = null,
 ): ConditionInstance | null {
-  const rng = rngFor(entity, dayNumber, `force:${templateId}`)
-  return onsetCondition(entity, templateId, source, dayNumber, rng)
+  const rng = rngFor(entity, dayNumber, `force:${templateId}:${bodyPart ?? '-'}`)
+  return onsetCondition(entity, templateId, source, dayNumber, rng, bodyPart)
 }
 
 // Exposed for the day-rollover binding so it can fan onset rolls

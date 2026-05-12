@@ -146,5 +146,74 @@
         },
       ],
     },
+
+    // ─── Phase 4.1 — injuries (body-part-scoped) ───────────────────────
+    // Sprain: the canonical body-part injury demo. Immediate onset (no
+    // incubation), short rising arc, untreated stalls at peak (pharmacy
+    // splint flips to recovering). Walking is hobbled when ankle-scoped;
+    // working when hand/arm-scoped — the cap on walkingSpeed applies for
+    // any part-scoped instance, the bands' modifiers are stat-level, not
+    // part-aware.
+    {
+      id: 'sprain',
+      displayName: '扭伤',
+      family: 'injury',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'treatment',
+      onsetPaths: ['environment'],
+
+      incubationDays: [0, 0],
+      riseDays: [1, 1],
+      peakSeverity: [35, 55],
+      peakDays: [2, 4],
+      peakSeverityFloor: 25,
+      baseRecoveryRate: 10,
+
+      requiredTreatmentTier: 1,  // First Aid splint or pharmacy.
+
+      scarThreshold: 75,
+      scarConditionId: 'chronic_weak_joint',
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '关节有些发热，不太敢用力。',
+        moderate: '你一瘸一拐，关节肿胀疼痛。',
+        severe:   '你几乎无法承重，关节剧烈疼痛。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你扭伤了。',
+        diagnosis:     '医生确诊：关节扭伤。',
+        recoveryClean: '你的扭伤好了。',
+        recoveryScar:  '你的扭伤好了，但关节留下了旧伤。',
+        complication:  null,
+        stalled:       '你的扭伤未见好转，需要药店或诊所介入。',
+      },
+
+      glyphRef: 'injury_sprain',
+
+      effects: [
+        {
+          severityRange: [20, 100],
+          nameZh:    '扭伤（轻症）',
+          flavorZh:  '你一瘸一拐，关节肿胀疼痛。',
+          glyphRef:  'injury_sprain',
+          modifiers: [
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.30 },
+            { statId: 'workPerfMul',  type: 'percentMult', value: -0.15 },
+          ],
+        },
+        {
+          severityRange: [55, 100],
+          nameZh:    '扭伤（重症）',
+          flavorZh:  '你几乎无法承重，关节剧烈疼痛。',
+          glyphRef:  'injury_sprain',
+          modifiers: [
+            { statId: 'walkingSpeed', type: 'cap', value: 0.4 },
+            { statId: 'workingSpeed', type: 'percentMult', value: -0.30 },
+          ],
+        },
+      ],
+    },
   ],
 }
