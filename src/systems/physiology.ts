@@ -351,6 +351,25 @@ function advanceInstance(
   }
 
   if (instance.severity > instance.peakTracking) instance.peakTracking = instance.severity
+
+  // Permadeath gate (default ON): severity ≥ 100 ends the character.
+  // The vitals system pairs the dead flag with HP=0; physiology sets
+  // dead only — HP doesn't matter once the entity is flagged.
+  if (instance.severity >= 100) {
+    const h = entity.get(Health)
+    if (h) entity.set(Health, { ...h, dead: true })
+    tearDownBands(entity, instance)
+    if (entity.has(IsPlayer)) {
+      emitSim('log', { textZh: `你死于${template.displayName}。`, atMs: nowGameMs() })
+    } else {
+      const ch = entity.get(Character)
+      if (ch?.name) {
+        emitSim('log', { textZh: `${ch.name}死于${template.displayName}。`, atMs: nowGameMs() })
+      }
+    }
+    return true
+  }
+
   reconcileBands(entity, instance, template)
   return false
 }

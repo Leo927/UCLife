@@ -7,7 +7,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { createWorld } from 'koota'
 import { spawnPlayer, spawnNPC } from '../character/spawn'
 import {
-  Conditions, Effects, Attributes, IsPlayer,
+  Conditions, Effects, Attributes, IsPlayer, Health,
 } from '../ecs/traits'
 import {
   forceOnset, physiologySystem, diagnoseCondition, commitTreatment,
@@ -298,6 +298,44 @@ describe('physiology — injury catalog (Phase 4.1)', () => {
       expect(inst!.templateId).toBe(id)
     })
   }
+})
+
+describe('physiology — permadeath gate (Phase 4.1)', () => {
+  // Severity ≥ 100 ends the character. Wire-only — no current template
+  // climbs to 100 under normal play, but the gate must fire when one
+  // does. Test pins severity directly via the trait.
+  function pinSeverity(player: ReturnType<typeof setup>['player'], instanceId: string, value: number): void {
+    const cond = player.get(Conditions)!
+    const list = cond.list.map((c) =>
+      c.instanceId === instanceId ? { ...c, severity: value } : c,
+    )
+    player.set(Conditions, { list })
+  }
+
+  it('severity reaching 100 kills the character', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'food_poisoning', '剧毒', 1)!
+    pinSeverity(player, inst.instanceId, 100)
+    physiologySystem(world, 2)
+    expect(player.get(Health)!.dead).toBe(true)
+  })
+
+  it('chronic stub at low fixed severity does not kill', () => {
+    const { world, player } = setup()
+    forceOnset(player, 'chronic_weak_joint', '旧伤', 1, 'left-ankle')
+    for (let day = 2; day <= 60; day++) physiologySystem(world, day)
+    expect(player.get(Health)!.dead).toBe(false)
+  })
+
+  it('dead character skipped by subsequent ticks (no error spam)', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'food_poisoning', '剧毒', 1)!
+    pinSeverity(player, inst.instanceId, 100)
+    physiologySystem(world, 2)
+    // Second tick on a dead character should be a no-op, not a crash.
+    expect(() => physiologySystem(world, 3)).not.toThrow()
+    expect(player.get(Health)!.dead).toBe(true)
+  })
 })
 
 describe('physiology — complication rolls (Phase 4.1)', () => {
