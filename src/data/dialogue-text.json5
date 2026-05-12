@@ -105,6 +105,7 @@
       title: '诊断与治疗',
       noSymptoms: '你目前没有任何身体不适。',
       treatmentHeader: '治疗方案',
+      couponBlurb: '市政医保为新市民提供一次免费就诊 · 本次诊断免费',
     },
     aeClinic: {
       title: 'AE 诊室',
@@ -113,6 +114,7 @@
       perkBlurb: '减少留疤风险 · 峰值更低 · 仅限内部员工',
       noSymptoms: '你目前没有任何身体不适。',
       treatmentHeader: '治疗方案',
+      couponBlurb: '市政医保为新市民提供一次免费就诊 · 本次诊断免费',
     },
     pharmacy: {
       title: '药店',

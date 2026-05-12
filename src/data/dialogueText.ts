@@ -47,7 +47,7 @@ export interface DialogueText {
     seller: { title: string; intro: string }
     ae: { titleSuffix: string; intro: string; empty: string }
     shipDealer: { title: string }
-    clinic: { title: string; noSymptoms: string; treatmentHeader: string }
+    clinic: { title: string; noSymptoms: string; treatmentHeader: string; couponBlurb: string }
     aeClinic: {
       title: string
       gateLocked: string
@@ -55,6 +55,7 @@ export interface DialogueText {
       perkBlurb: string
       noSymptoms: string
       treatmentHeader: string
+      couponBlurb: string
     }
     pharmacy: { title: string; noSymptoms: string; undiagnosedHint: string }
     secretary: { title: string }

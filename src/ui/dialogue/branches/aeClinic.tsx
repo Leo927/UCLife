@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Money, Conditions, Reputation } from '../../../ecs/traits'
+import { IsPlayer, Money, Conditions, Reputation, Flags } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
 import { useClock, gameDayNumber } from '../../../sim/clock'
 import { getConditionTemplate, TREATMENT_TIER_ZH } from '../../../character/conditions'
@@ -16,6 +16,7 @@ import { addRep } from '../../../systems/reputation'
 import { emitSim } from '../../../sim/events'
 import { playUi } from '../../../audio/player'
 import { dialogueText } from '../../../data/dialogueText'
+import { FIRST_CLINIC_COUPON_FLAG, consumeFirstClinicCoupon } from '../../../character/firstClinicCoupon'
 import { physiologyConfig, factionsConfig } from '../../../config'
 import type { DialogueCtx, DialogueNode } from '../types'
 
@@ -41,6 +42,7 @@ function AEClinicPanel() {
   const money = useTrait(player, Money)
   const conditions = useTrait(player, Conditions)
   const reputation = useTrait(player, Reputation)
+  const flags = useTrait(player, Flags)
   const [tier, setTier] = useState<number>(2)
 
   if (!player) return null
@@ -67,11 +69,14 @@ function AEClinicPanel() {
   const symptomatic = conditions?.list.filter((c) => c.phase !== 'incubating') ?? []
   const undiagnosed = symptomatic.filter((c) => !c.diagnosed)
   const diagnosed = symptomatic.filter((c) => c.diagnosed)
+  const couponAvailable = !flags?.flags[FIRST_CLINIC_COUPON_FLAG]
+  const diagnosisFee = couponAvailable ? 0 : DIAGNOSIS_FEE
 
   const payDiagnosis = () => {
-    if (!money || money.amount < DIAGNOSIS_FEE || undiagnosed.length === 0) return
+    if (!money || money.amount < diagnosisFee || undiagnosed.length === 0) return
     playUi('ui.clinic.diagnose')
-    player.set(Money, { amount: money.amount - DIAGNOSIS_FEE })
+    if (diagnosisFee > 0) player.set(Money, { amount: money.amount - diagnosisFee })
+    if (couponAvailable) consumeFirstClinicCoupon(player)
     const day = gameDayNumber(useClock.getState().gameDate)
     for (const inst of undiagnosed) diagnoseCondition(player, inst.instanceId, day)
   }
@@ -142,14 +147,19 @@ function AEClinicPanel() {
       {undiagnosed.length > 0 && (
         <div style={{ marginTop: 8 }}>
           <p className="status-muted" style={{ marginBottom: 8 }}>
-            当前症状 {undiagnosed.length} 项尚未诊断。诊断费 ¥{DIAGNOSIS_FEE}。
+            当前症状 {undiagnosed.length} 项尚未诊断。诊断费 ¥{diagnosisFee}。
           </p>
+          {couponAvailable && (
+            <p className="status-muted" style={{ marginBottom: 8 }} data-testid="ae-clinic-coupon">
+              {dialogueText.branches.aeClinic.couponBlurb}
+            </p>
+          )}
           <button
             className="shop-item-buy"
-            disabled={(money?.amount ?? 0) < DIAGNOSIS_FEE}
+            disabled={(money?.amount ?? 0) < diagnosisFee}
             onClick={payDiagnosis}
           >
-            接受诊断 (¥{DIAGNOSIS_FEE})
+            接受诊断 (¥{diagnosisFee})
           </button>
         </div>
       )}
