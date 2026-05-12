@@ -46,7 +46,11 @@ function isSymptomaticPhase(phase: ConditionPhase): boolean {
   return phase === 'rising' || phase === 'peak' || phase === 'recovering' || phase === 'stalled'
 }
 
-function isSymptomaticInfectiousCarrier(entity: Entity): boolean {
+// True when the entity carries a symptomatic instance of any
+// `infectious=true` condition template. Shared with the worldspace
+// sneeze-emote renderer so both consumers use one definition of
+// "currently shedding".
+export function isSymptomaticInfectiousCarrier(entity: Entity): boolean {
   const cond = entity.get(Conditions)
   if (!cond || cond.list.length === 0) return false
   const ifx = getInfectiousTemplateIds()

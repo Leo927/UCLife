@@ -42,6 +42,7 @@ import {
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
   Active, Road, Appearance, ManageCell, Owner,
 } from '../ecs/traits'
+import { isSymptomaticInfectiousCarrier } from '../systems/workplacePrevalence'
 import { useCamera } from './cameraStore'
 import { useCombatStore } from '../systems/combat'
 import { BED_MULTIPLIERS, bedActiveOccupant } from '../systems/bed'
@@ -615,6 +616,7 @@ function buildSnapshot(
       vitalsProgress: progress,
       speech: chatLine?.text || null,
       isDead,
+      symptomaticInfectious: !isDead && isSymptomaticInfectiousCarrier(ent),
     })
   }
 
@@ -670,6 +672,7 @@ function buildSnapshot(
     player: playerSnap,
     moveTarget,
     animTick: useAnimTick.getState().tick,
+    gameMs: useClock.getState().gameDate.getTime(),
     onNpcClick,
     onInteractableClick,
   }

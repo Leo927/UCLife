@@ -45,4 +45,15 @@
   // this count, emit one zh-CN log line (gated once per game-day so
   // re-entering the same shift doesn't spam).
   workplacePrevalenceThreshold: 2,
+
+  // Phase 4.2 — sneeze/cough emote pulse over symptomatic infectious
+  // NPCs (worldspace renderer). All values are in game-time
+  // milliseconds. The pulse interval is jittered per entity inside
+  // [sneezeEmoteMinMs, sneezeEmoteMaxMs] so a crowded shop doesn't
+  // cough in lockstep. Display duration is how long each glyph stays
+  // visible per pulse — short enough to read as a beat, long enough
+  // for the player to register on a 1× tick.
+  sneezeEmoteMinMs: 8000,
+  sneezeEmoteMaxMs: 15000,
+  sneezeEmoteDisplayMs: 1200,
 }

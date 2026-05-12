@@ -14,6 +14,7 @@ import { spawnNPC } from '../../character/spawn'
 import { getStat } from '../../stats/sheet'
 import type { StatId } from '../../stats/schema'
 import { worldConfig } from '../../config'
+import { sneezeEmoteRegistry } from '../../render/ground/PixiGroundRenderer'
 
 registerDebugHandle('physiologyForceOnset', (templateId: string, source = '调试', bodyPart: string | null = null) => {
   const player = world.queryFirst(IsPlayer, Conditions)
@@ -131,4 +132,18 @@ registerDebugHandle('getNpcConditionsByKey', (key: string) => {
     return entity.get(Conditions)!.list.map((c) => ({ ...c, activeBands: [...c.activeBands] }))
   }
   return null
+})
+
+// Phase 4.2 — readback for the worldspace sneeze-emote registry. The
+// renderer rewrites this every render frame; the smoke test asserts
+// the glyph layer reacted to a flu carrier without polling DOM/canvas.
+// Returns the EntityKey strings of NPCs currently registered for the
+// emote pulse (subset of "symptomatic infectious + in view").
+registerDebugHandle('sneezeEmoteEntities', () => {
+  const out: string[] = []
+  for (const ent of sneezeEmoteRegistry.active) {
+    const k = ent.get(EntityKey)
+    out.push(k ? k.key : String(ent))
+  }
+  return out
 })

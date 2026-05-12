@@ -72,6 +72,10 @@ export interface NpcSnap {
   vitalsProgress: number  // -1 if no progress bar
   speech: string | null
   isDead: boolean
+  // Phase 4.2 — true when the NPC carries a symptomatic instance of an
+  // infectious condition template (flu rising/peak/recovering/stalled).
+  // Drives the cough/sneeze emote glyph in the worldspace renderer.
+  symptomaticInfectious: boolean
 }
 
 export interface PlayerSnap {
@@ -110,6 +114,10 @@ export interface GroundSnapshot {
   moveTarget: { x: number; y: number } | null
   // Animation tick (12Hz from animTick.ts).
   animTick: number
+  // Current game-time in ms. Used by the sneeze-emote pulse timer so
+  // glyph cadence tracks sim time (not wall-clock RAF cadence) and
+  // pauses cleanly when the player pauses the game.
+  gameMs: number
   // Click dispatchers — invoked by Pixi pointer events on hit nodes.
   onNpcClick: (ent: Entity) => void
   onInteractableClick: (ent: Entity, x: number, y: number) => void

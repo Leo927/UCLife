@@ -46,6 +46,7 @@ import { composeSheet } from '../sprite/compose'
 import { appearanceToLpc } from '../sprite/appearanceToLpc'
 import type { LpcAnimation, LpcDirection, LpcManifest } from '../sprite/types'
 import { actionLabel } from '../../data/actions'
+import { physiologyConfig } from '../../config'
 import type {
   RoadSnap, BuildingSnap, WallSnap, DoorSnap, BedSnap, BarSeatSnap,
   InteractableSnap, NpcSnap, PlayerSnap, GroundSnapshot,
@@ -186,6 +187,16 @@ interface NpcNode {
   nameLabel: Text
   spriteHost: Container
   sprite: SpriteState
+  // Phase 4.2 — sneeze emote glyph. The bg circle + "咳" text are drawn
+  // above the NPC's head when their pulse timer fires. Hidden when the
+  // entity is not a symptomatic infectious carrier.
+  emoteBg: Graphics
+  emoteText: Text
+}
+
+interface EmoteState {
+  nextPulseMs: number   // game-ms when the next pulse begins
+  hideAtMs: number      // game-ms when the current pulse ends
 }
 interface PlayerNode {
   root: Container
@@ -210,6 +221,14 @@ export const groundStats = {
   interactableNodes: 0,
   npcNodes: 0,
   spriteLoadsPending: 0,
+}
+
+// Phase 4.2 — module-scope mirror of currently-emoting symptomatic
+// infectious NPCs. The renderer rewrites `active` from its per-frame
+// emoteStates map; debug handles and smoke tests read off this surface
+// to confirm the glyph layer reacted to a flu carrier.
+export const sneezeEmoteRegistry: { active: Set<Entity> } = {
+  active: new Set(),
 }
 
 export function resetGroundStats(): void {
@@ -252,6 +271,9 @@ export class PixiGroundRenderer {
   private interactableNodes = new Map<Entity, InteractableNode>()
   private npcNodes = new Map<Entity, NpcNode>()
   private playerNode: PlayerNode | null = null
+  // Render-side emote state, keyed by Entity. Lifecycle mirrors
+  // NpcNode — entries are removed when their NPC vanishes from view.
+  private emoteStates = new Map<Entity, EmoteState>()
 
   private spriteLoadCounter = 0
 
@@ -322,6 +344,8 @@ export class PixiGroundRenderer {
     this.barSeatNodes.clear()
     this.interactableNodes.clear()
     this.npcNodes.clear()
+    this.emoteStates.clear()
+    sneezeEmoteRegistry.active = new Set()
     this.playerNode = null
   }
 
@@ -344,7 +368,7 @@ export class PixiGroundRenderer {
     this.syncBeds(snap.beds)
     this.syncBarSeats(snap.barSeats)
     this.syncInteractables(snap.interactables)
-    this.syncNpcs(snap.npcs, snap.animTick)
+    this.syncNpcs(snap.npcs, snap.animTick, snap.gameMs)
     this.syncPlayer(snap.player, snap.animTick)
     this.syncMoveTarget(snap.moveTarget, snap.player)
 
@@ -879,7 +903,7 @@ export class PixiGroundRenderer {
     node.label.y = it.y + 18
   }
 
-  private syncNpcs(npcs: NpcSnap[], animTick: number): void {
+  private syncNpcs(npcs: NpcSnap[], animTick: number, gameMs: number): void {
     const seen = new Set<Entity>()
     for (const n of npcs) {
       seen.add(n.ent)
@@ -889,14 +913,17 @@ export class PixiGroundRenderer {
         this.npcLayer.addChild(node.root)
         this.npcNodes.set(n.ent, node)
       }
-      this.updateNpcNode(node, n, animTick)
+      this.updateNpcNode(node, n, animTick, gameMs)
     }
     for (const [ent, node] of this.npcNodes) {
       if (!seen.has(ent)) {
         node.root.destroy({ children: true })
         this.npcNodes.delete(ent)
+        this.emoteStates.delete(ent)
       }
     }
+    // Rebuild the public emote registry from this frame's emote state.
+    sneezeEmoteRegistry.active = new Set(this.emoteStates.keys())
   }
 
   private makeNpcNode(ent: Entity): NpcNode {
@@ -929,6 +956,17 @@ export class PixiGroundRenderer {
     const spriteHost = new Container()
     const sprite = makeSpriteState()
 
+    const emoteBg = new Graphics()
+    emoteBg.visible = false
+    emoteBg.eventMode = 'none'
+    const emoteText = new Text({
+      text: '咳',
+      style: { fill: 0xfacc15, fontSize: 12, fontFamily: FONT_FAMILY, fontWeight: 'bold' },
+    })
+    emoteText.anchor.set(0.5, 0.5)
+    emoteText.visible = false
+    emoteText.eventMode = 'none'
+
     root.addChild(speechRect)
     root.addChild(speechText)
     root.addChild(actionLabelText)
@@ -939,6 +977,8 @@ export class PixiGroundRenderer {
     root.addChild(spriteHost)
     spriteHost.addChild(sprite.sprite)
     root.addChild(nameLabel)
+    root.addChild(emoteBg)
+    root.addChild(emoteText)
 
     root.on('pointerdown', (e: FederatedPointerEvent) => {
       e.stopPropagation()
@@ -949,11 +989,11 @@ export class PixiGroundRenderer {
     return {
       root, speechRect, speechText, actionLabel: actionLabelText,
       progressBg, progressFill, deadCircle, deadCross, nameLabel,
-      spriteHost, sprite,
+      spriteHost, sprite, emoteBg, emoteText,
     }
   }
 
-  private updateNpcNode(node: NpcNode, n: NpcSnap, animTick: number): void {
+  private updateNpcNode(node: NpcNode, n: NpcSnap, animTick: number, gameMs: number): void {
     const isDead = n.isDead
     const kind = n.actionKind
     const isVisible = !isDead && kind !== 'idle' && kind !== 'walking'
@@ -1048,6 +1088,50 @@ export class PixiGroundRenderer {
     node.nameLabel.style.wordWrapWidth = 80
     node.nameLabel.x = n.x
     node.nameLabel.y = n.y + 14
+
+    this.updateEmote(node, n, gameMs)
+  }
+
+  // Phase 4.2 — drive the cough/sneeze emote glyph for symptomatic
+  // infectious NPCs. The pulse cadence is jittered per entity so a
+  // crowd of carriers doesn't cough in lockstep. Glyph state is
+  // render-only — never written back to ECS — so saves don't churn.
+  private updateEmote(node: NpcNode, n: NpcSnap, gameMs: number): void {
+    const ent = n.ent
+    const eligible = !n.isDead && n.symptomaticInfectious
+    if (!eligible) {
+      if (this.emoteStates.has(ent)) this.emoteStates.delete(ent)
+      node.emoteBg.visible = false
+      node.emoteText.visible = false
+      return
+    }
+    let state = this.emoteStates.get(ent)
+    const minMs = physiologyConfig.sneezeEmoteMinMs
+    const maxMs = physiologyConfig.sneezeEmoteMaxMs
+    const displayMs = physiologyConfig.sneezeEmoteDisplayMs
+    if (!state) {
+      // Initial pulse anywhere in [0, max] so co-located carriers don't
+      // cough in unison on first frame.
+      state = { nextPulseMs: gameMs + Math.random() * maxMs, hideAtMs: 0 }
+      this.emoteStates.set(ent, state)
+    }
+    if (gameMs >= state.nextPulseMs) {
+      state.hideAtMs = gameMs + displayMs
+      state.nextPulseMs = gameMs + minMs + Math.random() * (maxMs - minMs)
+    }
+    const visible = gameMs < state.hideAtMs
+    if (visible) {
+      const cx = n.x
+      const cy = n.y - 40
+      node.emoteBg.clear()
+        .circle(cx, cy, 9)
+        .fill({ color: 0x1f2937, alpha: 0.85 })
+        .stroke({ color: 0xfacc15, width: 1, alpha: 0.95 })
+      node.emoteText.x = cx
+      node.emoteText.y = cy
+    }
+    node.emoteBg.visible = visible
+    node.emoteText.visible = visible
   }
 
   private syncPlayer(player: PlayerSnap | null, animTick: number): void {
