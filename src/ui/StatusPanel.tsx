@@ -11,6 +11,8 @@ import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP, getSkillXp } from '../character/skills'
 import { selfTreatCondition } from '../systems/physiology'
+import { labelForBodyPart } from '../character/bodyParts'
+import { BodyDoll } from './BodyDoll'
 import { dowLabel, getJobSpec } from '../data/jobs'
 import { STAT_ORDER, STATS } from '../character/stats'
 import { getStat } from '../stats/sheet'
@@ -247,35 +249,69 @@ export function StatusPanel() {
         <section className="status-section" data-testid="conditions-section">
           <h3>健康</h3>
           {health && <StatusBar label="生命" value={health.hp} invert />}
-          {conditions && conditions.list.filter((c) => c.phase !== 'incubating').length === 0 && (
-            <p className="status-muted">目前没有任何身体不适。</p>
-          )}
-          {conditions?.list.filter((c) => c.phase !== 'incubating').map((inst) => {
-            const t = getConditionTemplate(inst.templateId)
-            if (!t) return null
-            const onSelfTreat = (player && t.bodyPartScope === 'bodyPart' && t.requiredTreatmentTier <= 1)
-              ? () => {
-                if (!player) return
-                const lvl = levelOf(getSkillXp(player, 'medicine'))
-                if (selfTreatCondition(player, inst.instanceId, physiologyConfig.selfTreatMinSkillLevel, lvl)) {
-                  playUi('ui.condition-strip.click')
-                }
-              }
-              : null
-            const medLevel = player ? levelOf(getSkillXp(player, 'medicine')) : 0
-            const canSelfTreat = !!onSelfTreat &&
-              medLevel >= physiologyConfig.selfTreatMinSkillLevel &&
-              inst.currentTreatmentTier < 1
+          {(() => {
+            const symptomatic = conditions?.list.filter((c) => c.phase !== 'incubating') ?? []
+            const active = symptomatic.filter((inst) => {
+              const t = getConditionTemplate(inst.templateId)
+              return t && t.family !== 'chronic'
+            })
+            const chronic = symptomatic.filter((inst) => {
+              const t = getConditionTemplate(inst.templateId)
+              return t && t.family === 'chronic'
+            })
+            const hasBodyPartCondition = symptomatic.some((inst) => {
+              const t = getConditionTemplate(inst.templateId)
+              return t?.bodyPartScope === 'bodyPart' && inst.bodyPart !== null
+            })
             return (
-              <ConditionCard
-                key={inst.instanceId}
-                instance={inst}
-                template={t}
-                canSelfTreat={canSelfTreat}
-                onSelfTreat={onSelfTreat ?? (() => {})}
-              />
+              <>
+                {hasBodyPartCondition && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                    <BodyDoll conditions={symptomatic} />
+                  </div>
+                )}
+                {symptomatic.length === 0 && (
+                  <p className="status-muted">目前没有任何身体不适。</p>
+                )}
+                {active.map((inst) => {
+                  const t = getConditionTemplate(inst.templateId)
+                  if (!t) return null
+                  const onSelfTreat = (player && t.bodyPartScope === 'bodyPart' && t.requiredTreatmentTier <= 1)
+                    ? () => {
+                      if (!player) return
+                      const lvl = levelOf(getSkillXp(player, 'medicine'))
+                      if (selfTreatCondition(player, inst.instanceId, physiologyConfig.selfTreatMinSkillLevel, lvl)) {
+                        playUi('ui.condition-strip.click')
+                      }
+                    }
+                    : null
+                  const medLevel = player ? levelOf(getSkillXp(player, 'medicine')) : 0
+                  const canSelfTreat = !!onSelfTreat &&
+                    medLevel >= physiologyConfig.selfTreatMinSkillLevel &&
+                    inst.currentTreatmentTier < 1
+                  return (
+                    <ConditionCard
+                      key={inst.instanceId}
+                      instance={inst}
+                      template={t}
+                      canSelfTreat={canSelfTreat}
+                      onSelfTreat={onSelfTreat ?? (() => {})}
+                    />
+                  )
+                })}
+                {chronic.length > 0 && (
+                  <div className="chronic-stubs" data-testid="chronic-stubs">
+                    <h4 style={{ marginTop: 12, marginBottom: 6 }}>旧伤(永久)</h4>
+                    {chronic.map((inst) => {
+                      const t = getConditionTemplate(inst.templateId)
+                      if (!t) return null
+                      return <ChronicStubRow key={inst.instanceId} instance={inst} template={t} />
+                    })}
+                  </div>
+                )}
+              </>
             )
-          })}
+          })()}
         </section>
 
         <section className="status-section">
@@ -424,6 +460,20 @@ function ConditionCard({
           自行包扎
         </button>
       )}
+    </div>
+  )
+}
+
+function ChronicStubRow({
+  instance, template,
+}: {
+  instance: { instanceId: string; templateId: string; bodyPart: string | null; severity: number }
+  template: ConditionTemplate
+}) {
+  const part = instance.bodyPart ? labelForBodyPart(instance.bodyPart) : null
+  return (
+    <div className="chronic-stub-row status-meta" data-template={template.id}>
+      · {template.displayName}{part ? `（${part}）` : ''}
     </div>
   )
 }
