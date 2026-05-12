@@ -39,4 +39,10 @@
   // unexposed off-camera population — "a flu is going around" without
   // burning the off-screen city to the ground.
   contagionAggregateDailyScalar: 0.10,
+
+  // Phase 4.2 — workplace prevalence log line. When the player begins
+  // a work shift, count symptomatic infectious co-workers. At or above
+  // this count, emit one zh-CN log line (gated once per game-day so
+  // re-entering the same shift doesn't spam).
+  workplacePrevalenceThreshold: 2,
 }

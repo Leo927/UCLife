@@ -8,6 +8,7 @@ export interface PhysiologyConfig {
   reflexForLaborInjury: number
   selfTreatMinSkillLevel: number
   contagionAggregateDailyScalar: number
+  workplacePrevalenceThreshold: number
 }
 
 export const physiologyConfig = json5.parse(raw) as PhysiologyConfig

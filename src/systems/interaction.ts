@@ -14,6 +14,7 @@ import { isBarOpen } from './shop'
 import { useClock } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
+import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
 import { Flags, Ship, IsFlagshipMark } from '../ecs/traits'
 import { boardShip, disembarkShip, migratePlayerToScene } from '../sim/scene'
 import { takeHelm } from '../sim/helm'
@@ -396,5 +397,8 @@ export function interactionSystem(world: World) {
       durationMin = Math.max(1, Math.round((boredom * actionsConfig.barMinutesForFullFun) / 100))
     }
     player.set(Action, { kind: def.kind, remaining: durationMin, total: durationMin })
+    if (def.kind === 'working') {
+      maybeEmitWorkplacePrevalence(world, player, useClock.getState().gameDate)
+    }
   }
 }

@@ -201,6 +201,11 @@ export const JobPerformance = trait({
   todayPerf: 0,
   lastUpdateDay: 0,
   wasInWindow: false,
+  // Last game-day the player-only workplace-prevalence log line fired
+  // for this entity. -1 means never; the workplace-prevalence check
+  // gates re-entry within the same day. Saves round-trip via spread in
+  // boot/traitSerializers/economy.ts.
+  lastWorkplacePrevalenceDay: -1,
 })
 
 export const Character = trait({
