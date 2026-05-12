@@ -160,6 +160,26 @@
       playerHireable: false,
     },
 
+    // NPC-only role. AE-staffed clinician at the AE HQ. Player walks up
+    // and uses the doctor's dialog (aeClinic branch) to diagnose +
+    // commit treatment with AE perks (lower peak, raised scar
+    // threshold) at the cost of a small Anaheim rep ding per visit.
+    // Gate threshold lives in physiology.json5 (aeClinicMinRep), not
+    // here — repReq on a job spec means "player needs this rep to be
+    // hired" and the player never gets hired as the AE doctor.
+    ae_doctor: {
+      jobTitle: 'AE 医务员',
+      wage: 260,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 20,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: '为 AE 员工提供诊断与治疗 · 拒绝外人。',
+      playerHireable: false,
+    },
+
     // NPC-only role. Pharmacist behind the pharmacy counter. Player walks
     // up and uses the pharmacist's dialog (PharmacyConversation) to buy
     // over-the-counter pharmacy-tier treatment for diagnosed conditions.

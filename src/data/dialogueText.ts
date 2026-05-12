@@ -19,6 +19,7 @@ export interface DialogueText {
     ae: string
     shipDealer: string
     clinic: string
+    aeClinic: string
     pharmacy: string
     secretary: string
     recruiter: string
@@ -47,6 +48,14 @@ export interface DialogueText {
     ae: { titleSuffix: string; intro: string; empty: string }
     shipDealer: { title: string }
     clinic: { title: string; noSymptoms: string; treatmentHeader: string }
+    aeClinic: {
+      title: string
+      gateLocked: string
+      gateOpenIntro: string
+      perkBlurb: string
+      noSymptoms: string
+      treatmentHeader: string
+    }
     pharmacy: { title: string; noSymptoms: string; undiagnosedHint: string }
     secretary: { title: string }
     recruiter: {

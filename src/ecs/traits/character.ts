@@ -101,6 +101,14 @@ export interface ConditionInstance {
   diagnosedDay: number | null
   currentTreatmentTier: number
   treatmentExpiresDay: number | null
+  // Phase 4.2 — faction-clinic treatment perks. AE clinic stamps a
+  // peakReductionBonus on top of PEAK_REDUCTION_BY_TIER[tier] (so the
+  // rising arm caps lower) and raises the scar branch threshold via
+  // scarThresholdOverride. Defaults are 0 / null (no perk applied).
+  // Pre-4.2 saves read these as undefined; advanceInstance falls back
+  // to the defaults via `?? 0` / `?? template.scarThreshold`.
+  peakReductionBonus: number
+  scarThresholdOverride: number | null
   // Mirror of currently-emitting band indices on the Effects trait.
   // Diffed by the reconciler against the next set on every severity change.
   activeBands: number[]

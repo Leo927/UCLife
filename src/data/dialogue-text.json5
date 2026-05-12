@@ -57,6 +57,7 @@
     ae: '申请晋升',
     shipDealer: '看看那艘货船',
     clinic: '诊断与治疗',
+    aeClinic: 'AE 诊室',
     pharmacy: '买药',
     secretary: 'faction事务',
     recruiter: '招募事宜',
@@ -102,6 +103,14 @@
     shipDealer: { title: '二手船坞' },
     clinic: {
       title: '诊断与治疗',
+      noSymptoms: '你目前没有任何身体不适。',
+      treatmentHeader: '治疗方案',
+    },
+    aeClinic: {
+      title: 'AE 诊室',
+      gateLocked: '安那海姆员工通道 — 凭证不足。',
+      gateOpenIntro: '内部员工医务支援 · 治疗后会留下一次到访记录。',
+      perkBlurb: '减少留疤风险 · 峰值更低 · 仅限内部员工',
       noSymptoms: '你目前没有任何身体不适。',
       treatmentHeader: '治疗方案',
     },

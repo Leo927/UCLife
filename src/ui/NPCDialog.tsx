@@ -67,6 +67,7 @@ export function NPCDialog() {
     isHROnDuty: specId === 'city_hr_clerk' && onShift,
     isAEOnDuty,
     isDoctorOnDuty: specId === 'civilian_doctor' && onShift,
+    isAEDoctorOnDuty: specId === 'ae_doctor' && onShift,
     isPharmacistOnDuty: specId === 'civilian_pharmacist' && onShift,
     isCashierOnDuty: onShift && (CASHIER_SPEC_IDS as readonly string[]).includes(specId),
     isSecretaryOnDuty: specId === 'secretary' && onShift,

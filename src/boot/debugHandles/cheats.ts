@@ -56,6 +56,16 @@ registerDebugHandle('setPlayerStat', (path: string, value: number) => {
   return false
 })
 
+// Read the player's faction reputation. Used by smoke tests that need
+// to assert on rep ledger changes (e.g. AE clinic visit).
+registerDebugHandle('getPlayerReputation', (factionId: string) => {
+  const p = world.queryFirst(IsPlayer)
+  if (!p) return null
+  const r = p.get(Reputation)
+  if (!r) return 0
+  return r.rep[factionId as FactionId] ?? 0
+})
+
 registerDebugHandle('cheatMoney', (n: number) => {
   const p = world.queryFirst(IsPlayer)
   if (!p) return false

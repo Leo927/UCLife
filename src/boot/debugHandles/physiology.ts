@@ -13,7 +13,9 @@ import { contagionSystem, resetContagion } from '../../systems/contagion'
 import { spawnNPC } from '../../character/spawn'
 import { getStat } from '../../stats/sheet'
 import type { StatId } from '../../stats/schema'
-import { worldConfig } from '../../config'
+import { worldConfig, physiologyConfig } from '../../config'
+import { getConditionTemplate } from '../../character/conditions'
+import { addRep } from '../../systems/reputation'
 import { sneezeEmoteRegistry } from '../../render/ground/PixiGroundRenderer'
 
 registerDebugHandle('physiologyForceOnset', (templateId: string, source = '调试', bodyPart: string | null = null) => {
@@ -132,6 +134,34 @@ registerDebugHandle('getNpcConditionsByKey', (key: string) => {
     return entity.get(Conditions)!.list.map((c) => ({ ...c, activeBands: [...c.activeBands] }))
   }
   return null
+})
+
+// Phase 4.2 — AE clinic commit. Stamps the configured perks onto the
+// instance (peakReductionBonus + scar threshold raise) and pays the
+// Anaheim rep cost. Mirrors the aeClinic.tsx branch's commit() logic
+// minus the money pull. Returns true on a successful tier-2 commit.
+registerDebugHandle('physiologyCommitTreatmentAE', (instanceId: string, tier: number, expiresInDays: number | null) => {
+  const player = world.queryFirst(IsPlayer, Conditions)
+  if (!player) return false
+  const day = gameDayNumber(useClock.getState().gameDate)
+  const expiresDay = expiresInDays === null ? null : day + expiresInDays
+  let perks: { peakReductionBonus: number; scarThresholdOverride: number | null } | undefined
+  if (tier === 2) {
+    const cond = player.get(Conditions)!
+    const live = cond.list.find((c) => c.instanceId === instanceId)
+    const template = live ? getConditionTemplate(live.templateId) : undefined
+    perks = {
+      peakReductionBonus: physiologyConfig.aeClinicPeakReductionBonus,
+      scarThresholdOverride: template
+        ? template.scarThreshold + physiologyConfig.aeClinicScarThresholdRaise
+        : null,
+    }
+  }
+  const ok = commitTreatment(player, instanceId, tier, expiresDay, perks)
+  if (ok && tier === 2 && physiologyConfig.aeClinicRepCost > 0) {
+    addRep(player, 'anaheim', -physiologyConfig.aeClinicRepCost)
+  }
+  return ok
 })
 
 // Phase 4.2 — readback for the worldspace sneeze-emote registry. The

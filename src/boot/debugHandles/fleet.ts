@@ -229,6 +229,7 @@ registerDebugHandle('hireBranchListing', (npcKey: string): string[] => {
       isRealtorOnDuty: false,
       isAEOnDuty: false,
       isDoctorOnDuty: false,
+      isAEDoctorOnDuty: false,
       isPharmacistOnDuty: false,
       isSecretaryOnDuty: false,
       isRecruiterOnDuty: false,

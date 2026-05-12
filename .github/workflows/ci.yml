@@ -114,6 +114,8 @@ jobs:
       - if: always()
         run: node scripts/check-physiology-sneeze.mjs
       - if: always()
+        run: node scripts/check-physiology-ae-clinic.mjs
+      - if: always()
         run: node scripts/check-space-combat.mjs
       - if: always()
         run: node scripts/check-cockpit.mjs

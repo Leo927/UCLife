@@ -381,6 +381,12 @@
         // order-fuel panel (aeSupplyDealer dialog branch).
         { type: 'workstation', specId: 'ae_supply_dealer', relTile: { x: 3.5, y: 18.5 }, noInteractable: true, labelZh: '补给柜台' },
 
+        // Phase 4.2 — AE clinic kiosk. Same lobby strip; talk-verb opens
+        // the aeClinic branch (rep-gated diagnose+treat flow with AE
+        // perks). The on-duty NPC's specId === 'ae_doctor' drives the
+        // role flag in NPCDialog.
+        { type: 'workstation', specId: 'ae_doctor', relTile: { x: 3.5, y: 22.5 }, noInteractable: true, labelZh: 'AE 诊台' },
+
         // Board row (y = 4.5)
         { type: 'workstation', specId: 'ae_board_chair',     relTile: { x: 8.5,  y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },
         { type: 'workstation', specId: 'ae_board_cfo',       relTile: { x: 12.5, y: 4.5  }, kind: 'work', labelZh: '董事办公桌' },

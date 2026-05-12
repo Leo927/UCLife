@@ -56,4 +56,24 @@
   sneezeEmoteMinMs: 8000,
   sneezeEmoteMaxMs: 15000,
   sneezeEmoteDisplayMs: 1200,
+
+  // Phase 4.2 — AE clinic gate. Minimum Anaheim reputation required to
+  // pass through 安那海姆员工通道. Below this, the AE doctor's kiosk
+  // shows the 凭证不足 lockout; at or above, the player gets the
+  // diagnose+treat flow with AE perks applied on commit.
+  aeClinicMinRep: 20,
+
+  // Phase 4.2 — AE clinic perks layered on top of the tier-2 base when
+  // the player commits treatment through the AE doctor. The bonus is
+  // additive on PEAK_REDUCTION_BY_TIER[2] (25 base → 35 with default
+  // bonus 10) so an AE-treated flu peaks meaningfully lower than a
+  // civilian-clinic flu. The scar threshold raise reduces the chance
+  // of leaving a chronic stub on resolution.
+  aeClinicPeakReductionBonus: 10,
+  aeClinicScarThresholdRaise: 10,
+
+  // Phase 4.2 — Anaheim reputation cost per AE clinic visit. Pulled
+  // from the player's faction ledger when treatment commits, so the
+  // perk has weight against the climb to AE-engineer roles.
+  aeClinicRepCost: 1,
 }

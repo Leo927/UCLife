@@ -95,6 +95,8 @@ export function spawnConditionInstance(
     diagnosedDay: null,
     currentTreatmentTier: 0,
     treatmentExpiresDay: null,
+    peakReductionBonus: 0,
+    scarThresholdOverride: null,
     activeBands: [],
     lastDigestDay: 0,
   }
@@ -258,9 +260,12 @@ function advanceInstance(
       instance.phase = 'rising'
     }
   } else if (instance.phase === 'rising') {
-    const peakReduction = PEAK_REDUCTION_BY_TIER[
+    // Treatment-tier base reduction + faction-clinic bonus (Phase 4.2 —
+    // AE clinic stamps peakReductionBonus on top of the tier-2 base).
+    const baseReduction = PEAK_REDUCTION_BY_TIER[
       Math.max(0, Math.min(PEAK_REDUCTION_BY_TIER.length - 1, instance.currentTreatmentTier))
     ]
+    const peakReduction = baseReduction + (instance.peakReductionBonus ?? 0)
     let effectivePeak = instance.peakSeverity - peakReduction
     if (effectivePeak < template.peakSeverityFloor) effectivePeak = template.peakSeverityFloor
     if (instance.riseDays > 0) {
@@ -301,7 +306,8 @@ function advanceInstance(
       // weak knee), onsetCondition refuses and we fall through to
       // clean-resolve logging.
       let scarred = false
-      if (template.scarConditionId !== null && instance.peakTracking >= template.scarThreshold) {
+      const scarThreshold = instance.scarThresholdOverride ?? template.scarThreshold
+      if (template.scarConditionId !== null && instance.peakTracking >= scarThreshold) {
         const scarRng = rngFor(entity, dayNumber, `scar:${instance.instanceId}`)
         const stub = onsetCondition(
           entity,
@@ -500,18 +506,40 @@ export function diagnoseCondition(
 // Untreated → pharmacy → clinic. The phase tick reads
 // currentTreatmentTier on the next rollover.
 // ──────────────────────────────────────────────────────────────────────
+// Optional Phase-4.2 perks layered on top of the tier base by the AE
+// clinic (and any future faction clinic). `peakReductionBonus` is
+// additive on top of PEAK_REDUCTION_BY_TIER[tier] in advanceInstance's
+// rising arm; `scarThresholdOverride` swaps the per-template
+// scarThreshold for this instance only. Omit both for civilian-clinic
+// behavior.
+export interface TreatmentPerks {
+  peakReductionBonus?: number
+  scarThresholdOverride?: number | null
+}
+
 export function commitTreatment(
   entity: Entity,
   instanceId: string,
   tier: number,
   expiresDay: number | null,
+  perks?: TreatmentPerks,
 ): boolean {
   if (!entity.has(Conditions)) return false
   const cond = entity.get(Conditions)!
   let touched = false
   const next = cond.list.map((live) => {
     if (live.instanceId !== instanceId) return live
-    const inst = { ...live, activeBands: [...live.activeBands], currentTreatmentTier: tier, treatmentExpiresDay: expiresDay }
+    const inst = {
+      ...live,
+      activeBands: [...live.activeBands],
+      currentTreatmentTier: tier,
+      treatmentExpiresDay: expiresDay,
+      peakReductionBonus: perks?.peakReductionBonus ?? live.peakReductionBonus ?? 0,
+      scarThresholdOverride:
+        perks?.scarThresholdOverride !== undefined
+          ? perks.scarThresholdOverride
+          : (live.scarThresholdOverride ?? null),
+    }
     // If the instance was stalled, the next tick will flip it to
     // recovering; if it was already recovering, the tier multiplier
     // takes effect on the next tick. No work needed here beyond the

@@ -12,6 +12,10 @@ export interface PhysiologyConfig {
   sneezeEmoteMinMs: number
   sneezeEmoteMaxMs: number
   sneezeEmoteDisplayMs: number
+  aeClinicMinRep: number
+  aeClinicPeakReductionBonus: number
+  aeClinicScarThresholdRaise: number
+  aeClinicRepCost: number
 }
 
 export const physiologyConfig = json5.parse(raw) as PhysiologyConfig

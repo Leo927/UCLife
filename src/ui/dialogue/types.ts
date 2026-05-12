@@ -36,6 +36,10 @@ export type DialogueRoles = {
   isRealtorOnDuty: boolean
   isAEOnDuty: boolean
   isDoctorOnDuty: boolean
+  // Phase 4.2 — AE clinic gate. True when the NPC is on shift at an
+  // ae_doctor workstation. Branch surface decides what the panel shows
+  // based on the player's Anaheim rep vs. aeClinicMinRep.
+  isAEDoctorOnDuty: boolean
   isPharmacistOnDuty: boolean
   isSecretaryOnDuty: boolean
   isRecruiterOnDuty: boolean
