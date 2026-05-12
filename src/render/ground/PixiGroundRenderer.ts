@@ -36,7 +36,7 @@
 // Profiling: flip groundStats.enabled = true to collect counters.
 
 import {
-  Application, Container, Graphics, Sprite, Text, Texture, Rectangle,
+  Application, Assets, Container, Graphics, Sprite, Text, Texture, Rectangle,
   type FederatedPointerEvent,
 } from 'pixi.js'
 import type { Entity } from 'koota'
@@ -46,7 +46,7 @@ import { composeSheet } from '../sprite/compose'
 import { appearanceToLpc } from '../sprite/appearanceToLpc'
 import type { LpcAnimation, LpcDirection, LpcManifest } from '../sprite/types'
 import { actionLabel } from '../../data/actions'
-import { physiologyConfig } from '../../config'
+import { artConfig, physiologyConfig } from '../../config'
 import type {
   RoadSnap, BuildingSnap, WallSnap, DoorSnap, BedSnap, BarSeatSnap,
   InteractableSnap, NpcSnap, PlayerSnap, GroundSnapshot,
@@ -140,6 +140,9 @@ interface BedNode {
   root: Container
   body: Graphics
   pillow: Graphics
+  // Art-asset sprite. When the tier has a configured BedAssetSpec, the
+  // procedural body/pillow are hidden and this sprite is shown instead.
+  artSprite: Sprite
   occupiedX: Graphics  // diagonal slash when someone else's bed
   multLabel: Text | null
   feeBox: Graphics | null
@@ -147,6 +150,32 @@ interface BedNode {
   occupiedTag: Graphics | null
   occupiedTagText: Text | null
   label: Text
+}
+
+// Module-scope texture cache keyed by asset URL. Multiple beds of the
+// same tier share one Texture (and the underlying GPU resource).
+const bedTextureCache = new Map<string, Texture>()
+const bedTexturePending = new Map<string, Promise<Texture>>()
+
+function getBedTexture(url: string): Texture | null {
+  const cached = bedTextureCache.get(url)
+  if (cached) return cached
+  if (!bedTexturePending.has(url)) {
+    const p = Assets.load<Texture>(url).then((tex) => {
+      // Pixel-art: no source smoothing.
+      tex.source.scaleMode = 'nearest'
+      bedTextureCache.set(url, tex)
+      bedTexturePending.delete(url)
+      return tex
+    }).catch((e: unknown) => {
+      bedTexturePending.delete(url)
+      // eslint-disable-next-line no-console
+      console.warn(`[ground] bed asset load failed: ${url}`, e)
+      throw e
+    })
+    bedTexturePending.set(url, p)
+  }
+  return null
 }
 interface BarSeatNode {
   root: Container
@@ -565,6 +594,9 @@ export class PixiGroundRenderer {
     root.eventMode = 'none'
     const body = new Graphics()
     const pillow = new Graphics()
+    const artSprite = new Sprite()
+    artSprite.anchor.set(0.5, 0.5)
+    artSprite.visible = false
     const occupiedX = new Graphics()
     const label = new Text({
       text: '',
@@ -573,10 +605,11 @@ export class PixiGroundRenderer {
     label.anchor.set(0.5, 0)
     root.addChild(body)
     root.addChild(pillow)
+    root.addChild(artSprite)
     root.addChild(occupiedX)
     root.addChild(label)
     return {
-      root, body, pillow, occupiedX,
+      root, body, pillow, artSprite, occupiedX,
       multLabel: null, feeBox: null, feeText: null,
       occupiedTag: null, occupiedTagText: null,
       label,
@@ -591,20 +624,47 @@ export class PixiGroundRenderer {
     const overlayStroke = isPlayerBed ? 0x4ade80 : occupied ? 0xef4444 : v.stroke
     const bodyAlpha = occupied ? 0.3 : 1
 
-    node.body.clear()
-      .roundRect(b.x - v.w / 2, b.y - v.h / 2, v.w, v.h, 3)
-      .fill({ color: v.fill, alpha: bodyAlpha })
-      .stroke({ color: overlayStroke, width: 2, alpha: bodyAlpha })
+    // Art-asset path: if this tier has a configured PNG, render it as a
+    // sprite and skip the procedural roundRect body/pillow. The footprint
+    // (vw/vh) is taken from the art config so designers can resize beds
+    // without touching the renderer.
+    const artSpec = artConfig.bedAssets[b.tier]
+    let vw = v.w
+    let vh = v.h
+    if (artSpec) {
+      vw = artSpec.w
+      vh = artSpec.h
+      const tex = node.artSprite.texture && node.artSprite.texture !== Texture.EMPTY
+        ? node.artSprite.texture
+        : getBedTexture(artSpec.assetPath)
+      if (tex && node.artSprite.texture !== tex) {
+        node.artSprite.texture = tex
+      }
+      node.artSprite.x = b.x
+      node.artSprite.y = b.y
+      node.artSprite.width = vw
+      node.artSprite.height = vh
+      node.artSprite.alpha = bodyAlpha
+      node.artSprite.visible = node.artSprite.texture !== Texture.EMPTY
+      node.body.clear()
+      node.pillow.clear()
+    } else {
+      node.artSprite.visible = false
+      node.body.clear()
+        .roundRect(b.x - vw / 2, b.y - vh / 2, vw, vh, 3)
+        .fill({ color: v.fill, alpha: bodyAlpha })
+        .stroke({ color: overlayStroke, width: 2, alpha: bodyAlpha })
 
-    node.pillow.clear()
-      .roundRect(b.x - v.w / 2 + 2, b.y - v.h / 2 + 2, v.w - 4, 4, 2)
-      .fill({ color: v.stroke, alpha: occupied ? 0.25 : 0.7 })
+      node.pillow.clear()
+        .roundRect(b.x - vw / 2 + 2, b.y - vh / 2 + 2, vw - 4, 4, 2)
+        .fill({ color: v.stroke, alpha: occupied ? 0.25 : 0.7 })
+    }
 
     node.occupiedX.clear()
     if (occupied && !isPlayerBed) {
       node.occupiedX
-        .moveTo(b.x - v.w / 2, b.y + v.h / 2)
-        .lineTo(b.x + v.w / 2, b.y - v.h / 2)
+        .moveTo(b.x - vw / 2, b.y + vh / 2)
+        .lineTo(b.x + vw / 2, b.y - vh / 2)
         .stroke({ color: 0xef4444, width: 2, alpha: 0.85 })
     }
 
@@ -623,7 +683,7 @@ export class PixiGroundRenderer {
       }
       const fw = 28, fh = 12
       const fx = b.x - fw / 2
-      const fy = b.y - v.h / 2 - 12
+      const fy = b.y - vh / 2 - 12
       node.feeBox.clear().roundRect(fx, fy, fw, fh, 3).fill(0xfacc15)
       const ft = `¥${b.fee}`
       if (node.feeText!.text !== ft) node.feeText!.text = ft
@@ -652,7 +712,7 @@ export class PixiGroundRenderer {
       if (node.multLabel.text !== txt) node.multLabel.text = txt
       node.multLabel.style.fill = v.stroke
       node.multLabel.x = b.x
-      node.multLabel.y = b.y - v.h / 2 - (showFee ? 23 : 11)
+      node.multLabel.y = b.y - vh / 2 - (showFee ? 23 : 11)
       node.multLabel.visible = true
     } else if (node.multLabel) {
       node.multLabel.visible = false
@@ -672,7 +732,7 @@ export class PixiGroundRenderer {
       }
       const tw = isPlayerBed ? 28 : 24
       const tx = b.x - tw / 2
-      const ty = b.y - v.h / 2 - 12
+      const ty = b.y - vh / 2 - 12
       node.occupiedTag.clear()
         .roundRect(tx, ty, tw, 12, 3)
         .fill(isPlayerBed ? 0x166534 : 0x7f1d1d)
@@ -690,7 +750,7 @@ export class PixiGroundRenderer {
     if (node.label.text !== b.label) node.label.text = b.label
     node.label.style.fill = occupied ? 0x71717a : 0xbdbdc6
     node.label.x = b.x
-    node.label.y = b.y + v.h / 2 + 4
+    node.label.y = b.y + vh / 2 + 4
   }
 
   private syncBarSeats(seats: BarSeatSnap[]): void {

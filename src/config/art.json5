@@ -1,0 +1,22 @@
+// Art-asset paths consumed by renderers. Anything not listed here keeps
+// its procedural Graphics fallback. Paths are resolved against Vite's
+// public root (so `/art/foo.png` maps to `public/art/foo.png` in dev and
+// to the same path in the built bundle).
+//
+// `w` / `h` are the **drawn** footprint in world pixels — i.e. the
+// camera-space rectangle the sprite is stretched into. The source PNG
+// can be any resolution; the renderer scales to the configured size so
+// designers can swap assets without touching the simulation.
+{
+  bedAssets: {
+    // PixelLab returns square (96×96) sources with the bed centered in
+    // transparent padding, so the footprint here matches the source
+    // aspect — drawing at a non-square footprint would distort the
+    // painted bed inside the padding.
+    flop: {
+      assetPath: '/art/objects/bed-flop.png',
+      w: 32,
+      h: 32,
+    },
+  },
+}
