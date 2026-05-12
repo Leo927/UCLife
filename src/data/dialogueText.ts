@@ -27,6 +27,7 @@ export interface DialogueText {
     jobSite: string
     talkHire: string
     hangarManager: string
+    aeShipSales: string
   }
   branches: {
     shop: { title: string; intro: string }
@@ -98,6 +99,40 @@ export interface DialogueText {
       repairFocusButton: string
       repairClearButton: string
       repairShipDeficit: string
+      deliveriesHeader: string
+      deliveriesEmpty: string
+      deliveryInTransitFmt: string
+      deliveryArrivedFmt: string
+      receiveDeliveryButton: string
+      receiveDeliveryNoSlot: string
+      toastDeliveryReceived: string
+      toastDeliveryFailed: string
+    }
+    aeShipSales: {
+      title: string
+      moneyLabel: string
+      statHull: string
+      statArmor: string
+      statSpeed: string
+      statFuel: string
+      statSupplies: string
+      statMounts: string
+      statCrew: string
+      statSlot: string
+      slotLabel: { ms: string; smallCraft: string; capital: string }
+      slotFull: string
+      deliverHeader: string
+      buyButton: string
+      buyDisabledMoney: string
+      buyDisabledNoSlot: string
+      gateNoHangar: string
+      gateNoSlot: string
+      gateNoMoney: string
+      toastNoHangar: string
+      toastBought: string
+      pendingHeader: string
+      pendingDays: string
+      pendingArrived: string
     }
   }
 }

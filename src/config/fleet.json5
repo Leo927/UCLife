@@ -39,4 +39,20 @@
   // throughput to zero, and a perfect day can't double it.
   perfMin: 0.5,
   perfMax: 1.5,
+
+  // Phase 6.2.C1 — delivery lead time (in game days) by hull class.
+  // Counts the day-rollover transitions between the order day and the
+  // arrival day. lightHull = the AE VB sales rep's product; capital
+  // (Pegasus, 6.2.C2) ships from the Granada AE drydock.
+  delivery: {
+    lightHull: 2,
+    capital: 5,
+  },
+
+  // Phase 6.2.C1 — AE ship-sales desk tile inside the Von Braun airport
+  // (which sits at tile rect 108,10..138,60). The desk is spawned in
+  // ecs/spawn.ts:spawnAirport; the rep's special-NPC tileX/tileY MUST
+  // equal these so the spawn loop's Workstation.occupant ↔ Job.workstation
+  // linkage succeeds.
+  shipSalesDeskTileVB: { x: 124, y: 27 },
 }

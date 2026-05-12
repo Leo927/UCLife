@@ -8,7 +8,12 @@ import type { HangarSlotClass } from '../../../ecs/traits'
 import { world, getWorld } from '../../../ecs/world'
 import { dialogueText } from '../../../data/dialogueText'
 import { describeHangarRepair } from '../../../systems/hangarRepair'
+import {
+  deriveHangarOccupancy, poiIdForHangarScene, receiveDelivery,
+} from '../../../systems/shipDelivery'
 import { getShipClass } from '../../../data/ship-classes'
+import { useUI } from '../../uiStore'
+import { useClock, gameDayNumber } from '../../../sim/clock'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 export function hangarManagerBranch(ctx: DialogueCtx): DialogueNode | null {
@@ -37,6 +42,8 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
   const tierLabel = t.tierLabel[hangarTrait.tier]
   const slotEntries = Object.entries(hangarTrait.slotCapacity) as Array<[HangarSlotClass, number]>
   const sceneId = sceneIdForBuilding(building)
+  const poiId = sceneId ? poiIdForHangarScene(sceneId) : null
+  const occupancy = poiId ? deriveHangarOccupancy(poiId) : {}
 
   return (
     <>
@@ -49,13 +56,71 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
           {slotEntries.map(([cls, total]) => (
             <li key={cls} className="dev-row">
               <span className="dev-key">{t.slotLabel[cls]}</span>
-              <span>0 / {total}</span>
+              <span>{occupancy[cls] ?? 0} / {total}</span>
             </li>
           ))}
         </ul>
       )}
+      {sceneId && <PendingDeliveriesPanel hangar={building} sceneId={sceneId} />}
       {sceneId && <RepairPriorityPanel hangar={building} sceneId={sceneId} />}
     </>
+  )
+}
+
+function PendingDeliveriesPanel({ hangar, sceneId }: { hangar: Entity; sceneId: string }) {
+  const h = useTrait(hangar, Hangar)
+  // Live re-render so countdowns reflect a wall-clock day-rollover.
+  void useTrait(hangar, Building)
+  const today = gameDayNumber(useClock((s) => s.gameDate))
+  const t = dialogueText.branches.hangarManager
+  if (!h) return null
+  if (h.pendingDeliveries.length === 0) return null
+
+  const onReceive = (idx: number) => {
+    const res = receiveDelivery(hangar, sceneId, idx)
+    if (!res.ok) {
+      useUI.getState().showToast(t.toastDeliveryFailed.replace('{reason}', res.reason))
+      return
+    }
+    const cls = getShipClass(h.pendingDeliveries[idx].shipClassId)
+    const hangarLabel = hangar.get(Building)?.label ?? ''
+    useUI.getState().showToast(
+      t.toastDeliveryReceived.replace('{ship}', cls.nameZh).replace('{hangar}', hangarLabel),
+    )
+  }
+
+  return (
+    <section style={{ marginTop: 12 }}>
+      <h3>{t.deliveriesHeader}</h3>
+      <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+        {h.pendingDeliveries.map((row, idx) => {
+          const cls = getShipClass(row.shipClassId)
+          const remaining = Math.max(0, row.arrivalDay - today)
+          const status = row.status === 'arrived'
+            ? t.deliveryArrivedFmt
+            : t.deliveryInTransitFmt
+                .replace('{n}', String(remaining))
+                .replace('{orderDay}', String(row.orderDay))
+                .replace('{arrivalDay}', String(row.arrivalDay))
+          const arrived = row.status === 'arrived'
+          return (
+            <li key={idx} className="dev-row" data-delivery-row={idx}>
+              <span className="dev-key">{cls.nameZh}</span>
+              <span>{status}</span>
+              <button
+                className="dialog-option"
+                data-receive-delivery={idx}
+                onClick={() => onReceive(idx)}
+                disabled={!arrived}
+                style={{ marginLeft: 8 }}
+              >
+                {t.receiveDeliveryButton}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

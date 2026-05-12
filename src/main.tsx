@@ -23,6 +23,9 @@ import './boot/researchTick'
 // Phase 6.2.B — hangar repair throughput rides the same event so the
 // repair tick lands after dailyEconomics + research settle for the day.
 import './boot/hangarRepairTick'
+// Phase 6.2.C1 — advance pending ship deliveries on the same event;
+// rows transition in_transit → arrived once arrivalDay is reached.
+import './boot/shipDeliveryTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'

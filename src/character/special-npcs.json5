@@ -163,6 +163,25 @@
       workstation: 'ae_director',
     },
 
+    // === Phase 6.2.C1 — AE Von Braun spaceport ship sales rep ===
+    // Sits at the AE sales desk inside the Von Braun airport. The desk
+    // is spawned programmatically in ecs/spawn.ts:spawnAirport when the
+    // hub binds to vonBraunCity, at a fixed offset from the ticket
+    // counter (tile coords below mirror the desk position). Talk-verb
+    // surfaces the aeShipSales branch — purchase enqueues a delivery to
+    // a hangar the player can pick.
+    {
+      name: '苏珊·哈丁',
+      color: '#0ea5e9',
+      title: 'AE 销售代表',
+      tileX: 124, tileY: 27,
+      fatigue: 12,
+      money: 6000,
+      skills: { mechanics: 1500, computers: 1200 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_ship_sales_vb',
+    },
+
     // === Phase 6.2 — notable hostile captains ===
     // Virtual entries (no tileX/tileY); referenced by stable `id` from
     // src/data/space-entities.json5 `notableCaptains: { <slotIdx>: <id> }`.

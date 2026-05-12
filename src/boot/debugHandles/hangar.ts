@@ -6,17 +6,27 @@
 // runHangarRepairTick — the deterministic drivers the smoke uses to
 // exercise persistent damage + repair throughput without leaning on
 // real-time loop scheduling.
+//
+// Phase 6.2.C1 extends with: deliverySnapshot, enqueueShipDelivery,
+// runShipDeliveryTick, receiveShipDelivery, listShipsInFleet — the
+// deterministic drivers the smoke uses to exercise the AE buy →
+// hangar manager receive flow.
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
-import { world, getWorld } from '../../ecs/world'
+import { world, getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Building, Character, EntityKey, Hangar, Owner, Position, Workstation, Ship,
   IsFlagshipMark, ShipStatSheet,
-  type HangarSlotClass, type HangarTier,
+  type HangarSlotClass, type HangarTier, type ShipDeliveryRow,
 } from '../../ecs/traits'
 import { worldConfig } from '../../config'
 import { hangarRepairSystem, describeHangarRepair } from '../../systems/hangarRepair'
+import {
+  shipDeliverySystem, enqueueDelivery, receiveDelivery,
+  poiIdForHangarScene, deriveHangarOccupancy,
+} from '../../systems/shipDelivery'
 import { getStat } from '../../stats/sheet'
+import { getShipClass } from '../../data/ship-classes'
 
 const TILE = worldConfig.tilePx
 
@@ -199,4 +209,120 @@ registerDebugHandle('hangarRepairDescribe', (buildingKey: string) => {
 // not gate on the value yet so the smoke can pass any monotone counter.
 registerDebugHandle('runHangarRepairTick', (gameDay: number = 0) => {
   return hangarRepairSystem(gameDay)
+})
+
+// ── Phase 6.2.C1 helpers ─────────────────────────────────────────────────
+
+interface DeliverySnapshotRow extends ShipDeliveryRow {
+  hangarKey: string
+  sceneId: string
+}
+
+// All pending deliveries across every hangar in every scene world. Smoke
+// uses this to assert the buy → in_transit → arrived → received state
+// machine without depending on the React dialog tree.
+registerDebugHandle('deliverySnapshot', (): DeliverySnapshotRow[] => {
+  const out: DeliverySnapshotRow[] = []
+  for (const sceneId of SCENE_IDS) {
+    const sw = getWorld(sceneId)
+    for (const b of sw.query(Building, Hangar, EntityKey)) {
+      const key = b.get(EntityKey)!.key
+      for (const row of b.get(Hangar)!.pendingDeliveries) {
+        out.push({ ...row, hangarKey: key, sceneId })
+      }
+    }
+  }
+  return out
+})
+
+// Hangar slot occupancy snapshot — derived from docked ships, not stored.
+// Smoke uses this to assert receive-delivery increments the count.
+registerDebugHandle('hangarOccupancy', (buildingKey: string): {
+  poiId: string | null
+  capacity: Partial<Record<HangarSlotClass, number>>
+  occupied: Record<string, number>
+} => {
+  for (const sceneId of SCENE_IDS) {
+    const sw = getWorld(sceneId)
+    for (const b of sw.query(Building, Hangar, EntityKey)) {
+      if (b.get(EntityKey)!.key !== buildingKey) continue
+      const h = b.get(Hangar)!
+      const poiId = poiIdForHangarScene(sceneId)
+      return {
+        poiId,
+        capacity: h.slotCapacity,
+        occupied: poiId ? deriveHangarOccupancy(poiId) : {},
+      }
+    }
+  }
+  return { poiId: null, capacity: {}, occupied: {} }
+})
+
+// Enqueue a delivery row directly without going through the UI — used
+// only when the smoke wants to bypass the buy dialog to exercise the
+// arrival + receive path in isolation. Returns the row's index.
+registerDebugHandle('enqueueShipDelivery', (
+  buildingKey: string,
+  shipClassId: string,
+  orderDay: number,
+  leadDays: number,
+) => {
+  for (const sceneId of SCENE_IDS) {
+    const sw = getWorld(sceneId)
+    for (const b of sw.query(Building, Hangar, EntityKey)) {
+      if (b.get(EntityKey)!.key !== buildingKey) continue
+      // Validate the class id up-front so a typo in the smoke surfaces
+      // here rather than during the receive call.
+      getShipClass(shipClassId)
+      return enqueueDelivery(b, shipClassId, orderDay, leadDays)
+    }
+  }
+  return null
+})
+
+// Run one shipDelivery tick. Smoke calls this N times after enqueuing
+// to assert the in_transit → arrived flip lands at the expected day.
+registerDebugHandle('runShipDeliveryTick', (gameDay: number = 0) => {
+  return shipDeliverySystem(gameDay)
+})
+
+// Receive an arrived delivery via the system surface. The hangar
+// manager dialog calls the same function; the smoke calls this directly
+// without driving the React tree.
+registerDebugHandle('receiveShipDelivery', (buildingKey: string, rowIndex: number) => {
+  for (const sceneId of SCENE_IDS) {
+    const sw = getWorld(sceneId)
+    for (const b of sw.query(Building, Hangar, EntityKey)) {
+      if (b.get(EntityKey)!.key !== buildingKey) continue
+      return receiveDelivery(b, sceneId, rowIndex)
+    }
+  }
+  return { ok: false as const, reason: 'no_row' as const }
+})
+
+// Snapshot of every ship currently alive (flagship + delivered) so the
+// smoke can assert a delivered hull lands as a real Ship entity with
+// dockedAtPoiId set.
+registerDebugHandle('listShipsInFleet', () => {
+  const w = getWorld('playerShipInterior')
+  const out: Array<{
+    entityKey: string
+    templateId: string
+    isFlagship: boolean
+    dockedAtPoiId: string
+    hullCurrent: number
+    hullMax: number
+  }> = []
+  for (const e of w.query(Ship, EntityKey)) {
+    const s = e.get(Ship)!
+    out.push({
+      entityKey: e.get(EntityKey)!.key,
+      templateId: s.templateId,
+      isFlagship: e.has(IsFlagshipMark),
+      dockedAtPoiId: s.dockedAtPoiId,
+      hullCurrent: s.hullCurrent,
+      hullMax: s.hullMax,
+    })
+  }
+  return out
 })

@@ -201,20 +201,34 @@ export const FactionResearch = trait(() => ({
 
 // Phase 6.2.A hangar facility. Sits alongside Building + Facility on
 // hangar entities (state-rental + player-owned). The tier governs which
-// slot classes the bay can hold; slotCapacity is the per-class cap. The
-// occupant table (which ship sits in which slot) is empty at 6.2.A —
-// ships don't enter hangars until 6.2.C1/C2 wire delivery placement.
+// slot classes the bay can hold; slotCapacity is the per-class cap.
+// Slot occupancy is derived (not stored): query Ship entities whose
+// `dockedAtPoiId` matches this hangar's host POI and bucket by their
+// class's `hangarSlotClass`.
 //
 // Phase 6.2.B — `repairPriorityShipKey` is the focus override the manager
 // exposes via the repair-priority verb. Empty string = spread daily
 // throughput evenly across every damaged ship docked at this hangar's
 // POI. Non-empty = focus the full pool on that ship's EntityKey until
 // it's fully repaired (then the player picks the next one).
+//
+// Phase 6.2.C1 — `pendingDeliveries` is the per-hangar in-transit queue.
+// A buy at the AE sales rep enqueues a row; shipDeliverySystem flips
+// `status` to 'arrived' on day-rollover when arrivalDay is reached; the
+// hangar manager's receive-delivery verb spawns the ship entity and
+// pops the row.
+export interface ShipDeliveryRow {
+  shipClassId: string
+  orderDay: number
+  arrivalDay: number
+  status: 'in_transit' | 'arrived'
+}
 import type { HangarTier, HangarSlotClass } from '../../data/facilityTypes'
 export const Hangar = trait(() => ({
   tier: 'surface' as HangarTier,
   slotCapacity: {} as Partial<Record<HangarSlotClass, number>>,
   repairPriorityShipKey: '',
+  pendingDeliveries: [] as ShipDeliveryRow[],
 }))
 export type { HangarTier, HangarSlotClass }
 

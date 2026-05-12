@@ -7,6 +7,11 @@ export interface FleetConfig {
   managerScaleMax: number
   perfMin: number
   perfMax: number
+  delivery: {
+    lightHull: number
+    capital: number
+  }
+  shipSalesDeskTileVB: { x: number; y: number }
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig
