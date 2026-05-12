@@ -1,6 +1,7 @@
 import json5 from 'json5'
 import raw from './object-templates.json5?raw'
 import type { BedTier, InteractableKind } from '../config/kinds'
+import type { ArtId } from '../config/art'
 
 export type ObjectTemplateId = string
 
@@ -12,9 +13,30 @@ export type LandmarkRole =
 export type ObjectTemplateKind =
   | 'bed' | 'workstation' | 'bar_seat'
   | 'queue_point' | 'landmark' | 'partition' | 'interactable'
+  | 'wall' | 'door' | 'building_outline'
+
+/**
+ * Drawn appearance of an object. `w`/`h` is the rectangle the renderer
+ * paints into (in world pixels). `assetId` references the file catalog
+ * in `art.json5`; when set the sprite is scaled to (w × h). The
+ * procedural-fallback palette (`fill`, `stroke`, optional `label`) lets
+ * an object render before its art lands and stays useful as the
+ * cheap-to-draw style for badges/overlays. Walls / doors / building
+ * outlines have per-instance footprints (procgen computes the rect), so
+ * they omit `w`/`h`.
+ */
+export interface ObjectVisual {
+  w?: number
+  h?: number
+  fill: number
+  stroke: number
+  label?: string
+  assetId?: ArtId
+}
 
 interface BaseTemplate {
   kind: ObjectTemplateKind
+  visual: ObjectVisual
 }
 
 export interface BedTemplate extends BaseTemplate {
@@ -64,6 +86,20 @@ export interface InteractableTemplate extends BaseTemplate {
   fee?: number
 }
 
+export interface WallTemplate extends BaseTemplate {
+  kind: 'wall'
+}
+
+export type DoorVariant = 'open' | 'factionGated' | 'bedKeyed'
+export interface DoorTemplate extends BaseTemplate {
+  kind: 'door'
+  variant: DoorVariant
+}
+
+export interface BuildingOutlineTemplate extends BaseTemplate {
+  kind: 'building_outline'
+}
+
 export type ObjectTemplate =
   | BedTemplate
   | WorkstationTemplate
@@ -72,6 +108,9 @@ export type ObjectTemplate =
   | LandmarkTemplate
   | PartitionTemplate
   | InteractableTemplate
+  | WallTemplate
+  | DoorTemplate
+  | BuildingOutlineTemplate
 
 interface ObjectTemplatesFile {
   templates: Record<ObjectTemplateId, ObjectTemplate>

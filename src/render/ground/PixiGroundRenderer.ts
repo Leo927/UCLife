@@ -46,7 +46,6 @@ import { composeSheet } from '../sprite/compose'
 import { appearanceToLpc } from '../sprite/appearanceToLpc'
 import type { LpcAnimation, LpcDirection, LpcManifest } from '../sprite/types'
 import { actionLabel } from '../../data/actions'
-import { worldObjects, type DoorVariant } from '../../data/worldObjects'
 import { physiologyConfig } from '../../config'
 import { getArt } from '../assets/registry'
 import type {
@@ -425,11 +424,10 @@ export class PixiGroundRenderer {
         this.buildingNodes.set(b.ent, node)
       }
       // Dashed-outline rect with low-alpha fill, mirroring Konva BuildingMark.
-      const bv = worldObjects.buildings.default
       node.rect.clear()
         .rect(b.x, b.y, b.w, b.h)
-        .fill({ color: bv.fill, alpha: 0.18 })
-      drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, bv.stroke, 1)
+        .fill({ color: b.visual.fill, alpha: 0.18 })
+      drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, b.visual.stroke, 1)
       if (node.label.text !== b.label) node.label.text = b.label
       node.label.x = b.x + 8
       node.label.y = b.y + 6
@@ -444,7 +442,6 @@ export class PixiGroundRenderer {
 
   private syncWalls(walls: WallSnap[]): void {
     const seen = new Set<Entity>()
-    const wv = worldObjects.walls.default
     for (const w of walls) {
       seen.add(w.ent)
       let node = this.wallNodes.get(w.ent)
@@ -457,8 +454,8 @@ export class PixiGroundRenderer {
       }
       node.rect.clear()
         .rect(w.x, w.y, w.w, w.h)
-        .fill(wv.fill)
-        .stroke({ color: wv.stroke, width: 1 })
+        .fill(w.visual.fill)
+        .stroke({ color: w.visual.stroke, width: 1 })
     }
     for (const [ent, node] of this.wallNodes) {
       if (!seen.has(ent)) {
@@ -480,12 +477,10 @@ export class PixiGroundRenderer {
         node = { rect }
         this.doorNodes.set(d.ent, node)
       }
-      const variant: DoorVariant = d.factionGated ? 'factionGated' : d.bedKeyed ? 'bedKeyed' : 'open'
-      const dv = worldObjects.doors[variant]
       node.rect.clear()
         .rect(d.x, d.y, d.w, d.h)
-        .fill(dv.fill)
-      drawDashedRect(node.rect, d.x, d.y, d.w, d.h, 3, 2, dv.stroke, 1)
+        .fill(d.visual.fill)
+      drawDashedRect(node.rect, d.x, d.y, d.w, d.h, 3, 2, d.visual.stroke, 1)
     }
     for (const [ent, node] of this.doorNodes) {
       if (!seen.has(ent)) {
@@ -543,19 +538,18 @@ export class PixiGroundRenderer {
   }
 
   private updateBedNode(node: BedNode, b: BedSnap): void {
-    const v = worldObjects.beds[b.tier]
-    if (!v) return
+    const v = b.visual
     const occupied = b.occupied
     const isPlayerBed = b.isPlayerBed
     const overlayStroke = isPlayerBed ? 0x4ade80 : occupied ? 0xef4444 : v.stroke
     const bodyAlpha = occupied ? 0.3 : 1
-    const vw = v.w
-    const vh = v.h
+    const vw = v.w ?? 0
+    const vh = v.h ?? 0
 
-    // One source of truth: world-object data declares both the
-    // footprint and the optional sprite. The renderer never sees file
-    // paths and never owns size data — it just scales the texture (or
-    // procedural roundRect) to (vw × vh).
+    // One source of truth: the entity's template declares both
+    // footprint and the optional sprite (via assetId). The renderer
+    // scales the texture (or procedural roundRect) to (vw × vh); it
+    // never resolves the asset path itself.
     const texture = v.assetId ? getArt(v.assetId) : null
     if (v.assetId) {
       if (texture && node.artSprite.texture !== texture) {
@@ -690,9 +684,9 @@ export class PixiGroundRenderer {
         node = { root, body, pillow, feeBox: null, feeText: null }
         this.barSeatNodes.set(s.ent, node)
       }
-      const bsv = worldObjects.barSeats.default
-      const w = bsv.w
-      const h = bsv.h
+      const bsv = s.visual
+      const w = bsv.w ?? 18
+      const h = bsv.h ?? 14
       const occupied = s.occupied
       node.root.alpha = occupied ? 0.4 : 1
       node.body.clear()
@@ -793,23 +787,25 @@ export class PixiGroundRenderer {
   }
 
   private updateInteractableNode(node: InteractableNode, it: InteractableSnap): void {
-    const c = worldObjects.interactables[it.kind]
+    const c = it.visual
     const isRough = it.kind === 'tap' || it.kind === 'scavenge' || it.kind === 'rough'
     node.root.alpha = it.benchOccupied ? 0.45 : 1
 
-    const halfW = c.w / 2
-    const halfH = c.h / 2
+    const cw = c.w ?? 28
+    const ch = c.h ?? 28
+    const halfW = cw / 2
+    const halfH = ch / 2
     node.rect.clear()
-      .roundRect(it.x - halfW, it.y - halfH, c.w, c.h, 4)
+      .roundRect(it.x - halfW, it.y - halfH, cw, ch, 4)
       .fill(c.fill)
     if (isRough) {
-      drawDashedRect(node.rect, it.x - halfW, it.y - halfH, c.w, c.h, 4, 3, 0xfacc15, 2, 4)
+      drawDashedRect(node.rect, it.x - halfW, it.y - halfH, cw, ch, 4, 3, 0xfacc15, 2, 4)
     } else {
       node.rect.stroke({ color: c.stroke, width: 2 })
     }
     // Set hitArea to the rect for accurate hit-test (default is the bounding box,
     // which is fine for our shapes but explicit for clarity).
-    node.root.hitArea = new Rectangle(it.x - halfW, it.y - halfH, c.w, c.h)
+    node.root.hitArea = new Rectangle(it.x - halfW, it.y - halfH, cw, ch)
 
     // Fee badge.
     if (it.fee > 0) {

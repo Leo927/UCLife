@@ -57,6 +57,41 @@ import { bootstrapWorldSingleton } from './resources'
 const TILE = worldConfig.tilePx
 const WALL_T = worldConfig.wallThicknessPx
 
+// ── Trait spawn helpers ─────────────────────────────────────────────────────
+//
+// Every world object gets a TemplateRef pointing at its authored
+// template id in `object-templates.json5`. These wrappers keep the
+// trait set + template binding co-located so call sites can't drift.
+
+function spawnWallEntity(args: { x: number; y: number; w: number; h: number }): Entity {
+  return world.spawn(
+    Wall(args),
+    TemplateRef({ id: 'wall-default' }),
+  )
+}
+
+function spawnDoorEntity(args: {
+  x: number; y: number; w: number; h: number
+  orient: 'h' | 'v'
+  bedEntity?: Entity | null
+  factionGate?: FactionId | null
+}): Entity {
+  const templateId: ObjectTemplateId = args.factionGate
+    ? 'door-faction-gated'
+    : args.bedEntity
+      ? 'door-bed-keyed'
+      : 'door-open'
+  return world.spawn(
+    Position({ x: args.x + args.w / 2, y: args.y + args.h / 2 }),
+    Door({
+      x: args.x, y: args.y, w: args.w, h: args.h, orient: args.orient,
+      bedEntity: args.bedEntity ?? null,
+      factionGate: args.factionGate ?? null,
+    }),
+    TemplateRef({ id: templateId }),
+  )
+}
+
 // ── EXTERIOR WALL + DOOR SPAWNER ─────────────────────────────────────────────
 
 function enclose(b: { x: number; y: number; w: number; h: number }, doors: DoorPlacement[]) {
@@ -73,10 +108,7 @@ function enclose(b: { x: number; y: number; w: number; h: number }, doors: DoorP
     else if (d.side === 's') { dx = x + d.offsetPx; dy = y + h - WALL_T; dwPx = dw; dhPx = WALL_T }
     else if (d.side === 'w') { dx = x; dy = y + d.offsetPx; dwPx = WALL_T; dhPx = dw }
     else                     { dx = x + w - WALL_T; dy = y + d.offsetPx; dwPx = WALL_T; dhPx = dw }
-    world.spawn(
-      Position({ x: dx + dwPx / 2, y: dy + dhPx / 2 }),
-      Door({ x: dx, y: dy, w: dwPx, h: dhPx, orient }),
-    )
+    spawnDoorEntity({ x: dx, y: dy, w: dwPx, h: dhPx, orient })
   }
 
   function buildEdge(side: 'n' | 's' | 'e' | 'w') {
@@ -98,7 +130,7 @@ function enclose(b: { x: number; y: number; w: number; h: number }, doors: DoorP
       else if (side === 's') { wx = x + a; wy = y + h - WALL_T; ww = len; wh = WALL_T }
       else if (side === 'w') { wx = x; wy = y + a; ww = WALL_T; wh = len }
       else                   { wx = x + w - WALL_T; wy = y + a; ww = WALL_T; wh = len }
-      world.spawn(Wall({ x: wx, y: wy, w: ww, h: wh }))
+      spawnWallEntity({ x: wx, y: wy, w: ww, h: wh })
     }
   }
   buildEdge('n'); buildEdge('s'); buildEdge('w'); buildEdge('e')
@@ -157,8 +189,12 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
       Interactable({ kind: 'manage', label: `管理 · ${btype.labelZh}` }),
       ManageCell({ building: buildingEnt }),
       EntityKey({ key: `manage-${buildingKey}` }),
+      TemplateRef({ id: 'manage-cell' }),
     )
   }
+  // Building outline reuses a single template — the rect comes from
+  // the Building trait, only the palette is template-owned.
+  buildingEnt.add(TemplateRef({ id: 'building-outline' }))
 
   // Phase 6.2.A — hangar facility-class augmentation. Attaches the
   // tier + slotCapacity from facility-types.json5 onto the building
@@ -217,17 +253,14 @@ function spawnOpenFloor(layout: OpenFloorLayout, slot: PlacedSlot): void {
     const doorOffsetPx = partItem.doorTiedToPrimary
       ? primaryDoor.offsetPx
       : Math.floor(rect.w / TILE / 2) * TILE
-    world.spawn(Wall({ x: rect.x, y: partitionY, w: doorOffsetPx, h: WALL_T }))
-    world.spawn(Wall({
+    spawnWallEntity({ x: rect.x, y: partitionY, w: doorOffsetPx, h: WALL_T })
+    spawnWallEntity({
       x: rect.x + doorOffsetPx + TILE,
       y: partitionY,
       w: rect.w - doorOffsetPx - TILE,
       h: WALL_T,
-    }))
-    world.spawn(
-      Position({ x: rect.x + doorOffsetPx + TILE / 2, y: partitionY + WALL_T / 2 }),
-      Door({ x: rect.x + doorOffsetPx, y: partitionY, w: TILE, h: WALL_T, orient: 'h' }),
-    )
+    })
+    spawnDoorEntity({ x: rect.x + doorOffsetPx, y: partitionY, w: TILE, h: WALL_T, orient: 'h' })
   }
 
   const placedItems = layoutOpenFloorItems(rect, primaryDoor, layout.items, partitionY)
@@ -317,6 +350,12 @@ function spawnProcgenItem(
       return null
     case 'interactable':
       return spawnInteractable(item.template, template, { x, y })
+    case 'wall':
+    case 'door':
+    case 'building_outline':
+      // Structural templates aren't valid procgen items; building-types
+      // can't declare them and the layout dispatcher never produces them.
+      return null
   }
 }
 
@@ -432,13 +471,10 @@ function spawnCells(typeId: string, layout: CellsLayout, slot: PlacedSlot, rng: 
     )
   })
 
-  for (const w of cellLayout.walls) world.spawn(Wall({ ...w }))
+  for (const w of cellLayout.walls) spawnWallEntity(w)
   cellLayout.cells.forEach((c, i) => {
     const dr = c.doorRect
-    world.spawn(
-      Position({ x: dr.x + dr.w / 2, y: dr.y + dr.h / 2 }),
-      Door({ ...dr, orient: c.doorOrient, bedEntity: beds[i] ?? undefined }),
-    )
+    spawnDoorEntity({ ...dr, orient: c.doorOrient, bedEntity: beds[i] ?? null })
   })
 
   // Apartment-style buildings (horizontal corridor, ≥3 cells) get a
@@ -451,6 +487,7 @@ function spawnCells(typeId: string, layout: CellsLayout, slot: PlacedSlot, rng: 
         y: cellLayout.corridor.y + cellLayout.corridor.h / 2,
       }),
       Interactable({ kind: 'wash', label: '洗手台' }),
+      TemplateRef({ id: 'corridor-washstand' }),
     )
   }
 }
@@ -461,21 +498,22 @@ function spawnCrafted(layout: CraftedLayout, slot: PlacedSlot, _rng: SeededRng):
   const { rect } = slot
 
   for (const wall of layout.internalWalls ?? []) {
-    world.spawn(Wall({
+    spawnWallEntity({
       x: rect.x + wall.relPixel.x,
       y: rect.y + wall.relPixel.y,
       w: wall.sizePx.w,
       h: wall.sizePx.h,
-    }))
+    })
   }
 
   for (const gate of layout.factionGates ?? []) {
     const gx = rect.x + gate.relPixel.x
     const gy = rect.y + gate.relPixel.y
-    world.spawn(
-      Position({ x: gx + gate.sizePx.w / 2, y: gy + gate.sizePx.h / 2 }),
-      Door({ x: gx, y: gy, w: gate.sizePx.w, h: gate.sizePx.h, orient: gate.orient, factionGate: gate.faction as FactionId }),
-    )
+    spawnDoorEntity({
+      x: gx, y: gy, w: gate.sizePx.w, h: gate.sizePx.h,
+      orient: gate.orient,
+      factionGate: gate.faction as FactionId,
+    })
   }
 
   const counters: Record<string, number> = {}
@@ -569,6 +607,7 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
     Interactable({ kind: 'ticketCounter', label: '售票处' }),
     FlightHub({ hubId: hub.id }),
     EntityKey({ key: `flighthub-${hub.id}` }),
+    TemplateRef({ id: 'airport-ticket-counter' }),
   )
 
   // Arrival point: 2 tiles outside the door, perpendicular to the wall.
@@ -609,6 +648,7 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
       Position({ x: boardX, y: boardY }),
       Interactable({ kind: 'boardShip', label: '登船', fee: 0 }),
       EntityKey({ key: `boardship-${hub.id}` }),
+      TemplateRef({ id: 'ship-board' }),
     )
 
     // Phase 6.2.C1 — AE ship sales desk. Sits inside the VB airport's
@@ -643,6 +683,7 @@ function spawnTransitEntity(term: TransitTerminal, terminalPx: { x: number; y: n
     Interactable({ kind: 'transit', label: term.shortZh }),
     Transit({ terminalId: term.id }),
     EntityKey({ key: `transit-${term.id}` }),
+    TemplateRef({ id: 'transit-kiosk' }),
   )
   setTransitPlacement(term.id, { terminalPx, arrivalPx })
 }
@@ -731,6 +772,7 @@ function spawnFixedInteractable(fi: import('../data/scenes').FixedInteractableRe
       Interactable({ kind: 'orbitalLift', label: fi.labelZh ?? lift.shortZh, fee: lift.fare }),
       OrbitalLift({ liftId }),
       EntityKey({ key: `orbital-lift-${liftId}-${fi.tile.x}-${fi.tile.y}` }),
+      TemplateRef({ id: 'orbital-lift-kiosk' }),
     )
   }
 }
@@ -764,6 +806,7 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
     world.spawn(
       Position(p),
       Interactable({ kind: 'tap', label: '街边水龙头' }),
+      TemplateRef({ id: 'park-tap' }),
     )
     addRoughSource('tap', p)
   }
@@ -773,6 +816,7 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
     world.spawn(
       Position(p),
       Interactable({ kind: 'scavenge', label: '垃圾桶' }),
+      TemplateRef({ id: 'park-scavenge' }),
     )
     addRoughSource('scavenge', p)
   }
@@ -785,6 +829,7 @@ function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
       Interactable({ kind: 'rough', label: '街边长椅' }),
       RoughSpot({ occupant: null }),
       EntityKey({ key: `roughspot-${idx}` }),
+      TemplateRef({ id: 'park-bench' }),
     )
     addRoughSource('rough', p)
   }
