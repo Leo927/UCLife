@@ -11,7 +11,12 @@ import { describeHangarRepair } from '../../../systems/hangarRepair'
 import {
   deriveHangarOccupancy, poiIdForHangarScene, receiveDelivery,
 } from '../../../systems/shipDelivery'
+import {
+  enqueueHangarTransfer, listTransferDestinations, listTransferableShipsAtPoi,
+  type TransferableShip, type TransferDestination,
+} from '../../../systems/fleetTransfer'
 import { getShipClass } from '../../../data/ship-classes'
+import { getPoi } from '../../../data/pois'
 import { useUI } from '../../uiStore'
 import { useClock, gameDayNumber } from '../../../sim/clock'
 import type { DialogueCtx, DialogueNode } from '../types'
@@ -64,8 +69,159 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
       <SupplyReservesPanel hangar={building} />
       {sceneId && <PendingDeliveriesPanel hangar={building} sceneId={sceneId} />}
       {sceneId && <RepairPriorityPanel hangar={building} sceneId={sceneId} />}
+      {poiId && <TransferPanel poiId={poiId} />}
     </>
   )
+}
+
+function TransferPanel({ poiId }: { poiId: string }) {
+  const t = dialogueText.branches.hangarManager
+  const showToast = useUI((s) => s.showToast)
+  const today = gameDayNumber(useClock((s) => s.gameDate))
+  const [, bump] = useState(0)
+  const transferable = listTransferableShipsAtPoi(poiId)
+  const [pickedShipKey, setPickedShipKey] = useState<string | null>(null)
+  const pickedShip = pickedShipKey
+    ? transferable.find((s) => s.shipKey === pickedShipKey) ?? null
+    : null
+  const destinations: TransferDestination[] = pickedShipKey
+    ? destinationsFor(pickedShipKey)
+    : []
+  const firstFee = destinations[0]
+  const introFee = firstFee?.transferFee ?? 0
+  const introTrip = firstFee?.transitFee ?? 0
+  const introDays = firstFee?.days ?? 0
+
+  const onConfirm = (dest: TransferDestination) => {
+    if (!pickedShipKey) return
+    const ship = findShipByKey(pickedShipKey)
+    if (!ship) {
+      showToast(t.transferToastFailed.replace('{reason}', 'ship_not_found'))
+      return
+    }
+    const r = enqueueHangarTransfer(ship, dest.poiId, today)
+    if (!r.ok) {
+      showToast(t.transferToastFailed.replace('{reason}', r.reason))
+      return
+    }
+    showToast(
+      t.transferToastQueued
+        .replace('{ship}', pickedShip?.shipName ?? pickedShipKey)
+        .replace('{from}', shortPoiName(r.originPoiId))
+        .replace('{to}', dest.poiNameZh)
+        .replace('{days}', String(r.days))
+        .replace('{cost}', String(r.totalCost)),
+    )
+    setPickedShipKey(null)
+    bump((n) => n + 1)
+  }
+
+  return (
+    <section style={{ marginTop: 12 }} data-transfer-section>
+      <h3>{t.transferHeader}</h3>
+      <div className="hr-intro">
+        {t.transferIntro
+          .replace('{fee}', String(introFee))
+          .replace('{trip}', String(introTrip))
+          .replace('{days}', String(introDays))}
+      </div>
+      {transferable.length === 0 ? (
+        <p className="hr-intro" data-transfer-empty>{t.transferEmpty}</p>
+      ) : pickedShipKey === null ? (
+        <ShipPicker
+          ships={transferable}
+          onPick={(k) => setPickedShipKey(k)}
+        />
+      ) : (
+        <DestinationPicker
+          ship={pickedShip!}
+          destinations={destinations}
+          onConfirm={onConfirm}
+          onBack={() => setPickedShipKey(null)}
+        />
+      )}
+    </section>
+  )
+}
+
+function ShipPicker({
+  ships, onPick,
+}: { ships: TransferableShip[]; onPick: (shipKey: string) => void }) {
+  const t = dialogueText.branches.hangarManager
+  return (
+    <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+      <li className="dev-row"><span className="dev-key">{t.transferPickShipLabel}</span></li>
+      {ships.map((s) => (
+        <li key={s.shipKey} className="dev-row" data-transfer-ship={s.shipKey}>
+          <span className="dev-key">{s.shipName}</span>
+          <button
+            className="dialog-option"
+            data-transfer-pick-ship={s.shipKey}
+            onClick={() => onPick(s.shipKey)}
+          >
+            {t.transferPickDestLabel}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function DestinationPicker({
+  ship, destinations, onConfirm, onBack,
+}: {
+  ship: TransferableShip
+  destinations: TransferDestination[]
+  onConfirm: (dest: TransferDestination) => void
+  onBack: () => void
+}) {
+  const t = dialogueText.branches.hangarManager
+  return (
+    <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+      <li className="dev-row">
+        <span className="dev-key">{ship.shipName}</span>
+        <button className="dialog-option" data-transfer-back="1" onClick={onBack}>{t.transferBack}</button>
+      </li>
+      {destinations.map((d) => {
+        const disabled = !d.hasOpenSlot
+        return (
+          <li key={d.poiId} className="dev-row" data-transfer-dest={d.poiId}>
+            <span className="dev-key">{d.poiNameZh}</span>
+            <span data-transfer-slot>
+              {t.transferSlotLabel} {d.slotOccupancy} / {d.slotCapacity}
+            </span>
+            <span data-transfer-fee>
+              {t.transferRouteFeeLabel} ¥{d.transferFee} · {t.transferRouteTripLabel} ¥{d.transitFee} · {t.transferRouteDaysLabel} {d.days}
+            </span>
+            <button
+              className="dialog-option"
+              data-transfer-confirm={d.poiId}
+              data-transfer-disabled={disabled ? '1' : '0'}
+              disabled={disabled}
+              onClick={() => onConfirm(d)}
+            >
+              {disabled
+                ? t.transferDestNoSlot
+                : t.transferConfirmFmt
+                    .replace('{dest}', d.poiNameZh)
+                    .replace('{cost}', String(d.transferFee + d.transitFee))
+                    .replace('{days}', String(d.days))}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function destinationsFor(shipKey: string): TransferDestination[] {
+  const ship = findShipByKey(shipKey)
+  if (!ship) return []
+  return listTransferDestinations(ship)
+}
+
+function shortPoiName(poiId: string): string {
+  return getPoi(poiId)?.nameZh ?? poiId
 }
 
 function SupplyReservesPanel({ hangar }: { hangar: Entity }) {

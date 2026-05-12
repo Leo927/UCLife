@@ -48,6 +48,9 @@ export interface FleetConfig {
   transitDaysDefault: number
   transitDays: Record<string, number>
   transitFee: number
+  // Phase 6.2.G — paid-and-delayed transfer-to-other-hangar fee table.
+  transferFeeDefault: number
+  transferFees: Record<string, number>
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

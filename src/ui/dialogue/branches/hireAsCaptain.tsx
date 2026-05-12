@@ -42,6 +42,9 @@ function listCaptainVacancies(): CaptainTarget[] {
   for (const e of w.query(Ship, EntityKey)) {
     const s = e.get(Ship)!
     if (s.assignedCaptainId !== '') continue
+    // Phase 6.2.G — mothballed ships are off the books; their captain
+    // slot is frozen. Hide rather than disable to keep the picker short.
+    if (s.mothballed) continue
     const cls = getShipClass(s.templateId)
     out.push({
       shipKey: e.get(EntityKey)!.key,

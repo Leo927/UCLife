@@ -117,6 +117,21 @@ export interface DialogueText {
       receiveDeliveryNoSlot: string
       toastDeliveryReceived: string
       toastDeliveryFailed: string
+      transferHeader: string
+      transferIntro: string
+      transferEmpty: string
+      transferPickShipLabel: string
+      transferPickDestLabel: string
+      transferConfirmButton: string
+      transferConfirmFmt: string
+      transferToastQueued: string
+      transferToastFailed: string
+      transferDestNoSlot: string
+      transferSlotLabel: string
+      transferRouteFeeLabel: string
+      transferRouteTripLabel: string
+      transferRouteDaysLabel: string
+      transferBack: string
     }
     aeSupplyDealer: {
       titleSuffix: string
@@ -169,9 +184,16 @@ export interface DialogueText {
       flagshipBadge: string
       captainEmpty: string
       mothballButton: string
+      mothballUndoButton: string
       scrapButton: string
       mothballStubToast: string
       scrapStubToast: string
+      stateMothballed: string
+      mothballFlagshipTooltip: string
+      mothballInTransitTooltip: string
+      mothballToastDone: string
+      mothballToastUndone: string
+      mothballToastFailed: string
       crewButton: string
       crewSectionTitle: string
       crewEmpty: string

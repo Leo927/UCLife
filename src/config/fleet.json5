@@ -222,4 +222,21 @@
   // map ever grows multi-hop. 0 = free (smoke can drive `cheatMoney`
   // before launch to side-step the gate when needed).
   transitFee: 500,
+
+  // ── Phase 6.2.G — paid-and-delayed hangar transfer ──────────────────
+  //
+  // Player-driven transfer-to-other-hangar verb on the hangar manager
+  // dialog. Cost is `transferFee` + the existing `transitFee` (the
+  // auto-launch path's per-trip charge) so the player feels both the
+  // route-shipping cost AND the per-trip overhead. Authored per
+  // directed route; missing pair falls back to `transferFeeDefault`.
+  // Both numbers are in player Money currency (¥), and tuned so a
+  // VB→Granada move costs roughly an hour of a junior crewman's salary
+  // — felt but not punishing for a single transfer; meaningful at
+  // multi-ship fleet scale.
+  transferFeeDefault: 2000,
+  transferFees: {
+    'vonBraun->granada': 2500,
+    'granada->vonBraun': 2500,
+  },
 }

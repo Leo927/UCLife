@@ -49,8 +49,13 @@ import { poiIdForHangarScene } from '../../systems/shipDelivery'
 import {
   findNpcByKey, findShipByKey, hireAsCaptain, hireAsCrew, fireCaptain,
   fireCrewMember, moveCrewMember, manRestFromIdlePool, snapshotCrewRoster,
-  captainEffectId,
+  captainEffectId, fleetCrewSalarySystem,
 } from '../../systems/fleetCrew'
+import { setShipMothballedByKey } from '../../systems/fleetMothball'
+import {
+  enqueueHangarTransfer, listTransferDestinations,
+} from '../../systems/fleetTransfer'
+import { fleetSupplyDrainSystem } from '../../systems/fleetSupplyDrain'
 import {
   warRoomDescribe, setIsInActiveFleet, setFormationSlot, setAggression,
 } from '../../systems/fleetWarRoom'
@@ -465,4 +470,98 @@ registerDebugHandle('markInActiveFleetRaw', (shipKey: string, slot: number) => {
     return { ok: true, shipKey, slot }
   }
   return { ok: false, reason: 'not_found' }
+})
+
+// ── Phase 6.2.G — mothball + hangar transfer debug handles ──────────────
+
+registerDebugHandle('setShipMothballedViaDebug', (shipKey: string, mothballed: boolean) => {
+  return setShipMothballedByKey(shipKey, mothballed)
+})
+
+// Read the mothballed flag off the live Ship trait. Smoke reads this to
+// assert the toggle landed.
+registerDebugHandle('isShipMothballed', (shipKey: string): boolean | null => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(Ship, EntityKey)) {
+    if (e.get(EntityKey)!.key !== shipKey) continue
+    return e.get(Ship)!.mothballed
+  }
+  return null
+})
+
+// Enumerate destinations a ship can be transferred to (slot cap-checked).
+registerDebugHandle('listTransferDestinationsViaDebug', (shipKey: string) => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(Ship, EntityKey)) {
+    if (e.get(EntityKey)!.key !== shipKey) continue
+    return listTransferDestinations(e)
+  }
+  return []
+})
+
+// Drive the transfer-to-other-hangar verb. Returns the system result.
+registerDebugHandle('enqueueHangarTransferViaDebug', (
+  shipKey: string,
+  destPoiId: string,
+  gameDay: number,
+) => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(Ship, EntityKey)) {
+    if (e.get(EntityKey)!.key !== shipKey) continue
+    return enqueueHangarTransfer(e, destPoiId, gameDay)
+  }
+  return { ok: false as const, reason: 'ship_not_found' as const }
+})
+
+// Drive the crew-salary daily tick directly. Returns the per-tick
+// summary so smoke can assert ship + total counts move/skip
+// correctly when mothballed ships flip in/out.
+registerDebugHandle('runFleetCrewSalaryTick', (gameDay: number = 0) => {
+  return fleetCrewSalarySystem(getWorld('playerShipInterior'), gameDay)
+})
+
+// Drive the supply drain daily tick directly. Smoke uses this to
+// assert mothballing skips drain and unmothballing resumes it.
+registerDebugHandle('runFleetSupplyDrainTick', (gameDay: number = 0) => {
+  return fleetSupplyDrainSystem(
+    getWorld('vonBraunCity'),
+    getWorld('playerShipInterior'),
+    gameDay,
+  )
+})
+
+// Force-occupy a destination hangar's slot of the given class so the
+// smoke can exercise the dest_no_slot refusal without a real buy.
+// Spawns N dummy ships of the named class at the target POI and
+// returns their keys (for later teardown if needed).
+registerDebugHandle('forceFillHangarSlots', (poiId: string, shipClassId: string, count: number): string[] => {
+  const w = getWorld('playerShipInterior')
+  const out: string[] = []
+  for (let i = 0; i < count; i++) {
+    const cls = getShipClass(shipClassId)
+    const key = `dummy-fill-${poiId}-${shipClassId}-${Date.now()}-${i}`
+    w.spawn(
+      Ship({
+        templateId: cls.id,
+        hullCurrent: cls.hullMax, hullMax: cls.hullMax,
+        armorCurrent: cls.armorMax, armorMax: cls.armorMax,
+        fluxMax: cls.fluxMax, fluxCurrent: 0,
+        fluxDissipation: cls.fluxDissipation,
+        hasShield: cls.hasShield,
+        shieldEfficiency: cls.shieldEfficiency,
+        topSpeed: cls.topSpeed,
+        accel: cls.accel, decel: cls.decel,
+        angularAccel: cls.angularAccel, maxAngVel: cls.maxAngVel,
+        crCurrent: cls.crMax, crMax: cls.crMax,
+        fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
+        suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
+        dockedAtPoiId: poiId,
+        fleetPos: { x: 0, y: 0 },
+        inCombat: false,
+      }),
+      EntityKey({ key }),
+    )
+    out.push(key)
+  }
+  return out
 })

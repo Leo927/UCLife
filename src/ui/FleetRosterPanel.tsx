@@ -28,6 +28,7 @@ import {
   findShipByKey, findNpcByKey, fireCaptain, fireCrewMember, moveCrewMember,
   manRestFromIdlePool, crewVacancyForShip, snapshotCrewRoster,
 } from '../systems/fleetCrew'
+import { setShipMothballed } from '../systems/fleetMothball'
 
 interface RosterRow {
   entityKey: string
@@ -56,6 +57,9 @@ interface RosterRow {
   // "in-transit" line in place of the docked-hangar label.
   transitDestinationId: string
   transitArrivalDay: number
+  // Phase 6.2.G — mothball state. Mothball button toggles to "启封" and
+  // the row gets a 已封存 tag in place of the in-port/active state.
+  mothballed: boolean
 }
 
 function collectRoster(): RosterRow[] {
@@ -91,6 +95,7 @@ function collectRoster(): RosterRow[] {
       aggression: s.aggression,
       transitDestinationId: s.transitDestinationId,
       transitArrivalDay: s.transitArrivalDay,
+      mothballed: s.mothballed,
     })
   }
   return out
@@ -175,7 +180,22 @@ function RosterList({
 }: { rows: RosterRow[]; onCrewClick: (shipKey: string) => void; onMutate: () => void }) {
   const t = dialogueText.branches.fleetRoster
   const showToast = useUI((s) => s.showToast)
-  void onMutate
+
+  const onToggleMothball = (row: RosterRow) => {
+    const ship = findShipByKey(row.entityKey)
+    if (!ship) return
+    const next = !row.mothballed
+    const r = setShipMothballed(ship, next)
+    if (!r.ok) {
+      showToast(t.mothballToastFailed.replace('{reason}', r.reason))
+      return
+    }
+    playUi('ui.hr.accept')
+    const msg = next ? t.mothballToastDone : t.mothballToastUndone
+    showToast(msg.replace('{ship}', row.shipName))
+    onMutate()
+  }
+
   return (
     <section className="status-section">
       {rows.length === 0 ? (
@@ -209,7 +229,9 @@ function RosterList({
                 {t.crewMemberLabel}: {r.crewCount} / {r.crewMax}
               </span>
               <span data-roster-state style={{ flex: '0 0 auto' }}>
-                {r.inCombat ? t.stateActive : t.stateInPort}
+                {r.mothballed
+                  ? t.stateMothballed
+                  : (r.inCombat ? t.stateActive : t.stateInPort)}
               </span>
               <span data-roster-active-fleet={r.isInActiveFleet ? '1' : '0'} style={{ flex: '0 0 auto' }}>
                 {dialogueText.branches.warRoom.rosterStateLabel}: {r.isInActiveFleet
@@ -238,9 +260,16 @@ function RosterList({
                 <button
                   className="dialog-option"
                   data-roster-mothball={r.entityKey}
-                  onClick={() => showToast(t.mothballStubToast)}
+                  data-roster-mothballed={r.mothballed ? '1' : '0'}
+                  disabled={r.isFlagship || !!r.transitDestinationId}
+                  title={
+                    r.isFlagship
+                      ? t.mothballFlagshipTooltip
+                      : (r.transitDestinationId ? t.mothballInTransitTooltip : '')
+                  }
+                  onClick={() => onToggleMothball(r)}
                 >
-                  {t.mothballButton}
+                  {r.mothballed ? t.mothballUndoButton : t.mothballButton}
                 </button>
                 <button
                   className="dialog-option"

@@ -33,6 +33,8 @@ function listCrewVacancies(): CrewTarget[] {
     const vacancy = crewVacancyForShip(e)
     if (vacancy <= 0) continue
     const s = e.get(Ship)!
+    // Phase 6.2.G — hide mothballed ships; their crew slots are frozen.
+    if (s.mothballed) continue
     const cls = getShipClass(s.templateId)
     out.push({
       shipKey: e.get(EntityKey)!.key,

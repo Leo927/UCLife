@@ -73,6 +73,9 @@ interface ShipBlock {
   transitDestinationId?: string
   transitDepartureDay?: number
   transitArrivalDay?: number
+  // Phase 6.2.G — mothball flag. Optional; pre-6.2.G saves load as
+  // operational (mothballed=false), matching the trait default.
+  mothballed?: boolean
 }
 
 interface FleetBlock {
@@ -139,6 +142,7 @@ function snapshotFleet(): FleetBlock | undefined {
       transitDestinationId: s.transitDestinationId,
       transitDepartureDay: s.transitDepartureDay,
       transitArrivalDay: s.transitArrivalDay,
+      mothballed: s.mothballed,
     })
   }
   if (ships.length === 0) return undefined
@@ -192,6 +196,7 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
         transitDestinationId: '',
         transitDepartureDay: 0,
         transitArrivalDay: 0,
+        mothballed: false,
       }),
       EntityKey({ key: entityKey }),
     )
@@ -229,6 +234,8 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     transitDestinationId: newBlock.transitDestinationId ?? '',
     transitDepartureDay: newBlock.transitDepartureDay ?? 0,
     transitArrivalDay: newBlock.transitArrivalDay ?? 0,
+    // Phase 6.2.G — mothball flag. Pre-6.2.G blocks default to operational.
+    mothballed: newBlock.mothballed ?? false,
   })
 
   // IsInActiveFleet marker presence — round-trip independently from
@@ -308,6 +315,7 @@ function rematerializeEscortBodies(): void {
   for (const e of shipWorld.query(Ship, IsInActiveFleet, EntityKey)) {
     if (e.has(IsFlagshipMark)) continue
     const s = e.get(Ship)!
+    if (s.mothballed) continue
     if (s.dockedAtPoiId) continue
     if (s.transitDestinationId) continue
     const shipKey = e.get(EntityKey)!.key
