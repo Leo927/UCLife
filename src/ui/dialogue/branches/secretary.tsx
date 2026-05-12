@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useQuery, useQueryFirst, useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
-  Building, Character, Hangar, IsPlayer, Money, Owner, Workstation, EntityKey,
+  Building, Character, Faction, Hangar, IsPlayer, IsPlayerFaction, Money, Owner,
+  Workstation, EntityKey,
 } from '../../../ecs/traits'
 import type { SupplyKind } from '../../../ecs/traits'
 import { world, getWorld, SCENE_IDS } from '../../../ecs/world'
@@ -10,9 +11,14 @@ import { playUi } from '../../../audio/player'
 import {
   assignBeds, assignIdleMembers, bookSummary, factionStatus, sidewaysReport,
 } from '../../../systems/secretaryRoster'
+import {
+  createPlayerFaction, withdrawFromPlayerFaction,
+} from '../../../ecs/playerFactionCreate'
+import { factionsConfig } from '../../../config'
 import { dialogueText } from '../../../data/dialogueText'
-import { fleetConfig } from '../../../config'
+import { fleetConfig, economicsConfig } from '../../../config'
 import { enqueueSupplyDelivery } from '../../../systems/fleetSupplyDelivery'
+import { emitSim } from '../../../sim/events'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 export function secretaryBranch(ctx: DialogueCtx): DialogueNode | null {
@@ -30,9 +36,15 @@ function SecretaryPanel({ secretary }: { secretary: Entity }) {
   const secInfo = useTrait(secretary, Character)
   void useQuery(Building, Owner)
   void useQuery(Workstation)
+  // Re-render when the player-faction entity appears so the restructure
+  // verb flips into the post-creation diplomacy panel without closing the
+  // dialog.
+  const factionEntity = useQueryFirst(IsPlayerFaction) ?? null
+  void useTrait(factionEntity ?? secretary, Faction)
 
   const status = factionStatus(world, player)
   const [reply, setReply] = useState<string | null>(null)
+  const [pendingCreate, setPendingCreate] = useState(false)
 
   const onRoster = () => {
     playUi('ui.factory-manager.accept')
@@ -97,9 +109,61 @@ function SecretaryPanel({ secretary }: { secretary: Entity }) {
     setReply(lines.length === 0 ? '一切顺当 · 没什么坏事。' : lines.join('\n'))
   }
 
+  const wallet = player.get(Money)?.amount ?? 0
+  const minWallet = economicsConfig.playerFaction.minWalletToCreate
+  const creationStipend = economicsConfig.playerFaction.creationStipend
+  const factionMeta = factionsConfig.catalog.player
+  const created = factionEntity !== null
+  const fund = factionEntity?.get(Faction)?.fund ?? 0
+
   const onRestructure = () => {
     playUi('ui.npc.smalltalk')
-    setReply('正式成立faction的入口在 5.5.5 上线 · 现在你的钱包就是faction资金。')
+    if (created) return
+    if (wallet < minWallet) {
+      setReply(
+        `资金太少 · 至少要 ¥${minWallet.toLocaleString()} 才能注册 ${factionMeta.shortZh}。`,
+      )
+      return
+    }
+    setPendingCreate(true)
+    const seedNet = Math.max(0, wallet - creationStipend)
+    setReply(
+      `成立 ${factionMeta.nameZh}？\n· 你的钱包 ¥${wallet.toLocaleString()} 将注入 faction，\n  保留 ¥${Math.min(wallet, creationStipend).toLocaleString()} 作个人津贴，\n  faction 启动资金 ¥${seedNet.toLocaleString()}。\n· 名下设施所有权全部归入新 faction。`,
+    )
+  }
+
+  const onConfirmCreate = () => {
+    playUi('ui.factory-manager.accept')
+    const r = createPlayerFaction(world, player)
+    setPendingCreate(false)
+    if (!r.created) {
+      setReply(`${factionMeta.shortZh}已经成立 · 不需要重复登记。`)
+      return
+    }
+    const text = `${factionMeta.nameZh}成立 · 接管${r.migratedBuildings}处设施，启动金 ¥${r.walletMigrated.toLocaleString()}。`
+    setReply(text)
+    emitSim('toast', { textZh: text, durationMs: 8000 })
+    emitSim('log', { textZh: text, atMs: Date.now() })
+  }
+
+  const onCancelCreate = () => {
+    playUi('ui.npc.smalltalk')
+    setPendingCreate(false)
+    setReply('好 · 等你想清楚再说。')
+  }
+
+  const onWithdrawStipend = () => {
+    playUi('ui.factory-manager.accept')
+    if (!factionEntity) return
+    const amount = Math.min(fund, creationStipend)
+    if (amount <= 0) { setReply('faction 资金为零 · 无法拨款。'); return }
+    const moved = withdrawFromPlayerFaction(world, player, amount)
+    setReply(`已从 faction 资金中拨 ¥${moved.toLocaleString()} 到你的个人账户。`)
+  }
+
+  const onDeclareWar = () => {
+    playUi('ui.npc.smalltalk')
+    setReply('宣战 / 外交 verb 是 6.4 议政厅场景的占位 · 现在还没有外部势力可以谈判。')
   }
 
   // Phase 6.2.F bulk-order: same shape as the AE supply dealer's order,
@@ -138,7 +202,12 @@ function SecretaryPanel({ secretary }: { secretary: Entity }) {
     <>
       <h3>{secInfo?.name ?? '秘书'} · {dialogueText.branches.secretary.title}</h3>
       <div className="hr-intro">
-        成员 {status.memberCount} · 设施 {status.facilityCount} · 床位 {status.bedCount} · 没住处 {status.unhousedCount}
+        {created
+          ? <>
+              {factionMeta.nameZh} · 资金 ¥{fund.toLocaleString()} · 成员 {status.memberCount} · 设施 {status.facilityCount} · 床位 {status.bedCount} · 没住处 {status.unhousedCount}
+            </>
+          : <>成员 {status.memberCount} · 设施 {status.facilityCount} · 床位 {status.bedCount} · 没住处 {status.unhousedCount}</>
+        }
       </div>
       {reply && <p className="dialog-response" style={{ whiteSpace: 'pre-line' }}>{reply}</p>}
       <div className="dialog-options secretary-verbs">
@@ -146,7 +215,37 @@ function SecretaryPanel({ secretary }: { secretary: Entity }) {
         <button className="dialog-option" onClick={onBeds}>给成员分配床位</button>
         <button className="dialog-option" onClick={onBooks}>读一下账本</button>
         <button className="dialog-option" onClick={onSideways}>有没有出岔子？</button>
-        <button className="dialog-option" onClick={onRestructure}>正式成立faction</button>
+        {!created && !pendingCreate && (
+          <button
+            className="dialog-option"
+            data-verb="create-faction"
+            onClick={onRestructure}
+          >正式成立faction</button>
+        )}
+        {!created && pendingCreate && (
+          <>
+            <button
+              className="dialog-option"
+              data-verb="create-faction-confirm"
+              onClick={onConfirmCreate}
+            >确认成立 {factionMeta.shortZh}</button>
+            <button className="dialog-option" onClick={onCancelCreate}>再想想</button>
+          </>
+        )}
+        {created && (
+          <>
+            <button
+              className="dialog-option"
+              data-verb="withdraw-stipend"
+              onClick={onWithdrawStipend}
+            >从 faction 拨款到个人账户</button>
+            <button
+              className="dialog-option"
+              data-verb="declare-war"
+              onClick={onDeclareWar}
+            >宣战 / 外交（占位）</button>
+          </>
+        )}
       </div>
       <h3 style={{ marginTop: 12 }}>{t.header}</h3>
       <div className="hr-intro">

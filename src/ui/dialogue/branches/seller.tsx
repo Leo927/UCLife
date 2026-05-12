@@ -42,7 +42,7 @@ function SellerPanel({ seller }: { seller: Entity }) {
       return
     }
     playUi('ui.realtor.buy')
-    if (buyFromOwner(player, listing, price)) {
+    if (buyFromOwner(world, player, listing, price)) {
       useUI.getState().showToast(`房产过户成功 · ${listing.labelZh} · ¥${price.toLocaleString()}`)
       close()
     } else {

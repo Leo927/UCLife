@@ -150,7 +150,7 @@ function RealtorPanel() {
       return
     }
     playUi('ui.realtor.buy')
-    const paid = buyFromState(player, listing)
+    const paid = buyFromState(world, player, listing)
     if (paid !== null) {
       setRefreshTick((t) => t + 1)
       useUI.getState().showToast(`房产过户成功 · ${listing.labelZh} · ¥${paid.toLocaleString()}`)

@@ -15,7 +15,7 @@
 
 import type { TraitInstance } from 'koota'
 import { registerTraitSerializer } from '../../save/traitRegistry'
-import { Faction, Owner, Facility } from '../../ecs/traits'
+import { Faction, IsPlayerFaction, Owner, Facility } from '../../ecs/traits'
 
 registerTraitSerializer<TraitInstance<typeof Faction>>({
   id: 'faction',
@@ -26,6 +26,18 @@ registerTraitSerializer<TraitInstance<typeof Faction>>({
     else e.add(Faction(v))
   },
   reset: (e) => { if (e.has(Faction)) e.remove(Faction) },
+})
+
+// Phase 5.5.5 — IsPlayerFaction is a zero-field marker on the player-led
+// Faction entity. setupWorld doesn't pre-attach it (the player-faction is
+// spawned lazily by createPlayerFaction); a save mid-pre-creation has no
+// marker, post-creation it round-trips as a boolean flag.
+registerTraitSerializer<true>({
+  id: 'isPlayerFaction',
+  trait: IsPlayerFaction,
+  read: () => true,
+  write: (e) => { if (!e.has(IsPlayerFaction)) e.add(IsPlayerFaction) },
+  reset: (e) => { if (e.has(IsPlayerFaction)) e.remove(IsPlayerFaction) },
 })
 
 interface OwnerSnap {

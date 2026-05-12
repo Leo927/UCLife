@@ -5,8 +5,12 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world, getWorld, getActiveSceneId } from '../../ecs/world'
-import { Applicant, Building, Faction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation, Recruiter, Interactable, ManageCell, Position } from '../../ecs/traits'
+import { Applicant, Building, Faction, IsPlayerFaction, Owner, IsPlayer, Money, EntityKey, Facility, Character, Workstation, Recruiter, Interactable, ManageCell, Position } from '../../ecs/traits'
 import { gatherListings, buyFromState } from '../../systems/realtor'
+import {
+  createPlayerFaction, findPlayerFaction, hasPlayerFaction,
+  withdrawFromPlayerFaction,
+} from '../../ecs/playerFactionCreate'
 import { dailyEconomicsSystem } from '../../systems/dailyEconomics'
 import { housingPressureSystem } from '../../systems/housingPressure'
 import { emitSim } from '../../sim/events'
@@ -464,6 +468,72 @@ registerDebugHandle('manageAssignIdle', (buildingKey: string): {
   return { ok: false, reason: 'building not found' }
 })
 
+// Phase 5.5.5 — flip the player-faction's IsPlayerFaction marker and
+// migrate Owner edges + wallet. Smoke test uses this to verify the
+// migration without driving the secretary's UI button.
+interface CreatePlayerFactionDebug {
+  ok: boolean
+  created: boolean
+  migratedBuildings: number
+  walletMigrated: number
+  stipendRemaining: number
+  factionFundAfter: number
+  reason?: string
+}
+registerDebugHandle('createPlayerFaction', (): CreatePlayerFactionDebug => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) {
+    return {
+      ok: false, created: false, migratedBuildings: 0, walletMigrated: 0,
+      stipendRemaining: 0, factionFundAfter: 0, reason: 'no player',
+    }
+  }
+  const r = createPlayerFaction(world, player)
+  return {
+    ok: r.faction !== null,
+    created: r.created,
+    migratedBuildings: r.migratedBuildings,
+    walletMigrated: r.walletMigrated,
+    stipendRemaining: r.stipendRemaining,
+    factionFundAfter: r.faction?.get(Faction)?.fund ?? 0,
+  }
+})
+
+interface PlayerFactionStatus {
+  exists: boolean
+  fund: number
+  facilityCount: number
+  hasIsPlayerFactionMarker: boolean
+}
+registerDebugHandle('playerFactionStatus', (): PlayerFactionStatus => {
+  const f = findPlayerFaction(world)
+  if (!f) {
+    return {
+      exists: hasPlayerFaction(world),
+      fund: 0, facilityCount: 0,
+      hasIsPlayerFactionMarker: false,
+    }
+  }
+  let facilityCount = 0
+  for (const b of world.query(Building, Owner)) {
+    const o = b.get(Owner)!
+    if (o.kind === 'faction' && o.entity === f) facilityCount += 1
+  }
+  return {
+    exists: true,
+    fund: f.get(Faction)!.fund,
+    facilityCount,
+    hasIsPlayerFactionMarker: f.has(IsPlayerFaction),
+  }
+})
+
+registerDebugHandle('playerFactionWithdraw', (amount: number) => {
+  const player = world.queryFirst(IsPlayer)
+  if (!player) return { ok: false, moved: 0, reason: 'no player' }
+  const moved = withdrawFromPlayerFaction(world, player, amount)
+  return { ok: moved > 0, moved }
+})
+
 registerDebugHandle('realtorBuy', (buildingKey: string): BuyResult => {
   const player = world.queryFirst(IsPlayer)
   if (!player) return { ok: false, paid: null, reason: 'no player' }
@@ -479,7 +549,7 @@ registerDebugHandle('realtorBuy', (buildingKey: string): BuyResult => {
     if (target.ownerKind !== 'state') {
       return { ok: false, paid: null, reason: `not state-owned (${target.ownerKind})` }
     }
-    const paid = buyFromState(player, target)
+    const paid = buyFromState(world, player, target)
     if (paid === null) return { ok: false, paid: null, reason: 'buyFromState rejected' }
     return { ok: true, paid }
   }

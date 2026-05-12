@@ -176,7 +176,7 @@ describe('buyFromState', () => {
     const player = world.spawn(IsPlayer, Money({ amount: 100_000 }), EntityKey({ key: 'player' }))
     const bld = spawnBldg(world, 'bar', 'bld-1', '酒吧', 5, 3)
     const [listing] = gatherListings(world)
-    const paid = buyFromState(player, listing)
+    const paid = buyFromState(world, player, listing)
     expect(paid).not.toBeNull()
     expect(player.get(Money)!.amount).toBe(100_000 - paid!)
     expect(bld.get(Owner)!.kind).toBe('character')
@@ -188,7 +188,7 @@ describe('buyFromState', () => {
     const player = world.spawn(IsPlayer, Money({ amount: 5 }), EntityKey({ key: 'player' }))
     spawnBldg(world, 'factory', 'bld-1', '工厂', 10, 10)
     const [listing] = gatherListings(world)
-    const paid = buyFromState(player, listing)
+    const paid = buyFromState(world, player, listing)
     expect(paid).toBeNull()
     expect(player.get(Money)!.amount).toBe(5)
   })
@@ -199,7 +199,7 @@ describe('buyFromState', () => {
     const bld = spawnBldg(world, 'hrOffice', 'bld-hr', '市民人事局')
     // gatherListings would skip stateLocked types, so synthesize a listing
     // payload directly to exercise the buyFromState guard in isolation.
-    const paid = buyFromState(player, {
+    const paid = buyFromState(world, player, {
       building: bld,
       buildingKey: 'bld-hr',
       typeId: 'hrOffice',
@@ -247,7 +247,7 @@ describe('buyFromOwner', () => {
     const bld = spawnBldg(world, 'bar', 'bld-1', '酒吧')
     bld.set(Owner, { kind: 'character', entity: seller })
     const [listing] = gatherListings(world)
-    const ok = buyFromOwner(player, listing, 5_000)
+    const ok = buyFromOwner(world, player, listing, 5_000)
     expect(ok).toBe(true)
     expect(player.get(Money)!.amount).toBe(45_000)
     expect(seller.get(Money)!.amount).toBe(5_200)

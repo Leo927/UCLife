@@ -7,7 +7,12 @@ import raw from './factions.json5?raw'
 // faction queries return a meaningful set. 'federation' and 'zeon'
 // currently exist only as reputation buckets — no jobs or NPC
 // affiliation in 5.0; ambition stages reference them.
-export type FactionId = 'anaheim' | 'civilian' | 'federation' | 'zeon' | 'pirate'
+export type FactionId =
+  | 'anaheim' | 'civilian' | 'federation' | 'zeon' | 'pirate'
+  // Phase 5.5.5 — the player-led faction. Bootstrapped like every other
+  // catalog row; "officially created" is gated by the IsPlayerFaction
+  // marker trait so save round-trip doesn't need a special spawn path.
+  | 'player'
 
 export type FactionTier = 'S' | 'A' | 'B' | 'C' | 'D' | 'E'
 

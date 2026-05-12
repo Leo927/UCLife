@@ -23,12 +23,13 @@
 import type { Entity, World, TraitInstance } from 'koota'
 import {
   Building, Owner, Facility, Faction, Job,
-  Character, IsPlayer, EntityKey, Workstation, Position,
+  Character, EntityKey, Workstation, Position,
 } from '../ecs/traits'
 import {
   economicsConfig, facilityMaintenancePerDay, factionsConfig,
 } from '../config'
 import { applyOwnerFundDelta, ownerCanPay } from '../ecs/ownership'
+import { isPlayerFactionOwner, findPlayer } from '../ecs/playerFaction'
 import { getJobSpec } from '../data/jobs'
 import { emitSim } from '../sim/events'
 import { useClock } from '../sim/clock'
@@ -176,7 +177,7 @@ function emitLog(textZh: string): void {
 }
 
 function announceInsolvencyDayOne(world: World, facility: Entity, _owner: OwnerInstance): void {
-  if (!isPlayerOwner(facility)) return
+  if (!isPlayerOwner(world, facility)) return
   const facName = friendlyFacilityName(facility)
   const workerName = pickFacilityWorkerName(world, facility) ?? '一名员工'
   const text = `${workerName}：「老板，${facName}的工资没发出去——能跟你聊聊吗？」`
@@ -187,8 +188,8 @@ function announceInsolvencyDayOne(world: World, facility: Entity, _owner: OwnerI
   }
 }
 
-function announceInsolvencyDayTwo(_world: World, facility: Entity, _owner: OwnerInstance): void {
-  if (!isPlayerOwner(facility)) return
+function announceInsolvencyDayTwo(world: World, facility: Entity, _owner: OwnerInstance): void {
+  if (!isPlayerOwner(world, facility)) return
   const facName = friendlyFacilityName(facility)
   const text = `${facName}今天没人开门——员工等在外面，没拿到工资。`
   emitSim('toast', { textZh: text, durationMs: 8000 })
@@ -198,9 +199,9 @@ function announceInsolvencyDayTwo(_world: World, facility: Entity, _owner: Owner
   }
 }
 
-function announceForeclosure(_world: World, facility: Entity, owner: OwnerInstance): void {
+function announceForeclosure(world: World, facility: Entity, owner: OwnerInstance): void {
   const facName = friendlyFacilityName(facility)
-  if (isPlayerOwnerFromTrait(owner)) {
+  if (isPlayerOwnerFromTrait(world, owner)) {
     const text = `${facName}已被市政府接管 · 三天没发出工资。`
     emitSim('toast', { textZh: text, durationMs: 10000 })
     emitLog(text)
@@ -213,16 +214,16 @@ function announceForeclosure(_world: World, facility: Entity, owner: OwnerInstan
   emitLog(`${facName}易主：${ownerName}三日未发工资，被市政府收回。`)
 }
 
-function isPlayerOwner(facility: Entity): boolean {
-  return isPlayerOwnerFromTrait(facility.get(Owner))
+function isPlayerOwner(world: World, facility: Entity): boolean {
+  const player = findPlayer(world)
+  if (!player) return false
+  return isPlayerFactionOwner(facility.get(Owner), player)
 }
 
-function isPlayerOwnerFromTrait(owner: OwnerInstance | undefined): boolean {
-  if (!owner) return false
-  if (owner.kind !== 'character') return false
-  const c = owner.entity
-  if (!c) return false
-  return c.has(IsPlayer)
+function isPlayerOwnerFromTrait(world: World, owner: OwnerInstance | undefined): boolean {
+  const player = findPlayer(world)
+  if (!player) return false
+  return isPlayerFactionOwner(owner, player)
 }
 
 function ownerDisplayName(owner: OwnerInstance | undefined): string | null {

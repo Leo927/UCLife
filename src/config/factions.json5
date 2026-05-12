@@ -65,6 +65,20 @@
       repPerShift: 0,
       seniorPromotionMinOpinion: 0,
     },
+
+    // Phase 5.5.5 — player-led faction. The Faction entity is
+    // bootstrapped like every other catalog row so the save layer doesn't
+    // need a special spawn-on-load path, but the IsPlayerFaction marker
+    // (set by createPlayerFaction) is what distinguishes "officially
+    // formed" from the empty pre-creation slot. Default name is a
+    // placeholder until character-creator UI lets the player pick.
+    player: {
+      nameZh: '我的势力',
+      shortZh: '我的',
+      accentColor: '#facc15',
+      repPerShift: 0,
+      seniorPromotionMinOpinion: 0,
+    },
   },
 
   // Reputation -> letter-grade thresholds for StatusPanel display. The grade

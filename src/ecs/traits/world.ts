@@ -149,6 +149,14 @@ export const Faction = trait({
   fund: 0,
 })
 
+// Phase 5.5.5 — marker on the player-led Faction entity. Distinguishes
+// it from the canonical 'player' FactionId at query time (only one
+// IsPlayerFaction-tagged entity ever exists; the id 'player' could in
+// principle drift if a future feature spawns parallel player-tier
+// factions). Queries that need "is this owner the player-led faction"
+// check `owner.entity.has(IsPlayerFaction)` rather than `id === 'player'`.
+export const IsPlayerFaction = trait()
+
 // Phase 5.5.6 — faction-side StatSheet, parallel to Attributes.sheet on
 // characters. Holds revenueMul / salaryMul / maintenanceMul /
 // researchSpeedMul / recruitChanceMul / loyaltyDriftMul. Authored by
