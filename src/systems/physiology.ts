@@ -231,6 +231,15 @@ function advanceInstance(
   template: ConditionTemplate,
   dayNumber: number,
 ): boolean {
+  // Chronic stubs (recoveryMode: 'chronic-permanent') lock at peak
+  // once they reach it — no counter, no transition out, no resolve.
+  // Incubation + rising still run normally so the spawn-to-peak ramp
+  // matches authored shape.
+  if (template.recoveryMode === 'chronic-permanent' && instance.phase === 'peak') {
+    reconcileBands(entity, instance, template)
+    return false
+  }
+
   // Treatment commits carry a `treatmentExpiresDay` (e.g., a 5-day
   // pharmacy prescription). When the expiry day passes the instance
   // falls back to untreated; the next phase tick will reflect the lower

@@ -488,5 +488,177 @@
         },
       ],
     },
+
+    // ─── Phase 4.1 — chronic stubs (scars) ─────────────────────────────
+    // recoveryMode: 'chronic-permanent' — the phase machine fast-paths
+    // these to peak on day-1 and holds them at the authored severity
+    // forever. They never resolve, never recover, never re-scar. Each
+    // chronic stub is the souvenir of a severe acute/injury bout.
+    //
+    // Templates are body-part-scoped — a scar lives where the wound
+    // happened. The bands carry permanent stat penalties (Endurance cap
+    // for scarred-lung, walkingSpeed for weak-joint, etc.) — small but
+    // visible numbers, so the player feels every survived disaster.
+    //
+    // No bands are emitted while severity < the lowest band lo; chronic
+    // stubs author their permanent severity above [20, ...] so the band
+    // is always-on once the stub reaches peak.
+
+    {
+      id: 'chronic_weak_joint',
+      displayName: '关节旧伤',
+      family: 'chronic',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'chronic-permanent',
+      onsetPaths: [],  // Spawned only by scar branching from sprain / fracture.
+
+      // Fast-path: no incubation, no rise, lock in at peak on day-1.
+      incubationDays: [0, 0],
+      riseDays: [0, 0],
+      peakSeverity: [30, 30],
+      peakDays: [1, 1],
+      peakSeverityFloor: 30,
+      baseRecoveryRate: 0,
+
+      requiredTreatmentTier: 0,
+
+      // No scar of a scar.
+      scarThreshold: 999,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '关节偶尔酸痛。',
+        moderate: '关节用力时一阵酸痛。',
+        severe:   '关节经常酸痛，剧烈活动后尤其难受。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你留下了关节旧伤。',
+        diagnosis:     null,
+        recoveryClean: null,
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       null,
+      },
+
+      glyphRef: 'chronic_joint',
+
+      effects: [
+        {
+          severityRange: [1, 100],
+          nameZh:    '关节旧伤',
+          flavorZh:  '关节用力时一阵酸痛。',
+          glyphRef:  'chronic_joint',
+          modifiers: [
+            { statId: 'walkingSpeed', type: 'percentMult', value: -0.05 },
+            { statId: 'endurance',    type: 'cap',         value: 85 },
+          ],
+        },
+      ],
+    },
+
+    {
+      id: 'chronic_scar_skin',
+      displayName: '旧伤疤',
+      family: 'chronic',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'chronic-permanent',
+      onsetPaths: [],  // Spawned only by scar branching from cut / burn.
+
+      incubationDays: [0, 0],
+      riseDays: [0, 0],
+      peakSeverity: [25, 25],
+      peakDays: [1, 1],
+      peakSeverityFloor: 25,
+      baseRecoveryRate: 0,
+
+      requiredTreatmentTier: 0,
+
+      scarThreshold: 999,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '皮肤上有一道旧疤。',
+        moderate: '旧疤偶尔发痒。',
+        severe:   '旧疤天气一变就刺痛。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你留下了一道旧疤。',
+        diagnosis:     null,
+        recoveryClean: null,
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       null,
+      },
+
+      glyphRef: 'chronic_scar',
+
+      effects: [
+        {
+          severityRange: [1, 100],
+          nameZh:    '旧伤疤',
+          flavorZh:  '旧疤偶尔发痒。',
+          glyphRef:  'chronic_scar',
+          modifiers: [
+            { statId: 'charisma', type: 'cap', value: 90 },
+          ],
+        },
+      ],
+    },
+
+    {
+      id: 'chronic_recurring_headache',
+      displayName: '反复偏头痛',
+      family: 'chronic',
+      bodyPartScope: 'bodyPart',
+      recoveryMode: 'chronic-permanent',
+      onsetPaths: [],  // Spawned only by scar branching from concussion.
+
+      incubationDays: [0, 0],
+      riseDays: [0, 0],
+      peakSeverity: [35, 35],
+      peakDays: [1, 1],
+      peakSeverityFloor: 35,
+      baseRecoveryRate: 0,
+
+      requiredTreatmentTier: 0,
+
+      scarThreshold: 999,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '太阳穴时不时一阵刺痛。',
+        moderate: '偏头痛反复发作。',
+        severe:   '偏头痛剧烈，光线和声音都让你难受。',
+      },
+
+      eventLogTemplates: {
+        onset:         '你留下了偏头痛的毛病。',
+        diagnosis:     null,
+        recoveryClean: null,
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       null,
+      },
+
+      glyphRef: 'chronic_headache',
+
+      effects: [
+        {
+          severityRange: [1, 100],
+          nameZh:    '反复偏头痛',
+          flavorZh:  '偏头痛反复发作。',
+          glyphRef:  'chronic_headache',
+          modifiers: [
+            { statId: 'intelligence', type: 'cap',         value: 85 },
+            { statId: 'readingSpeed', type: 'percentMult', value: -0.10 },
+          ],
+        },
+      ],
+    },
   ],
 }

@@ -247,6 +247,37 @@ describe('physiology — body-part scope (Phase 4.1)', () => {
   })
 })
 
+describe('physiology — chronic stubs (Phase 4.1)', () => {
+  const stubs: Array<[id: string, bodyPart: string]> = [
+    ['chronic_weak_joint',         'left-ankle'],
+    ['chronic_scar_skin',          'left-arm'],
+    ['chronic_recurring_headache', 'head'],
+  ]
+  for (const [id, bodyPart] of stubs) {
+    it(`${id} spawns and never resolves`, () => {
+      const { world, player } = setup()
+      const inst = forceOnset(player, id, '旧伤', 1, bodyPart)
+      expect(inst, `${id} should load + spawn`).not.toBeNull()
+      const startSev = inst!.peakSeverity
+      // Advance 60 game-days; chronic stub must never disappear.
+      for (let day = 2; day <= 60; day++) physiologySystem(world, day)
+      const list = player.get(Conditions)!.list
+      expect(list, `${id} resolved instead of staying chronic`).toHaveLength(1)
+      // Severity holds at peak; should not climb above the authored peak.
+      expect(list[0].severity).toBeLessThanOrEqual(startSev + 0.01)
+      expect(list[0].severity).toBeGreaterThan(0)
+    })
+  }
+
+  it('chronic_weak_joint emits a permanent band Effect', () => {
+    const { world, player } = setup()
+    forceOnset(player, 'chronic_weak_joint', '旧伤', 1, 'left-ankle')
+    for (let day = 2; day <= 5; day++) physiologySystem(world, day)
+    const eff = player.get(Effects)!.list.filter((e) => e.family === 'condition')
+    expect(eff.length).toBeGreaterThan(0)
+  })
+})
+
 describe('physiology — injury catalog (Phase 4.1)', () => {
   // Every authored injury template must spawn on at least one body
   // part. concussion is head-only; everything else routes through a
