@@ -349,13 +349,14 @@ export function startCombat(
   const ship = getPlayerShip()
   if (ship) {
     const s = ship.get(Ship)!
-    // Combat-time mutable state on the flagship: reset flux to a clean
-    // baseline and restore armor (Starsector pattern — armor regenerates
-    // between encounters). Hull and CR carry over from prior fights.
+    // Phase 6.2.B — persistent fleet damage. Flux still clears between
+    // encounters (capacitor reset), but armor + hull persist until the
+    // hangar repair pipeline restores them. The pre-6.2.B armor-regens-
+    // between-fights pattern made damage evaporate on dock and made the
+    // Hangar.repair-priority verb unnecessary to demo.
     ship.set(Ship, {
       ...s,
       fluxCurrent: 0,
-      armorCurrent: s.armorMax,
     })
     // Attach a CombatShipState to the player ship — same trait shape as
     // enemies. Spatial fields seed at the player spawn; combat stat

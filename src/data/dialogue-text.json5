@@ -158,6 +158,16 @@
       slotLabel: { ms: 'MS 泊位', smallCraft: '小艇泊位', capital: '主力舰泊位' },
       emptyHint: '本机库尚未配置泊位类别。',
       intro: '简单看一下本机库的状况：',
+      // Phase 6.2.B — repair-priority verb.
+      repairHeader: '修理优先级',
+      repairThroughputLabel: '当前日产能',
+      repairUnit: '点 / 天',
+      repairEmpty: '当前没有需要修理的飞船。',
+      repairPriorityActive: '当前优先：',
+      repairPriorityNone: '当前优先：均摊',
+      repairFocusButton: '集中修理',
+      repairClearButton: '取消集中',
+      repairShipDeficit: '损伤',
     },
   },
 }

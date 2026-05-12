@@ -25,6 +25,7 @@ import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
 import { setTransitPlacement, clearTransitPlacements } from '../sim/transitPlacements'
 import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
+import { attachShipStatSheet } from './shipEffects'
 import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
@@ -164,6 +165,7 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
     buildingEnt.add(Hangar({
       tier: hangarFacility.tier,
       slotCapacity: hangarFacility.slotCapacity,
+      repairPriorityShipKey: '',
     }))
   }
 
@@ -957,7 +959,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   // placeholder; the docked-POI id is the source of truth.
   const fleetPos = { x: 0, y: 0 }
 
-  world.spawn(
+  const flagship = world.spawn(
     Ship({
       templateId: cls.id,
       hullCurrent: cls.hullMax, hullMax: cls.hullMax,
@@ -981,6 +983,11 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
     IsFlagshipMark(),
     EntityKey({ key: 'ship' }),
   )
+  // Phase 6.2.B — project the class scalars into the per-ship StatSheet
+  // and seed an empty ShipEffectsList. Save round-trip rebuilds the
+  // sheet's modifier arrays from the list at load (see boot/saveHandlers/
+  // shipEffects.ts).
+  attachShipStatSheet(flagship)
 
   for (const room of cls.rooms) {
     const px = room.bounds.x * TILE

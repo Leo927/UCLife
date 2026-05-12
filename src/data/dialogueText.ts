@@ -89,6 +89,15 @@ export interface DialogueText {
       slotLabel: { ms: string; smallCraft: string; capital: string }
       emptyHint: string
       intro: string
+      repairHeader: string
+      repairThroughputLabel: string
+      repairUnit: string
+      repairEmpty: string
+      repairPriorityActive: string
+      repairPriorityNone: string
+      repairFocusButton: string
+      repairClearButton: string
+      repairShipDeficit: string
     }
   }
 }

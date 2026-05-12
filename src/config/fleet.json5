@@ -1,0 +1,42 @@
+// Phase 6.2.B fleet configuration. Drives the hangar daily-throughput
+// repair formula in src/systems/hangarRepair.ts.
+//
+// Daily throughput per hangar (from Design/fleet.md):
+//   dailyThroughput  =  Σ(worker.workPerformance) × manager.workPerformance × baseRepairPerWorker
+//                       (in repair-points per day; 1 point = 1 hull or armor unit)
+//   spread            =  dailyThroughput / count(ships not yet fully repaired)
+//
+// `baseRepairPerWorker` is the per-worker contribution at workPerformance=1.0;
+// the manager's workPerformance scales the total. workPerformance is
+// resolved by reading the seated NPC's `workPerfMul` stat (defaults to
+// 1.0 — Effects from conditions, perks, gear modify it). The floor /
+// cap clamp on worker contribution lives below.
+//
+// `armorBeforeHull` — when repairing a ship, armor is restored before
+// hull (matches the Starsector pattern: ablative armor is the outer
+// layer to rebuild). With a vacant priority slot, throughput spreads
+// evenly across damaged ships at the hangar's POI. With a priority
+// slot set, the full pool focuses on that ship.
+{
+  // Repair points each seated hangar_worker contributes per worked day
+  // at workPerformance = 1.0. The state-rental VB surface hangar runs at
+  // baseline 4 workers (see jobs.json5 + building-types.json5) → 200
+  // points/day before manager scaling. lightFreighter at full damage
+  // (hullMax=800 + armorMax=200) needs 5 days at baseline staffing to
+  // restore from zero — enough that the manager's repair-priority verb
+  // is felt in single-digit game days for the 6.2.B demo.
+  baseRepairPerWorker: 50,
+
+  // Manager contribution at workPerformance = 1.0. Multiplicative on the
+  // worker sum, capped so a manager-less hangar still produces ~half-rate
+  // repair (per Design/fleet.md: hangars run with state-employed baseline
+  // staff the player can't always influence).
+  managerScaleMin: 0.5,
+  managerScaleMax: 1.5,
+
+  // Floor / cap on each worker's workPerformance contribution. Matches
+  // the same band research uses so a worker with a bad day can't grind
+  // throughput to zero, and a perfect day can't double it.
+  perfMin: 0.5,
+  perfMax: 1.5,
+}

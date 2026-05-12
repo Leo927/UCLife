@@ -9,6 +9,9 @@
 import { getWorld } from '../ecs/world'
 import { Ship, IsFlagshipMark } from '../ecs/traits'
 import { useDebug } from '../debug/store'
+// Phase 6.2.B — re-export for callers that imported projection helpers
+// from sim/ship.ts before the engine boundary forced them to ecs/.
+export { attachShipStatSheet, projectShipSheet } from '../ecs/shipEffects'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 

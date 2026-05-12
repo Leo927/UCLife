@@ -20,6 +20,9 @@ import './boot/traitSerializers'
 // Phase 5.5.6 — research progress fires off `day:rollover:settled`.
 // The subscription lives in boot/ so the loop doesn't import systems/.
 import './boot/researchTick'
+// Phase 6.2.B — hangar repair throughput rides the same event so the
+// repair tick lands after dailyEconomics + research settle for the day.
+import './boot/hangarRepairTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'

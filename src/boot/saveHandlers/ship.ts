@@ -9,12 +9,25 @@
 // without entityKey; the restore path accepts both shapes and folds the
 // legacy payload into a one-ship fleet on the flagship entity.
 //
+// Phase 6.2.B — adds ShipStatSheet base round-trip + ShipEffectsList list
+// round-trip per ship. The sheet's modifier arrays are derived from the
+// Effects list on load (rebuildSheetFromEffects) so we don't write them.
+// Missing fields on a legacy block re-project from the template via
+// attachShipStatSheet, keeping pre-6.2.B saves loadable.
+//
 // Transient combat state (charge, projectiles, CombatShipState) is never
 // persisted; combat-time saves are refused at the saveGame level.
 
 import { registerSaveHandler } from '../../save/registry'
 import { getWorld, type SceneId } from '../../ecs/world'
-import { Ship, WeaponMount, EntityKey, IsFlagshipMark } from '../../ecs/traits'
+import {
+  Ship, WeaponMount, EntityKey, IsFlagshipMark,
+  ShipStatSheet, ShipEffectsList,
+} from '../../ecs/traits'
+import { attachShipStatSheet } from '../../ecs/shipEffects'
+import { serializeSheet, attachFormulas, type SerializedSheet } from '../../stats/sheet'
+import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
+import { SHIP_STAT_IDS, SHIP_STAT_FORMULAS, type ShipStatId } from '../../stats/shipSchema'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -31,6 +44,11 @@ interface ShipBlock {
   dockedAtPoiId: string
   fleetPos: { x: number; y: number }
   weapons: { mountIdx: number; weaponId: string }[]
+  // Phase 6.2.B — per-ship StatSheet + Effects list. Both optional so a
+  // pre-6.2.B save loads cleanly: missing sheet ⇒ re-project from the
+  // template; missing effects ⇒ empty list.
+  statSheet?: SerializedSheet<ShipStatId>
+  effects?: Effect<ShipStatId>[]
 }
 
 interface FleetBlock {
@@ -71,6 +89,8 @@ function snapshotFleet(): FleetBlock | undefined {
         weapons.push({ mountIdx: m.mountIdx, weaponId: m.weaponId })
       }
     }
+    const statSheet = e.has(ShipStatSheet) ? serializeSheet(e.get(ShipStatSheet)!.sheet) : undefined
+    const effects = e.has(ShipEffectsList) ? e.get(ShipEffectsList)!.list : undefined
     ships.push({
       entityKey: key,
       templateId: s.templateId,
@@ -84,6 +104,8 @@ function snapshotFleet(): FleetBlock | undefined {
       dockedAtPoiId: s.dockedAtPoiId,
       fleetPos: { x: s.fleetPos.x, y: s.fleetPos.y },
       weapons,
+      statSheet,
+      effects: effects ? effects.map((eff) => ({ ...eff })) : undefined,
     })
   }
   if (ships.length === 0) return undefined
@@ -121,6 +143,21 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // refused, autosave skipped) but force false here anyway.
     inCombat: false,
   })
+
+  // Phase 6.2.B — restore ShipStatSheet + ShipEffectsList. Legacy saves
+  // (or any block missing statSheet) re-project from the template so
+  // the sheet always lands valid post-restore.
+  const newBlock = block as ShipBlock
+  if (newBlock.statSheet) {
+    if (!shipEnt.has(ShipStatSheet)) shipEnt.add(ShipStatSheet)
+    if (!shipEnt.has(ShipEffectsList)) shipEnt.add(ShipEffectsList)
+    const effects = (newBlock.effects ?? []) as Effect<ShipStatId>[]
+    shipEnt.set(ShipEffectsList, { list: effects.map((e) => ({ ...e })) })
+    const baseSheet = attachFormulas(SHIP_STAT_IDS, SHIP_STAT_FORMULAS, newBlock.statSheet)
+    shipEnt.set(ShipStatSheet, { sheet: rebuildSheetFromEffects(baseSheet, effects) })
+  } else {
+    attachShipStatSheet(shipEnt)
+  }
 }
 
 function restoreWeapons(weapons: ShipBlock['weapons']): void {

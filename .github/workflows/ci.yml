@@ -128,6 +128,8 @@ jobs:
       - if: always()
         run: node scripts/check-orbital-lift.mjs
       - if: always()
+        run: node scripts/check-ship-repair.mjs
+      - if: always()
         run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
 
       - name: Upload screenshots on failure

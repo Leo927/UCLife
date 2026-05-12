@@ -204,13 +204,17 @@ export const FactionResearch = trait(() => ({
 // slot classes the bay can hold; slotCapacity is the per-class cap. The
 // occupant table (which ship sits in which slot) is empty at 6.2.A —
 // ships don't enter hangars until 6.2.C1/C2 wire delivery placement.
-// Authoring the trait now keeps the manager's capacity-readout verb
-// reading from the same shape that 6.2.B's repair throughput will hang
-// off of, with no follow-up data churn.
+//
+// Phase 6.2.B — `repairPriorityShipKey` is the focus override the manager
+// exposes via the repair-priority verb. Empty string = spread daily
+// throughput evenly across every damaged ship docked at this hangar's
+// POI. Non-empty = focus the full pool on that ship's EntityKey until
+// it's fully repaired (then the player picks the next one).
 import type { HangarTier, HangarSlotClass } from '../../data/facilityTypes'
 export const Hangar = trait(() => ({
   tier: 'surface' as HangarTier,
   slotCapacity: {} as Partial<Record<HangarSlotClass, number>>,
+  repairPriorityShipKey: '',
 }))
 export type { HangarTier, HangarSlotClass }
 

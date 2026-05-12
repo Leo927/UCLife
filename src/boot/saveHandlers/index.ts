@@ -24,3 +24,4 @@ import './relations'    // phase: 'post' — Knows graph (needs entities)
 import './dailyEconomics' // phase: 'post' — transient (reset only)
 import './recruitment'  // phase: 'post' — applicant counter
 import './brig'         // phase: 'post' — named-POW roster
+import './hangars'      // phase: 'post' — per-hangar repair priority

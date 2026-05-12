@@ -43,6 +43,9 @@ export type { RecruitmentConfig } from './recruitment'
 export { researchConfig } from './research'
 export type { ResearchConfig } from './research'
 
+export { fleetConfig } from './fleet'
+export type { FleetConfig } from './fleet'
+
 export {
   economicsConfig, facilityRevenuePerShift, facilityMaintenancePerDay,
 } from './economics'

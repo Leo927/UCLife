@@ -3,6 +3,9 @@
 // world's Body/POI/Velocity/Thrust/Course/EnemyAI/CombatShipState.
 
 import { trait } from 'koota'
+import { createShipSheet, type ShipStatId } from '../../stats/shipSchema'
+import type { StatSheet } from '../../stats/sheet'
+import type { Effect } from '../../stats/effects'
 
 // Phase 6.0 — ship-as-scene. The ship interior is a normal koota world (its
 // own coordinate space, walls/doors, NPC roster). Per-ship state lives on
@@ -53,6 +56,27 @@ export const Ship = trait({
 // this mark so the flagship is always the ship hosting the player body.
 // Switching flagship migrates the mark with the player's interior scene.
 export const IsFlagshipMark = trait({})
+
+// Phase 6.2.B — per-ship StatSheet. Mirrors the per-character + per-faction
+// pattern. Ship-class scalars project here as stat bases at spawn; Effects
+// (officer skills, frame mods, damage state, faction research, doctrine)
+// layer on top. See Design/fleet.md "Ships, MS, MA as stat-bearing
+// entities" and Design/characters/effects.md "Reuse: fleet entities".
+export const ShipStatSheet = trait(() => ({
+  sheet: createShipSheet(),
+}))
+export type { ShipStatId }
+export type ShipStatSheetT = StatSheet<ShipStatId>
+
+// Per-ship Effect bag, mirroring per-character Effects and per-faction
+// FactionEffectsList. Each entry's modifiers target ShipStatId; the
+// ShipStatSheet's modifier arrays are derived from this list and rebuild
+// on add/remove. Source strings: 'eff:officer:<entityKey>:<skill>',
+// 'eff:mod:<modId>', 'eff:damage:cr', 'eff:research:<id>',
+// 'eff:doctrine:<id>'.
+export const ShipEffectsList = trait(() => ({
+  list: [] as Effect<ShipStatId>[],
+}))
 
 // One per room in the ship class's roomLayout. Pure walkable space — the
 // FTL-era oxygen / fire / breach / system fields were dropped in the
