@@ -84,12 +84,67 @@ Before generating a new asset, do the **bump-then-match** workflow:
 output. `create_map_object` runs an RPG-Maker-trained pipeline that always
 includes some perspective. Choose by the asset, not by the prompt.
 
-## Prompt template
+## Prompt — write it long, write it dense
 
-Describe the subject and style only — the tool + view handle perspective.
+PixelLab rewards **very detailed** prompts. A two-clause "cheap bed,
+rust palette" prompt produces a generic placeholder. A 100+ word prompt
+that names every material, every stain, every silhouette decision
+produces a recognizable game asset. Default to writing too much, not too
+little — the model trims what it can't fit; it can't invent what you
+didn't say.
+
+For each new asset, cover all of:
+
+1. **Subject identity** — what the object *is*, in two or three nouns,
+   plus the in-world function (a *coin-operated flophouse single bed*,
+   not just "bed").
+2. **Component-by-component breakdown** — frame, mattress, pillow,
+   blanket, hardware. For each: material, color, age/wear state, surface
+   texture.
+3. **Specific small details** — one or two grounding touches the model
+   can render (a flattened pillow with a grease stain; a brass coin slot
+   with an LED; a half-folded blanket at the foot).
+4. **Palette** — number of colors and the dominant hues. PixelLab honors
+   "8-color palette, tarnished metal greys + rust + dirty cream + brass
+   accent" more reliably than "muted colors".
+5. **Style** — `pixel art`, `crisp 1-px outlines`, `no anti-aliasing`,
+   `no dithering` (or `careful dithering only on shadows`).
+6. **Perspective reinforcement** — even though `view` + `object_view`
+   set the camera, name it again in prose: `strictly orthographic
+   top-down view as if seen from directly overhead, no foreshortening,
+   no visible side walls`.
+7. **Background** — always `transparent background`.
+
+### Worked example — flophouse coin-bed
+
+> Top-down pixel-art tile of a cheap coin-operated flophouse single bed.
+> Tarnished steel-grey metal frame with chipped paint and visible rust
+> blooms at the corner joints. Thin lumpy mattress with a faded
+> mustard-yellow quilted cover, diamond-stitch pattern. Flattened
+> dingy-cream pillow at the head end, slightly off-center, with a
+> greasy grey stain. Coarse grey wool blanket bunched at the foot end,
+> half-folded. Small brass coin-slot box mounted to one side of the
+> frame, with a single red LED. Faint dark shadow puddle beneath. Limited
+> 8-color palette: tarnished metal greys, rust brown, mustard yellow,
+> dingy cream, brass accent. Crisp pixel art, 1-pixel black outlines, no
+> anti-aliasing, no dithering. Strictly orthographic top-down view as if
+> seen from a security camera directly overhead — no foreshortening, no
+> visible side walls, no perspective lines. Transparent background.
+
+That prompt is ~130 words. Aim for that ballpark, not 20.
+
+### Quick template
 
 ```
-<object noun phrase>, <key visual details>, <aesthetic tag>, transparent background.
+Top-down pixel-art tile of a <subject identity>.
+<Component A — material, color, wear, texture>.
+<Component B — material, color, wear, texture>.
+<Component C — …>.
+<One or two specific small details>.
+<Limited N-color palette: hue list>.
+Crisp pixel art, 1-px outlines, no anti-aliasing, no dithering.
+Strictly orthographic top-down view from directly overhead, no
+foreshortening, no perspective. Transparent background.
 ```
 
 ## Recipe — single object, default cost
