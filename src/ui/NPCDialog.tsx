@@ -73,6 +73,12 @@ export function NPCDialog() {
     isResearcherOnDuty: specId === 'researcher' && onShift,
     isHangarManagerOnDuty: specId === 'hangar_manager' && onShift,
     isAeSupplyDealerOnDuty: specId === 'ae_supply_dealer' && onShift,
+    // Phase 6.2.C1 — AE light-hull sales rep at the VB airport. Distinct
+    // from `ae_director` (engineering-ladder promotion gate) and from the
+    // existing `isShipDealerOnDuty` (flagship purchase at the airport
+    // ticket counter via the AE director). This NPC's verb is the new
+    // multi-hull buy + delivery-queue flow.
+    isAEShipSalesOnDuty: specId === 'ae_ship_sales_vb' && onShift,
     // Ship purchase rides on the AE director's talk-verb until a dedicated
     // ship-dealer NPC role lands.
     isShipDealerOnDuty: isAEOnDuty,

@@ -44,6 +44,8 @@ export type DialogueRoles = {
   isRecruitingManagerOnDuty: boolean
   isHangarManagerOnDuty: boolean
   isAeSupplyDealerOnDuty: boolean
+  // Phase 6.2.C1 — AE light-hull sales rep at the Von Braun spaceport.
+  isAEShipSalesOnDuty: boolean
   ownsPrivateFacility: boolean
   managerStation: Entity | null
 }

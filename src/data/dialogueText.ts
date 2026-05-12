@@ -28,6 +28,7 @@ export interface DialogueText {
     talkHire: string
     hangarManager: string
     aeSupplyDealer: string
+    aeShipSales: string
   }
   branches: {
     shop: { title: string; intro: string }
@@ -106,6 +107,14 @@ export interface DialogueText {
       supplyPendingUnit: string
       supplyDryBadge: string
       fuelDryBadge: string
+      deliveriesHeader: string
+      deliveriesEmpty: string
+      deliveryInTransitFmt: string
+      deliveryArrivedFmt: string
+      receiveDeliveryButton: string
+      receiveDeliveryNoSlot: string
+      toastDeliveryReceived: string
+      toastDeliveryFailed: string
     }
     aeSupplyDealer: {
       titleSuffix: string
@@ -140,6 +149,32 @@ export interface DialogueText {
     fleetSupplyHud: {
       supplyLabel: string
       fuelLabel: string
+    }
+    aeShipSales: {
+      title: string
+      moneyLabel: string
+      statHull: string
+      statArmor: string
+      statSpeed: string
+      statFuel: string
+      statSupplies: string
+      statMounts: string
+      statCrew: string
+      statSlot: string
+      slotLabel: { ms: string; smallCraft: string; capital: string }
+      slotFull: string
+      deliverHeader: string
+      buyButton: string
+      buyDisabledMoney: string
+      buyDisabledNoSlot: string
+      gateNoHangar: string
+      gateNoSlot: string
+      gateNoMoney: string
+      toastNoHangar: string
+      toastBought: string
+      pendingHeader: string
+      pendingDays: string
+      pendingArrived: string
     }
   }
 }

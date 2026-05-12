@@ -41,6 +41,7 @@ function spawnHangar(
       tier: 'surface',
       slotCapacity: { ms: 4, smallCraft: 4 },
       repairPriorityShipKey: '',
+      pendingDeliveries: [],
       supplyCurrent: supplyMax,
       supplyMax,
       fuelCurrent: fuelMax,

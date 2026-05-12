@@ -132,6 +132,8 @@ jobs:
       - if: always()
         run: node scripts/check-fleet-supply.mjs
       - if: always()
+        run: node scripts/check-light-hull-buy.mjs
+      - if: always()
         run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
 
       - name: Upload screenshots on failure

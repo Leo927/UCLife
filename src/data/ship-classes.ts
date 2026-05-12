@@ -2,6 +2,7 @@ import json5 from 'json5'
 import raw from './ship-classes.json5?raw'
 import { isWeaponId, getWeapon } from './weapons'
 import type { InteractableKind } from '../config/kinds'
+import type { HangarSlotClass } from './facilityTypes'
 
 // Player ship class templates (Starsector-shape). See ship-classes.json5
 // for schema. Validation is deliberate — silent typos here cause silent
@@ -59,6 +60,11 @@ export interface ShipClassDef {
   nameZh: string
   descZh: string
   shipClass: ShipClassKind
+  // Phase 6.2.C1 — which hangar-slot class this hull occupies. Drives
+  // the capacity gate at purchase + delivery in aeShipSales.tsx +
+  // shipDelivery.ts. UC-canon civilian shuttles slot into 'smallCraft';
+  // 6.2.5 retrofits land 'ms' MS hulls and 6.2.C2 lands 'capital'.
+  hangarSlotClass: HangarSlotClass
   hullMax: number
   armorMax: number
   fluxMax: number
@@ -119,6 +125,9 @@ const VALID_MOUNT_SIZES: ReadonlySet<MountSize> = new Set<MountSize>([
   'small', 'medium', 'large',
 ])
 
+const VALID_HANGAR_SLOT_CLASSES: ReadonlySet<HangarSlotClass> =
+  new Set<HangarSlotClass>(['ms', 'smallCraft', 'capital'])
+
 const SIZE_RANK: Record<MountSize, number> = { small: 1, medium: 2, large: 3 }
 
 const seen = new Set<string>()
@@ -129,6 +138,9 @@ for (const ship of parsed.ships) {
 
   if (!VALID_CLASSES.has(ship.shipClass)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" invalid shipClass "${ship.shipClass}"`)
+  }
+  if (!VALID_HANGAR_SLOT_CLASSES.has(ship.hangarSlotClass)) {
+    throw new Error(`ship-classes.json5: ship "${ship.id}" invalid hangarSlotClass "${ship.hangarSlotClass}"`)
   }
   if (ship.hullMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" hullMax must be > 0`)
   if (ship.armorMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" armorMax must be >= 0`)

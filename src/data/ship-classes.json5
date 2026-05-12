@@ -59,6 +59,12 @@
 // buys as a Phase 6 capstone. Phase 6.2+ adds frigates / destroyers /
 // carriers by appending entries here.
 
+// Each row also declares `hangarSlotClass: 'ms' | 'smallCraft' | 'capital'`.
+// Drives the hangar capacity gate at 6.2.C1+ purchase + delivery: a hull
+// only fits in a hangar whose slotCapacity[hangarSlotClass] has a free
+// slot. `lightFreighter` is the existing flagship; UC-canon civilian
+// freighters slot into `smallCraft` bays. A future Pegasus-class capital
+// declares `'capital'` so the Granada drydock gates it correctly.
 {
   ships: [
     {
@@ -66,6 +72,7 @@
       nameZh: '轻型货船 · 改装型',
       descZh: 'AE 二手货船底盘改装的轻型武装船。机库勉强能容下一台 MS。',
       shipClass: 'civilian',
+      hangarSlotClass: 'smallCraft',
       hullMax: 800,
       armorMax: 200,
       fluxMax: 1500,
@@ -172,6 +179,76 @@
         { roomA: 'bridge',     roomB: 'engineRoom', side: 'south' },
         { roomA: 'crewQ',      roomB: 'medbay',     side: 'south' },
         { roomA: 'mess',       roomB: 'hangarBay',  side: 'south' },
+      ],
+    },
+
+    // Phase 6.2.C1 — the AE VB sales rep's only product. UC-flavored
+    // civilian-grade light escort: a Federation-surplus shuttle-frame
+    // refitted with two small mounts. Light enough to dock in a surface
+    // hangar's `smallCraft` slot, mean enough to fight off a single
+    // pirate raid. Cheaper than the lightFreighter so the player can
+    // afford a second hull early.
+    {
+      id: 'lunarMilitia',
+      nameZh: '月面民兵护卫艇',
+      descZh: '月面民兵改装的小型护卫艇 · 联邦报废的穿梭机底盘 + 两门小型武器。 AE 在二手市场上整修后转售给商船团。',
+      shipClass: 'merc',
+      hangarSlotClass: 'smallCraft',
+      hullMax: 400,
+      armorMax: 100,
+      fluxMax: 800,
+      fluxDissipation: 50,
+      hasShield: false,
+      shieldEfficiency: 1.0,
+      topSpeed: 80,
+      accel: 80,
+      decel: 40,
+      angularAccel: 5.0,
+      maxAngVel: 1.8,
+      crMax: 100,
+      fuelMax: 10,
+      suppliesMax: 25,
+      // Phase 6.2.F — smaller hull than the flagship lightFreighter (4),
+      // so a half-rate drain keeps the demo readable when a second hull
+      // joins the fleet.
+      supplyPerDay: 2,
+      crewMax: 2,
+      brigCapacity: 0,
+      officers: {
+        adjutant: { name: '艾莉森', title: '副官' },
+      },
+      mounts: [
+        { idx: 0, size: 'small', firingArcDeg: 30, facingDeg: 0 },
+        { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
+      ],
+      defaultWeapons: ['beamMk1'],
+      ai: {
+        aggression: 0.6,
+        retreatThresholdPct: 0.25,
+        maintainRange: 220,
+      },
+      priceFiat: 35000,
+      rooms: [
+        {
+          id: 'bridge', nameZh: '舰桥', bounds: { x: 0, y: 0, w: 2, h: 2 },
+          interactables: [
+            { kind: 'helm', label: '操舵 / 航行', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
+        { id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 0, w: 2, h: 2 } },
+        { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 2, w: 2, h: 2 } },
+        {
+          id: 'hangarBay', nameZh: '机库', bounds: { x: 2, y: 2, w: 2, h: 2 },
+          interactables: [
+            { kind: 'disembarkShip', label: '下船', offset: { dx: 0, dy: -0.5 } },
+          ],
+        },
+      ],
+      doors: [
+        { roomA: 'bridge',     roomB: 'crewQ',      side: 'east' },
+        { roomA: 'bridge',     roomB: 'engineRoom', side: 'south' },
+        { roomA: 'crewQ',      roomB: 'hangarBay',  side: 'south' },
+        { roomA: 'engineRoom', roomB: 'hangarBay',  side: 'east' },
       ],
     },
   ],

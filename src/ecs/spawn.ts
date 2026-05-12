@@ -30,7 +30,7 @@ import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
 import { markPathfindingDirty } from '../systems/pathfinding'
-import { worldConfig, economyConfig } from '../config'
+import { worldConfig, economyConfig, fleetConfig } from '../config'
 import {
   SeededRng, generateCells, maxHorizontalCells, maxVerticalCells,
   generateRoadGrid, assignBuildings,
@@ -171,6 +171,7 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
       tier: hangarFacility.tier,
       slotCapacity: hangarFacility.slotCapacity,
       repairPriorityShipKey: '',
+      pendingDeliveries: [],
       supplyCurrent: hangarFacility.supplyStorage,
       supplyMax: hangarFacility.supplyStorage,
       fuelCurrent: hangarFacility.fuelStorage,
@@ -609,6 +610,19 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
       Position({ x: boardX, y: boardY }),
       Interactable({ kind: 'boardShip', label: '登船', fee: 0 }),
       EntityKey({ key: `boardship-${hub.id}` }),
+    )
+
+    // Phase 6.2.C1 — AE ship sales desk. Sits inside the VB airport's
+    // lobby at the special-NPC's authored tile so the spawn loop can
+    // pre-assign it via workstation:'ae_ship_sales_vb'. Desk is scenery
+    // (noInteractable) — the talk-verb on the seated NPC drives the
+    // aeShipSales branch. Tile coords come from fleet.json5; the rep's
+    // special-NPC entry must mirror them.
+    const deskTile = fleetConfig.shipSalesDeskTileVB
+    world.spawn(
+      Position({ x: TILE * deskTile.x, y: TILE * deskTile.y }),
+      Workstation({ specId: 'ae_ship_sales_vb', occupant: null, managerStation: null }),
+      EntityKey({ key: 'ws-ae_ship_sales_vb' }),
     )
   }
 }

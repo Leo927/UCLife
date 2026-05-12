@@ -18,6 +18,7 @@ import { recruiterBranch } from './branches/recruiter'
 import { researcherBranch } from './branches/researcher'
 import { hangarManagerBranch } from './branches/hangarManager'
 import { aeSupplyDealerBranch } from './branches/aeSupplyDealer'
+import { aeShipSalesBranch } from './branches/aeShipSales'
 import { jobSiteBranch } from './branches/jobSite'
 import { talkHireBranch } from './branches/talkHire'
 
@@ -35,6 +36,7 @@ const ROLE_BRANCHES: BranchBuilder[] = [
   researcherBranch,
   hangarManagerBranch,
   aeSupplyDealerBranch,
+  aeShipSalesBranch,
   factoryManagerBranch,
   jobSiteBranch,
   talkHireBranch,

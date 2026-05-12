@@ -27,6 +27,9 @@ import './boot/hangarRepairTick'
 // advancement. Same event as repair; deliveries land first inside the
 // subscriber, then drain debits.
 import './boot/fleetSupplyTick'
+// Phase 6.2.C1 — advance pending ship deliveries on the same event;
+// rows transition in_transit → arrived once arrivalDay is reached.
+import './boot/shipDeliveryTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'

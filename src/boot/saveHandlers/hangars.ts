@@ -1,8 +1,9 @@
 // Phase 6.2.B — per-hangar save block. `tier` and `slotCapacity` are
 // re-attached from facility-types.json5 at spawn (deterministic from the
 // building's typeId), so the round-trip only persists fields the player
-// mutates — today: `repairPriorityShipKey`. Keying by the host
-// building's EntityKey keeps the block stable across reseeds.
+// mutates — `repairPriorityShipKey` (6.2.B) and `pendingDeliveries`
+// (6.2.C1). Keying by the host building's EntityKey keeps the block
+// stable across reseeds.
 //
 // Phase 6.2.F — extends the per-hangar block with supplyCurrent /
 // fuelCurrent (mutable reserves; caps re-attach from facility-types at
@@ -13,11 +14,13 @@
 import { registerSaveHandler } from '../../save/registry'
 import { SCENE_IDS, getWorld } from '../../ecs/world'
 import { Building, Hangar, EntityKey } from '../../ecs/traits'
-import type { PendingSupplyDelivery } from '../../ecs/traits'
+import type { PendingSupplyDelivery, ShipDeliveryRow } from '../../ecs/traits'
 
 interface HangarBlock {
   buildingKey: string
   repairPriorityShipKey: string
+  // Phase 6.2.C1
+  pendingDeliveries?: ShipDeliveryRow[]
   // Phase 6.2.F — all optional so legacy 6.2.B blocks load cleanly.
   supplyCurrent?: number
   fuelCurrent?: number
@@ -34,16 +37,22 @@ function snapshot(): HangarsBlock | undefined {
     const w = getWorld(sceneId)
     for (const e of w.query(Building, Hangar, EntityKey)) {
       const h = e.get(Hangar)!
+      const hasPriority = !!h.repairPriorityShipKey
+      const hasDeliveries = h.pendingDeliveries.length > 0
       // Skip cleanly-default rows so a fresh save stays compact.
-      // 6.2.F: a row is "default" iff repair-priority is unset AND
-      // supply / fuel are still at max AND no pending deliveries.
+      // A row is "default" iff repair-priority is unset AND supply /
+      // fuel are still at max AND no pending ship deliveries AND no
+      // pending supply deliveries.
       const fullSupply = h.supplyCurrent === h.supplyMax
       const fullFuel = h.fuelCurrent === h.fuelMax
-      const noPending = h.pendingSupplyDeliveries.length === 0
-      if (!h.repairPriorityShipKey && fullSupply && fullFuel && noPending) continue
+      const noSupplyPending = h.pendingSupplyDeliveries.length === 0
+      if (!hasPriority && !hasDeliveries && fullSupply && fullFuel && noSupplyPending) continue
       out.push({
         buildingKey: e.get(EntityKey)!.key,
         repairPriorityShipKey: h.repairPriorityShipKey,
+        pendingDeliveries: hasDeliveries
+          ? h.pendingDeliveries.map((row) => ({ ...row }))
+          : undefined,
         supplyCurrent: h.supplyCurrent,
         fuelCurrent: h.fuelCurrent,
         pendingSupplyDeliveries: h.pendingSupplyDeliveries.map((d) => ({ ...d })),
@@ -68,6 +77,7 @@ function restore(blob: HangarsBlock): void {
       e.set(Hangar, {
         ...cur,
         repairPriorityShipKey: row.repairPriorityShipKey,
+        pendingDeliveries: (row.pendingDeliveries ?? []).map((d) => ({ ...d })),
         // Clamp under the spawn-projected max in case the data grew tighter
         // between the save and the load.
         supplyCurrent: row.supplyCurrent !== undefined
