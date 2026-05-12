@@ -110,6 +110,8 @@ jobs:
       - if: always()
         run: node scripts/check-physiology-injury.mjs
       - if: always()
+        run: node scripts/check-physiology-contagion.mjs
+      - if: always()
         run: node scripts/check-space-combat.mjs
       - if: always()
         run: node scripts/check-cockpit.mjs
