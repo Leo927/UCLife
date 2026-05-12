@@ -10,11 +10,11 @@ import { forceOnset, physiologySystem, diagnoseCondition, commitTreatment } from
 import { getStat } from '../../stats/sheet'
 import type { StatId } from '../../stats/schema'
 
-registerDebugHandle('physiologyForceOnset', (templateId: string, source = '调试') => {
+registerDebugHandle('physiologyForceOnset', (templateId: string, source = '调试', bodyPart: string | null = null) => {
   const player = world.queryFirst(IsPlayer, Conditions)
   if (!player) return null
   const day = gameDayNumber(useClock.getState().gameDate)
-  const inst = forceOnset(player, templateId, source, day)
+  const inst = forceOnset(player, templateId, source, day, bodyPart)
   return inst ? { ...inst, activeBands: [...inst.activeBands] } : null
 })
 
