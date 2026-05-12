@@ -11,7 +11,7 @@ import {
 } from '../ecs/traits'
 import {
   forceOnset, physiologySystem, diagnoseCondition, commitTreatment,
-  rollEnvironmentalOnsets,
+  rollEnvironmentalOnsets, selfTreatCondition,
 } from './physiology'
 import { getStat } from '../stats/sheet'
 
@@ -299,6 +299,41 @@ describe('physiology — injury catalog (Phase 4.1)', () => {
       expect(inst!.templateId).toBe(id)
     })
   }
+})
+
+describe('physiology — First Aid self-treat (Phase 4.1)', () => {
+  it('above skill gate, a sprain self-treats to pharmacy tier', () => {
+    const { player } = setup()
+    const inst = forceOnset(player, 'sprain', '滑倒', 1, 'left-ankle')!
+    expect(selfTreatCondition(player, inst.instanceId, 30, 45)).toBe(true)
+    const updated = player.get(Conditions)!.list.find((c) => c.instanceId === inst.instanceId)!
+    expect(updated.currentTreatmentTier).toBe(1)
+  })
+
+  it('below skill gate, self-treat is refused', () => {
+    const { player } = setup()
+    const inst = forceOnset(player, 'sprain', '滑倒', 1, 'left-ankle')!
+    expect(selfTreatCondition(player, inst.instanceId, 30, 20)).toBe(false)
+    const updated = player.get(Conditions)!.list.find((c) => c.instanceId === inst.instanceId)!
+    expect(updated.currentTreatmentTier).toBe(0)
+  })
+
+  it('systemic templates (cold, food poisoning) are not self-treatable', () => {
+    const { player } = setup()
+    const inst = forceOnset(player, 'cold_common', '感冒', 1)!
+    expect(selfTreatCondition(player, inst.instanceId, 30, 90)).toBe(false)
+  })
+
+  it('tier-2 templates (fracture, concussion) are not self-treatable', () => {
+    const { player } = setup()
+    const inst = forceOnset(player, 'fracture', '事故', 1, 'left-arm')!
+    expect(selfTreatCondition(player, inst.instanceId, 30, 90)).toBe(false)
+  })
+
+  it('unknown instance id is refused', () => {
+    const { player } = setup()
+    expect(selfTreatCondition(player, 'no-such-id', 30, 90)).toBe(false)
+  })
 })
 
 describe('physiology — environmental onset rolls (Phase 4.1)', () => {

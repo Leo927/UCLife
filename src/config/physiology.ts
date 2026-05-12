@@ -6,6 +6,7 @@ export interface PhysiologyConfig {
   vitalsSaturationDailyRoll: number
   fatigueForEnvironmentInjury: number
   reflexForLaborInjury: number
+  selfTreatMinSkillLevel: number
 }
 
 export const physiologyConfig = json5.parse(raw) as PhysiologyConfig

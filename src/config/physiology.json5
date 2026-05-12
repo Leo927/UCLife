@@ -24,4 +24,10 @@
   // wiring lands once the work-shift hook exists (currently the daily
   // tick covers the general case).
   reflexForLaborInjury: 40,
+
+  // Medicine skill level required to self-treat a tier-1
+  // body-part-scoped injury (sprain / cut / burn) without a pharmacy.
+  // First Aid is a planned skill split; until then, the player's
+  // medicine level gates this verb.
+  selfTreatMinSkillLevel: 30,
 }

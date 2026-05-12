@@ -523,6 +523,29 @@ export function commitTreatment(
   return touched
 }
 
+// First Aid self-treat — gated by player's medicine skill (first-aid
+// skill split is on the post-Phase-4.1 catalog work). Only valid on
+// body-part-scoped injuries with requiredTreatmentTier <= 1
+// (sprain/cut/burn). Sets the treatment tier to 1 and grants medicine
+// XP. Returns true if the treat call landed.
+export function selfTreatCondition(
+  entity: Entity,
+  instanceId: string,
+  minSkillLevel: number,
+  skillLevel: number,
+): boolean {
+  if (skillLevel < minSkillLevel) return false
+  if (!entity.has(Conditions)) return false
+  const cond = entity.get(Conditions)!
+  const inst = cond.list.find((c) => c.instanceId === instanceId)
+  if (!inst) return false
+  const template = getConditionTemplate(inst.templateId)
+  if (!template) return false
+  if (template.bodyPartScope !== 'bodyPart') return false
+  if (template.requiredTreatmentTier > 1) return false
+  return commitTreatment(entity, instanceId, 1, null)
+}
+
 // Test/debug-only: force-onset a condition immediately, regardless of
 // path eligibility. Used by smoke tests + the debug handle.
 export function forceOnset(

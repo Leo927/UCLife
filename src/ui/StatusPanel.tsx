@@ -9,11 +9,12 @@ import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
-import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP } from '../character/skills'
+import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP, getSkillXp } from '../character/skills'
+import { selfTreatCondition } from '../systems/physiology'
 import { dowLabel, getJobSpec } from '../data/jobs'
 import { STAT_ORDER, STATS } from '../character/stats'
 import { getStat } from '../stats/sheet'
-import { attributesConfig, jobsConfig, vitalsConfig } from '../config'
+import { attributesConfig, jobsConfig, vitalsConfig, physiologyConfig } from '../config'
 import { tierOf as factionTierOf, factionMeta, type FactionId } from '../data/factions'
 import { getAmbition } from '../character/ambitions'
 import { playUi } from '../audio/player'
@@ -252,7 +253,28 @@ export function StatusPanel() {
           {conditions?.list.filter((c) => c.phase !== 'incubating').map((inst) => {
             const t = getConditionTemplate(inst.templateId)
             if (!t) return null
-            return <ConditionCard key={inst.instanceId} instance={inst} template={t} />
+            const onSelfTreat = (player && t.bodyPartScope === 'bodyPart' && t.requiredTreatmentTier <= 1)
+              ? () => {
+                if (!player) return
+                const lvl = levelOf(getSkillXp(player, 'medicine'))
+                if (selfTreatCondition(player, inst.instanceId, physiologyConfig.selfTreatMinSkillLevel, lvl)) {
+                  playUi('ui.condition-strip.click')
+                }
+              }
+              : null
+            const medLevel = player ? levelOf(getSkillXp(player, 'medicine')) : 0
+            const canSelfTreat = !!onSelfTreat &&
+              medLevel >= physiologyConfig.selfTreatMinSkillLevel &&
+              inst.currentTreatmentTier < 1
+            return (
+              <ConditionCard
+                key={inst.instanceId}
+                instance={inst}
+                template={t}
+                canSelfTreat={canSelfTreat}
+                onSelfTreat={onSelfTreat ?? (() => {})}
+              />
+            )
           })}
         </section>
 
@@ -363,10 +385,12 @@ function StatRow({ label, value }: { label: string; value: number }) {
 }
 
 function ConditionCard({
-  instance, template,
+  instance, template, canSelfTreat, onSelfTreat,
 }: {
   instance: { instanceId: string; templateId: string; phase: string; severity: number; diagnosed: boolean; diagnosedDay: number | null; currentTreatmentTier: number }
   template: ConditionTemplate
+  canSelfTreat: boolean
+  onSelfTreat: () => void
 }) {
   const tier = severityTier(instance.severity)
   const heading = instance.diagnosed ? template.displayName : '某种疾病'
@@ -389,6 +413,16 @@ function ConditionCard({
       )}
       {stalled && (
         <div className="condition-card-stalled">未见好转 — 需要药店或诊所介入。</div>
+      )}
+      {canSelfTreat && (
+        <button
+          className="condition-card-self-treat"
+          data-testid="condition-self-treat"
+          data-template={template.id}
+          onClick={onSelfTreat}
+        >
+          自行包扎
+        </button>
       )}
     </div>
   )
