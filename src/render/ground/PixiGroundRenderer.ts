@@ -517,6 +517,9 @@ export class PixiGroundRenderer {
     const pillow = new Graphics()
     const artSprite = new Sprite()
     artSprite.anchor.set(0.5, 0.5)
+    // Snap to integer screen pixels every frame so nearest-filter
+    // pixel art doesn't shimmer when the camera moves sub-pixel.
+    artSprite.roundPixels = true
     artSprite.visible = false
     const occupiedX = new Graphics()
     const label = new Text({
@@ -546,19 +549,24 @@ export class PixiGroundRenderer {
     const vw = v.w ?? 0
     const vh = v.h ?? 0
 
-    // One source of truth: the entity's template declares both
-    // footprint and the optional sprite (via assetId). The renderer
-    // scales the texture (or procedural roundRect) to (vw × vh); it
-    // never resolves the asset path itself.
+    // One source of truth: the entity's template declares both the
+    // footprint and the optional sprite (via assetId). Per skill
+    // policy ("pixellab-asset"), the PNG is authored at exactly
+    // (vw × vh) so the renderer paints 1:1 — never scaling. If a
+    // mismatched texture lands anyway, we still draw at native size
+    // and warn once, because scaled nearest-filter pixel art shimmers.
     const texture = v.assetId ? getArt(v.assetId) : null
     if (v.assetId) {
       if (texture && node.artSprite.texture !== texture) {
         node.artSprite.texture = texture
+        warnIfArtSizeMismatch(v.assetId, texture, vw, vh)
       }
       node.artSprite.x = b.x
       node.artSprite.y = b.y
-      node.artSprite.width = vw
-      node.artSprite.height = vh
+      // Don't set width/height — leave the sprite at native texture
+      // dims so there's no fractional scale to alias. The skill
+      // enforces texture == (vw, vh); a divergence is a bug to fix
+      // upstream, not paper over by scaling here.
       node.artSprite.alpha = bodyAlpha
       node.artSprite.visible = texture !== null
       node.body.clear()
@@ -1266,6 +1274,27 @@ function makeSpriteState(): SpriteState {
     facing: 'down',
     pending: 0,
   }
+}
+
+// Per-asset once-only sentinel for size-mismatch warnings — the
+// renderer paints at native texture dims regardless, but a mismatch
+// means the upstream skill policy (PNG === template visual.{w,h})
+// was violated and the asset should be regenerated.
+const artSizeWarned = new Set<string>()
+function warnIfArtSizeMismatch(
+  assetId: string, tex: Texture, targetW: number, targetH: number,
+): void {
+  const tw = tex.width
+  const th = tex.height
+  if (tw === targetW && th === targetH) return
+  if (artSizeWarned.has(assetId)) return
+  artSizeWarned.add(assetId)
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[art] '${assetId}' texture is ${tw}×${th} but template footprint is ` +
+    `${targetW}×${targetH} — regenerate at the template size to avoid ` +
+    `scaling shimmer (see .claude/skills/pixellab-asset/SKILL.md).`,
+  )
 }
 
 function manifestKeyFor(manifest: LpcManifest, animation: LpcAnimation): string {

@@ -20,6 +20,50 @@ Escalate to a review pack only when the user explicitly asks for options
 ("give me a few", "let me pick"). When escalating, default to `n_frames: 4`;
 use 16 only if the user wants a broad style survey.
 
+## Size discipline — generate at the target's exact render size
+
+**The renderer never scales art** in this project. Scaling pixel art (even
+with `nearest` filter) shimmers as the camera moves, because source pixels
+map to fractional screen pixels and the rounding flips frame-to-frame.
+
+Before generating a new asset, do the **bump-then-match** workflow:
+
+1. **Locate the target's render size** in `src/data/object-templates.json5`:
+
+   ```json5
+   'bed-flop': { kind: 'bed', ..., visual: { w: 32, h: 32, ..., assetId: 'bed-flop' } },
+   ```
+
+   `visual.w` × `visual.h` is the in-game footprint in world pixels — and
+   therefore the **required PNG dimensions**.
+
+2. **Bump to ≥ 32 px** in each dimension if smaller. PixelLab can't paint
+   meaningful detail below ~24 px and the renderer rounds aggressively at
+   small sizes. If you bump, preserve aspect ratio, commit the template
+   change first, then move on. New assets you author from scratch should
+   default to **32 × 32** unless the object's footprint demands otherwise.
+
+3. **Generate at exactly that size**. Pass the larger of (w, h) as `size`
+   for square `create_object`; for non-square targets, use `create_map_object`
+   with explicit `width`/`height`. **Do not generate at 64 then expect the
+   renderer to downscale to 32 — it will flicker.**
+
+   ```
+   mcp__pixellab__create_object(
+     description: "...",
+     view: "high top-down",
+     object_view: "top-down",
+     directions: 1,
+     n_frames: 1,
+     size: 32,   # MATCH the template's visual.w (and h, when square)
+   )
+   ```
+
+4. **Verify post-download** with `file <path>` — if PixelLab normalized the
+   canvas to something other than the requested size, either regenerate or
+   adjust the template's `visual.{w,h}` to match the PNG. The contract is
+   *PNG size === template size*, full stop.
+
 ## Tool selection
 
 | Asset perspective                                      | Tool                            | view              | Other params                          |
@@ -52,7 +96,11 @@ Describe the subject and style only — the tool + view handle perspective.
 
 For a flat top-down map object (canonical case):
 
-1. **Generate**
+1. **Resolve target size** from `src/data/object-templates.json5` (see *Size
+   discipline*). Bump to ≥32 if needed and commit that change before
+   generating.
+
+2. **Generate at the target size**
 
    ```
    mcp__pixellab__create_object(
@@ -61,16 +109,16 @@ For a flat top-down map object (canonical case):
      object_view: "top-down",
      directions: 1,
      n_frames: 1,
-     size: 64,             # 32–128 covers most map objects; 64 is a good default
+     size: <template.visual.w>,   # exact match — never larger than the render footprint
    )
    ```
 
    Returns an `object_id` and queues a job (~30–90s).
 
-2. **Poll** with `mcp__pixellab__get_object(object_id=...)` until status is
+3. **Poll** with `mcp__pixellab__get_object(object_id=...)` until status is
    `completed`. Use `include_preview: false` if you just need URLs.
 
-3. **Download** the finalized PNG:
+4. **Download** the finalized PNG:
 
    ```
    curl --fail -L -o "<repo>/public/art/<category>/<name>.png" \
@@ -80,20 +128,21 @@ For a flat top-down map object (canonical case):
    Use `--fail` so curl exits non-zero on HTTP errors rather than writing the
    error body to disk.
 
-4. **Confirm** with `file <path>` (PixelLab sometimes normalizes canvas dims;
-   verify before sizing the catalog row) and **inspect** with the Read tool
-   (it renders the PNG inline). The Read inline preview is the decision
-   point — perspective and subject must match the request.
+5. **Confirm size with `file <path>`**. The PNG dimensions **must** equal the
+   template's `visual.{w,h}`. If PixelLab normalized to a different canvas,
+   regenerate — do not let the renderer scale. Then **inspect** with the
+   Read tool (it renders the PNG inline) — perspective and subject must
+   match the request.
 
 ## Wiring into UC Life Sim's asset pack
 
 Three layers, strictly separated:
 
-| Layer             | Lives in                          | Owns                                            |
-| ----------------- | --------------------------------- | ----------------------------------------------- |
-| Asset catalog     | `src/config/art.json5`            | `id → { path }` — the file, nothing else        |
-| Object definition | `src/config/<domain>.json5`       | how a game object renders, including footprint  |
-| Asset registry    | `src/render/assets/registry.ts`   | Pixi-side loading; `getArt(id) → Texture\|null` |
+| Layer             | Lives in                              | Owns                                                                         |
+| ----------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| Asset catalog     | `src/config/art.json5`                | `id → { path }` — the file, nothing else                                     |
+| Object templates  | `src/data/object-templates.json5`     | every world-object kind; `visual.{w,h,fill,stroke,label?,assetId?}` inline   |
+| Asset registry    | `src/render/assets/registry.ts`       | Pixi-side loading; `getArt(id) → Texture\|null`                              |
 
 1. **Catalog row** in `src/config/art.json5`:
 
@@ -103,27 +152,25 @@ Three layers, strictly separated:
    }
    ```
 
-   Path is absolute under Vite's public root (`public/art/...`). Don't put
-   render size here — assets are reusable across game-object sizes.
+   Path is absolute under Vite's public root (`public/art/...`).
 
-2. **Object-definition entry** in the relevant domain config (e.g.
-   `src/config/beds.json5` for bed tiers):
+2. **Object-template entry** in `src/data/object-templates.json5`. The
+   template carries the visual inline — `w`/`h` is the drawn footprint in
+   world pixels (also the **required PNG dimensions**, per *Size discipline*):
 
    ```json5
-   tiers: {
-     flop: { w: 32, h: 32, assetId: 'bed-flop' },
-   }
+   'bed-flop': { kind: 'bed', tier: 'flop',
+                 visual: { w: 32, h: 32, fill: 0x262626, stroke: 0x737373,
+                           label: '投币床', assetId: 'bed-flop' } },
    ```
 
-   `w`/`h` is the drawn footprint in world pixels — the rectangle the
-   renderer paints into. Pixi scales the texture to fit; match the source
-   PNG's aspect or the sprite distorts. `assetId` is optional; entries
-   without one render procedurally.
+   `assetId` is optional; entries without one render procedurally.
 
-3. **Renderer reads both**: `<domain>Config.<...>[key]` for footprint + asset
-   id, then `getArt(id)` for the texture. New entries in an existing domain
-   need no renderer code change; a brand-new asset category needs one new
-   config file and one new lookup in the consuming renderer.
+3. **Renderer** reads the visual off the snap (resolved from the entity's
+   `TemplateRef` in the snapshot builder), then `getArt(visual.assetId)` for
+   the texture. New templates need no renderer change. The renderer paints
+   the sprite at its native texture size — no scaling — so the PNG must
+   match `visual.{w,h}`.
 
 ## Review-pack flow (when explicitly requested)
 
