@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import type { Entity } from 'koota'
-import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building } from '../ecs/traits'
+import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building, Conditions } from '../ecs/traits'
 import type { ActionKind, Gender } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { actionLabel } from '../data/actions'
@@ -14,6 +14,11 @@ import { DialogueRunner } from './dialogue/runner'
 import { buildNpcDialogue } from './dialogue/builder'
 import type { DialogueRoles } from './dialogue/types'
 import { playUi } from '../audio/player'
+import {
+  getConditionTemplate, severityTier,
+  SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR,
+} from '../character/conditions'
+import { labelForBodyPart } from '../character/bodyParts'
 
 const CASHIER_SPEC_IDS = ['shop_morning_clerk', 'shop_afternoon_clerk'] as const
 
@@ -114,6 +119,7 @@ export function NPCDialog() {
             </div>
           </div>
         </section>
+        <NPCHealthSection target={target} />
         <DialogueRunner root={root} />
         {DEBUG_AVAILABLE && (
           <section className="status-section faded">
@@ -350,6 +356,39 @@ function NPCAppearanceBlock({ entity }: { entity: Entity }) {
         </span>
       </div>
     </>
+  )
+}
+
+// Phase 4 — NPC inspector health readout. NPCs always read as
+// diagnosed per the spec, so we show the canonical condition name
+// (with body-part for body-part-scoped injuries) and the severity
+// tier. Hidden if the NPC has no symptomatic conditions.
+function NPCHealthSection({ target }: { target: Entity }) {
+  const cond = useTrait(target, Conditions)
+  if (!cond) return null
+  const symptomatic = cond.list.filter((c) => c.phase !== 'incubating')
+  if (symptomatic.length === 0) return null
+  return (
+    <section className="status-section" data-testid="npc-conditions">
+      <h3>健康</h3>
+      {symptomatic.map((inst) => {
+        const t = getConditionTemplate(inst.templateId)
+        if (!t) return null
+        const tier = severityTier(inst.severity)
+        const part = inst.bodyPart ? `（${labelForBodyPart(inst.bodyPart)}）` : ''
+        const stalled = inst.phase === 'stalled' ? ' · 未见好转' : ''
+        return (
+          <div
+            key={inst.instanceId}
+            className="status-meta"
+            data-template={t.id}
+            data-phase={inst.phase}
+          >
+            · {t.displayName}{part} — <span style={{ color: SEVERITY_TIER_COLOR[tier] }}>{SEVERITY_TIER_ZH[tier]}</span>{stalled}
+          </div>
+        )
+      })}
+    </section>
   )
 }
 
