@@ -107,4 +107,42 @@
     ae_ship_sales_vb:      { shipClassId: 'lunarMilitia' },
     ae_ship_sales_granada: { shipClassId: 'pegasusClass' },
   },
+
+  // Phase 6.2.D — hire-as-captain / hire-as-crew economics. Each hire
+  // deducts a one-shot signing fee on accept; daily salary is charged
+  // by the day:rollover:settled tick (see boot/fleetCrewSalaryTick.ts).
+  // Captains cost more because they emit a Ship-StatSheet officer
+  // Effect (currently a small +topSpeed bonus; see captainEffectStat
+  // below) and because losing the captain breaks the ship's launch
+  // pipeline at 6.2.E+. Numbers are tunable; the smoke pins them via
+  // the config import so a tuning change ripples through the assert
+  // without code churn.
+  hireCaptainSigningFee: 5000,
+  hireCrewSigningFee: 500,
+  // Per-day per-NPC salary. Pulled from the player's Money on each
+  // day:rollover:settled. If the player can't cover the day's bill the
+  // tick records the shortfall in the event log; firing happens at
+  // the player's discretion (no auto-fire at this slice).
+  captainDailySalary: 200,
+  crewDailySalary: 30,
+
+  // Captain effect — per-captain Effect on the ship's StatSheet. Source
+  // string: `eff:officer:<captainKey>:engineering`. Mods `topSpeed` as
+  // a `percentMult` (Effect modType). Bonus scales with the captain's
+  // engineering skill level via captainEffectPerLevel — a captain at
+  // Lv 30 emits `percentMult = 30 * captainEffectPerLevel` on topSpeed.
+  // Engineering is the closest existing skill stub for "ship command";
+  // the proper command / tactics / leadership skills land at Phase 6+
+  // per the skills.md catalog. Authored at this slice so removing the
+  // captain at the fire / reassign verb cleanly removes the Effect.
+  captainEffectSkill: 'engineering',
+  captainEffectStat: 'topSpeed',
+  captainEffectPerLevel: 0.002,
+
+  // Officer auto-man — captain's "man the rest from idle pool" verb on
+  // the captain's-office desk. Pulls procedural NPCs without a Job +
+  // not already employed as crew + alive and physically present in any
+  // city scene. Stops at the configured maximum hires per click OR at
+  // `crewRequired` OR at money — whichever comes first.
+  manFromIdlePoolMaxPerClick: 20,
 }

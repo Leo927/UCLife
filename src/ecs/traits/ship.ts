@@ -24,6 +24,11 @@ import type { Effect } from '../../stats/effects'
 // shieldEfficiency / topSpeed / accel / decel / angularAccel / maxAngVel) are
 // cached from the template at bootstrap; treat them as read-only mirrors
 // until the StatSheet migration in 6.2.
+//
+// Phase 6.2.D — captain + crew references are stored as EntityKey strings
+// (not Entity refs) so save/load survives a world reset. The hire branches
+// + crew-assignment panel write these; ShipEffectsList projects the
+// captain's officer skill onto the ship's StatSheet via `eff:officer:...`.
 export const Ship = trait({
   templateId: '',
   hullCurrent: 0, hullMax: 0,
@@ -54,6 +59,12 @@ export const Ship = trait({
   // of the verb so the daily drain tick can iterate without conditional
   // trait checks; the G slice flips the source.
   mothballed: false,
+  // Phase 6.2.D — captain + crew. EntityKey strings (npc-anon-xxx) so
+  // they survive a save/load round-trip; entity refs don't. Empty
+  // string = no captain; empty array = no crew. Crew count is
+  // crewIds.length; vacancy = getStat(sheet, 'crewRequired') - crewIds.length.
+  assignedCaptainId: '',
+  crewIds: [] as string[],
 })
 
 // Marker — present iff the player is currently aboard this ship. Phase 6.1.5

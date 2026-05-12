@@ -25,3 +25,4 @@ import './dailyEconomics' // phase: 'post' — transient (reset only)
 import './recruitment'  // phase: 'post' — applicant counter
 import './brig'         // phase: 'post' — named-POW roster
 import './hangars'      // phase: 'post' — per-hangar repair priority
+import './fleetCrewCounter' // phase: 'post' — npc-crew-<N> key counter
