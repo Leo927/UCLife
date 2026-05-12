@@ -13,6 +13,7 @@ import { step } from '../engine/space/integration'
 import { thrustToward } from '../engine/space/autopilot'
 import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
+import { fleetFormationSystem } from './fleetFormation'
 import { useEngagement } from '../sim/engagement'
 import { spendFuel, getShipState, getDockedPoiId, setDockedPoi, setFleetPos } from '../sim/ship'
 import { emitSim } from '../sim/events'
@@ -123,6 +124,13 @@ export function spaceSimSystem(world: World, dtSec: number): void {
   // 3. Enemy AI fills Thrust on EnemyAI entities before integration.
   enemyAISystem(world)
 
+  // Phase 6.2.E2 — formation flying. Active-fleet non-flagship ships
+  // (FleetEscort bodies) station-keep at flagshipPos + formation slot
+  // offset each frame. Runs before integration so the formation snap
+  // takes effect; integration is a no-op on these bodies because
+  // fleetFormationSystem zeroes their velocity.
+  fleetFormationSystem(world)
+
   // 4. For each ship: autopilot fills Thrust if Course.active, then step.
   const maxSpeed = spaceConfig.baseShipMaxSpeed * spaceConfig.shipSpeedScale
   for (const e of world.query(ShipBody, Position, Velocity, Thrust, Course)) {
@@ -164,6 +172,10 @@ export function spaceSimSystem(world: World, dtSec: number): void {
             textZh: `已停泊 · ${poi?.nameZh ?? course.destPoiId}`,
             atMs: useClock.getState().gameDate.getTime(),
           })
+          // Phase 6.2.E2 — same dock-arrival fan-out as the instant-snap
+          // path in sim/navigation.ts:dockAt. Tear down FleetEscort
+          // bodies + re-dock their ships at the new POI.
+          emitSim('fleet:flagship-dock', { destPoiId: course.destPoiId })
         }
       }
     }

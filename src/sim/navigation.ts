@@ -10,7 +10,7 @@ import { getPoi } from '../data/pois'
 import { takeoffFuelCostFor, derivedPoiPos } from './helm'
 import { getWorld } from '../ecs/world'
 import { IsPlayer, ShipBody, Course, PoiTag, Position, Velocity } from '../ecs/traits'
-import { useClock } from './clock'
+import { useClock, gameDayNumber } from './clock'
 import { emitSim } from './events'
 import { useDebug } from '../debug/store'
 import { spaceConfig } from '../config'
@@ -47,6 +47,7 @@ function takeoffIfDocked(): { ok: boolean; message?: string } {
   if (fuelCost > 0 && !spendFuel(fuelCost)) {
     return { ok: false, message: '燃料扣除失败' }
   }
+  const undockedPoiId = ship.dockedAtPoiId
   clearDocked()
   if (fromPoi) {
     emitSim('log', {
@@ -54,6 +55,13 @@ function takeoffIfDocked(): { ok: boolean; message?: string } {
       atMs: useClock.getState().gameDate.getTime(),
     })
   }
+  // Phase 6.2.E2 — fan out the auto-launch + auto-transit consequence to
+  // every other active-fleet ship via a sim event. Subscriber lives in
+  // src/boot/fleetLaunchBinding.ts so sim/ doesn't reach upward.
+  emitSim('fleet:flagship-undock', {
+    originPoiId: undockedPoiId,
+    gameDay: gameDayNumber(useClock.getState().gameDate),
+  })
   return { ok: true }
 }
 
@@ -111,6 +119,9 @@ export function dockAt(poiId: string): { ok: boolean; message?: string } {
       textZh: `已停泊 · ${poi?.nameZh ?? poiId}`,
       atMs: useClock.getState().gameDate.getTime(),
     })
+    // Phase 6.2.E2 — auto-dock side: tear down spaceCampaign FleetEscort
+    // bodies, re-dock their ships at the new POI.
+    emitSim('fleet:flagship-dock', { destPoiId: poiId })
     return { ok: true }
   }
 

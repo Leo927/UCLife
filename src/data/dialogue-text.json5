@@ -348,6 +348,9 @@
       toastMoveFailed: '调整失败：{reason}',
       rosterStateLabel: '编制状态',
       rosterAggressionLabel: '战斗节奏',
+      // Phase 6.2.E2 — cross-POI transit + auto-launch surface strings.
+      transitLabel: '在途',
+      transitToastQueued: '舰队会合中 · 从 {from} 启程，{days} 天后抵达 {to}。',
     },
     // Phase 6.2.D — captain's-office "man the rest" verb.
     captainsOfficeManRest: {

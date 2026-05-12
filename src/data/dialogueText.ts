@@ -236,6 +236,8 @@ export interface DialogueText {
       toastMoveFailed: string
       rosterStateLabel: string
       rosterAggressionLabel: string
+      transitLabel: string
+      transitToastQueued: string
     }
     aeShipSales: {
       title: string

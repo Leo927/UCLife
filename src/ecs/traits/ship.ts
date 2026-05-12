@@ -75,6 +75,16 @@ export const Ship = trait({
   // as `row * grid.cols + col` for the war-room plot table grid. -1 =
   // no slot (the ship is in reserve, or hasn't been placed yet).
   formationSlot: -1,
+  // Phase 6.2.E2 — cross-POI transit fields. While `transitDestinationId`
+  // is non-empty the ship is in shipment (unavailable for sortie, refit,
+  // repair); `dockedAtPoiId` stays empty during transit. Both 6.2.E2's
+  // auto-launch consequence and 6.2.G's hangar-manager transfer-to-other
+  // verb write through `enqueueShipTransit` so the daily landing tick
+  // doesn't need to know which slice initiated the move.
+  transitOriginPoiId: '',
+  transitDestinationId: '',
+  transitDepartureDay: 0,
+  transitArrivalDay: 0,
 })
 
 // Marker — present iff the player is currently aboard this ship. Phase 6.1.5
@@ -91,6 +101,17 @@ export const IsFlagshipMark = trait({})
 // IsFlagshipMark pattern: a separate marker trait keeps the predicate
 // query cheap and self-documenting at call sites.
 export const IsInActiveFleet = trait({})
+
+// Phase 6.2.E2 — spaceCampaign-world escort body for an active-fleet
+// non-flagship ship. Lives in the spaceCampaign world alongside the
+// flagship's IsPlayer body and the EnemyAI/Position entities; carries
+// the bind-back `shipKey` to its long-arc `Ship` entity in the
+// playerShipInterior world so the formation system can look up the
+// ship's `formationSlot`. Spawned at auto-launch (flagship undock),
+// destroyed at re-dock or on transit-queue.
+export const FleetEscort = trait({
+  shipKey: '',
+})
 
 // Phase 6.2.B — per-ship StatSheet. Mirrors the per-character + per-faction
 // pattern. Ship-class scalars project here as stat bases at spawn; Effects

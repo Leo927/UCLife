@@ -50,6 +50,13 @@ export interface SimEventPayloads {
   // the fleet roster as drag-and-drop tokens against a formation grid;
   // sets per-ship IsInActiveFleet + formationSlot + aggression.
   'ui:open-war-room':          { reason: string }
+  // Phase 6.2.E2 — flagship lifecycle hooks. Emitted from sim/navigation
+  // at the same site that clears / sets the flagship's dock binding so
+  // the auto-launch + auto-transit + fleet formation systems (which live
+  // in src/systems/) can react via a boot-binding subscription. The
+  // event keeps sim/ from reaching upward into systems/.
+  'fleet:flagship-undock':     { originPoiId: string; gameDay: number }
+  'fleet:flagship-dock':       { destPoiId: string }
   // Phase 6.1 — set the tactical-overlay visibility (combat may keep
   // running underneath while the overlay is hidden, so the player can
   // walk the ship interior mid-engagement). Subscribed by combat.ts to

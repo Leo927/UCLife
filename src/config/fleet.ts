@@ -41,8 +41,13 @@ export interface FleetConfig {
     rows: number
     flagshipSlot: number
   }
-  aggressionLevels: { id: string; labelZh: string }[]
+  aggressionLevels: { id: string; labelZh: string; aiAggression: number }[]
   aggressionDefault: string
+  // Phase 6.2.E2 — formation slot offsets + cross-POI transit + transit fee.
+  formationSlotOffsets: Record<string, { dx: number; dy: number }>
+  transitDaysDefault: number
+  transitDays: Record<string, number>
+  transitFee: number
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

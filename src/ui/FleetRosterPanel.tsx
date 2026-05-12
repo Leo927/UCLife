@@ -51,6 +51,11 @@ interface RosterRow {
   // bridge; the roster only reflects.
   isInActiveFleet: boolean
   aggression: string
+  // Phase 6.2.E2 — cross-POI transit state. When `transitDestinationId`
+  // is non-empty the ship is mid-shipment; the roster surfaces an
+  // "in-transit" line in place of the docked-hangar label.
+  transitDestinationId: string
+  transitArrivalDay: number
 }
 
 function collectRoster(): RosterRow[] {
@@ -84,6 +89,8 @@ function collectRoster(): RosterRow[] {
       crewMax: cls.crewMax,
       isInActiveFleet: e.has(IsInActiveFleet),
       aggression: s.aggression,
+      transitDestinationId: s.transitDestinationId,
+      transitArrivalDay: s.transitArrivalDay,
     })
   }
   return out
@@ -191,7 +198,9 @@ function RosterList({
                 )}
               </span>
               <span data-roster-hangar style={{ flex: '1 0 8em' }}>
-                {t.colHangar}: {r.hangarLabel || t.captainEmpty}
+                {t.colHangar}: {r.transitDestinationId
+                  ? `${dialogueText.branches.warRoom.transitLabel} → ${getPoi(r.transitDestinationId)?.nameZh ?? r.transitDestinationId}`
+                  : (r.hangarLabel || t.captainEmpty)}
               </span>
               <span data-roster-captain style={{ flex: '1 0 6em' }}>
                 {t.colCaptain}: {r.captainNameZh || t.captainEmpty}

@@ -172,9 +172,54 @@
   // the other two flanking it on the UI. Real combat-AI reads land at
   // 6.2.E2 + 6.2.7 (DP / CP layer); 6.2.E1 ships only the data channel.
   aggressionLevels: [
-    { id: 'cautious',  labelZh: '谨慎' },
-    { id: 'steady',    labelZh: '稳健' },
-    { id: 'aggressive', labelZh: '激进' },
+    { id: 'cautious',  labelZh: '谨慎', aiAggression: 0.3 },
+    { id: 'steady',    labelZh: '稳健', aiAggression: 0.5 },
+    { id: 'aggressive', labelZh: '激进', aiAggression: 0.8 },
   ],
   aggressionDefault: 'steady',
+
+  // ── Phase 6.2.E2 — auto-launch + cross-POI transit + formation flying ──
+  //
+  // Formation slot offsets in arena units, indexed by `formationSlot`
+  // (0..rows*cols-1). The flagship anchors at slot 6 (offset (0, 0)); the
+  // other slots wrap it in the same topology as the war-room plot table
+  // grid (4 cols × 3 rows). Used in two places:
+  //   - tactical combat: spawn escort CombatShipState at flagshipPos +
+  //     offset, station-keep there each tick.
+  //   - campaign space (spaceCampaign world): each frame, escorts'
+  //     Position rides flagshipPos + offset so the fleet moves as one.
+  // The map's first 12 entries cover the default 4×3 grid.
+  formationSlotOffsets: {
+    '0': { dx: -180, dy: -120 },
+    '1': { dx:  -60, dy: -120 },
+    '2': { dx:   60, dy: -120 },
+    '3': { dx:  180, dy: -120 },
+    '4': { dx: -180, dy:    0 },
+    '5': { dx:  -60, dy:    0 },
+    '6': { dx:    0, dy:    0 },
+    '7': { dx:   60, dy:    0 },
+    '8': { dx: -180, dy:  120 },
+    '9': { dx:  -60, dy:  120 },
+    '10': { dx:   60, dy:  120 },
+    '11': { dx:  180, dy:  120 },
+  },
+
+  // Cross-POI transit days for non-flagship active ships whose home
+  // hangar differs from the flagship's POI. The map is symmetric: route
+  // key is `${originPoiId}->${destPoiId}`. Missing pairs fall back to
+  // `transitDaysDefault`. Tuned so VB↔Granada transit is felt in the
+  // 6.2.E2 demo (3 game days — long enough that the escort doesn't
+  // teleport to the next engagement, short enough that the player isn't
+  // bored). The same surface backs 6.2.G's transfer-to-other-hangar
+  // verb (per Design/fleet.md "Transfer-pipeline ownership floats").
+  transitDaysDefault: 3,
+  transitDays: {
+    'vonBraun->granada': 3,
+    'granada->vonBraun': 3,
+  },
+  // Per-transit fee paid from player Money at departure. Authored as a
+  // flat charge for now; a per-distance schedule lives at 6.2.G if the
+  // map ever grows multi-hop. 0 = free (smoke can drive `cheatMoney`
+  // before launch to side-step the gate when needed).
+  transitFee: 500,
 }

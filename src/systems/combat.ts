@@ -31,8 +31,9 @@ import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
-  EnemyAI, Flags, IsFlagshipMark,
+  EnemyAI, Flags, IsFlagshipMark, IsInActiveFleet,
 } from '../ecs/traits'
+import { formationOffsetForSlot } from './fleetFormation'
 import { getEnemyShip } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, type WeaponDef } from '../data/weapons'
@@ -43,7 +44,7 @@ import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
-import { combatConfig, cockpitConfig } from '../config'
+import { combatConfig, cockpitConfig, fleetConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
 } from '../sim/cockpit'
@@ -326,6 +327,83 @@ function spawnEnemyShip(
   )
 }
 
+// Phase 6.2.E2 — spawn a non-flagship CombatShipState for every
+// IsInActiveFleet ship at this tactical engagement. The flagship's
+// own CombatShipState is created by startCombat directly (sits on the
+// persistent flagship entity); these escorts are transient like enemy
+// rows — destroyed at endCombat. They use:
+//   - shipClass topSpeed / accel / decel / angularAccel / maxAngVel
+//   - shipClass hullMax / armorMax as combat-time gauge (independent of
+//     the long-arc Ship trait — escort tactical damage clears at
+//     endCombat, matching the same Phase 6.1 pre-6.2.B pattern enemy
+//     rows used. Persistent damage on non-flagship hulls lands when
+//     the combat-loop wires their post-fight state back into Ship —
+//     out of scope for E2.)
+//   - shipClass defaultWeapons → inline weapons array (same shape as
+//     enemy rows; the existing per-ship weapon firing loop already
+//     supports player-side non-flagship + non-MS shooters via the
+//     `else if (psState.isFlagship === false && psState.isMs === false)`
+//     branch added in this slice — see below.)
+//   - position at flagship's PLAYER_SPAWN + formation slot offset.
+function spawnActiveFleetEscorts(w: World): void {
+  for (const e of w.query(Ship, IsInActiveFleet, EntityKey)) {
+    if (e.has(IsFlagshipMark)) continue
+    if (e.has(CombatShipState)) continue
+    const s = e.get(Ship)!
+    // Skip ships currently in cross-POI transit — they're not at the
+    // engagement site.
+    if (s.transitDestinationId) continue
+    const cls = getShipClass(s.templateId)
+    const offset = formationOffsetForSlot(s.formationSlot)
+    const pos = offset
+      ? { x: PLAYER_SPAWN.x + offset.dx, y: PLAYER_SPAWN.y + offset.dy }
+      : { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y }
+    const aggLvl = fleetConfig.aggressionLevels.find((a) => a.id === s.aggression)
+    const aiAggression = aggLvl?.aiAggression ?? cls.ai.aggression
+    // Attach CombatShipState to the existing Ship entity (matches the
+    // flagship pattern) so the long-arc fleet entity stays alive at
+    // endCombat — we then just remove the trait, not destroy the entity.
+    e.add(CombatShipState({
+      shipClassId: cls.id,
+      nameZh: cls.nameZh,
+      captainId: '',
+      side: 'player',
+      isFlagship: false,
+      isMs: false,
+      pilotedByPlayer: false,
+      isPlayer: false,
+      pos,
+      vel: { x: 0, y: 0 },
+      heading: 0,
+      angVel: 0,
+      hullCurrent: cls.hullMax, hullMax: cls.hullMax,
+      armorCurrent: cls.armorMax, armorMax: cls.armorMax,
+      fluxMax: cls.fluxMax, fluxCurrent: 0, fluxDissipation: cls.fluxDissipation,
+      hasShield: cls.hasShield,
+      shieldEfficiency: cls.shieldEfficiency,
+      shieldUp: cls.hasShield,
+      topSpeed: cls.topSpeed,
+      accel: cls.accel,
+      decel: cls.decel,
+      angularAccel: cls.angularAccel,
+      maxAngVel: cls.maxAngVel,
+      weapons: cls.defaultWeapons.map((id, i) => ({
+        weaponId: id,
+        size: cls.mounts[i].size,
+        firingArcRad: (cls.mounts[i].firingArcDeg * Math.PI) / 180,
+        facingRad: (cls.mounts[i].facingDeg * Math.PI) / 180,
+        chargeSec: 0,
+        ready: false,
+      })),
+      ai: {
+        aggression: aiAggression,
+        retreatThreshold: cls.ai.retreatThresholdPct,
+        maintainRange: cls.ai.maintainRange,
+      },
+    }))
+  }
+}
+
 export function startCombat(
   leadShipId: string,
   escortShipIds: string[] = [],
@@ -335,12 +413,14 @@ export function startCombat(
   const w = shipWorld()
 
   // Strip prior combat state. Enemies and stale player MS are transient
-  // → destroy. The player's flagship CombatShipState lives on the
-  // persistent flagship entity → just remove the trait so the
-  // entity (and its long-arc Ship state) survives.
+  // → destroy. The flagship + Phase 6.2.E2 active-fleet escort
+  // CombatShipState rows ride on persistent Ship entities → just
+  // remove the trait so the entity (and its long-arc Ship state)
+  // survives.
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
     if (cs.isFlagship || cs.isPlayer) e.remove(CombatShipState)
+    else if (cs.side === 'player' && e.has(Ship)) e.remove(CombatShipState)
     else e.destroy()
   }
   projectiles.length = 0
@@ -404,6 +484,15 @@ export function startCombat(
     const captainId = notableCaptains[String(slotIdx)] ?? ''
     spawnEnemyShip(w, id, slotIdx, fleet.length, captainId)
   })
+
+  // Phase 6.2.E2 — spawn a non-flagship CombatShipState row for each
+  // active-fleet escort. They participate in tactical: have armor +
+  // hull + weapons (can be targeted and can fire); station-keep at
+  // flagshipPos + formation slot offset; AI uses the same shipClass
+  // maintainRange directive enemies use. The cs.ai.aggression is
+  // mapped from the war-room aggression slider so cautious/steady/
+  // aggressive doctrine actually reads through.
+  spawnActiveFleetEscorts(w)
 
   setInCombat(true)
   useClock.getState().setMode('combat')
@@ -573,12 +662,17 @@ function applyDefeatConsequence(): void {
 
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
-  // Same flagship-vs-everything-else split as startCombat: keep the
-  // flagship entity alive, just shed its CombatShipState; destroy
-  // enemy + player MS rows.
+  // Three-way split per CombatShipState owner:
+  //   - flagship row sits on the persistent flagship Ship entity →
+  //     just remove the trait.
+  //   - Phase 6.2.E2 active-fleet escort rows sit on persistent Ship
+  //     entities (Ship+IsInActiveFleet, not flagship) → also just
+  //     remove the trait so the entity survives.
+  //   - everything else (enemies, transient player MS) → destroy.
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
     if (cs.isFlagship || cs.isPlayer) e.remove(CombatShipState)
+    else if (cs.side === 'player' && e.has(Ship)) e.remove(CombatShipState)
     else e.destroy()
   }
   projectiles.length = 0
@@ -754,6 +848,26 @@ function applyDamageToMs(msEnt: Entity, weapon: WeaponDef): { absorbed: boolean;
   return { absorbed: false, destroyed: hullCurrent <= cockpitConfig.msHullEjectFloor }
 }
 
+// Phase 6.2.E2 — damage to a non-flagship active-fleet escort. Same
+// armor → hull pipeline as enemy ships; flux / shields are skipped
+// because escort CombatShipState rows in 6.2.E2 don't carry a per-ship
+// flux model (the long-arc ship's fluxMax stays on Ship, not on the
+// transient combat row).
+function applyDamageToEscort(escortEnt: Entity, weapon: WeaponDef): { absorbed: boolean; destroyed: boolean } {
+  const c = escortEnt.get(CombatShipState)!
+  let armorCurrent = c.armorCurrent
+  let hullCurrent = c.hullCurrent
+  let remaining = weapon.damage * weapon.armorDamage
+  if (c.armorMax > 0 && armorCurrent > 0) {
+    const armorAbsorb = Math.min(armorCurrent, remaining * (armorCurrent / c.armorMax))
+    armorCurrent = Math.max(0, armorCurrent - armorAbsorb)
+    remaining = Math.max(0, remaining - armorAbsorb)
+  }
+  hullCurrent = Math.max(0, hullCurrent - remaining)
+  escortEnt.set(CombatShipState, { ...c, armorCurrent, hullCurrent })
+  return { absorbed: false, destroyed: hullCurrent <= 0 }
+}
+
 // Route an incoming hostile hit at one specific player-side target. The
 // flagship still routes through the Ship trait via applyDamageToPlayer
 // (so fluxes / armor / hull on the persistent trait are correct). MS hits
@@ -762,6 +876,10 @@ function applyDamageToPlayerSide(targetEnt: Entity, weapon: WeaponDef): { absorb
   const cs = targetEnt.get(CombatShipState)
   if (!cs) return { absorbed: false, destroyed: false }
   if (cs.isMs) return applyDamageToMs(targetEnt, weapon)
+  // Phase 6.2.E2 — non-flagship + non-MS player-side rows are active-
+  // fleet escorts. Damage lives on the transient CombatShipState row;
+  // see applyDamageToEscort for the why (no flux model in 6.2.E2).
+  if (!cs.isFlagship && !cs.isPlayer) return applyDamageToEscort(targetEnt, weapon)
   return applyDamageToPlayer(weapon)
 }
 
@@ -906,6 +1024,17 @@ function fireWeapon(
         if (tgtCs?.isMs) {
           pushCombatLog(`MS 损毁 · ${tgtCs.nameZh}`, 'crit')
           onMsDestroyed()
+        } else if (tgtCs && !tgtCs.isFlagship && !tgtCs.isPlayer) {
+          // Phase 6.2.E2 — escort destruction. Log + strip the
+          // combat row from the persistent Ship entity (don't destroy
+          // — the long-arc Ship state survives). Combat continues;
+          // the flagship's defeat path is reserved for the flagship's
+          // own hull dropping. (Persistent damage write-back from
+          // escort tactical damage to Ship.hullCurrent is out of
+          // scope for E2 — combat ends with full hull restored,
+          // matching pre-6.2.B enemy ship behavior.)
+          pushCombatLog(`护卫损毁 · ${tgtCs.nameZh}`, 'crit')
+          if (tgt) tgt.remove(CombatShipState)
         } else {
           endCombat('defeat')
         }
@@ -998,6 +1127,12 @@ function tickProjectiles(dtSec: number): void {
           if (hitCs.isMs) {
             pushCombatLog(`MS 损毁 · ${hitCs.nameZh}`, 'crit')
             onMsDestroyed()
+          } else if (!hitCs.isFlagship && !hitCs.isPlayer) {
+            // Phase 6.2.E2 — escort destruction. Same shape as the
+            // beam-side branch above (strip the trait, don't destroy
+            // the entity).
+            pushCombatLog(`护卫损毁 · ${hitCs.nameZh}`, 'crit')
+            hit.remove(CombatShipState)
           } else {
             projectiles.length = 0
             endCombat('defeat')
@@ -1218,13 +1353,17 @@ export function combatSystem(_world: World, dtMs: number): void {
     })
   }
 
-  // -- 4b. Player MS weapon charge + auto-fire (Phase 6.1) ----------------
-  // The launched MS fires from its inline weapons array (no per-MS ammo
-  // in 6.1; "run out of ammo" lands at 6.2.5). Same closest-in-arc rule
-  // as enemies, targeting the closest hostile.
+  // -- 4b. Player MS / active-fleet escort weapon charge + auto-fire ----
+  // Phase 6.1 added the MS branch; Phase 6.2.E2 extends to non-flagship
+  // active-fleet ships (CombatShipState rows with side='player' +
+  // isFlagship=false + isMs=false). Both share the inline weapons array
+  // — same closest-in-arc rule as enemies, targeting the nearest
+  // hostile. The flagship branch (isFlagship=true) keeps using
+  // WeaponMount entities via section 3 above.
   for (const psEnt of playerSide) {
     const psState = psEnt.get(CombatShipState)
-    if (!psState || !psState.isMs) continue
+    if (!psState) continue
+    if (psState.isFlagship || psState.isPlayer) continue
     const msPos = psState.pos
     const msHeading = psState.heading
 

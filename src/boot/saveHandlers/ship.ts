@@ -22,7 +22,8 @@ import { registerSaveHandler } from '../../save/registry'
 import { getWorld, type SceneId } from '../../ecs/world'
 import {
   Ship, WeaponMount, EntityKey, IsFlagshipMark, IsInActiveFleet,
-  ShipStatSheet, ShipEffectsList,
+  ShipStatSheet, ShipEffectsList, FleetEscort, ShipBody, Position,
+  Velocity, Thrust,
 } from '../../ecs/traits'
 import { fleetConfig } from '../../config'
 import { attachShipStatSheet } from '../../ecs/shipEffects'
@@ -64,6 +65,14 @@ interface ShipBlock {
   isInActiveFleet?: boolean
   aggression?: string
   formationSlot?: number
+  // Phase 6.2.E2 — cross-POI transit fields. Non-empty
+  // `transitDestinationId` means the ship is mid-shipment; the daily
+  // lander reads `transitArrivalDay` to decide when to land it. All
+  // optional — pre-6.2.E2 blocks default to "not in transit".
+  transitOriginPoiId?: string
+  transitDestinationId?: string
+  transitDepartureDay?: number
+  transitArrivalDay?: number
 }
 
 interface FleetBlock {
@@ -126,6 +135,10 @@ function snapshotFleet(): FleetBlock | undefined {
       isInActiveFleet: e.has(IsInActiveFleet),
       aggression: s.aggression,
       formationSlot: s.formationSlot,
+      transitOriginPoiId: s.transitOriginPoiId,
+      transitDestinationId: s.transitDestinationId,
+      transitDepartureDay: s.transitDepartureDay,
+      transitArrivalDay: s.transitArrivalDay,
     })
   }
   if (ships.length === 0) return undefined
@@ -175,6 +188,10 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
         inCombat: false,
         aggression: fleetConfig.aggressionDefault,
         formationSlot: -1,
+        transitOriginPoiId: '',
+        transitDestinationId: '',
+        transitDepartureDay: 0,
+        transitArrivalDay: 0,
       }),
       EntityKey({ key: entityKey }),
     )
@@ -207,6 +224,11 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // omit these; defaults match the trait's reserve + steady + no slot.
     aggression: newBlock.aggression ?? fleetConfig.aggressionDefault,
     formationSlot: newBlock.formationSlot ?? -1,
+    // Phase 6.2.E2 — transit fields. Defaults match "not in transit".
+    transitOriginPoiId: newBlock.transitOriginPoiId ?? '',
+    transitDestinationId: newBlock.transitDestinationId ?? '',
+    transitDepartureDay: newBlock.transitDepartureDay ?? 0,
+    transitArrivalDay: newBlock.transitArrivalDay ?? 0,
   })
 
   // IsInActiveFleet marker presence — round-trip independently from
@@ -262,6 +284,12 @@ function restoreFleet(blob: FleetBlock | LegacyShipBlock): void {
     // but the reapply walk runs after every ship in this slice — by
     // which point npcs are restored.
     reapplyCaptainEffectsOnRestore()
+    // Phase 6.2.E2 — re-materialize FleetEscort bodies in spaceCampaign
+    // for every active-fleet, non-flagship, in-flight (dockedAtPoiId=='',
+    // transitDestinationId=='') ship. The space save handler itself
+    // doesn't persist escort bodies; restoring them from Ship state at
+    // load is the simpler invariant.
+    rematerializeEscortBodies()
     return
   }
   // Legacy pre-6.1.5 payload: single flat ShipBlock without entityKey.
@@ -269,6 +297,29 @@ function restoreFleet(blob: FleetBlock | LegacyShipBlock): void {
   // 'ship' — apply there and migrate the loadout to the flagship's mounts.
   applyShipBlock(blob, 'ship')
   restoreWeapons(blob.weapons)
+}
+
+function rematerializeEscortBodies(): void {
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  const space = getWorld('spaceCampaign')
+  // Drop any existing FleetEscort bodies first to avoid duplicates
+  // (resetWorld clears spaceCampaign, but a non-reset restore won't).
+  for (const e of [...space.query(FleetEscort)]) e.destroy()
+  for (const e of shipWorld.query(Ship, IsInActiveFleet, EntityKey)) {
+    if (e.has(IsFlagshipMark)) continue
+    const s = e.get(Ship)!
+    if (s.dockedAtPoiId) continue
+    if (s.transitDestinationId) continue
+    const shipKey = e.get(EntityKey)!.key
+    space.spawn(
+      FleetEscort({ shipKey }),
+      ShipBody,
+      Position({ x: 0, y: 0 }),
+      Velocity({ vx: 0, vy: 0 }),
+      Thrust({ ax: 0, ay: 0 }),
+      EntityKey({ key: `escort-${shipKey}` }),
+    )
+  }
 }
 
 registerSaveHandler<FleetBlock | LegacyShipBlock>({

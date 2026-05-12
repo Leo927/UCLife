@@ -39,7 +39,8 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Workstation, Position, Building, Hangar, EntityKey, Ship, IsFlagshipMark,
-  Character, IsPlayer, ShipStatSheet, ShipEffectsList,
+  Character, IsPlayer, ShipStatSheet, ShipEffectsList, IsInActiveFleet,
+  CombatShipState, FleetEscort,
 } from '../../ecs/traits'
 import { useUI } from '../../ui/uiStore'
 import { getShipClass } from '../../data/ship-classes'
@@ -53,6 +54,12 @@ import {
 import {
   warRoomDescribe, setIsInActiveFleet, setFormationSlot, setAggression,
 } from '../../systems/fleetWarRoom'
+import {
+  fleetTransitSystem, listShipsInTransit, enqueueShipTransit,
+  partitionActiveFleetEscorts,
+} from '../../systems/fleetTransit'
+import { onFlagshipUndock, onFlagshipDock } from '../../systems/fleetLaunch'
+import { formationOffsetForSlot } from '../../systems/fleetFormation'
 import { spawnNPC } from '../../character/spawn'
 import { pickRandomColor } from '../../character/nameGen'
 import { buildNpcDialogue } from '../../ui/dialogue/builder'
@@ -320,4 +327,142 @@ registerDebugHandle('setShipAggression', (shipKey: string, aggression: string) =
 registerDebugHandle('setWarRoomOpen', (open: boolean) => {
   useUI.getState().setWarRoom(open)
   return useUI.getState().warRoomOpen
+})
+
+// ── Phase 6.2.E2 — auto-launch + cross-POI transit + formation debug ─────
+
+// Drive the flagship-undock consequence (auto-launch escorts at same
+// POI; queue cross-POI transit for escorts at other POIs) without
+// going through the actual navigate-out dialog.
+registerDebugHandle('forceUndockFlagship', (originPoiId: string, gameDay: number = 0) => {
+  return onFlagshipUndock(originPoiId, gameDay)
+})
+
+// Drive the flagship-dock consequence (despawn FleetEscort bodies +
+// re-dock their Ships at the new POI). Mirror of the auto-launch
+// surface above.
+registerDebugHandle('forceDockFlagship', (destPoiId: string) => {
+  return onFlagshipDock(destPoiId)
+})
+
+// Run one daily fleet-transit lander tick. Pure ECS surface — same as
+// the day:rollover:settled subscription, just driven explicitly so the
+// smoke can assert arrival lands at the expected day.
+registerDebugHandle('runFleetTransitTick', (gameDay: number = 0) => {
+  return fleetTransitSystem(gameDay)
+})
+
+// Snapshot of every ship currently in cross-POI transit. Used by the
+// smoke to assert auto-queued transit lands the escort at the destination
+// POI on arrivalDay.
+registerDebugHandle('fleetTransitDescribe', () => listShipsInTransit())
+
+// Enqueue a transit directly without going through the auto-launch
+// dispatch. Used by smoke to bypass the flagship-undock path when
+// testing the lander in isolation; also exercised by 6.2.G's hangar
+// transfer-to-other-hangar verb (forthcoming).
+registerDebugHandle('forceEnqueueShipTransit', (
+  shipKey: string,
+  originPoiId: string,
+  destPoiId: string,
+  gameDay: number,
+) => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(Ship, EntityKey)) {
+    if (e.get(EntityKey)!.key !== shipKey) continue
+    return enqueueShipTransit(e, originPoiId, destPoiId, gameDay)
+  }
+  return { ok: false as const, reason: 'no_origin' as const }
+})
+
+// Partition the active-fleet's non-flagship ships by POI vs. the
+// flagship's. Smoke uses this to assert the same/different counts
+// before driving the undock dispatcher.
+registerDebugHandle('fleetActiveEscortPartition', (flagshipPoiId: string) => {
+  const part = partitionActiveFleetEscorts(flagshipPoiId)
+  return {
+    sameAsFlagshipPoi: part.sameAsFlagshipPoi.map((e) => e.get(EntityKey)!.key),
+    differentPoi: part.differentPoi.map((e) => e.get(EntityKey)!.key),
+  }
+})
+
+// FleetEscort body snapshot from the spaceCampaign world. Used by the
+// smoke to assert active escorts at the flagship's POI auto-launched
+// + their Position lands at flagship.pos + formationOffset.
+interface EscortBodySnapshot {
+  shipKey: string
+  pos: { x: number; y: number }
+  formationSlot: number
+  formationOffset: { dx: number; dy: number } | null
+}
+registerDebugHandle('fleetEscortBodies', (): EscortBodySnapshot[] => {
+  const out: EscortBodySnapshot[] = []
+  const space = getWorld('spaceCampaign')
+  const shipWorld = getWorld('playerShipInterior')
+  const slotByKey = new Map<string, number>()
+  for (const e of shipWorld.query(Ship, EntityKey)) {
+    slotByKey.set(e.get(EntityKey)!.key, e.get(Ship)!.formationSlot)
+  }
+  for (const e of space.query(FleetEscort, Position)) {
+    const esc = e.get(FleetEscort)!
+    const p = e.get(Position)!
+    const slot = slotByKey.get(esc.shipKey) ?? -1
+    out.push({
+      shipKey: esc.shipKey,
+      pos: { x: p.x, y: p.y },
+      formationSlot: slot,
+      formationOffset: formationOffsetForSlot(slot),
+    })
+  }
+  return out
+})
+
+// Inspect player-side CombatShipState rows — flagship + every Phase
+// 6.2.E2 active-fleet escort that entered tactical. Smoke uses this
+// to assert escorts spawn at the right formation slot post-startCombat.
+interface CombatPlayerSideSnapshot {
+  entityKey: string
+  shipClassId: string
+  isFlagship: boolean
+  isMs: boolean
+  pos: { x: number; y: number }
+  hullCurrent: number
+  hullMax: number
+  weaponsCount: number
+  aiAggression: number
+}
+registerDebugHandle('combatPlayerSideSnapshot', (): CombatPlayerSideSnapshot[] => {
+  const w = getWorld('playerShipInterior')
+  const out: CombatPlayerSideSnapshot[] = []
+  for (const e of w.query(CombatShipState)) {
+    const cs = e.get(CombatShipState)!
+    if (cs.side !== 'player' && !cs.isFlagship && !cs.isPlayer) continue
+    out.push({
+      entityKey: e.get(EntityKey)?.key ?? '',
+      shipClassId: cs.shipClassId,
+      isFlagship: cs.isFlagship || cs.isPlayer,
+      isMs: cs.isMs,
+      pos: { x: cs.pos.x, y: cs.pos.y },
+      hullCurrent: cs.hullCurrent,
+      hullMax: cs.hullMax,
+      weaponsCount: cs.weapons.length,
+      aiAggression: cs.ai.aggression,
+    })
+  }
+  return out
+})
+
+// Mark a Ship as in the active fleet without going through the war-room
+// (which the smoke can also drive). Used to seed the fleet for the
+// undock dispatcher tests.
+registerDebugHandle('markInActiveFleetRaw', (shipKey: string, slot: number) => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(Ship, EntityKey)) {
+    if (e.get(EntityKey)!.key !== shipKey) continue
+    if (!e.has(IsInActiveFleet)) e.add(IsInActiveFleet)
+    const s = e.get(Ship)!
+    e.set(Ship, { ...s, formationSlot: slot })
+    return { ok: true, shipKey, slot }
+  }
+  return { ok: false, reason: 'not_found' }
 })

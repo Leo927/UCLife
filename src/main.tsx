@@ -8,6 +8,7 @@ import { useScene } from './sim/scene'
 import { bindAutosave } from './boot/autosaveBinding'
 import { bindUi } from './boot/uiBindings'
 import { bindPhysiology } from './boot/physiologyBinding'
+import { bindFleetLaunch } from './boot/fleetLaunchBinding'
 import { bootstrapApp } from './boot/lifecycle'
 // Side-effect imports: register save handlers for every persisted
 // subsystem (clock, population, ship, space, ...). Adding a new
@@ -34,6 +35,10 @@ import './boot/shipDeliveryTick'
 // the player's Money for every assigned officer / crew member across
 // the fleet.
 import './boot/fleetCrewSalaryTick'
+// Phase 6.2.E2 — cross-POI ship transit lander. Same event; lands
+// in-transit non-flagship active ships at their destination POI when
+// arrivalDay rolls over.
+import './boot/fleetTransitTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/adapter/findClerk'
@@ -43,6 +48,7 @@ import './render/portrait/__debug__/portraitFixtures'
 bindAutosave()
 bindUi()
 bindPhysiology()
+bindFleetLaunch()
 // Bring the sim world up + start the per-frame loop. Must precede
 // createRoot().render so the first React commit reads a populated world.
 bootstrapApp()
