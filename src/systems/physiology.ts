@@ -294,20 +294,30 @@ function advanceInstance(
     if (instance.currentTreatmentTier < template.requiredTreatmentTier) {
       instance.phase = 'stalled'
     } else if (instance.severity <= 0) {
-      // Resolve clean. Phase 4.0 templates have scarConditionId = null;
-      // the scar-branching code-path lands in 4.1. Warn loudly if a
-      // future authoring mistake adds a non-null scar template ahead of
-      // that work — silent drop would be hard to spot.
+      // Phase 4.1 scar branching: peakTracking ≥ scarThreshold spawns
+      // the chronic stub on the same body part. If the body already
+      // carries a same-id stub on the same part (e.g., re-sprain of a
+      // weak knee), onsetCondition refuses and we fall through to
+      // clean-resolve logging.
+      let scarred = false
       if (template.scarConditionId !== null && instance.peakTracking >= template.scarThreshold) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[physiology] scarConditionId "${template.scarConditionId}" on template "${template.id}" — scar branching not yet implemented (Phase 4.1). Resolving clean.`,
+        const scarRng = rngFor(entity, dayNumber, `scar:${instance.instanceId}`)
+        const stub = onsetCondition(
+          entity,
+          template.scarConditionId,
+          `旧伤(${template.displayName})`,
+          dayNumber,
+          scarRng,
+          instance.bodyPart,
         )
+        if (stub !== null) scarred = true
       }
       tearDownBands(entity, instance)
       if (entity.has(IsPlayer)) {
-        const recovered = template.eventLogTemplates.recoveryClean
-        if (recovered) emitSim('log', { textZh: recovered, atMs: nowGameMs() })
+        const line = scarred
+          ? (template.eventLogTemplates.recoveryScar ?? template.eventLogTemplates.recoveryClean)
+          : template.eventLogTemplates.recoveryClean
+        if (line) emitSim('log', { textZh: line, atMs: nowGameMs() })
       }
       return true
     }
@@ -360,6 +370,7 @@ export function physiologySystem(world: World, dayNumber: number): void {
     // Mutate copies, not the live instances, so we can write the new
     // list back atomically. Each instance is a small POJO so the copy
     // is cheap.
+    const seenIds = new Set(cond.list.map((c) => c.instanceId))
     const next: ConditionInstance[] = []
     for (const live of cond.list) {
       const inst: ConditionInstance = { ...live, activeBands: [...live.activeBands] }
@@ -377,9 +388,14 @@ export function physiologySystem(world: World, dayNumber: number): void {
         next.push(inst)
       }
     }
-    // Each `inst` is a fresh spread copy, so identity always differs from
-    // `live`; an actual no-op write is fine — koota dedupes setter calls
-    // that produce the same content via memo bumps elsewhere.
+    // advanceInstance may have spawned a chronic stub via the scar branch
+    // (or a complication condition once 4.1 wires complications). Those
+    // additions live on the Conditions trait at this point; without
+    // merging them, the next entity.set call would clobber them.
+    const liveNow = entity.get(Conditions)!
+    for (const inst of liveNow.list) {
+      if (!seenIds.has(inst.instanceId)) next.push(inst)
+    }
     entity.set(Conditions, { list: next })
   }
 }

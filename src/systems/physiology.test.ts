@@ -300,6 +300,74 @@ describe('physiology — injury catalog (Phase 4.1)', () => {
   }
 })
 
+describe('physiology — scar branching (Phase 4.1)', () => {
+  // Drive the instance's severity past scarThreshold by direct mutation
+  // through the Conditions trait — same shape the phase machine uses,
+  // just sets peakTracking ahead of where the rolled peakSeverity would
+  // naturally take it. Cheaper than tuning a 30-day arc per test.
+  function pushPeakTracking(player: ReturnType<typeof setup>['player'], instanceId: string, value: number): void {
+    const cond = player.get(Conditions)!
+    const list = cond.list.map((c) =>
+      c.instanceId === instanceId ? { ...c, peakTracking: value } : c,
+    )
+    player.set(Conditions, { list })
+  }
+
+  it('sprain that resolved with peakTracking ≥ scarThreshold spawns chronic_weak_joint on the same body part', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'sprain', '滑倒', 1, 'left-ankle')!
+    // Pin peakTracking above sprain's scarThreshold (75) so the resolve
+    // branch fires the scar spawn.
+    pushPeakTracking(player, inst.instanceId, 90)
+    // Commit pharmacy treatment so the instance can actually recover.
+    commitTreatment(player, inst.instanceId, 1, null)
+    // Walk the arc to resolve.
+    let resolved = false
+    for (let day = 2; day <= 30; day++) {
+      physiologySystem(world, day)
+      const list = player.get(Conditions)!.list
+      const sprainGone = !list.some((c) => c.templateId === 'sprain')
+      if (sprainGone) { resolved = true; break }
+      // Keep peakTracking pinned through every tick — recovering can
+      // drop instance.severity which won't update peakTracking, but the
+      // spread copy inside advanceInstance discards our writes between
+      // ticks, so re-pin.
+      pushPeakTracking(player, inst.instanceId, 90)
+    }
+    expect(resolved).toBe(true)
+    const stub = player.get(Conditions)!.list.find(
+      (c) => c.templateId === 'chronic_weak_joint',
+    )
+    expect(stub, 'chronic_weak_joint should be spawned on left-ankle').toBeDefined()
+    expect(stub!.bodyPart).toBe('left-ankle')
+  })
+
+  it('clean resolve (peakTracking below scarThreshold) leaves no chronic stub', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'sprain', '轻微', 1, 'right-ankle')!
+    commitTreatment(player, inst.instanceId, 1, null)
+    for (let day = 2; day <= 30; day++) {
+      physiologySystem(world, day)
+      if (player.get(Conditions)!.list.length === 0) break
+    }
+    const stubs = player.get(Conditions)!.list.filter((c) => c.templateId === 'chronic_weak_joint')
+    expect(stubs).toHaveLength(0)
+  })
+
+  it('cold (scarConditionId=null) never spawns a stub even at high peakTracking', () => {
+    const { world, player } = setup()
+    const inst = forceOnset(player, 'cold_common', '严重', 1)!
+    pushPeakTracking(player, inst.instanceId, 99)
+    for (let day = 2; day <= 20; day++) {
+      physiologySystem(world, day)
+      const list = player.get(Conditions)!.list
+      if (list.length === 0) break
+      pushPeakTracking(player, inst.instanceId, 99)
+    }
+    expect(player.get(Conditions)!.list).toHaveLength(0)
+  })
+})
+
 describe('physiology — diagnosis flag', () => {
   it('diagnoseCondition flips diagnosed=true and re-emits Effects with hidden=false', () => {
     const { world, player } = setup()
