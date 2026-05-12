@@ -319,3 +319,16 @@ export const AtHelm = trait({
   // Marker on the player entity in spaceCampaign world while at-helm.
   // Slice 5 toggles this on enter / off when leaving the helm.
 })
+
+// Phase 6.2.D — hire-as-captain / hire-as-crew + officer auto-man.
+// Carried by an NPC after the player hires them onto a ship. `shipKey`
+// is the Ship entity's EntityKey (survives save/load — entity refs
+// don't). `role` controls the salary drain channel + UI display. The
+// existing RecruitedTo({ owner: player }) trait is set alongside so the
+// BT's job-seek loop refuses to claim outside jobs for this NPC. Move
+// / fire / reassign verbs on the crew panel rewrite or remove this
+// trait + the matching Ship.assignedCaptainId / Ship.crewIds entry.
+export const EmployedAsCrew = trait({
+  shipKey: '',
+  role: 'crew' as 'captain' | 'crew',
+})

@@ -7,24 +7,54 @@
 //   fleetRosterSnapshot()       — read-only mirror of FleetRosterPanel's
 //                                  derivation: every Ship across every
 //                                  scene world, with display name, hangar
-//                                  label, captain (placeholder until
-//                                  6.2.D), and damage state.
+//                                  label, captain, crew count, damage.
 //   setFleetRosterOpen(open)    — toggles the roster modal so smoke can
 //                                  assert it renders without driving the
 //                                  walkable captain's-desk verb.
 //   forceShipDocking(key, poi)  — re-points a Ship's dockedAtPoiId so the
 //                                  no-slot path can be tested by faking
 //                                  drydock capital occupancy.
+//
+// Phase 6.2.D additions:
+//   hireBranchListing(npcKey)   — returns which hire branches surface on
+//                                  an NPC's dialog tree (a smoke-friendly
+//                                  mirror of buildNpcDialogue).
+//   spawnTestNpc(opts)          — deterministic NPC spawn in a chosen
+//                                  scene, useful when the smoke needs an
+//                                  idle hireable NPC with a known key.
+//   hireCaptainViaDebug         — drives systems/fleetCrew.hireAsCaptain
+//                                  by entity key (smoke skips DOM).
+//   hireCrewViaDebug            — same for hireAsCrew.
+//   fireCaptainViaDebug         — drives systems/fleetCrew.fireCaptain.
+//   fireCrewMemberViaDebug      — same for fireCrewMember.
+//   moveCrewMemberViaDebug      — same for moveCrewMember.
+//   manRestFromIdleViaDebug     — captain's-office "man the rest" verb.
+//   crewRosterSnapshot          — per-ship crew/captain snapshot for
+//                                  the move/fire assertions.
+//   shipStatSheetTopSpeed(key)  — read the post-Effect topSpeed off the
+//                                  ship's stat sheet (captain effect
+//                                  assertion).
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Workstation, Position, Building, Hangar, EntityKey, Ship, IsFlagshipMark,
+  Character, IsPlayer, ShipStatSheet, ShipEffectsList,
 } from '../../ecs/traits'
 import { useUI } from '../../ui/uiStore'
 import { getShipClass } from '../../data/ship-classes'
 import { getPoi } from '../../data/pois'
 import { poiIdForHangarScene } from '../../systems/shipDelivery'
+import {
+  findNpcByKey, findShipByKey, hireAsCaptain, hireAsCrew, fireCaptain,
+  fireCrewMember, moveCrewMember, manRestFromIdlePool, snapshotCrewRoster,
+  captainEffectId,
+} from '../../systems/fleetCrew'
+import { spawnNPC } from '../../character/spawn'
+import { pickRandomColor } from '../../character/nameGen'
+import { buildNpcDialogue } from '../../ui/dialogue/builder'
+import type { DialogueCtx } from '../../ui/dialogue/types'
+import { getStat } from '../../stats/sheet'
 
 // Resolve the seated AE sales rep NPC by workstation specId across every
 // scene world. Returns null when the spec is unmanned or absent. Used by
@@ -50,6 +80,10 @@ interface FleetRosterRow {
   hangarLabel: string
   hangarSlotClass: string
   captainKey: string
+  captainName: string
+  crewIds: string[]
+  crewCount: number
+  crewMax: number
   hullCurrent: number
   hullMax: number
   armorCurrent: number
@@ -77,6 +111,9 @@ registerDebugHandle('fleetRosterSnapshot', (): FleetRosterRow[] => {
     const cls = getShipClass(s.templateId)
     const poiName = s.dockedAtPoiId ? (getPoi(s.dockedAtPoiId)?.nameZh ?? s.dockedAtPoiId) : ''
     const hangarLabel = hangarLabelByPoi.get(s.dockedAtPoiId) ?? poiName
+    const captainName = s.assignedCaptainId
+      ? (findNpcByKey(s.assignedCaptainId)?.entity.get(Character)?.name ?? '')
+      : ''
     out.push({
       entityKey: e.get(EntityKey)!.key,
       templateId: s.templateId,
@@ -85,7 +122,11 @@ registerDebugHandle('fleetRosterSnapshot', (): FleetRosterRow[] => {
       poiId: s.dockedAtPoiId,
       hangarLabel,
       hangarSlotClass: cls.hangarSlotClass,
-      captainKey: '',
+      captainKey: s.assignedCaptainId,
+      captainName,
+      crewIds: [...s.crewIds],
+      crewCount: s.crewIds.length,
+      crewMax: cls.crewMax,
       hullCurrent: s.hullCurrent,
       hullMax: s.hullMax,
       armorCurrent: s.armorCurrent,
@@ -113,4 +154,144 @@ registerDebugHandle('forceShipDocking', (entityKey: string, poiId: string) => {
     return e.get(Ship)!.dockedAtPoiId
   }
   return null
+})
+
+// ── Phase 6.2.D — hire / crew / officer-effect debug handles ───────────
+
+// Spawn a deterministic test NPC in the named scene with a chosen key.
+// Bypasses procgen's random `npc-anon-xxx` keys so the smoke can
+// reference the same entity across save/load without first walking
+// through the immigrant pipeline. Defaults to `vonBraunCity`.
+registerDebugHandle('spawnTestNpc', (opts: {
+  key: string
+  name?: string
+  sceneId?: string
+  x?: number
+  y?: number
+}) => {
+  const sceneId = opts.sceneId ?? 'vonBraunCity'
+  const w = getWorld(sceneId)
+  const npc = spawnNPC(w, {
+    name: opts.name ?? opts.key,
+    color: pickRandomColor(),
+    title: '市民',
+    x: opts.x ?? 0,
+    y: opts.y ?? 0,
+    key: opts.key,
+  })
+  return npc.get(EntityKey)!.key
+})
+
+// Build the dialogue tree for a given NPC entity and return the labels
+// of its top-level branches. Smoke uses this to assert hire branches
+// surface (or not) without rendering React.
+registerDebugHandle('hireBranchListing', (npcKey: string): string[] => {
+  const hit = findNpcByKey(npcKey)
+  if (!hit) return []
+  const ctx: DialogueCtx = {
+    npc: hit.entity,
+    title: hit.entity.get(Character)?.title ?? '市民',
+    employed: false,
+    roles: {
+      onShift: false,
+      isCashierOnDuty: false,
+      isHROnDuty: false,
+      isRealtorOnDuty: false,
+      isAEOnDuty: false,
+      isDoctorOnDuty: false,
+      isPharmacistOnDuty: false,
+      isSecretaryOnDuty: false,
+      isRecruiterOnDuty: false,
+      isResearcherOnDuty: false,
+      isShipDealerOnDuty: false,
+      isRecruitingManagerOnDuty: false,
+      isHangarManagerOnDuty: false,
+      isAeSupplyDealerOnDuty: false,
+      isAEShipSalesOnDuty: false,
+      ownsPrivateFacility: false,
+      managerStation: null,
+    },
+  }
+  const root = buildNpcDialogue(ctx)
+  return (root.children ?? []).map((c) => c.id)
+})
+
+function findPlayerEntity() {
+  for (const sceneId of SCENE_IDS) {
+    const p = getWorld(sceneId).queryFirst(IsPlayer)
+    if (p) return p
+  }
+  return null
+}
+
+registerDebugHandle('hireCaptainViaDebug', (npcKey: string, shipKey: string) => {
+  const player = findPlayerEntity()
+  if (!player) return { ok: false, reason: 'no_player' }
+  const npc = findNpcByKey(npcKey)?.entity
+  const ship = findShipByKey(shipKey)
+  if (!npc || !ship) return { ok: false, reason: 'not_found' }
+  return hireAsCaptain(player, npc, ship)
+})
+
+registerDebugHandle('hireCrewViaDebug', (npcKey: string, shipKey: string) => {
+  const player = findPlayerEntity()
+  if (!player) return { ok: false, reason: 'no_player' }
+  const npc = findNpcByKey(npcKey)?.entity
+  const ship = findShipByKey(shipKey)
+  if (!npc || !ship) return { ok: false, reason: 'not_found' }
+  return hireAsCrew(player, npc, ship)
+})
+
+registerDebugHandle('fireCaptainViaDebug', (shipKey: string) => {
+  const ship = findShipByKey(shipKey)
+  if (!ship) return false
+  return fireCaptain(ship)
+})
+
+registerDebugHandle('fireCrewMemberViaDebug', (shipKey: string, npcKey: string) => {
+  const ship = findShipByKey(shipKey)
+  if (!ship) return false
+  return fireCrewMember(ship, npcKey)
+})
+
+registerDebugHandle('moveCrewMemberViaDebug', (fromKey: string, toKey: string, npcKey: string) => {
+  const from = findShipByKey(fromKey)
+  const to = findShipByKey(toKey)
+  if (!from || !to) return { ok: false, reason: 'not_found' }
+  return moveCrewMember(from, to, npcKey)
+})
+
+registerDebugHandle('manRestFromIdleViaDebug', (shipKey: string) => {
+  const player = findPlayerEntity()
+  if (!player) return null
+  const ship = findShipByKey(shipKey)
+  if (!ship) return null
+  return manRestFromIdlePool(player, ship)
+})
+
+registerDebugHandle('crewRosterSnapshot', () => snapshotCrewRoster())
+
+// Read the post-Effect topSpeed off the ship's StatSheet. The captain
+// emits `eff:officer:<captainKey>:engineering` modifying topSpeed via
+// percentMult; a smoke compares pre/post-hire numbers to assert the
+// Effect is wired.
+registerDebugHandle('shipStatSheetTopSpeed', (shipKey: string) => {
+  const ship = findShipByKey(shipKey)
+  if (!ship) return null
+  if (!ship.has(ShipStatSheet)) return null
+  return getStat(ship.get(ShipStatSheet)!.sheet, 'topSpeed')
+})
+
+// Read the list of Effect ids currently on the ship's ShipEffectsList.
+// The smoke asserts `eff:officer:<key>:engineering` appears after a
+// captain hire and disappears after fire.
+registerDebugHandle('shipEffectIds', (shipKey: string): string[] => {
+  const ship = findShipByKey(shipKey)
+  if (!ship) return []
+  if (!ship.has(ShipEffectsList)) return []
+  return ship.get(ShipEffectsList)!.list.map((e) => e.id)
+})
+
+registerDebugHandle('captainEffectIdForKey', (captainKey: string) => {
+  return captainEffectId(captainKey)
 })

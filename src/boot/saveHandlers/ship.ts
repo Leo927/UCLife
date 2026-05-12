@@ -29,6 +29,7 @@ import { serializeSheet, attachFormulas, type SerializedSheet } from '../../stat
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { SHIP_STAT_IDS, SHIP_STAT_FORMULAS, type ShipStatId } from '../../stats/shipSchema'
 import { getShipClass } from '../../data/ship-classes'
+import { reapplyCaptainEffectsOnRestore } from '../../systems/fleetCrew'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -50,6 +51,11 @@ interface ShipBlock {
   // template; missing effects ⇒ empty list.
   statSheet?: SerializedSheet<ShipStatId>
   effects?: Effect<ShipStatId>[]
+  // Phase 6.2.D — captain + crew references. EntityKey strings so the
+  // round-trip survives a world reset. Both optional — pre-6.2.D saves
+  // land as no-captain + empty crew, matching the trait default.
+  assignedCaptainId?: string
+  crewIds?: string[]
 }
 
 interface FleetBlock {
@@ -107,6 +113,8 @@ function snapshotFleet(): FleetBlock | undefined {
       weapons,
       statSheet,
       effects: effects ? effects.map((eff) => ({ ...eff })) : undefined,
+      assignedCaptainId: s.assignedCaptainId,
+      crewIds: [...s.crewIds],
     })
   }
   if (ships.length === 0) return undefined
@@ -178,6 +186,10 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // Defense in depth: saves never write inCombat:true (manual
     // refused, autosave skipped) but force false here anyway.
     inCombat: false,
+    // Phase 6.2.D — pre-6.2.D blocks omit these; defaults match the
+    // trait's empty captain + empty crew shape.
+    assignedCaptainId: newBlock.assignedCaptainId ?? '',
+    crewIds: newBlock.crewIds ? [...newBlock.crewIds] : [],
   })
 
   // Phase 6.2.B — restore ShipStatSheet + ShipEffectsList. Legacy saves
@@ -219,6 +231,13 @@ function restoreFleet(blob: FleetBlock | LegacyShipBlock): void {
       applyShipBlock(ship, ship.entityKey)
       if (ship.isFlagship) restoreWeapons(ship.weapons)
     }
+    // Phase 6.2.D — captain officer Effect reapplies after every ship
+    // is back; the officer NPC lives in a city-scene world, which the
+    // npc save handler restores in a separate slice. The npc handler
+    // runs before this one is not guaranteed (registry order is unset),
+    // but the reapply walk runs after every ship in this slice — by
+    // which point npcs are restored.
+    reapplyCaptainEffectsOnRestore()
     return
   }
   // Legacy pre-6.1.5 payload: single flat ShipBlock without entityKey.

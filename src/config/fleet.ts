@@ -26,6 +26,15 @@ export interface FleetConfig {
   // single hull class that rep sells.
   shipSalesDeskTileGranada: { x: number; y: number }
   salesRepCatalog: Record<string, { shipClassId: string }>
+  // Phase 6.2.D — hire economics + captain Effect + auto-man limit.
+  hireCaptainSigningFee: number
+  hireCrewSigningFee: number
+  captainDailySalary: number
+  crewDailySalary: number
+  captainEffectSkill: string
+  captainEffectStat: string
+  captainEffectPerLevel: number
+  manFromIdlePoolMaxPerClick: number
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

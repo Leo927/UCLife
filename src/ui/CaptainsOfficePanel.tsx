@@ -7,13 +7,17 @@
 // orders, prisoner verbs); today it's a read-only briefing.
 
 import { useTrait, useQueryFirst } from 'koota/react'
-import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { Ship, IsFlagshipMark, IsPlayer } from '../ecs/traits'
 import { getShipClass } from '../data/ship-classes'
 import { getPoi } from '../data/pois'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { playUi } from '../audio/player'
 import { dialogueText } from '../data/dialogueText'
+import {
+  crewVacancyForShip, manRestFromIdlePool,
+} from '../systems/fleetCrew'
+import { getWorld, SCENE_IDS } from '../ecs/world'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -64,6 +68,7 @@ export function CaptainsOfficePanel() {
           <ReadinessBar label="燃料" current={ship.fuelCurrent} max={ship.fuelMax} color="#60a5fa" />
           <ReadinessBar label="物资" current={ship.suppliesCurrent} max={ship.suppliesMax} color="#34d399" />
         </section>
+        <ManTheRestSection shipEnt={shipEnt} />
         <section className="status-section">
           <div className="dialog-options">
             <button
@@ -81,6 +86,72 @@ export function CaptainsOfficePanel() {
         </section>
       </div>
     </div>
+  )
+}
+
+function ManTheRestSection({ shipEnt }: { shipEnt: ReturnType<typeof useQueryFirst> | null }) {
+  // Subscribe to the Ship trait so crew changes ripple to the button
+  // labels (vacancy / "船员已满").
+  void useTrait(shipEnt, Ship)
+  const t = dialogueText.branches.captainsOfficeManRest
+  const showToast = useUI((s) => s.showToast)
+  if (!shipEnt) return null
+  const s = shipEnt.get(Ship)
+  if (!s) return null
+  const vacancy = crewVacancyForShip(shipEnt)
+  const hasCaptain = s.assignedCaptainId !== ''
+
+  let label = t.buttonIdle
+  let disabled = false
+  if (!hasCaptain) { label = t.buttonNoCaptain; disabled = true }
+  else if (vacancy <= 0) { label = t.buttonNoVacancy; disabled = true }
+
+  const onMan = () => {
+    let player = null
+    for (const sceneId of SCENE_IDS) {
+      const p = getWorld(sceneId).queryFirst(IsPlayer)
+      if (p) { player = p; break }
+    }
+    if (!player) {
+      showToast(t.toastNoIdle)
+      return
+    }
+    const res = manRestFromIdlePool(player, shipEnt)
+    playUi(res.hired > 0 ? 'ui.hr.accept' : 'ui.npc.close')
+    if (res.hired === 0) {
+      if (res.stoppedReason === 'no_idle') showToast(t.toastNoIdle)
+      else showToast(
+        t.toastNoFunds.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
+      )
+      return
+    }
+    if (res.stoppedReason === 'no_funds') {
+      showToast(
+        t.toastNoFunds.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
+      )
+    } else if (res.stoppedReason === 'cap') {
+      showToast(
+        t.toastCap.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
+      )
+    } else {
+      showToast(
+        t.toastFilled.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
+      )
+    }
+  }
+
+  return (
+    <section className="status-section">
+      <h3>船员补员</h3>
+      <button
+        className="dialog-option"
+        data-captains-office-man-rest="1"
+        disabled={disabled}
+        onClick={onMan}
+      >
+        {label}
+      </button>
+    </section>
   )
 }
 

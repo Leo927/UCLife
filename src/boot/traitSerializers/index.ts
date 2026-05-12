@@ -25,3 +25,4 @@ import './ownership'    // Faction (entity fund). Owner serializer lands at 5.5.
 import './progression'  // Ambitions (depends on Attributes), Flags
 import './recruitment'  // Recruiter (workstation), Applicant (character)
 import './research'     // FactionSheet, FactionEffectsList, FactionUnlocks, FactionResearch
+import './fleetCrew'    // EmployedAsCrew (captain / crew marker)
