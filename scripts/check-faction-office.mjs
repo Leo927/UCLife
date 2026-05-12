@@ -72,12 +72,13 @@ const buy = await page.evaluate((k) => globalThis.__uclife__.realtorBuy(k), offi
 if (!buy.ok) failures.push(`realtorBuy failed: ${buy.reason}`)
 else console.log(`realtor close: paid ¥${buy.paid}`)
 
-// Re-listing should no longer carry factionOffice as state.
+// Post-buy: the realtor's listings hide anything owned by the player
+// (excludeOwner filter, afc7470). The bought office should disappear
+// from the listing entirely rather than reappear as character-owned.
 const listingsAfter = await page.evaluate(() => globalThis.__uclife__.realtorListings())
 const officeAfterBuy = listingsAfter.find((l) => l.buildingKey === officeListing.buildingKey)
-if (!officeAfterBuy) failures.push('factionOffice fell off the listings (expected: ownerKind=character)')
-else if (officeAfterBuy.ownerKind !== 'character') {
-  failures.push(`factionOffice ownerKind after buy=${officeAfterBuy.ownerKind} (want character)`)
+if (officeAfterBuy) {
+  failures.push(`factionOffice still listed after buy as ownerKind=${officeAfterBuy.ownerKind} (want filtered out by excludeOwner)`)
 }
 
 // 3. Install a secretary.

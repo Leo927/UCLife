@@ -69,12 +69,13 @@ const buy = await page.evaluate((k) => globalThis.__uclife__.realtorBuy(k), offi
 if (!buy.ok) failures.push(`realtorBuy failed: ${buy.reason}`)
 else console.log(`realtor close: paid ¥${buy.paid}`)
 
-// Re-listing should no longer carry recruitOffice as state.
+// Post-buy: the realtor's listings hide anything owned by the player
+// (excludeOwner filter, afc7470). The bought office should disappear
+// from the listing entirely rather than reappear as character-owned.
 const listingsAfter = await page.evaluate(() => globalThis.__uclife__.realtorListings())
 const officeAfter = listingsAfter.find((l) => l.buildingKey === officeListing.buildingKey)
-if (!officeAfter) failures.push('recruitOffice fell off the listings (expected: ownerKind=character)')
-else if (officeAfter.ownerKind !== 'character') {
-  failures.push(`recruitOffice ownerKind after buy=${officeAfter.ownerKind} (want character)`)
+if (officeAfter) {
+  failures.push(`recruitOffice still listed after buy as ownerKind=${officeAfter.ownerKind} (want filtered out by excludeOwner)`)
 }
 
 // 3. Install a recruiter.
