@@ -20,7 +20,10 @@
 {
   templates: {
     // ── Beds ─────────────────────────────────────────────────────
-    'bed-flop':      { kind: 'bed', tier: 'flop',      visual: { w: 32, h: 32, fill: 0x262626, stroke: 0x737373, label: '投币床', assetId: 'bed-flop' } },
+    // Footprint matches the 64×64 source PNG so the renderer paints
+    // 1:1 (no scale → no nearest-filter shimmer). Spills past the
+    // bed's 1-tile occupancy slot; collision still keys off the tile.
+    'bed-flop':      { kind: 'bed', tier: 'flop',      visual: { w: 64, h: 64, fill: 0x262626, stroke: 0x737373, label: '投币床', assetId: 'bed-flop' } },
     'bed-dorm':      { kind: 'bed', tier: 'dorm',      visual: { w: 22, h: 14, fill: 0x3a2e1a, stroke: 0xa78b4a, label: '宿舍床' } },
     'bed-apartment': { kind: 'bed', tier: 'apartment', visual: { w: 26, h: 16, fill: 0x1e3a8a, stroke: 0x60a5fa, label: '床' } },
     'bed-luxury':    { kind: 'bed', tier: 'luxury',    visual: { w: 28, h: 18, fill: 0x0e2a3a, stroke: 0x22d3ee, label: '高级床' } },
