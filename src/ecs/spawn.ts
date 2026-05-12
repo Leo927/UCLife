@@ -924,6 +924,28 @@ function spawnAeWorkforce(): void {
   }
 }
 
+// Seed a non-initial scene with its replenishment-target headcount at
+// bootstrap, so the first time the player visits the scene reads as a
+// staffed standing population instead of an empty room slowly trickling
+// in immigrants. The population system in src/systems/population.ts then
+// maintains the count from there.
+function spawnReplenishmentSeed(scene: MicroSceneConfig): void {
+  if (!scene.replenishment) return
+  const target = scene.replenishment.target
+  const tile = scene.replenishment.arrivalTile
+  for (let i = 0; i < target; i++) {
+    spawnNPC(world, {
+      name: pickFreshName(world),
+      color: pickRandomColor(),
+      title: '市民',
+      x: TILE * tile.x,
+      y: TILE * tile.y,
+      money: 50 + Math.floor(Math.random() * 100),
+      key: `npc-seed-${scene.id}-${i + 1}`,
+    })
+  }
+}
+
 function spawnFoundingCivilians(scene: MicroSceneConfig): void {
   // Drop the founders at the player's spawn tile so the city's "first day"
   // crowd reads as arriving together.
@@ -1027,11 +1049,14 @@ function bootstrapMicroScene(scene: MicroSceneConfig): void {
   // Per-scene specials. AE board / managers / reception and the AE
   // workforce only make sense in vonBraunCity (aeComplex host). The
   // Granada rep is filtered in by sceneId on its row. Founding civilians
-  // spawn in the initial scene only.
+  // spawn in the initial scene only; other scenes with replenishment seed
+  // up to target so their first visit reads as staffed rather than empty.
   spawnSpecialNpcs(scene.id)
   if (scene.id === initialSceneId) {
     spawnAeWorkforce()
     spawnFoundingCivilians(scene)
+  } else {
+    spawnReplenishmentSeed(scene)
   }
 
   // Now that the candidate NPC pool exists, re-stamp every 'private' building

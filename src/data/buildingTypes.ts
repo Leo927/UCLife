@@ -10,6 +10,7 @@ export type ProcgenItemRole =
   | 'worker'        // N items in auto-grid in lower zone
   | 'customer_row'  // N items in row below supervisor
   | 'bed_row'       // N items along south wall
+  | 'amenity_row'   // N items along south wall, west-to-east; sits above bed_row when both present
   | 'queue'         // 1 item near primary door
   | 'shopCounter' | 'shopApproach' | 'shopEntry' | 'shopExit'  // shop landmark anchors
 

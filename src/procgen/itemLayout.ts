@@ -102,6 +102,24 @@ export function layoutOpenFloorItems(
     }
   }
 
+  // Amenity row — interactables (snack-cabinet, water-dispenser, …) laid out
+  // west-to-east along the south wall. Sits one tile above bed_row when both
+  // are present so beds and amenities don't overlap.
+  const amenityItems = placed.filter((i) => i.role === 'amenity_row')
+  if (amenityItems.length > 0) {
+    const amenityY = bedRowItems.length > 0
+      ? rect.y + rect.h - 2 * TILE - WALL_T / 2
+      : rect.y + rect.h - TILE - WALL_T / 2
+    let nextX = rect.x + TILE + TILE / 2
+    for (const item of amenityItems) {
+      const count = item.count ?? 1
+      for (let i = 0; i < count; i++) {
+        result.push({ x: nextX, y: amenityY, item })
+        nextX += TILE
+      }
+    }
+  }
+
   // Queue point — near the primary door.
   const queueItem = placed.find((i) => i.role === 'queue')
   if (queueItem) {

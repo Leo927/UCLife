@@ -271,20 +271,21 @@
 
   // ── HANGAR ──────────────────────────────────────────────────────────────
 
-  // Phase 6.2.A surface-tier hangar facility. Spawned as a fixedBuilding
-  // east of the Von Braun central district (the diegetic neighbor of the
-  // airport — the state hangar where civilian-grade hulls dock). The
-  // facility-class shape (tier, slotCapacity) lives in facility-types.json5
-  // and is attached as the Hangar trait at spawn time. Capacity-only verbs
-  // ship here; ShipStatSheet + repair throughput at 6.2.B, supply/fuel at
-  // 6.2.F, transfer-to-other-hangar at 6.2.G.
+  // Phase 6.2.A surface-tier hangar facility. Spawned as a reservedRect
+  // inside the AE Industrial District (state-leased yard alongside the AE
+  // Complex). Footprint is 30×24 — large enough to diegetically host MS bays
+  // and small-craft slots side by side. The facility-class shape (tier,
+  // slotCapacity) lives in facility-types.json5 and is attached as the
+  // Hangar trait at spawn time. Capacity-only verbs ship here;
+  // ShipStatSheet + repair throughput at 6.2.B, supply/fuel at 6.2.F,
+  // transfer-to-other-hangar at 6.2.G.
   //
   // stateLocked: civic infrastructure — the state-rental hangar is the
   // early-game escape valve and cannot be bought. The realtor never
   // lists it.
   hangarSurface: {
     labelZh: '机库',
-    size: { w: 14, h: 14 },
+    size: { w: 30, h: 26 },
     stateLocked: true,
     layout: {
       algorithm: 'open_floor',
@@ -308,9 +309,14 @@
   //
   // stateLocked: civic infrastructure — the Granada state-rental drydock is
   // the early-game escape valve for capital tonnage and cannot be bought.
+  // Drydock crew live on-station: capital tonnage berths in orbit, so the
+  // hangar bay also hosts a worker cafeteria (snack cabinets + water
+  // dispenser as amenity row) and a bunk strip along the south wall.
+  // Replenishment in scenes.json5 keeps the worker pool topped up; the
+  // BT find-job path seats them at the empty workstations.
   hangarDrydock: {
     labelZh: '轨道船坞',
-    size: { w: 20, h: 16 },
+    size: { w: 32, h: 24 },
     stateLocked: true,
     layout: {
       algorithm: 'open_floor',
@@ -324,6 +330,14 @@
         { template: 'workstation-hangar-worker',  role: 'worker' },
         { template: 'workstation-hangar-worker',  role: 'worker' },
         { template: 'workstation-hangar-worker',  role: 'worker' },
+        // Cafeteria — food and water along the south wall (one tile above bunks).
+        { template: 'snack-cabinet',   role: 'amenity_row' },
+        { template: 'snack-cabinet',   role: 'amenity_row' },
+        { template: 'water-dispenser', role: 'amenity_row' },
+        { template: 'water-dispenser', role: 'amenity_row' },
+        // Personal quarters — dorm bunks for the crew. Lets workers sleep on
+        // station instead of commuting down the lift every shift.
+        { template: 'bed-dorm', role: 'bed_row', count: 8 },
       ],
     },
   },
