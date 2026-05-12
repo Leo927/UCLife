@@ -17,6 +17,7 @@ import { releaseStaleRoughSpots } from '../systems/roughSpots'
 import { populationSystem } from '../systems/population'
 import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
+import { contagionSystem } from '../systems/contagion'
 import { ambitionsSystem } from '../systems/ambitions'
 import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
@@ -183,6 +184,11 @@ function frame(now: number) {
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
+      // Phase 4.2 — contagion runs at active-zone tick cadence (same
+      // throttle as activeZoneSystem). Cheap when no infectious carriers
+      // are loaded; only scans the Active set when at least one
+      // symptomatic carrier exists.
+      contagionSystem(world, useClock.getState().gameDate.getTime(), gameDayNumber(useClock.getState().gameDate))
     }
 
     const player = world.queryFirst(IsPlayer, Action)

@@ -3,11 +3,11 @@
 // transmission lands on neighbours but not on distant / immune / dead /
 // incubating-carrier-adjacent characters.
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
 import { createWorld, type Entity, type World } from 'koota'
 import { spawnPlayer, spawnNPC } from '../character/spawn'
 import {
-  Active, Conditions, Health, Position, IsPlayer,
+  Active, Conditions, Health, IsPlayer,
 } from '../ecs/traits'
 import { forceOnset, physiologySystem } from './physiology'
 import {
@@ -202,7 +202,7 @@ describe('contagion — onset source attribution', () => {
 
 describe('contagion — prevalence readback (inactive aggregate)', () => {
   it('counts symptomatic carriers vs total living characters across the scene', () => {
-    const { world, carrier, near } = setup()
+    const { world, carrier } = setup()
     forceOnset(carrier, 'flu', 'seed', 1)
     advancePastIncubation(carrier)
     const { carriers, total } = prevalenceForTemplate(world, 'flu')
