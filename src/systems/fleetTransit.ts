@@ -34,6 +34,7 @@ import {
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { emitSim } from '../sim/events'
+import { simNow } from '../sim/time'
 
 const SHIP_SCENE_ID = 'playerShipInterior' as const
 
@@ -129,7 +130,7 @@ export function fleetTransitSystem(gameDay: number): FleetTransitTickResult {
     landed++
     emitSim('log', {
       textZh: `舰艇抵港 · ${e.get(EntityKey)?.key ?? '舰艇'} 已停泊于 ${destPoiId}`,
-      atMs: Date.now(),
+      atMs: simNow(),
     })
   }
   return { landed, shipsStillInTransit: stillInTransit }

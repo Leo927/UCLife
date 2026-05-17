@@ -38,6 +38,7 @@ import { getEnemyShip } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
+import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim, onSim } from '../sim/events'
@@ -191,7 +192,7 @@ export const useCombatStore = create<CombatState>((set) => ({
   setInputAxis: (inputAxis) => set({ inputAxis }),
   setAimAtMouse: (aimAtMouse) => set({ aimAtMouse }),
   setAimMouse: (aimMouse) => set({ aimMouse }),
-  flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: performance.now() }),
+  flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: simNow() }),
   reset: () => set({
     open: false,
     paused: true,
@@ -575,7 +576,7 @@ function onEnemyDestroyed(ent: Entity): void {
       titleZh: npc.title,
       contextZh: npc.contextZh ?? npc.title ?? '',
       factionId: npc.factionRole?.faction ?? 'pirate',
-      capturedAtMs: performance.now(),
+      capturedAtMs: simNow(),
     })
     if (ok) {
       pushCombatLog(`俘获 · ${npc.name}${npc.title ? ` (${npc.title})` : ''}`, 'narr')

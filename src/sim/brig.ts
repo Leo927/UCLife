@@ -25,9 +25,9 @@ export interface PrisonerRecord {
   titleZh?: string
   contextZh: string
   factionId: string
-  // Real-ms timestamp of capture (performance.now()) so the tally panel
-  // can display "captured 此战 just now" vs. "earlier"; 6.2 doesn't
-  // surface this yet but the save shape keeps it for 6.2.5+.
+  // Epoch-ms timestamp of capture (simNow()) so the tally panel can
+  // display "captured 此战 just now" vs. "earlier"; 6.2 doesn't surface
+  // this yet but the save shape keeps it for 6.2.5+.
   capturedAtMs: number
 }
 
