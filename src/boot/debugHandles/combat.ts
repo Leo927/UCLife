@@ -16,6 +16,7 @@ import {
   getPlayerMs, PLAYER_MS_KEY, getAdjutant,
 } from '../../sim/cockpit'
 import { useBrig, getBrigOccupancy } from '../../sim/brig'
+import { simNow } from '../../sim/time'
 import { useUI } from '../../ui/uiStore'
 
 registerDebugHandle('useCombatStore', useCombatStore)
@@ -114,7 +115,7 @@ registerDebugHandle('forceCapture', (npcId: string) => {
     nameZh: npcId,
     contextZh: '(forced)',
     factionId: 'pirate',
-    capturedAtMs: performance.now(),
+    capturedAtMs: simNow(),
   })
 })
 registerDebugHandle('getAdjutant', () => getAdjutant())
