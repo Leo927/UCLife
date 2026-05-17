@@ -1,19 +1,252 @@
-// STUB — temporary placeholder until Phase 5 (gameState façade) lands.
-// The Phase 5 PR replaces this with the real fluent navigable view
-// (`getPlayerCharacter()`, `getCharacter(id)`, `getShip(id)`, …) wired
-// onto `__uclife__.getGameState`. This stub keeps Phase 4 boot
-// compilable + step()'s failure path importable while the two branches
-// merge in parallel.
-//
-// See Design/test-determinism.md §"API surface" for the full v1 shape.
+import type { Entity } from 'koota'
+import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ecs/world'
+import {
+  IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
+  EmployedAsCrew, Building, Owner, Character,
+} from '../ecs/traits'
+import { getStat, type StatSheet } from '../stats/sheet'
+import { useUI } from '../ui/uiStore'
+import { factionsConfig, type FactionId } from '../config'
+
+export interface CharacterView {
+  getId(): string
+  getResource(key: string): number
+  getStat(statId: string): number
+  getPosition(): { scene: string; x: number; y: number }
+  getHiredRole(): string | null
+  getAssignedShipId(): string | null
+}
+
+export interface ShipView {
+  getId(): string
+  getHullPct(): number
+  getDockedAt(): string | null
+  getCaptain(): CharacterView | null
+  getCrew(): CharacterView[]
+}
+
+export interface FactionView {
+  getId(): string
+  getResource(key: string): number
+  ownsBuilding(buildingKey: string): boolean
+}
+
+export interface DialogueView {
+  getWithNpcId(): string | null
+  getActiveOptionKeys(): string[]
+}
+
+export interface SceneView {
+  getId(): string
+  getDimensions(): { tilesX: number; tilesY: number }
+}
 
 export interface GameStateView {
-  // Real shape lives in the Phase 5 PR. Intentionally left as an opaque
-  // record here so callers can type the return without committing to a
-  // shape this stub hasn't earned.
-  readonly [k: string]: unknown
+  getPlayerCharacter(): CharacterView
+  getCharacter(id: string): CharacterView | null
+  getShip(idOrName: string): ShipView | null
+  getFaction(id: string): FactionView | null
+  getDialogue(): DialogueView | null
+  getScene(): SceneView
+}
+
+const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
+
+function findEntityByKey(key: string): { entity: Entity; sceneId: string } | null {
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === key) return { entity: e, sceneId }
+    }
+  }
+  return null
+}
+
+function findPlayerEntity(): { entity: Entity; sceneId: string } | null {
+  for (const sceneId of SCENE_IDS) {
+    const p = getWorld(sceneId).queryFirst(IsPlayer)
+    if (p) return { entity: p, sceneId }
+  }
+  return null
+}
+
+function characterResource(entity: Entity, key: string): number {
+  if (key === 'Money') return entity.get(Money)?.amount ?? 0
+  if (key === 'HP') return entity.get(Health)?.hp ?? 0
+  const vitals = entity.get(Vitals)
+  if (vitals) {
+    if (key === 'hunger') return vitals.hunger
+    if (key === 'thirst') return vitals.thirst
+    if (key === 'fatigue') return vitals.fatigue
+    if (key === 'hygiene') return vitals.hygiene
+    if (key === 'boredom') return vitals.boredom
+  }
+  return 0
+}
+
+function characterStat(entity: Entity, statId: string): number {
+  const a = entity.get(Attributes)
+  if (!a) return 0
+  return getStat(a.sheet as StatSheet<string>, statId as never)
+}
+
+function makeCharacterView(entity: Entity, sceneId: string): CharacterView {
+  return {
+    getId(): string {
+      return entity.get(EntityKey)?.key ?? ''
+    },
+    getResource(key: string): number {
+      return characterResource(entity, key)
+    },
+    getStat(statId: string): number {
+      return characterStat(entity, statId)
+    },
+    getPosition(): { scene: string; x: number; y: number } {
+      const p = entity.get(Position)
+      return { scene: sceneId, x: p?.x ?? 0, y: p?.y ?? 0 }
+    },
+    getHiredRole(): string | null {
+      const emp = entity.get(EmployedAsCrew)
+      return emp ? emp.role : null
+    },
+    getAssignedShipId(): string | null {
+      const emp = entity.get(EmployedAsCrew)
+      return emp && emp.shipKey ? emp.shipKey : null
+    },
+  }
+}
+
+function findCharacterByKey(key: string): CharacterView | null {
+  const hit = findEntityByKey(key)
+  if (!hit) return null
+  if (!hit.entity.has(Character) && !hit.entity.has(IsPlayer)) return null
+  return makeCharacterView(hit.entity, hit.sceneId)
+}
+
+function findShipByKey(key: string): { entity: Entity; sceneId: string } | null {
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const e of w.query(Ship, EntityKey)) {
+      if (e.get(EntityKey)!.key === key) return { entity: e, sceneId }
+    }
+  }
+  return null
+}
+
+function makeShipView(entity: Entity): ShipView {
+  return {
+    getId(): string {
+      return entity.get(EntityKey)?.key ?? ''
+    },
+    getHullPct(): number {
+      const s = entity.get(Ship)!
+      return s.hullMax > 0 ? s.hullCurrent / s.hullMax : 0
+    },
+    getDockedAt(): string | null {
+      const s = entity.get(Ship)!
+      return s.dockedAtPoiId !== '' ? s.dockedAtPoiId : null
+    },
+    getCaptain(): CharacterView | null {
+      const s = entity.get(Ship)!
+      if (!s.assignedCaptainId) return null
+      return findCharacterByKey(s.assignedCaptainId)
+    },
+    getCrew(): CharacterView[] {
+      const s = entity.get(Ship)!
+      const out: CharacterView[] = []
+      for (const id of s.crewIds) {
+        const v = findCharacterByKey(id)
+        if (v) out.push(v)
+      }
+      return out
+    },
+  }
+}
+
+function findFactionEntity(factionId: string): Entity | null {
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const e of w.query(Faction)) {
+      if (e.get(Faction)!.id === factionId) return e
+    }
+  }
+  return null
+}
+
+function makeFactionView(factionId: FactionId): FactionView {
+  return {
+    getId(): string {
+      return factionId
+    },
+    getResource(key: string): number {
+      if (key !== 'Money') return 0
+      const e = findFactionEntity(factionId)
+      return e ? e.get(Faction)!.fund : 0
+    },
+    ownsBuilding(buildingKey: string): boolean {
+      const factionEnt = findFactionEntity(factionId)
+      if (!factionEnt) return false
+      for (const sceneId of SCENE_IDS) {
+        const w = getWorld(sceneId)
+        for (const b of w.query(Building, Owner, EntityKey)) {
+          if (b.get(EntityKey)!.key !== buildingKey) continue
+          const o = b.get(Owner)!
+          return o.kind === 'faction' && o.entity === factionEnt
+        }
+      }
+      return false
+    },
+  }
+}
+
+function makeDialogueView(npc: Entity): DialogueView {
+  return {
+    getWithNpcId(): string | null {
+      return npc.get(EntityKey)?.key ?? null
+    },
+    getActiveOptionKeys(): string[] {
+      throw new Error('not yet wired')
+    },
+  }
+}
+
+function makeSceneView(sceneId: string): SceneView {
+  return {
+    getId(): string {
+      return sceneId
+    },
+    getDimensions(): { tilesX: number; tilesY: number } {
+      return getSceneDimensions(sceneId)
+    },
+  }
 }
 
 export function getGameState(): GameStateView {
-  throw new Error('[test-stub] getGameState() — Phase 5 not yet shipped')
+  return {
+    getPlayerCharacter(): CharacterView {
+      const hit = findPlayerEntity()
+      if (!hit) throw new Error('getGameState().getPlayerCharacter(): no IsPlayer entity in any scene')
+      return makeCharacterView(hit.entity, hit.sceneId)
+    },
+    getCharacter(id: string): CharacterView | null {
+      return findCharacterByKey(id)
+    },
+    getShip(idOrName: string): ShipView | null {
+      const hit = findShipByKey(idOrName)
+      if (!hit) return null
+      return makeShipView(hit.entity)
+    },
+    getFaction(id: string): FactionView | null {
+      if (!FACTION_IDS.has(id)) return null
+      return makeFactionView(id as FactionId)
+    },
+    getDialogue(): DialogueView | null {
+      const npc = useUI.getState().dialogNPC
+      if (!npc) return null
+      return makeDialogueView(npc)
+    },
+    getScene(): SceneView {
+      return makeSceneView(getActiveSceneId())
+    },
+  }
 }
