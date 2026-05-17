@@ -25,13 +25,19 @@ page.on('response', (r) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(500)
+await page.waitForFunction(
+  () => typeof window.uclifeSpriteTester === 'function'
+    && typeof globalThis.__uclife__?.awaitAssetsReady === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
 await page.evaluate(() => window.uclifeSpriteTester())
-await page.waitForTimeout(2000) // image load + recolor
+// Image load + recolor lives behind beginAssetJob('sprite:img:...') and
+// 'sprite:sheet:...' — wait on the barrier instead of guessing 2000ms.
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
 
 await page.fill('input[type=text]', 'Wei Tanaka')
-await page.waitForTimeout(500)
 await page.evaluate(() => {
   const sel = document.querySelectorAll('select')[1]
   if (sel) {
@@ -39,7 +45,8 @@ await page.evaluate(() => {
     sel.dispatchEvent(new Event('change', { bubbles: true }))
   }
 })
-await page.waitForTimeout(2000)
+// Sex switch kicks off a fresh composeSheet — drain again before probe.
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
 
 const stats = await page.evaluate(() => {
   // Skip the Game stage's Konva canvas by picking the canvas inside the

@@ -158,13 +158,17 @@ const opened = await page.evaluate((buildingKey) => {
 if (!opened) {
   failures.push('could not open NPCDialog for drydock manager')
 } else {
-  await page.waitForTimeout(200)
+  // Wait for the dialog's branch list to render (commit signal: at least
+  // one .dialog-option exists). Avoids the legacy 200ms guess.
+  await page.waitForSelector('button.dialog-option', { timeout: 5_000 })
   const branchButton = await page.$('button.dialog-option:has-text("机库状况")')
   if (!branchButton) {
     failures.push('hangarManager branch button missing from NPCDialog')
   } else {
     await branchButton.click()
-    await page.waitForTimeout(150)
+    // Wait for the hangarManager dialogue node to commit instead of
+    // guessing 150ms. The node only mounts after the click handler runs.
+    await page.waitForSelector('section[data-dialogue-node="hangarManager"]', { timeout: 5_000 })
     const text = await page.evaluate(() => {
       const node = document.querySelector('section[data-dialogue-node="hangarManager"]')
       return node?.textContent ?? ''

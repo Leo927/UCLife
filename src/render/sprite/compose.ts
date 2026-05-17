@@ -1,5 +1,6 @@
 import type { LpcAnimation, LpcLayer, LpcManifest } from './types'
 import { recolor } from './recolor'
+import { beginAssetJob } from '../assets/readiness'
 
 // LPC standard sheet: 64×64 frames, 13 cols × 4 rows (up/left/down/right).
 export const FRAME_SIZE = 64
@@ -17,6 +18,7 @@ const imgCache = new Map<string, Promise<HTMLImageElement>>()
 function loadImage(url: string): Promise<HTMLImageElement> {
   const hit = imgCache.get(url)
   if (hit) return hit
+  const end = beginAssetJob(`sprite:img:${url}`)
   const p = new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -25,7 +27,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.src = url
   })
   imgCache.set(url, p)
-  p.catch(() => imgCache.delete(url))
+  p.catch(() => imgCache.delete(url)).finally(end)
   return p
 }
 
@@ -89,6 +91,7 @@ export function composeSheet(manifest: LpcManifest, animation: LpcAnimation): Pr
 
   const PROF = spriteStats.enabled
   const startMs = PROF ? performance.now() : 0
+  const endJob = beginAssetJob(`sprite:sheet:${key}`)
   const promise = (async () => {
     // zPos ascending — body first, hair on top.
     const ordered = [...manifest.layers].sort((a, b) => a.zPos - b.zPos)
@@ -111,7 +114,7 @@ export function composeSheet(manifest: LpcManifest, animation: LpcAnimation): Pr
   })()
 
   sheetCache.set(key, promise)
-  promise.catch(() => sheetCache.delete(key))
+  promise.catch(() => sheetCache.delete(key)).finally(endJob)
 
   // LRU eviction — Map keeps insertion order, so the first key is the oldest.
   if (sheetCache.size > SHEET_CACHE_MAX) {

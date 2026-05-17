@@ -25,13 +25,20 @@ page.on('console', (m) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForFunction(() => typeof globalThis.__uclife__?.fillJobVacancies === 'function')
+await page.waitForFunction(
+  () => typeof globalThis.__uclife__?.fillJobVacancies === 'function'
+    && typeof globalThis.__uclife__?.awaitAssetsReady === 'function'
+    && typeof window.uclifePinClerk === 'function',
+  null,
+  { timeout: 30_000 },
+)
 // Guarantee deterministic workers for every clerk specId used in this test,
 // regardless of procgen building placement outcomes.
 await page.evaluate(() =>
   globalThis.__uclife__.fillJobVacancies(['city_hr_clerk', 'realtor', 'ae_director']),
 )
-await page.waitForTimeout(800)
+// Drain any boot-time asset jobs before opening dialogs.
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
 
 async function probe() {
   return await page.evaluate(() => {
@@ -73,24 +80,48 @@ async function runSurface(name, openFn, screenshotName) {
     errors.push(`fixture failed for ${name}`)
     return []
   }
-  await page.waitForTimeout(800)
+  // Two-step deterministic wait: the asset cache finishes loading, then
+  // React commits the Portrait useEffect that mounts an art* SVG into the
+  // DOM. The probe filters on those SVGs, so we wait for at least one
+  // before snapshotting.
+  await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+  await page.waitForFunction(
+    () => !!document.querySelector('svg[class^="art"]'),
+    null,
+    { timeout: 10_000 },
+  )
   await page.screenshot({ path: join(outDir, screenshotName) })
   const stats = await probe()
   console.log(`${name}:`, JSON.stringify(stats))
   await page.evaluate(() => window.uclifeUI.getState().setDialogNPC(null))
-  await page.waitForTimeout(200)
+  // Wait for the dialog to actually unmount before opening the next one
+  // (probe() looks for art* SVGs, which only the dialog renders).
+  await page.waitForFunction(
+    () => window.uclifeUI.getState().dialogNPC === null
+      && !document.querySelector('svg[class^="art"]'),
+  )
   return stats
 }
 
 const results = {}
 
 await page.evaluate(() => window.uclifeUI.getState().setStatus(true))
-await page.waitForTimeout(1500)  // first portrait cache load
+// First portrait cache load happens here — drain it, then wait for the
+// StatusPanel's portrait useEffect to commit at least one art* SVG.
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+await page.waitForFunction(
+  () => !!document.querySelector('svg[class^="art"]'),
+  null,
+  { timeout: 10_000 },
+)
 await page.screenshot({ path: join(outDir, 'modal-status.png') })
 results.status = await probe()
 console.log('status:', JSON.stringify(results.status))
 await page.evaluate(() => window.uclifeUI.getState().setStatus(false))
-await page.waitForTimeout(200)
+await page.waitForFunction(
+  () => window.uclifeUI.getState().statusOpen === false
+    && !document.querySelector('svg[class^="art"]'),
+)
 
 results.hr = await runSurface('hr', () => openClerkDialogPinned('city_hr_clerk'), 'modal-hr.png')
 results.realtor = await runSurface('realtor', () => openClerkDialogPinned('realtor'), 'modal-realtor.png')

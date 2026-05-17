@@ -19,13 +19,19 @@ page.on('console', (m) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(800)
+await page.waitForFunction(
+  () => typeof window.uclifePortraitTester === 'function'
+    && typeof globalThis.__uclife__?.awaitAssetsReady === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
 await page.evaluate(() => window.uclifePortraitTester())
-await page.waitForTimeout(300)
+// Drain in-flight portrait-cache + sprite-recolor jobs before reading the
+// DOM. Replaces the legacy waitForTimeout(800 + 300) hack.
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
 
-// Wait for the placeholder ('加载头像…') to be replaced by an actual SVG —
-// the cache load is async (~5.6 MB gzipped) so first paint can take a moment.
+// Sanity check that the portrait actually mounted before stats-snapshot.
 const portraitDiv = page.locator('div').filter({ has: page.locator('svg') }).first()
 try {
   await portraitDiv.waitFor({ state: 'visible', timeout: 15_000 })
@@ -77,7 +83,9 @@ console.log(`screenshot: ${join(outDir, 'portrait-tester.png')}`)
 const presets = ['default-female', 'default-male', 'preg', 'punk']
 for (const p of presets) {
   await page.locator(`label`).filter({ hasText: p }).click({ force: true })
-  await page.waitForTimeout(600)
+  // Each preset switch kicks off a fresh portrait re-render — wait for
+  // every in-flight asset job to drain instead of guessing 600ms.
+  await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
   await page.screenshot({ path: join(outDir, `portrait-${p}.png`) })
   console.log(`screenshot: portrait-${p}.png`)
 }
