@@ -7,6 +7,7 @@ export interface TestConfig {
   defaultSeed: string
   maxStepTicks: number
   msPerGameMinute: number
+  msPerGameSecond: number
 }
 
 export const testConfig = json5.parse(raw) as TestConfig

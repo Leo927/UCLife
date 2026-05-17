@@ -50,9 +50,13 @@ import { dailyEconomicsSystem } from '../systems/dailyEconomics'
 import { housingPressureSystem } from '../systems/housingPressure'
 import { recruitmentSystem } from '../systems/recruitment'
 import { supplyDrainSystem } from '../systems/supplyDrain'
+import { combatSystem } from '../systems/combat'
+import { spaceSimSystem } from '../systems/spaceSim'
+import { IsPlayer, ShipBody } from '../ecs/traits'
 import { testConfig } from './test-config'
 
 const MS_PER_MINUTE = testConfig.msPerGameMinute
+const MS_PER_GAME_SECOND = testConfig.msPerGameSecond
 
 /**
  * Pin useClock.speed = 1 so any system that still reads speed (e.g.
@@ -90,6 +94,19 @@ export function advanceSimByGameMs(gameMs: number): void {
   // an opaque dt to systems that read it (npcSystem reads dt directly
   // to throttle BT updates; movementSystem reads minutesThisFrame).
   const dt = gameMs
+  // Combat + space-campaign ticks run every frame regardless of game
+  // speed — same gate-on-mode logic as src/sim/loop.ts. Without these,
+  // fastWinCombat-style smoke tests can't drive combat resolution
+  // (combatSystem sets clock.mode='normal' after victory).
+  if (useClock.getState().mode === 'combat') {
+    combatSystem(world, dt)
+  }
+  {
+    const space = getWorld('spaceCampaign')
+    if (space.queryFirst(IsPlayer, ShipBody)) {
+      spaceSimSystem(space, dt / MS_PER_GAME_SECOND)
+    }
+  }
   movementSystem(world, minutesThisFrame)
   npcSystem(world, dt, useClock.getState().speed)
   interactionSystem(world)

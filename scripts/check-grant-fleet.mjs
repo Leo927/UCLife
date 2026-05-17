@@ -1,18 +1,22 @@
 // Phase 6.2.H — debug "grant fleet" function smoke. Drives the
 // __uclife__.grantFleet handle and asserts the composed state matches
-// the documented end-to-end fleet shape. No DOM scraping, no fixed
-// sleeps — deterministic per CLAUDE.md smoke-test rules.
+// the documented end-to-end fleet shape.
+//
+// Migrated to Phase 6 deterministic boot — ?test=1 freezes the clock,
+// skips assets, and exposes __uclife_test__.step(). No setSpeed() pin
+// needed; the loop is stopped already.
 //
 // Coverage:
 //   1. First grantFleet() call → 2 new ships, captains assigned on each,
 //      hangars supplied, Pegasus in active fleet.
 //   2. Second grantFleet() call → refused with already_granted.
-//   3. Save round-trip preserves the granted fleet (ship count, captain
-//      assignments, hangar reserves, active-fleet marker).
+//   3. Save round-trip preserves the granted fleet.
 
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
 
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
@@ -22,136 +26,131 @@ const errors = []
 page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.grantFleet === 'function'
-    && typeof globalThis.__uclife__?.listShipsInFleet === 'function'
-    && typeof globalThis.__uclife__?.fleetRosterSnapshot === 'function'
-    && typeof globalThis.__uclife__?.warRoomDescribe === 'function'
-    && typeof globalThis.__uclife__?.listHangarsAllScenes === 'function'
-    && typeof globalThis.__uclife__?.hangarSupplySnapshot === 'function'
-    && typeof globalThis.__uclife__?.saveGame === 'function'
-    && typeof globalThis.__uclife__?.loadGame === 'function'
-    && typeof globalThis.__uclife__?.useClock?.getState === 'function',
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.grantFleet === 'function'
+    && typeof window.__uclife__?.listShipsInFleet === 'function'
+    && typeof window.__uclife__?.fleetRosterSnapshot === 'function'
+    && typeof window.__uclife__?.warRoomDescribe === 'function'
+    && typeof window.__uclife__?.listHangarsAllScenes === 'function'
+    && typeof window.__uclife__?.hangarSupplySnapshot === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
   null,
   { timeout: 30_000 },
 )
 
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+const before = await page.evaluate(() => window.__uclife__.listShipsInFleet())
+assert.equal(
+  before.length, 1,
+  `baseline fleet should be one flagship; got ${before.length}: ${JSON.stringify(before)}`,
+)
 
-const failures = []
-const fail = (m) => failures.push(m)
-const pass = (m) => console.log('PASS ' + m)
+const grant = await page.evaluate(() => window.__uclife__.grantFleet())
+assert.ok(grant?.ok, `first grantFleet() should succeed; got ${JSON.stringify(grant)}`)
 
-// Baseline: only the flagship exists.
-const before = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
-if (before.length !== 1) {
-  fail(`expected exactly one starting ship (flagship); got ${before.length}: ${JSON.stringify(before)}`)
-  await done()
-}
-pass(`baseline: one flagship at ${before[0].dockedAtPoiId}`)
-
-// 1. First grant.
-const grant = await page.evaluate(() => globalThis.__uclife__.grantFleet())
-if (!grant?.ok) {
-  fail(`first grantFleet() failed: ${JSON.stringify(grant)}`)
-  await done()
-}
-pass(`grantFleet ok · pegasus=${grant.pegasusKey} militia=${grant.lunarMilitiaKey} npcs=${grant.npcsSpawned} captains=${grant.captainsHired} militiaCrew=${grant.lunarMilitiaCrewHired} pegasusCrew=${grant.pegasusCrewHired}`)
-
-// 2. Fleet has 3 ships (flagship + lunarMilitia + pegasus).
-const after = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
-if (after.length !== 3) fail(`expected 3 ships post-grant; got ${after.length}: ${JSON.stringify(after.map((s) => s.templateId))}`)
-else pass(`post-grant fleet: ${after.length} ships (${after.map((s) => s.templateId).join(', ')})`)
+const after = await page.evaluate(() => window.__uclife__.listShipsInFleet())
+assert.equal(
+  after.length, 3,
+  `post-grant fleet should be 3 ships; got ${after.length}: ${JSON.stringify(after.map((s) => s.templateId))}`,
+)
 
 const pegasus = after.find((s) => s.templateId === 'pegasusClass')
 const militia = after.find((s) => s.templateId === 'lunarMilitia')
-if (!pegasus) fail('pegasus not in fleet after grant')
-else if (pegasus.dockedAtPoiId !== 'granada') fail(`pegasus dockedAtPoiId=${pegasus.dockedAtPoiId} (want granada)`)
-else pass(`pegasus docked at granada`)
-if (!militia) fail('lunarMilitia not in fleet after grant')
-else if (militia.dockedAtPoiId !== 'vonBraun') fail(`lunarMilitia dockedAtPoiId=${militia.dockedAtPoiId} (want vonBraun)`)
-else pass(`lunarMilitia docked at vonBraun`)
+assert.ok(pegasus, 'pegasus not in fleet after grant')
+assert.equal(
+  pegasus.dockedAtPoiId, 'granada',
+  `pegasus dockedAtPoiId should be "granada"; got "${pegasus.dockedAtPoiId}"`,
+)
+assert.ok(militia, 'lunarMilitia not in fleet after grant')
+assert.equal(
+  militia.dockedAtPoiId, 'vonBraun',
+  `lunarMilitia dockedAtPoiId should be "vonBraun"; got "${militia.dockedAtPoiId}"`,
+)
 
-// 3. Captains assigned on both new ships (flagship intentionally excluded).
-const roster = await page.evaluate(() => globalThis.__uclife__.fleetRosterSnapshot())
+const roster = await page.evaluate(() => window.__uclife__.fleetRosterSnapshot())
 const pgRow = roster.find((r) => r.templateId === 'pegasusClass')
 const lmRow = roster.find((r) => r.templateId === 'lunarMilitia')
-if (!pgRow?.captainKey) fail(`pegasus has no captain: ${JSON.stringify(pgRow)}`)
-else pass(`pegasus captain assigned: ${pgRow.captainKey} (${pgRow.captainName})`)
-if (!lmRow?.captainKey) fail(`lunarMilitia has no captain: ${JSON.stringify(lmRow)}`)
-else pass(`lunarMilitia captain assigned: ${lmRow.captainKey} (${lmRow.captainName})`)
+assert.ok(pgRow?.captainKey, `pegasus has no captain after grant: ${JSON.stringify(pgRow)}`)
+assert.ok(lmRow?.captainKey, `lunarMilitia has no captain after grant: ${JSON.stringify(lmRow)}`)
 
-// 4. Crew populated. lunarMilitia crewMax=2 should be fully staffed; pegasus
-//    is partial (crewMax=200; pool size 30 minus 2 captains = up to 28 crew).
-if (lmRow && lmRow.crewCount < 1) fail(`lunarMilitia crew empty: ${lmRow.crewCount}`)
-else if (lmRow) pass(`lunarMilitia crew: ${lmRow.crewCount}/${lmRow.crewMax}`)
-if (pgRow && pgRow.crewCount < 1) fail(`pegasus crew empty: ${pgRow.crewCount}`)
-else if (pgRow) pass(`pegasus crew: ${pgRow.crewCount}/${pgRow.crewMax}`)
+assert.ok(
+  lmRow.crewCount >= 1,
+  `lunarMilitia crew should be non-empty after grant; got ${lmRow.crewCount}`,
+)
+assert.ok(
+  pgRow.crewCount >= 1,
+  `pegasus crew should be non-empty after grant; got ${pgRow.crewCount}`,
+)
 
-// 5. Hangars supplied. Both VB surface + Granada drydock should be at max.
-const hangars = await page.evaluate(() => globalThis.__uclife__.listHangarsAllScenes())
+const hangars = await page.evaluate(() => window.__uclife__.listHangarsAllScenes())
 const vbHangar = hangars.find((h) => h.typeId === 'hangarSurface')
 const drydock = hangars.find((h) => h.typeId === 'hangarDrydock')
-if (!vbHangar || !drydock) { fail('hangars missing'); await done() }
+assert.ok(vbHangar, 'VB surface hangar missing')
+assert.ok(drydock, 'Granada drydock missing')
 
-const vbSupply = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vbHangar.buildingKey)
-const ddSupply = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), drydock.buildingKey)
-if (vbSupply.supplyCurrent < vbSupply.supplyMax) fail(`VB hangar supply not at max: ${vbSupply.supplyCurrent}/${vbSupply.supplyMax}`)
-else pass(`VB hangar supply at max (${vbSupply.supplyCurrent}/${vbSupply.supplyMax}) · fuel ${vbSupply.fuelCurrent}/${vbSupply.fuelMax}`)
-if (ddSupply.supplyCurrent < ddSupply.supplyMax) fail(`drydock supply not at max: ${ddSupply.supplyCurrent}/${ddSupply.supplyMax}`)
-else pass(`drydock supply at max (${ddSupply.supplyCurrent}/${ddSupply.supplyMax}) · fuel ${ddSupply.fuelCurrent}/${ddSupply.fuelMax}`)
+const vbSupply = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vbHangar.buildingKey)
+const ddSupply = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), drydock.buildingKey)
+assert.equal(
+  vbSupply.supplyCurrent, vbSupply.supplyMax,
+  `VB hangar supply should be at max after grant; got ${vbSupply.supplyCurrent}/${vbSupply.supplyMax}`,
+)
+assert.equal(
+  ddSupply.supplyCurrent, ddSupply.supplyMax,
+  `drydock supply should be at max after grant; got ${ddSupply.supplyCurrent}/${ddSupply.supplyMax}`,
+)
 
-// 6. Pegasus is in the active fleet at a non-flagship slot.
-const wr = await page.evaluate(() => globalThis.__uclife__.warRoomDescribe())
+const wr = await page.evaluate(() => window.__uclife__.warRoomDescribe())
 const pgWar = wr.ships.find((r) => r.templateId === 'pegasusClass')
-if (!pgWar?.isInActiveFleet) fail(`pegasus not in active fleet: ${JSON.stringify(pgWar)}`)
-else if (pgWar.formationSlot === wr.flagshipSlot) fail(`pegasus occupies flagship slot ${pgWar.formationSlot}`)
-else pass(`pegasus in active fleet @ slot ${pgWar.formationSlot} (flagship anchor at ${wr.flagshipSlot})`)
+assert.ok(pgWar?.isInActiveFleet, `pegasus should be in active fleet after grant: ${JSON.stringify(pgWar)}`)
+assert.notEqual(
+  pgWar.formationSlot, wr.flagshipSlot,
+  `pegasus should not occupy flagship slot ${wr.flagshipSlot}`,
+)
 
-// 7. Second grant → refused.
-const grant2 = await page.evaluate(() => globalThis.__uclife__.grantFleet())
-if (grant2?.ok) fail(`second grantFleet should be refused; got ${JSON.stringify(grant2)}`)
-else if (grant2.reason !== 'already_granted') fail(`second grantFleet refused with unexpected reason: ${grant2.reason}`)
-else pass(`second grantFleet refused: already_granted`)
+const grant2 = await page.evaluate(() => window.__uclife__.grantFleet())
+assert.equal(grant2?.ok, false, `second grantFleet() should be refused; got ${JSON.stringify(grant2)}`)
+assert.equal(
+  grant2.reason, 'already_granted',
+  `second grantFleet reason should be "already_granted"; got "${grant2.reason}"`,
+)
 
-// 8. Save round-trip preserves the granted fleet.
-await page.evaluate(async () => { await globalThis.__uclife__.saveGame('auto') })
-await page.evaluate(async () => { await globalThis.__uclife__.loadGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.saveGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.loadGame('auto') })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.listShipsInFleet === 'function',
+  () => typeof window.__uclife__?.listShipsInFleet === 'function',
   null,
   { timeout: 15_000 },
 )
-const afterLoad = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
-if (afterLoad.length !== 3) fail(`post-load ship count=${afterLoad.length} (want 3)`)
-else pass(`post-load fleet preserved: ${afterLoad.length} ships`)
 
-const rosterLoad = await page.evaluate(() => globalThis.__uclife__.fleetRosterSnapshot())
+const afterLoad = await page.evaluate(() => window.__uclife__.listShipsInFleet())
+assert.equal(
+  afterLoad.length, 3,
+  `post-load fleet count should be 3; got ${afterLoad.length}`,
+)
+
+const rosterLoad = await page.evaluate(() => window.__uclife__.fleetRosterSnapshot())
 const pgLoad = rosterLoad.find((r) => r.templateId === 'pegasusClass')
 const lmLoad = rosterLoad.find((r) => r.templateId === 'lunarMilitia')
-if (!pgLoad?.captainKey) fail('pegasus captain not preserved across save/load')
-else pass(`pegasus captain preserved: ${pgLoad.captainKey}`)
-if (!lmLoad?.captainKey) fail('lunarMilitia captain not preserved across save/load')
-else pass(`lunarMilitia captain preserved: ${lmLoad.captainKey}`)
+assert.ok(pgLoad?.captainKey, 'pegasus captain not preserved across save/load')
+assert.ok(lmLoad?.captainKey, 'lunarMilitia captain not preserved across save/load')
 
-const wrLoad = await page.evaluate(() => globalThis.__uclife__.warRoomDescribe())
+const wrLoad = await page.evaluate(() => window.__uclife__.warRoomDescribe())
 const pgWarLoad = wrLoad.ships.find((r) => r.templateId === 'pegasusClass')
-if (!pgWarLoad?.isInActiveFleet) fail('pegasus active-fleet marker not preserved across save/load')
-else pass(`pegasus active-fleet marker preserved @ slot ${pgWarLoad.formationSlot}`)
+assert.ok(
+  pgWarLoad?.isInActiveFleet,
+  `pegasus active-fleet marker not preserved across save/load: ${JSON.stringify(pgWarLoad)}`,
+)
 
-await done()
+assert.equal(
+  errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`,
+)
 
-async function done() {
-  await browser.close()
-  if (errors.length) {
-    console.log('\nERRORS:')
-    errors.forEach((e) => console.log('  ' + e))
-  }
-  if (failures.length) {
-    console.log('\nFAILURES:')
-    failures.forEach((f) => console.log('  ' + f))
-    process.exit(1)
-  }
-  console.log('\nOK: 6.2.H debug grant-fleet verified.')
-}
+await browser.close()
+
+console.log('OK — check-grant-fleet:')
+console.log(`  fleet size: ${afterLoad.length} (flagship + lunarMilitia + pegasus)`)
+console.log(`  captains preserved: pegasus=${pgLoad.captainKey} militia=${lmLoad.captainKey}`)
+console.log(`  pegasus active-fleet slot post-load: ${pgWarLoad.formationSlot}`)
