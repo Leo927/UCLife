@@ -157,7 +157,7 @@ Catalog lives in `src/config/skill-perks.json5`. Example row shapes
 | Medicine | 30 | *分诊* (Triage) | unlocks | `'diagnose:reveal_all'` — diagnosing an NPC reveals every active condition, not just the most-severe |
 | Mechanics | 30 | *拾荒者* (Salvager) | unlocks | `'verb:salvage_workstation'` — broken workstations become a parts source |
 | Mechanics | 30 | *修补匠* (Tinkerer) | modifiers | `percentMult −0.50` on `workstationDegradeRate` |
-| Mechanics | 60 | *战地工程师* (Field Engineer) | abilities | `{ id: 'ms_emergency_repair', cooldownDays: 3 }` — instant MS subsystem repair mid-combat, multi-day cooldown *(deferred until combat ships)* |
+| Mechanics | 60 | *战地工程师* (Field Engineer) | abilities | `{ id: 'ms_emergency_repair', cooldownSec: 259200 }` — instant MS subsystem repair mid-combat, ~3-day cooldown at first tuning *(deferred until combat ships; value will move during balance)* |
 | Bartending | 30 | *招牌特饮* (Signature Cocktail) | unlocks | `'recipe:signature_drink'` — author one bespoke drink in your inventory with a custom buff bundle |
 | Bartending | 30 | *吧台老练* (Tabkeeper) | modifiers | `percentMult +0.20` on bar-revenue stat |
 | Marksmanship | 30 | *placeholder a* | unlocks | `'placeholder:marksmanship:30:a'` |

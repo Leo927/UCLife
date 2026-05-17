@@ -151,22 +151,31 @@ lifecycle (apply on grant, remove on respec, round-trip on save).
 
 ```ts
 type AbilityGrant = {
-  id: string             // ability handler key, e.g. 'ms_emergency_repair'
-  cooldownDays: number   // base cooldown in *game days*; per-character
-                         // cooldowns track on a parallel Abilities trait,
-                         // not on the Effect
+  id: string            // ability handler key, e.g. 'ms_emergency_repair'
+  cooldownSec: number   // base cooldown in *game seconds*; per-character
+                        // cooldowns track on a parallel Abilities trait,
+                        // not on the Effect
   nameZh?: string
   descZh?: string
 }
 ```
 
-Cooldowns are **intentionally multi-day**, not seconds or minutes. A
-Skill-Perk ability is a strategic resource — the player decides *which
-engagement, which day, which crisis to spend it on*, not a button to
-mash inside one fight. This sidesteps the tactical-balance problem
-(repeat-use mid-combat trivializes attrition) and pushes the
-interesting decision up to the campaign layer. Specific `cooldownDays`
-values are balance work deferred to the consumer phase.
+The field spans the full range — seconds, minutes, hours, days — so
+balance tuning can dial individual abilities up or down without a
+schema change. Different abilities deserve different scales: a "Triage
+Glance" that reveals a vital bar might be once-per-minute; an
+"Emergency MS Subsystem Repair" that saves a flagship limb might be
+once-per-week.
+
+**Authoring lean:** the *high-impact* Skill-Perk abilities — the ones
+that justify a level-60 pick — skew toward multi-day cooldowns, so the
+player decides *which engagement, which day, which crisis to spend
+them on* rather than mashing the same button inside one fight. That
+pushes the interesting decision up to the campaign layer and
+sidesteps the tactical-balance problem (repeat mid-combat use
+trivializes attrition). Lower-impact abilities can live at shorter
+scales. Specific values are balance work deferred to the consumer
+phase.
 
 **`unlocks: string[]`** — flag strings consumed by upstream systems.
 The interaction system queries them to decide which verbs to surface
