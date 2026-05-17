@@ -7,6 +7,7 @@ import { Character, Health, IsPlayer } from '../ecs/traits'
 import { spawnNPC } from '../character/spawn'
 import { populationConfig, worldConfig } from '../config'
 import type { ReplenishmentConfig } from '../data/scenes'
+import { getSimRng } from '../sim/rng'
 import {
   pickFreshName, pickRandomColor,
   getAnonymousCounter, setAnonymousCounter, resetNameGen,
@@ -77,7 +78,7 @@ export function populationSystem(
     title: '市民',
     x: config.arrivalTile.x * TILE,
     y: config.arrivalTile.y * TILE,
-    money: 50 + Math.floor(Math.random() * 100),
+    money: getSimRng().int(50, 149),
     key: `npc-imm-${immigrantCounter}`,
   })
   lastSpawnGameMs = nowMs

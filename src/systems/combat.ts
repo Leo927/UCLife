@@ -49,6 +49,7 @@ import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
 } from '../sim/cockpit'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
+import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
 
 function logEvent(textZh: string): void {
@@ -614,7 +615,7 @@ export function applyFleePenalty(): void {
 
 function applyDefeatConsequence(): void {
   // Pick a random ground colony (rescue transport drop-off).
-  const drop = DEFEAT_DROP_OPTIONS[Math.floor(Math.random() * DEFEAT_DROP_OPTIONS.length)]
+  const drop = getSimRng().pick(DEFEAT_DROP_OPTIONS)
 
   // Reset the flagship to factory-fresh state so a re-acquired ship
   // starts clean. The owned-flag flip below means the player can't board
@@ -696,8 +697,7 @@ export function endCombat(outcome: CombatOutcome): void {
   if (outcome === 'victory') {
     if (campaignKey) destroyCampaignEnemyByKey(campaignKey)
     // Phase 6.0 tally minimum — credits + supplies + fuel deltas.
-    const creditsRange = combatConfig.tallyCreditsMax - combatConfig.tallyCreditsMin
-    const reward = combatConfig.tallyCreditsMin + Math.floor(Math.random() * (creditsRange + 1))
+    const reward = getSimRng().int(combatConfig.tallyCreditsMin, combatConfig.tallyCreditsMax)
     const supplyGain = combatConfig.tallySuppliesGain
     const fuelGain = combatConfig.tallyFuelGain
     const player = findPlayer()
