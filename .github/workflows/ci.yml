@@ -84,6 +84,8 @@ jobs:
       - if: always()
         run: node scripts/check-test-boot.mjs
       - if: always()
+        run: node scripts/check-fixture-authority.mjs
+      - if: always()
         run: node scripts/check-saveload.mjs
       - if: always()
         run: node scripts/check-ambitions.mjs

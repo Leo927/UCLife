@@ -925,12 +925,12 @@ function spawnFoundingCivilians(scene: MicroSceneConfig): void {
 
 let roughSpotCounter = 0
 
-function bootstrapMicroScene(scene: MicroSceneConfig): void {
+function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): void {
   // Faction entities first — Building spawns below resolve their default
   // Owner.entity against this set.
   bootstrapFactions(world)
 
-  if (scene.id === initialSceneId && scene.playerSpawnTile) {
+  if (!opts.skipDefaultPlayer && scene.id === initialSceneId && scene.playerSpawnTile) {
     spawnPlayer(world, {
       x: TILE * scene.playerSpawnTile.x,
       y: TILE * scene.playerSpawnTile.y,
@@ -1101,9 +1101,9 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   }
 }
 
-function runSceneBootstrap(scene: SceneConfig): void {
+function runSceneBootstrap(scene: SceneConfig, opts: SetupWorldOpts): void {
   switch (scene.sceneType) {
-    case 'micro': bootstrapMicroScene(scene); break
+    case 'micro': bootstrapMicroScene(scene, opts); break
     case 'ship':  bootstrapShipScene(scene);  break
   }
 }
@@ -1132,7 +1132,11 @@ function bedLabel(tier: BedTier): string {
 
 let initialized = false
 
-export function setupWorld() {
+export interface SetupWorldOpts {
+  skipDefaultPlayer: boolean
+}
+
+export function setupWorld(opts: SetupWorldOpts = { skipDefaultPlayer: false }) {
   if (initialized) return
   initialized = true
 
@@ -1155,7 +1159,7 @@ export function setupWorld() {
       continue
     }
     setActiveSceneId(scene.id)
-    runSceneBootstrap(scene)
+    runSceneBootstrap(scene, opts)
     markPathfindingDirty()
   }
 
@@ -1171,4 +1175,8 @@ export function resetWorld() {
   resetAll()
   initialized = false
   setupWorld()
+}
+
+export function __resetSetupWorldForTests(): void {
+  initialized = false
 }

@@ -89,17 +89,24 @@ export default async function bootTestMode(params: TestBootParams): Promise<void
   //    on a fresh world. We then stopLoop() immediately — bootstrapApp
   //    starts the RAF loop, and test mode owns sim time progression via
   //    step() alone.
+  //
+  //    skipDefaultPlayer is gated on the presence of a fixture: when a
+  //    fixture loads, IT is the authoritative source for player money /
+  //    location / skills / background, so the initial-scene default
+  //    spawn must not run (otherwise getPlayerCharacter() picks the
+  //    boot-spawned entity and the fixture state is silently shadowed).
+  //    No-fixture boots (e.g. check-test-boot.mjs) keep the default.
   bindAutosave()
   bindUi()
   bindPhysiology()
   bindFleetLaunch()
-  bootstrapApp()
+  bootstrapApp({ skipDefaultPlayer: Boolean(params.fixture) })
   stopLoop()
 
-  // 6. Apply the requested fixture (Phase 5 stub for now; Phase 5 PR
-  //    swaps in the real loader). Fixture overrides anything setupWorld
-  //    spawned procedurally; tests with no fixture inherit the seeded
-  //    default world.
+  // 6. Apply the requested fixture. Fixture is authoritative — anything
+  //    it sets (player money, skills, faction balances, ships, npcs)
+  //    overrides defaults; the default player spawn was skipped above
+  //    when fixture is set so the fixture is the only source.
   if (params.fixture) applyFixture(params.fixture)
 
   // 7. Install __uclife__ + __uclife_test__ runtime namespaces. The
