@@ -31,6 +31,7 @@ import { spawnNPC } from '../character/spawn'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import { addSkillXp, levelOf, getSkillXp, type SkillId } from '../character/skills'
 import { useClock } from '../sim/clock'
+import { getSimRng } from '../sim/rng'
 import { findPlayer, isPlayerOwnedBuilding, playerOwnedWorkstations } from '../ecs/playerFaction'
 import { skillsConfig } from '../config'
 
@@ -113,7 +114,7 @@ function rollDailyApplicants(
     const streakBonus = 1 + cumulativeNoHire * cfg.noHireDayBonus
     const rawChance = cfg.baseRecruitmentChance * perf * streakBonus
     const chance = Math.min(rawChance, cfg.recruitmentChanceCap)
-    if (Math.random() >= chance) {
+    if (getSimRng().next() >= chance) {
       cumulativeNoHire += 1
       break
     }
@@ -203,7 +204,7 @@ function spawnApplicant(
   const center = cfg.baseRecruitSkill * perf
   const skillXp: Partial<Record<SkillId, number>> = {}
   for (const sid of cfg.skillsRolled) {
-    const lvl = Math.max(0, Math.round(center + (Math.random() * 2 - 1) * cfg.skillSpan))
+    const lvl = Math.max(0, Math.round(center + (getSimRng().next() * 2 - 1) * cfg.skillSpan))
     skillXp[sid] = lvl * skillsConfig.xpPerLevel
   }
 
@@ -213,7 +214,7 @@ function spawnApplicant(
     title: '应聘者',
     x: spawn.x,
     y: spawn.y,
-    money: 50 + Math.floor(Math.random() * 80),
+    money: getSimRng().int(50, 129),
     skills: skillXp,
     key,
   })
@@ -254,8 +255,8 @@ function pickLobbyTile(
   radius: number,
 ): { x: number; y: number } | null {
   for (let attempt = 0; attempt < 8; attempt++) {
-    const angle = Math.random() * Math.PI * 2
-    const dist = radius * 0.4 + Math.random() * radius * 0.6
+    const angle = getSimRng().next() * Math.PI * 2
+    const dist = radius * 0.4 + getSimRng().next() * radius * 0.6
     const x = desk.x + Math.cos(angle) * dist
     const y = desk.y + Math.sin(angle) * dist
     if (x < rect.x || x >= rect.x + rect.w) continue
