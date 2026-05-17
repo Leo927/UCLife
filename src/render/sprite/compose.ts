@@ -1,6 +1,7 @@
 import type { LpcAnimation, LpcLayer, LpcManifest } from './types'
 import { recolor } from './recolor'
 import { beginAssetJob } from '../assets/readiness'
+import { isSkipAssets } from '../../test/state'
 
 // LPC standard sheet: 64×64 frames, 13 cols × 4 rows (up/left/down/right).
 export const FRAME_SIZE = 64
@@ -18,6 +19,15 @@ const imgCache = new Map<string, Promise<HTMLImageElement>>()
 function loadImage(url: string): Promise<HTMLImageElement> {
   const hit = imgCache.get(url)
   if (hit) return hit
+  // Test-mode short-circuit: never fetch. Hand back a 1×SHEET-sized
+  // transparent canvas wrapped as an HTMLImageElement-shaped Promise.
+  // Downstream draws blank pixels but every keyed lookup still resolves
+  // and the readiness barrier stays at zero pending jobs.
+  if (isSkipAssets()) {
+    const p = Promise.resolve(makeBlankSpriteImage())
+    imgCache.set(url, p)
+    return p
+  }
   const end = beginAssetJob(`sprite:img:${url}`)
   const p = new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
@@ -29,6 +39,19 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   imgCache.set(url, p)
   p.catch(() => imgCache.delete(url)).finally(end)
   return p
+}
+
+// Stand-in image for test mode. Returns an HTMLImageElement whose
+// width/height match the standard LPC sheet so layered draws still
+// land inside the composite canvas's bounds.
+function makeBlankSpriteImage(): HTMLImageElement {
+  const c = document.createElement('canvas')
+  c.width = SHEET_WIDTH
+  c.height = SHEET_HEIGHT
+  // Casting via unknown — HTMLCanvasElement is a valid CanvasImageSource
+  // and ctx.drawImage accepts it; downstream readers only call .width
+  // / .height on the result, both of which exist on canvas elements.
+  return c as unknown as HTMLImageElement
 }
 
 async function renderLayer(layer: LpcLayer, animation: LpcAnimation): Promise<HTMLCanvasElement | HTMLImageElement> {
