@@ -1,0 +1,14 @@
+// Smallest viable fixture — only seeds the player. Used by the fixture
+// loader unit tests as a known baseline. Coordinates are in tile-space
+// of the target scene (vonBraunCity).
+{
+  seed: 'minimal-player-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1234,
+    location: { scene: 'vonBraunCity', x: 10, y: 12 },
+    skills: { piloting: 42 },
+  },
+}

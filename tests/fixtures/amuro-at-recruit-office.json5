@@ -1,0 +1,31 @@
+// Phase 5 example fixture — mirrors Design/test-determinism.md §Fixture schema.
+// Hand-crafted setup for the future hire-Amuro smoke test (Phase 6). Coordinates
+// are tile-space inside the named scenes. The AE faction balance is set here so
+// the hire transaction can be tested deterministically.
+{
+  seed: 'hire-amuro-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000000,
+    location: { scene: 'vonBraunCity', x: 32, y: 18 },
+    skills: { piloting: 50 },
+    background: 'soldier',
+  },
+
+  factions: [
+    { id: 'anaheim', money: 1000000 },
+  ],
+
+  ships: [
+    { id: 'white-base', template: 'pegasusClass', name: 'White Base',
+      dockedAt: 'vonBraun' },
+  ],
+
+  npcs: [
+    { id: 'amuro', name: 'Amuro Ray',
+      at: { scene: 'vonBraunCity', x: 35, y: 20 },
+      skills: { piloting: 92, engineering: 65 } },
+  ],
+}
