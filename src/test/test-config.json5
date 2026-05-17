@@ -28,4 +28,9 @@
   // Game-minute → game-ms conversion. 60000 ms in one minute.
   // Hoisted into config so step({ gameMinutes }) doesn't hard-code it.
   msPerGameMinute: 60000,
+
+  // Game-second → game-ms conversion. spaceSimSystem takes dt in
+  // seconds (real-ms / 1000) — hoisted into config so the test-mode
+  // tick doesn't hard-code the conversion.
+  msPerGameSecond: 1000,
 }

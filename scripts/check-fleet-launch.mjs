@@ -1,7 +1,5 @@
 // Phase 6.2.E2 — active-fleet auto-launch + cross-POI transit + formation
-// flying smoke. Drives every assertion through __uclife__ debug handles
-// per CLAUDE.md smoke-test rules — no DOM scraping, no fixed sleeps,
-// deterministic.
+// flying smoke.
 //
 // Coverage:
 //   1. Set up a fleet of 3 ships: flagship at VB, Ship A at VB, Ship B
@@ -9,291 +7,324 @@
 //   2. Force-undock the flagship: A auto-launches (FleetEscort body in
 //      spaceCampaign with shipKey=A, formationSlot resolved); B queues
 //      a cross-POI transit.
-//   3. Non-active-fleet ships are unaffected by undock (no FleetEscort
-//      body spawned).
-//   4. Formation: the escort body's Position lands at flagship pos +
-//      formation offset after one space tick.
+//   3. Non-active-fleet ships are unaffected by undock.
+//   4. Formation: escort body's Position = flagship pos + formation offset
+//      after one space tick.
 //   5. Cross-POI transit lander: advance the day; on arrival day the
 //      escort lands at the destination POI with transit fields cleared.
 //   6. Tactical combat start: startCombat spawns CombatShipState for
-//      every player-side active-fleet escort with side='player',
-//      isFlagship=false, hull/armor/weapons populated.
+//      every player-side active-fleet escort.
 //   7. Save round-trip: transit fields preserved; FleetEscort bodies
 //      re-materialize after load.
+//
+// Migrated to Phase 6 deterministic boot: ?test=1 freezes the clock,
+// sim-state waits go through step({ until }).
 
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
 
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage()
 
 const errors = []
-page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+const knownErrors = []
+const PIXI_CANVAS_KNOWN = /Cannot read properties of (null \(reading 'clear'\)|undefined \(reading 'push'\))/
+page.on('pageerror', (e) => {
+  const msg = `${e.name}: ${e.message}`
+  if (PIXI_CANVAS_KNOWN.test(e.message)) { knownErrors.push(msg); return }
+  errors.push(msg)
+})
+page.on('console', (m) => {
+  if (m.type() !== 'error') return
+  const text = m.text()
+  if (text.includes('The above error occurred in the <PixiCanvas>')) { knownErrors.push(`console.error: ${text}`); return }
+  errors.push(`console.error: ${text}`)
+})
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.fillJobVacancies === 'function'
-    && typeof globalThis.__uclife__?.listShipsInFleet === 'function'
-    && typeof globalThis.__uclife__?.listHangarsAllScenes === 'function'
-    && typeof globalThis.__uclife__?.enqueueShipDelivery === 'function'
-    && typeof globalThis.__uclife__?.runShipDeliveryTick === 'function'
-    && typeof globalThis.__uclife__?.receiveShipDelivery === 'function'
-    && typeof globalThis.__uclife__?.warRoomDescribe === 'function'
-    && typeof globalThis.__uclife__?.setIsInActiveFleet === 'function'
-    && typeof globalThis.__uclife__?.forceUndockFlagship === 'function'
-    && typeof globalThis.__uclife__?.forceDockFlagship === 'function'
-    && typeof globalThis.__uclife__?.runFleetTransitTick === 'function'
-    && typeof globalThis.__uclife__?.fleetTransitDescribe === 'function'
-    && typeof globalThis.__uclife__?.fleetEscortBodies === 'function'
-    && typeof globalThis.__uclife__?.combatPlayerSideSnapshot === 'function'
-    && typeof globalThis.__uclife__?.fleetActiveEscortPartition === 'function'
-    && typeof globalThis.__uclife__?.markInActiveFleetRaw === 'function'
-    && typeof globalThis.__uclife__?.forceShipDocking === 'function'
-    && typeof globalThis.__uclife__?.tickSpace === 'function'
-    && typeof globalThis.__uclife__?.cheatMoney === 'function'
-    && typeof globalThis.__uclife__?.saveGame === 'function'
-    && typeof globalThis.__uclife__?.loadGame === 'function',
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.fillJobVacancies === 'function'
+    && typeof window.__uclife__?.listShipsInFleet === 'function'
+    && typeof window.__uclife__?.listHangarsAllScenes === 'function'
+    && typeof window.__uclife__?.enqueueShipDelivery === 'function'
+    && typeof window.__uclife__?.runShipDeliveryTick === 'function'
+    && typeof window.__uclife__?.receiveShipDelivery === 'function'
+    && typeof window.__uclife__?.warRoomDescribe === 'function'
+    && typeof window.__uclife__?.setIsInActiveFleet === 'function'
+    && typeof window.__uclife__?.forceUndockFlagship === 'function'
+    && typeof window.__uclife__?.forceDockFlagship === 'function'
+    && typeof window.__uclife__?.runFleetTransitTick === 'function'
+    && typeof window.__uclife__?.fleetTransitDescribe === 'function'
+    && typeof window.__uclife__?.fleetEscortBodies === 'function'
+    && typeof window.__uclife__?.combatPlayerSideSnapshot === 'function'
+    && typeof window.__uclife__?.fleetActiveEscortPartition === 'function'
+    && typeof window.__uclife__?.tickSpace === 'function'
+    && typeof window.__uclife__?.cheatMoney === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
   null,
   { timeout: 30_000 },
 )
 
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+const STEP_BUDGET_MIN = 60
 
-const failures = []
-const fail = (m) => failures.push(m)
-const pass = (m) => console.log('PASS ' + m)
-
-await page.evaluate(() => globalThis.__uclife__.cheatMoney(2_000_000))
-await page.evaluate(() => globalThis.__uclife__.fillJobVacancies(['hangar_manager']))
-await page.evaluate(() => globalThis.__uclife__.fillJobVacancies(['hangar_manager']))
+await page.evaluate(() => window.__uclife__.cheatMoney(2_000_000))
+await page.evaluate(() => window.__uclife__.fillJobVacancies(['hangar_manager']))
+await page.evaluate(() => window.__uclife__.fillJobVacancies(['hangar_manager']))
 
 // 0. Initial fleet: just the flagship.
-const initialFleet = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
-if (initialFleet.length !== 1) {
-  fail(`expected one starting ship; got ${initialFleet.length}`)
-  await done()
-}
-const flagshipKey = initialFleet[0].entityKey
-if (initialFleet[0].dockedAtPoiId !== 'vonBraun') {
-  fail(`flagship not docked at vonBraun: ${initialFleet[0].dockedAtPoiId}`)
-  await done()
-}
+const initialFleet = await page.evaluate(() => window.__uclife__.listShipsInFleet())
+assert.equal(
+  initialFleet.length, 1,
+  `expected one starting ship; got ${initialFleet.length}`,
+)
+assert.equal(
+  initialFleet[0].dockedAtPoiId, 'vonBraun',
+  `flagship should start docked at vonBraun; got "${initialFleet[0].dockedAtPoiId}"`,
+)
 
-// 1. Spawn Ship A (lunarMilitia at VB hangar) + Ship B (pegasus at Granada).
-const hangars = await page.evaluate(() => globalThis.__uclife__.listHangarsAllScenes())
+// 1. Spawn Ship A at VB hangar + Ship B at Granada drydock.
+const hangars = await page.evaluate(() => window.__uclife__.listHangarsAllScenes())
 const vbHangar = hangars.find((h) => h.typeId === 'hangarSurface')
 const drydock = hangars.find((h) => h.typeId === 'hangarDrydock')
-if (!vbHangar) { fail('VB hangar missing'); await done() }
-if (!drydock) { fail('Granada drydock missing'); await done() }
+assert.ok(vbHangar, 'VB surface hangar missing')
+assert.ok(drydock, 'Granada drydock missing')
 
-await page.evaluate((k) => globalThis.__uclife__.enqueueShipDelivery(k, 'lunarMilitia', 1, 2), vbHangar.buildingKey)
-await page.evaluate(() => globalThis.__uclife__.runShipDeliveryTick(3))
-const rxA = await page.evaluate((k) => globalThis.__uclife__.receiveShipDelivery(k, 0), vbHangar.buildingKey)
-if (!rxA.ok) { fail(`Ship A receive failed: ${JSON.stringify(rxA)}`); await done() }
+await page.evaluate((k) => window.__uclife__.enqueueShipDelivery(k, 'lunarMilitia', 1, 2), vbHangar.buildingKey)
+await page.evaluate(() => window.__uclife__.runShipDeliveryTick(3))
+const rxA = await page.evaluate((k) => window.__uclife__.receiveShipDelivery(k, 0), vbHangar.buildingKey)
+assert.ok(rxA.ok, `Ship A receive failed: ${JSON.stringify(rxA)}`)
 const shipAKey = rxA.entityKey
 
-await page.evaluate((k) => globalThis.__uclife__.enqueueShipDelivery(k, 'pegasusClass', 1, 5), drydock.buildingKey)
-await page.evaluate(() => globalThis.__uclife__.runShipDeliveryTick(6))
-const rxB = await page.evaluate((k) => globalThis.__uclife__.receiveShipDelivery(k, 0), drydock.buildingKey)
-if (!rxB.ok) { fail(`Ship B receive failed: ${JSON.stringify(rxB)}`); await done() }
+await page.evaluate((k) => window.__uclife__.enqueueShipDelivery(k, 'pegasusClass', 1, 5), drydock.buildingKey)
+await page.evaluate(() => window.__uclife__.runShipDeliveryTick(6))
+const rxB = await page.evaluate((k) => window.__uclife__.receiveShipDelivery(k, 0), drydock.buildingKey)
+assert.ok(rxB.ok, `Ship B receive failed: ${JSON.stringify(rxB)}`)
 const shipBKey = rxB.entityKey
 
-const postBuyFleet = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
+const postBuyFleet = await page.evaluate(() => window.__uclife__.listShipsInFleet())
 const shipA = postBuyFleet.find((s) => s.entityKey === shipAKey)
 const shipB = postBuyFleet.find((s) => s.entityKey === shipBKey)
-if (!shipA || shipA.dockedAtPoiId !== 'vonBraun') fail(`Ship A not at VB: ${shipA?.dockedAtPoiId}`)
-else pass(`Ship A delivered at VB (${shipAKey})`)
-if (!shipB || shipB.dockedAtPoiId !== 'granada') fail(`Ship B not at granada: ${shipB?.dockedAtPoiId}`)
-else pass(`Ship B delivered at granada (${shipBKey})`)
+assert.equal(
+  shipA?.dockedAtPoiId, 'vonBraun',
+  `Ship A should dock at vonBraun; got "${shipA?.dockedAtPoiId}"`,
+)
+assert.equal(
+  shipB?.dockedAtPoiId, 'granada',
+  `Ship B should dock at granada; got "${shipB?.dockedAtPoiId}"`,
+)
 
 // 2. Promote A and B into the active fleet.
-await page.evaluate((k) => globalThis.__uclife__.setIsInActiveFleet(k, true), shipAKey)
-await page.evaluate((k) => globalThis.__uclife__.setIsInActiveFleet(k, true), shipBKey)
+await page.evaluate((k) => window.__uclife__.setIsInActiveFleet(k, true), shipAKey)
+await page.evaluate((k) => window.__uclife__.setIsInActiveFleet(k, true), shipBKey)
 
-const wr = await page.evaluate(() => globalThis.__uclife__.warRoomDescribe())
+const wr = await page.evaluate(() => window.__uclife__.warRoomDescribe())
 const rowA = wr.ships.find((r) => r.entityKey === shipAKey)
 const rowB = wr.ships.find((r) => r.entityKey === shipBKey)
-if (!rowA?.isInActiveFleet) fail(`Ship A not in active fleet after promote: ${JSON.stringify(rowA)}`)
-else pass(`Ship A in active fleet @ slot ${rowA.formationSlot}`)
-if (!rowB?.isInActiveFleet) fail(`Ship B not in active fleet after promote: ${JSON.stringify(rowB)}`)
-else pass(`Ship B in active fleet @ slot ${rowB.formationSlot}`)
+assert.ok(rowA?.isInActiveFleet, `Ship A not in active fleet after promote: ${JSON.stringify(rowA)}`)
+assert.ok(rowB?.isInActiveFleet, `Ship B not in active fleet after promote: ${JSON.stringify(rowB)}`)
 
-// 3. Partition assertion: A at VB (same as flagship), B at granada (different).
-const partition = await page.evaluate(() => globalThis.__uclife__.fleetActiveEscortPartition('vonBraun'))
-if (!partition.sameAsFlagshipPoi.includes(shipAKey)) {
-  fail(`Ship A not in sameAsFlagshipPoi partition: ${JSON.stringify(partition)}`)
-} else pass(`partition: A at flagship POI`)
-if (!partition.differentPoi.includes(shipBKey)) {
-  fail(`Ship B not in differentPoi partition: ${JSON.stringify(partition)}`)
-} else pass(`partition: B at different POI`)
+// 3. Partition assertion.
+const partition = await page.evaluate(() => window.__uclife__.fleetActiveEscortPartition('vonBraun'))
+assert.ok(
+  partition.sameAsFlagshipPoi.includes(shipAKey),
+  `Ship A should be in sameAsFlagshipPoi partition: ${JSON.stringify(partition)}`,
+)
+assert.ok(
+  partition.differentPoi.includes(shipBKey),
+  `Ship B should be in differentPoi partition: ${JSON.stringify(partition)}`,
+)
 
 // 4. Force flagship undock at gameDay=5: A auto-launches; B queues transit.
-const undock = await page.evaluate(() => globalThis.__uclife__.forceUndockFlagship('vonBraun', 5))
-if (undock.launchedSameSite !== 1) fail(`expected 1 same-site launch; got ${undock.launchedSameSite}`)
-else pass(`auto-launch: 1 escort body spawned in spaceCampaign`)
-if (undock.queuedTransit !== 1) fail(`expected 1 transit queued; got ${undock.queuedTransit}`)
-else pass(`auto-transit: 1 escort queued`)
-if (undock.transitFailures !== 0) fail(`unexpected transit failures: ${undock.transitFailures}`)
+const undock = await page.evaluate(() => window.__uclife__.forceUndockFlagship('vonBraun', 5))
+assert.equal(
+  undock.launchedSameSite, 1,
+  `expected 1 same-site launch; got ${undock.launchedSameSite}`,
+)
+assert.equal(
+  undock.queuedTransit, 1,
+  `expected 1 transit queued; got ${undock.queuedTransit}`,
+)
+assert.equal(
+  undock.transitFailures, 0,
+  `unexpected transit failures: ${undock.transitFailures}`,
+)
 
-// 5. Ship A is now in flight (no dockedAtPoiId), Ship B is in transit.
-const afterUndock = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
+// 5. Ship A in flight, Ship B in transit.
+const afterUndock = await page.evaluate(() => window.__uclife__.listShipsInFleet())
 const aAfter = afterUndock.find((s) => s.entityKey === shipAKey)
-const bAfter = afterUndock.find((s) => s.entityKey === shipBKey)
-if (!aAfter || aAfter.dockedAtPoiId !== '') fail(`Ship A still docked: ${aAfter?.dockedAtPoiId}`)
-else pass(`Ship A undocked (in flight)`)
-if (!bAfter) fail('Ship B missing after undock')
+assert.equal(
+  aAfter?.dockedAtPoiId, '',
+  `Ship A should be undocked (in flight); got "${aAfter?.dockedAtPoiId}"`,
+)
 
-const transits = await page.evaluate(() => globalThis.__uclife__.fleetTransitDescribe())
+const transits = await page.evaluate(() => window.__uclife__.fleetTransitDescribe())
 const tB = transits.find((t) => t.shipKey === shipBKey)
-if (!tB) fail(`Ship B not in transit list: ${JSON.stringify(transits)}`)
-else if (tB.originPoiId !== 'granada') fail(`Ship B transit originPoiId=${tB.originPoiId}`)
-else if (tB.destinationPoiId !== 'vonBraun') fail(`Ship B transit destinationPoiId=${tB.destinationPoiId}`)
-else if (tB.arrivalDay <= 5) fail(`Ship B arrivalDay=${tB.arrivalDay} not in future of gameDay=5`)
-else pass(`Ship B in transit · granada→vonBraun · arrivalDay=${tB.arrivalDay}`)
+assert.ok(tB, `Ship B not in transit list: ${JSON.stringify(transits)}`)
+assert.equal(
+  tB.originPoiId, 'granada',
+  `Ship B transit originPoiId should be "granada"; got "${tB.originPoiId}"`,
+)
+assert.equal(
+  tB.destinationPoiId, 'vonBraun',
+  `Ship B transit destinationPoiId should be "vonBraun"; got "${tB.destinationPoiId}"`,
+)
+assert.ok(
+  tB.arrivalDay > 5,
+  `Ship B arrivalDay (${tB.arrivalDay}) should be in future of gameDay=5`,
+)
 
-// 6. FleetEscort body for A exists in spaceCampaign.
-const bodies = await page.evaluate(() => globalThis.__uclife__.fleetEscortBodies())
+// 6. FleetEscort body for A exists in spaceCampaign; B has none (in transit).
+const bodies = await page.evaluate(() => window.__uclife__.fleetEscortBodies())
 const bodyA = bodies.find((b) => b.shipKey === shipAKey)
-if (!bodyA) fail(`escort body for A missing: ${JSON.stringify(bodies)}`)
-else pass(`escort body present for Ship A · slot=${bodyA.formationSlot}`)
+assert.ok(bodyA, `escort body for A missing: ${JSON.stringify(bodies)}`)
 const bodyB = bodies.find((b) => b.shipKey === shipBKey)
-if (bodyB) fail(`Ship B should not have an escort body while in transit`)
-else pass(`Ship B has no escort body (in transit)`)
+assert.ok(!bodyB, 'Ship B should not have an escort body while in transit')
 
 // 7. Run one space tick — A's Position lands at flagship.pos + formation offset.
-await page.evaluate(() => globalThis.__uclife__.tickSpace(0.016))
-const bodiesAfterTick = await page.evaluate(() => globalThis.__uclife__.fleetEscortBodies())
+await page.evaluate(() => window.__uclife__.tickSpace(0.016))
+const bodiesAfterTick = await page.evaluate(() => window.__uclife__.fleetEscortBodies())
 const bodyAAfter = bodiesAfterTick.find((b) => b.shipKey === shipAKey)
-if (!bodyAAfter || !bodyAAfter.formationOffset) {
-  fail(`escort A missing formation offset after tick: ${JSON.stringify(bodyAAfter)}`)
-} else {
-  const flagshipPos = await page.evaluate(() => globalThis.__uclife__.shipPos())
-  const expectedX = flagshipPos.x + bodyAAfter.formationOffset.dx
-  const expectedY = flagshipPos.y + bodyAAfter.formationOffset.dy
-  if (Math.abs(bodyAAfter.pos.x - expectedX) > 0.01 || Math.abs(bodyAAfter.pos.y - expectedY) > 0.01) {
-    fail(`escort A pos=(${bodyAAfter.pos.x},${bodyAAfter.pos.y}) ≠ flagship+offset=(${expectedX},${expectedY})`)
-  } else pass(`escort A station-keeps at flagship + formation offset`)
-}
+assert.ok(
+  bodyAAfter?.formationOffset,
+  `escort A missing formation offset after tick: ${JSON.stringify(bodyAAfter)}`,
+)
+const flagshipPos = await page.evaluate(() => window.__uclife__.shipPos())
+const expectedX = flagshipPos.x + bodyAAfter.formationOffset.dx
+const expectedY = flagshipPos.y + bodyAAfter.formationOffset.dy
+assert.ok(
+  Math.abs(bodyAAfter.pos.x - expectedX) < 0.01 && Math.abs(bodyAAfter.pos.y - expectedY) < 0.01,
+  `escort A pos=(${bodyAAfter.pos.x},${bodyAAfter.pos.y}) ≠ flagship+offset=(${expectedX},${expectedY})`,
+)
 
-// 8. Non-active-fleet ship: demote A first, undock flagship again, A should NOT
-//    auto-launch. (Re-dock first to reset.)
-await page.evaluate(() => globalThis.__uclife__.forceDockFlagship('vonBraun'))
-const afterRedock = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
+// 8. Demote A, undock flagship again — A should NOT auto-launch.
+await page.evaluate(() => window.__uclife__.forceDockFlagship('vonBraun'))
+const afterRedock = await page.evaluate(() => window.__uclife__.listShipsInFleet())
 const aRedocked = afterRedock.find((s) => s.entityKey === shipAKey)
-if (!aRedocked || aRedocked.dockedAtPoiId !== 'vonBraun') {
-  fail(`Ship A failed to re-dock: ${aRedocked?.dockedAtPoiId}`)
-} else pass(`Ship A re-docked at VB after flagship dock`)
+assert.equal(
+  aRedocked?.dockedAtPoiId, 'vonBraun',
+  `Ship A should re-dock at vonBraun after flagship dock; got "${aRedocked?.dockedAtPoiId}"`,
+)
 
-await page.evaluate((k) => globalThis.__uclife__.setIsInActiveFleet(k, false), shipAKey)
-const undock2 = await page.evaluate(() => globalThis.__uclife__.forceUndockFlagship('vonBraun', 6))
-if (undock2.launchedSameSite !== 0) {
-  fail(`expected 0 same-site launches after demoting A; got ${undock2.launchedSameSite}`)
-} else pass(`non-active-fleet ship A unaffected by undock`)
+await page.evaluate((k) => window.__uclife__.setIsInActiveFleet(k, false), shipAKey)
+const undock2 = await page.evaluate(() => window.__uclife__.forceUndockFlagship('vonBraun', 6))
+assert.equal(
+  undock2.launchedSameSite, 0,
+  `expected 0 same-site launches after demoting A; got ${undock2.launchedSameSite}`,
+)
 
-// Re-dock for the next scenario.
-await page.evaluate(() => globalThis.__uclife__.forceDockFlagship('vonBraun'))
-await page.evaluate((k) => globalThis.__uclife__.setIsInActiveFleet(k, true, 0), shipAKey)
+await page.evaluate(() => window.__uclife__.forceDockFlagship('vonBraun'))
+await page.evaluate((k) => window.__uclife__.setIsInActiveFleet(k, true, 0), shipAKey)
 
-// 9. Cross-POI transit lander: advance day to Ship B's arrivalDay.
-const transitsBeforeLand = await page.evaluate(() => globalThis.__uclife__.fleetTransitDescribe())
+// 9. Cross-POI transit lander.
+const transitsBeforeLand = await page.evaluate(() => window.__uclife__.fleetTransitDescribe())
 const tBBefore = transitsBeforeLand.find((t) => t.shipKey === shipBKey)
 const arrivalDay = tBBefore?.arrivalDay
-if (!arrivalDay) { fail('Ship B not in transit before land tick'); await done() }
+assert.ok(arrivalDay, 'Ship B not in transit before land tick')
 
 const landResult = await page.evaluate(
-  (day) => globalThis.__uclife__.runFleetTransitTick(day),
+  (day) => window.__uclife__.runFleetTransitTick(day),
   arrivalDay,
 )
-if (landResult.landed < 1) fail(`expected at least 1 ship landed; got ${landResult.landed}`)
-else pass(`fleet-transit tick landed ${landResult.landed} ship(s) on arrivalDay=${arrivalDay}`)
+assert.ok(
+  landResult.landed >= 1,
+  `expected at least 1 ship landed; got ${landResult.landed}`,
+)
 
-const postLand = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
+const postLand = await page.evaluate(() => window.__uclife__.listShipsInFleet())
 const bPostLand = postLand.find((s) => s.entityKey === shipBKey)
-if (!bPostLand || bPostLand.dockedAtPoiId !== 'vonBraun') {
-  fail(`Ship B not docked at vonBraun after land: ${bPostLand?.dockedAtPoiId}`)
-} else pass(`Ship B docked at vonBraun after land`)
-const transitsAfterLand = await page.evaluate(() => globalThis.__uclife__.fleetTransitDescribe())
-if (transitsAfterLand.find((t) => t.shipKey === shipBKey)) {
-  fail(`Ship B still in transit list after land`)
-} else pass(`Ship B cleared from transit list`)
+assert.equal(
+  bPostLand?.dockedAtPoiId, 'vonBraun',
+  `Ship B should dock at vonBraun after land; got "${bPostLand?.dockedAtPoiId}"`,
+)
+const transitsAfterLand = await page.evaluate(() => window.__uclife__.fleetTransitDescribe())
+assert.ok(
+  !transitsAfterLand.find((t) => t.shipKey === shipBKey),
+  'Ship B should be cleared from transit list after land',
+)
 
 // 10. Tactical combat start: spawn CombatShipState for player-side escorts.
-//     Re-dock flagship, ensure A and B are both active at VB, then drive
-//     combat through startCombatCheat.
-await page.evaluate(() => globalThis.__uclife__.forceDockFlagship('vonBraun'))
-await page.evaluate(() => globalThis.__uclife__.startCombatCheat('pirateLight', [], null, {}))
-const csSnap = await page.evaluate(() => globalThis.__uclife__.combatPlayerSideSnapshot())
+await page.evaluate(() => window.__uclife__.forceDockFlagship('vonBraun'))
+await page.evaluate(() => window.__uclife__.startCombatCheat('pirateLight', [], null, {}))
+const csSnap = await page.evaluate(() => window.__uclife__.combatPlayerSideSnapshot())
 const flagshipRow = csSnap.find((r) => r.isFlagship)
 const escortRows = csSnap.filter((r) => !r.isFlagship && !r.isMs)
-if (!flagshipRow) fail('no flagship row in combatPlayerSideSnapshot')
-else pass(`flagship row present in combat snapshot`)
-if (escortRows.length < 2) fail(`expected ≥2 escort CombatShipState rows; got ${escortRows.length}`)
-else pass(`startCombat spawned ${escortRows.length} player-side escort CombatShipState rows`)
+assert.ok(flagshipRow, 'no flagship row in combatPlayerSideSnapshot')
+assert.ok(
+  escortRows.length >= 2,
+  `expected ≥2 escort CombatShipState rows; got ${escortRows.length}`,
+)
 for (const er of escortRows) {
-  if (er.hullCurrent <= 0 || er.hullMax <= 0) fail(`escort ${er.entityKey} hull invalid: ${er.hullCurrent}/${er.hullMax}`)
-  if (er.weaponsCount === 0) fail(`escort ${er.entityKey} has no weapons`)
+  assert.ok(
+    er.hullCurrent > 0 && er.hullMax > 0,
+    `escort ${er.entityKey} hull invalid: ${er.hullCurrent}/${er.hullMax}`,
+  )
+  assert.ok(
+    er.weaponsCount > 0,
+    `escort ${er.entityKey} has no weapons (${er.weaponsCount})`,
+  )
 }
-if (escortRows.every((er) => er.hullCurrent > 0 && er.weaponsCount > 0)) {
-  pass(`each escort has hull + weapons populated`)
-}
-// Tear down combat: pause is on at start (speed 0); unpause one tick so
-// the resolution loop sees the zeroed enemies and ends combat.
-await page.evaluate(() => globalThis.__uclife__.fastWinCombat())
+
+await page.evaluate(() => window.__uclife__.fastWinCombat())
 await page.evaluate(() => {
-  const cs = globalThis.__uclife__.useCombatStore.getState()
+  const cs = window.__uclife__.useCombatStore.getState()
   if (cs.paused) cs.togglePause()
 })
-// Wait for combat mode to clear (resolution loop endCombat call).
-await page.waitForFunction(
-  () => globalThis.__uclife__.useClock.getState().mode !== 'combat',
-  null,
-  { timeout: 10_000 },
-)
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+await page.evaluate(async (mins) => {
+  await window.__uclife_test__.step({
+    until: () => window.__uclife__.useClock.getState().mode !== 'combat',
+    maxGameMinutes: mins,
+  })
+}, STEP_BUDGET_MIN)
 
-// 11. Save round-trip: undock flagship (Ship A auto-launches → in flight),
-//     save, load, escort body re-materializes.
-await page.evaluate(() => globalThis.__uclife__.forceUndockFlagship('vonBraun', 10))
-const bodiesPreSave = await page.evaluate(() => globalThis.__uclife__.fleetEscortBodies())
+// 11. Save round-trip.
+await page.evaluate(() => window.__uclife__.forceUndockFlagship('vonBraun', 10))
+const bodiesPreSave = await page.evaluate(() => window.__uclife__.fleetEscortBodies())
 const bodyAPreSave = bodiesPreSave.find((b) => b.shipKey === shipAKey)
-if (!bodyAPreSave) { fail('escort body for A missing pre-save'); await done() }
+assert.ok(bodyAPreSave, 'escort body for A missing pre-save')
 
-await page.evaluate(async () => { await globalThis.__uclife__.saveGame('auto') })
-await page.evaluate(async () => { await globalThis.__uclife__.loadGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.saveGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.loadGame('auto') })
 
-// Wait for re-bootstrap to finish (handle re-registration).
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.fleetEscortBodies === 'function',
+  () => typeof window.__uclife__?.fleetEscortBodies === 'function',
   null,
   { timeout: 15_000 },
 )
 
-const postLoadFleet = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
+const postLoadFleet = await page.evaluate(() => window.__uclife__.listShipsInFleet())
 const aPostLoad = postLoadFleet.find((s) => s.entityKey === shipAKey)
-if (!aPostLoad) fail('Ship A missing post-load')
-else if (aPostLoad.dockedAtPoiId !== '') fail(`Ship A re-docked post-load: ${aPostLoad.dockedAtPoiId}`)
-else pass(`Ship A still in flight after save round-trip`)
+assert.ok(aPostLoad, 'Ship A missing post-load')
+assert.equal(
+  aPostLoad.dockedAtPoiId, '',
+  `Ship A should still be in flight after save round-trip; got "${aPostLoad.dockedAtPoiId}"`,
+)
 
-const bodiesPostLoad = await page.evaluate(() => globalThis.__uclife__.fleetEscortBodies())
+const bodiesPostLoad = await page.evaluate(() => window.__uclife__.fleetEscortBodies())
 const bodyAPostLoad = bodiesPostLoad.find((b) => b.shipKey === shipAKey)
-if (!bodyAPostLoad) fail('escort body for Ship A missing post-load')
-else pass(`escort body for Ship A re-materialized post-load`)
+assert.ok(
+  bodyAPostLoad,
+  `escort body for Ship A missing post-load: ${JSON.stringify(bodiesPostLoad)}`,
+)
 
-await done()
+assert.equal(
+  errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`,
+)
 
-async function done() {
-  await browser.close()
-  if (errors.length) {
-    console.log('\nERRORS:')
-    errors.forEach((e) => console.log('  ' + e))
-  }
-  if (failures.length) {
-    console.log('\nFAILURES:')
-    failures.forEach((f) => console.log('  ' + f))
-    process.exit(1)
-  }
-  console.log('\nOK: 6.2.E2 auto-launch + cross-POI transit + formation verified.')
+await browser.close()
+
+if (knownErrors.length > 0) {
+  console.log(`(filtered ${knownErrors.length} known Pixi v8 startup errors)`)
 }
+
+console.log('OK — check-fleet-launch:')
+console.log(`  fleet size post-grant: 3 (flagship + ${shipAKey} + ${shipBKey})`)
+console.log(`  Ship A auto-launched in spaceCampaign on flagship undock`)
+console.log(`  Ship B cross-POI transit landed on arrivalDay=${arrivalDay}`)
+console.log(`  escort body re-materialized after save round-trip`)
