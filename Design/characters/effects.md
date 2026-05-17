@@ -54,9 +54,14 @@ interface Effect {
   // sets this to instanceId; backgrounds set it to the background id.
   originId: string
 
-  family: 'background' | 'perk' | 'condition' | 'gear'
+  family: 'background' | 'perk' | 'skill_perk' | 'condition' | 'gear'
 
   modifiers: Modifier[]
+
+  // Optional non-stat payloads. Either may be absent. See "Unlocks and
+  // Abilities" below.
+  unlocks?: string[]
+  abilities?: AbilityGrant[]
 
   // Display metadata — none of these participate in the fold.
   nameZh?: string
@@ -137,6 +142,51 @@ mood layer ships. Authoring a condition that needs a mood debit
 *before* mood ships is allowed — the modifier sits inert on a base of
 1.0 with no consumer until Phase 5 wires it up.
 
+## Unlocks and Abilities
+
+Not every gameplay lever a perk wants to pull is a stat number.
+Skill Perks ([skills.md](skills.md)) introduced two non-numeric
+payloads that ride the same Effect channel because they share its
+lifecycle (apply on grant, remove on respec, round-trip on save).
+
+```ts
+type AbilityGrant = {
+  id: string            // ability handler key, e.g. 'ms_emergency_repair'
+  cooldownSec: number   // base cooldown; per-character cooldowns track on
+                        // a parallel Abilities trait, not on the Effect
+  nameZh?: string
+  descZh?: string
+}
+```
+
+**`unlocks: string[]`** — flag strings consumed by upstream systems.
+The interaction system queries them to decide which verbs to surface
+on a target; the recipe / diagnose / dialogue systems query them as
+binary gates. Sources include skill perks, ambition perks, and (in
+future) gear.
+
+**Query API.** Consumers call `hasUnlock(character, 'verb:self_treat')`
+which folds `Effects.list` for the flag. The fold is memoized on the
+sheet's `version` field, identical to `getStat()` — no separate cache.
+Multiple Effects granting the same flag are idempotent (set semantics);
+removal of one source still leaves the flag granted if another source
+holds it.
+
+**`abilities: AbilityGrant[]`** — *consumer deferred to Phase 6+
+tactical combat.* Active player-triggered abilities with cooldowns.
+Granted via Effect, but per-character cooldown timers live on a
+parallel `Abilities` trait the active-abilities subsystem owns; the
+Effect contributes only the **declaration** that the ability is
+available, not the runtime state. This split is so that respec /
+gear-swap removing an Effect removes the ability cleanly without
+losing unrelated cooldowns, and so cooldowns survive Effect
+re-emission (e.g. severity band flip on a condition that grants an
+ability).
+
+Reserved-and-unused for now: the data model carries the field so
+skill-perk authoring at Phase 5.0 can already place tier-60 ability
+rows without churning the Effect shape when combat ships.
+
 ## Banded condition effects
 
 Conditions are the only Effect family with severity-driven modifier
@@ -199,7 +249,8 @@ is illegal." Each upstream system enforces its own rules:
 | System | Stacking policy | Enforcement |
 |---|---|---|
 | Backgrounds | At most one per character | Character creator |
-| Perks | Unique by id (id is the apply-once key) | `Ambitions.perks` is a string set |
+| Ambition Perks | Unique by id (id is the apply-once key) | `Ambitions.perks` is a string set |
+| Skill Perks | One pick per (skill, tier) | Picker UI enforces mutex; respec removes prior pick before granting new |
 | Conditions | Unique by `(templateId, bodyPart)` | Onset roll checks `Conditions` list |
 | Gear (future) | Slot-based (one helm, one chest, …) | Equip system |
 
@@ -283,7 +334,7 @@ skills-as-stats, work-perf, conditions) sequence on top.
 |---|---|---|
 | 1. Effects trait + ModType `floor` / `cap` | New trait + sheet math + tests | No |
 | 2. Backgrounds → Effect emitter | Replace `applyBackground()` with "produce Effect, push to list"; sheet rebuild flows from there | No (numbers unchanged) |
-| 3. Perks → Effect emitter | Replace `syncPerkModifiers()`; non-`vitalDecay` perks (`wageMul`, `shopDiscountMul`, `rentMul`, `skillXpMul`) start round-tripping through the sheet | Yes — the four perk kinds that bypassed the sheet today now stack correctly |
+| 3. Perks → Effect emitter | Replace `syncPerkModifiers()`; non-`vitalDecay` perks (`wageMul`, `shopDiscountMul`, `rentMul`, `skillXpMul`) start round-tripping through the sheet; same step lands `family: 'skill_perk'` + `unlocks` field + `hasUnlock()` query | Yes — the four ambition-perk kinds that bypassed the sheet today now stack correctly; skill-perk picker UI ships alongside |
 | 4. Skills migration | Skills move into StatSheet; XP code writes `base`; consumers read via `getStat()` | No (numbers unchanged) |
 | 5. Verb-speed stats | Add 10 `<verb>Speed` stats; action FSM switches to `getStat()` per tick | No (all bases at 1.0) |
 | 6. `workPerfMul` stat | `workSystem` switches to `getStat()` | No |

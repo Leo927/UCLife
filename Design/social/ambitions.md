@@ -109,11 +109,21 @@ warlord's fewer-but-bigger stages.
 
 ## Perks
 
-Perks are the spendable side of AP. Each perk has a fixed AP cost and
-provides a passive mechanical effect. They are **broadly useful** — a
-perk earned on a `lazlos_owner` run should be just as desirable on a
-`mw_pilot` run, mostly. This is the Sims pattern: aspiration-specific
-flavor lives in stage names and titles; perks are mostly cross-cutting.
+**Ambition Perks** are the spendable side of AP. Each perk has a fixed
+AP cost and provides a passive mechanical effect. They are **broadly
+useful** — a perk earned on a `lazlos_owner` run should be just as
+desirable on a `mw_pilot` run, mostly. This is the Sims pattern:
+aspiration-specific flavor lives in stage names and titles; perks are
+mostly cross-cutting.
+
+Ambition Perks are one of the player's two identity axes. The other is
+**Skill Perks** ([../characters/skills.md](../characters/skills.md)) —
+gated on skill level, picked free at level milestones, and built
+around verb unlocks and active abilities rather than multipliers.
+Architecturally both share the unified Effect channel
+([../characters/effects.md](../characters/effects.md)); semantically
+they answer different questions ("what I want to do with my life" vs.
+"how my hands work").
 
 Sample perk categories (final catalog is implementation-time work in
 `data/perks.json5`):
@@ -191,7 +201,8 @@ new wartime context.
 - [relationships.md](relationships.md) — supplies "befriend X" verb
 - [faction-management.md](faction-management.md) — Phase 6+ fleet/colony ambitions; perk categories that unlock with faction tier
 - [../characters/attributes.md](../characters/attributes.md) — supplies stat thresholds
-- [../characters/skills.md](../characters/skills.md) — supplies skill thresholds
+- [../characters/skills.md](../characters/skills.md) — supplies skill thresholds; also hosts the parallel **Skill Perks** identity axis
+- [../characters/effects.md](../characters/effects.md) — unified Effect channel shared by Ambition Perks and Skill Perks
 - [../mobile-worker.md](../mobile-worker.md) — verb that fulfills the `mw_pilot` ambition
 - [../combat.md](../combat.md) — what `warPayoff` resolves into; civilian-war is the default Phase 7 experience
 - [../phasing.md](../phasing.md) — overall phase order
