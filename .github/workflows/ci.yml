@@ -82,6 +82,8 @@ jobs:
 
       - run: node scripts/check.mjs
       - if: always()
+        run: node scripts/check-test-boot.mjs
+      - if: always()
         run: node scripts/check-saveload.mjs
       - if: always()
         run: node scripts/check-ambitions.mjs

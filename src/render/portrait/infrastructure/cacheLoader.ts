@@ -8,6 +8,7 @@
 import type { SvgCache } from '../types'
 import { ensureLoaded, installFCGlobals } from '../bridge'
 import { beginAssetJob } from '../../assets/readiness'
+import { isSkipAssets } from '../../../test/state'
 
 let revampPromise: Promise<SvgCache> | null = null
 let vectorPromise: Promise<SvgCache> | null = null
@@ -38,6 +39,17 @@ async function fetchCache(filename: string): Promise<Record<string, string>> {
 
 export function loadRevampCache(): Promise<SvgCache> {
   if (revampPromise) return revampPromise
+  // Test-mode short-circuit: skip the ~28 MB fetch + parse. Install an
+  // empty cache so downstream lookups don't NPE on App.Data.Art access.
+  if (isSkipAssets()) {
+    revampPromise = (async () => {
+      installFCGlobals()
+      const empty: SvgCache = new Map()
+      globalThis.App.Data.Art.VectorRevamp = empty
+      return empty
+    })()
+    return revampPromise
+  }
   const end = beginAssetJob('portrait:cache:revamp')
   revampPromise = (async () => {
     installFCGlobals()
@@ -53,6 +65,15 @@ export function loadRevampCache(): Promise<SvgCache> {
 
 export function loadVectorCache(): Promise<SvgCache> {
   if (vectorPromise) return vectorPromise
+  if (isSkipAssets()) {
+    vectorPromise = (async () => {
+      installFCGlobals()
+      const empty: SvgCache = new Map()
+      globalThis.App.Data.Art.Vector = empty
+      return empty
+    })()
+    return vectorPromise
+  }
   const end = beginAssetJob('portrait:cache:vector')
   vectorPromise = (async () => {
     installFCGlobals()
