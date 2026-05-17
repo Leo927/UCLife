@@ -12,6 +12,7 @@ import {
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
 } from '../systems/combat'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
+import { simNow } from '../sim/time'
 import { combatConfig } from '../config'
 import { getWorld } from '../ecs/world'
 import { Ship, WeaponMount, CombatShipState, EntityKey, IsFlagshipMark } from '../ecs/traits'
@@ -436,7 +437,7 @@ export function TacticalView() {
   const ms = snapshotPlayerMs()
   if (!player || enemies.length === 0) return null
 
-  const flashAge = performance.now() - lastFlashAtMs
+  const flashAge = simNow() - lastFlashAtMs
   const showFlash = lastFlashZh && flashAge < 1500
 
   // Mouse over arena: track cursor in arena world coords. The combat tick
