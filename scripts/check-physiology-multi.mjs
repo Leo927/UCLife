@@ -1,23 +1,30 @@
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import { BOOT_READY_TIMEOUT_MS, VIEWPORT } from './_test-constants.mjs'
 
-// Phase 4.0 multi-condition smoke test.
+// Phase 4.0 multi-condition smoke test — migrated to the deterministic
+// API (Phase 6, Category A). Verifies that simultaneous cold + food_poisoning
+// round-trip through the phase machine and the StatSheet without
+// modifier collision.
 //
-// Verifies that simultaneous cold + food_poisoning round-trip through
-// the phase machine and the StatSheet without modifier collision:
-//
+// Coverage:
 //   - both onset
 //   - both progress through phases independently
-//   - workPerfMul stacks multiplicatively (cold mild × food_poisoning band-a)
+//   - workPerfMul stacks multiplicatively (cold band × food_poisoning band)
 //   - food_poisoning stalls at requiredTier 1 untreated
 //   - clinic flow (diagnose + commitTreatment to tier 1) flips it back
 //     to recovering on the next tick
-//
-// All driven through __uclife__ debug handles for determinism.
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
+
+const PHASE_WALK_MAX_DAYS = 8
+const STACKED_WORK_PERF_MUL_CEILING = 0.7
+const FP_TREATMENT_TIER = 1
+const FP_REGEN_RATE = 5
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+const ctx = await browser.newContext({ viewport: VIEWPORT })
 const page = await ctx.newPage()
 
 const errors = []
@@ -26,84 +33,80 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
 })
 
-const failures = []
-const fail = (msg) => failures.push(msg)
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForFunction(() => globalThis.__uclife__?.physiologyForceOnset !== undefined)
-await page.evaluate(() => { globalThis.__uclife__.useClock?.getState?.()?.setSpeed?.(0) })
+await page.waitForFunction(
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.physiologyForceOnset === 'function'
+    && typeof window.__uclife__?.physiologyDiagnose === 'function'
+    && typeof window.__uclife__?.physiologyCommitTreatment === 'function'
+    && typeof window.__uclife__?.physiologyTickDay === 'function'
+    && typeof window.__uclife__?.getPlayerStatValue === 'function'
+    && typeof window.__uclife__?.getEffectsList === 'function',
+  null,
+  { timeout: BOOT_READY_TIMEOUT_MS },
+)
 
-// 1. Onset both.
-const cold = await page.evaluate(() => globalThis.__uclife__.physiologyForceOnset('cold_common', 'A'))
-const fp = await page.evaluate(() => globalThis.__uclife__.physiologyForceOnset('food_poisoning', 'B'))
-if (!cold) fail('cold_common onset failed')
-if (!fp) fail('food_poisoning onset failed')
+const cold = await page.evaluate(() => window.__uclife__.physiologyForceOnset('cold_common', 'A'))
+const fp = await page.evaluate(() => window.__uclife__.physiologyForceOnset('food_poisoning', 'B'))
+assert.ok(cold, 'cold_common onset failed')
+assert.ok(fp, 'food_poisoning onset failed')
 
-// 2. Step a few days. Both should clear incubation and emit modifiers.
 let bothActiveOnce = false
 let stalledFp = null
-for (let day = 1; day <= 8; day++) {
-  const list = await page.evaluate(() => globalThis.__uclife__.physiologyTickDay(1))
-  if (!Array.isArray(list)) { fail('tickDay did not return an array'); break }
+for (let day = 1; day <= PHASE_WALK_MAX_DAYS; day++) {
+  const list = await page.evaluate(() => window.__uclife__.physiologyTickDay(1))
+  assert.ok(Array.isArray(list),
+    `physiologyTickDay should return an array on day ${day}, got ${typeof list}`)
   const c = list.find((x) => x.templateId === 'cold_common')
   const f = list.find((x) => x.templateId === 'food_poisoning')
   if (c && f && c.phase !== 'incubating' && f.phase !== 'incubating') {
-    const wpm = await page.evaluate(() => globalThis.__uclife__.getPlayerStatValue('workPerfMul'))
-    // cold band [20,100] is -0.20; food_poisoning band [20,100] is -0.30.
-    // Stack: 0.8 * 0.7 = 0.56 (when both bands are active).
-    if (typeof wpm === 'number' && wpm < 0.7 && wpm > 0) {
+    const wpm = await page.evaluate(() => window.__uclife__.getPlayerStatValue('workPerfMul'))
+    if (typeof wpm === 'number' && wpm < STACKED_WORK_PERF_MUL_CEILING && wpm > 0) {
       bothActiveOnce = true
     }
   }
   if (f && f.phase === 'stalled') stalledFp = f
 }
 
-if (!bothActiveOnce) fail('expected workPerfMul < 0.7 with cold + food_poisoning bands stacking')
-if (!stalledFp) {
-  // Hard fail before downstream cascades — the diagnose / commit / band
-  // hidden=false checks below all read the instance id from this object.
-  fail('food_poisoning did not stall (requiredTier 1 untreated) — aborting downstream checks')
-} else {
+assert.ok(bothActiveOnce,
+  `expected workPerfMul < ${STACKED_WORK_PERF_MUL_CEILING} with cold + food_poisoning bands stacking`)
+assert.ok(stalledFp,
+  'food_poisoning did not stall (requiredTier 1 untreated)')
 
-// 3. Diagnose + commit pharmacy treatment on the food poisoning instance.
 const diagOk = await page.evaluate((id) =>
-  globalThis.__uclife__.physiologyDiagnose(id), stalledFp.instanceId,
+  window.__uclife__.physiologyDiagnose(id), stalledFp.instanceId,
 )
-if (!diagOk) fail('diagnose returned false')
+assert.ok(diagOk, 'diagnose returned false')
 
-const commitOk = await page.evaluate(([id]) =>
-  globalThis.__uclife__.physiologyCommitTreatment(id, 1, 5),
-[stalledFp.instanceId])
-if (!commitOk) fail('commitTreatment returned false')
+const commitOk = await page.evaluate(([id, tier, rate]) =>
+  window.__uclife__.physiologyCommitTreatment(id, tier, rate),
+  [stalledFp.instanceId, FP_TREATMENT_TIER, FP_REGEN_RATE],
+)
+assert.ok(commitOk, 'commitTreatment returned false')
 
-// 4. After one more tick, food poisoning should NOT be stalled.
-const afterCommit = await page.evaluate(() => globalThis.__uclife__.physiologyTickDay(1))
+const afterCommit = await page.evaluate(() => window.__uclife__.physiologyTickDay(1))
 const fpAfter = afterCommit?.find?.((x) => x.templateId === 'food_poisoning')
-if (fpAfter && fpAfter.phase === 'stalled') {
-  fail(`food_poisoning still stalled after pharmacy commit: ${JSON.stringify(fpAfter)}`)
+if (fpAfter) {
+  assert.notEqual(fpAfter.phase, 'stalled',
+    `food_poisoning still stalled after pharmacy commit: ${JSON.stringify(fpAfter)}`)
 }
 
-// 5. After diagnosis the per-band Effects should have hidden=false.
-const eff = await page.evaluate(() => globalThis.__uclife__.getEffectsList())
+const eff = await page.evaluate(() => window.__uclife__.getEffectsList())
 const fpEffects = (eff ?? []).filter((e) =>
   e.family === 'condition' && (e.id ?? '').includes(stalledFp.instanceId),
 )
-if (fpEffects.length === 0) fail('expected food_poisoning band Effects to be present after diagnosis')
-if (fpEffects.some((e) => e.hidden === true)) fail('expected hidden=false on every band after diagnosis')
+assert.ok(fpEffects.length > 0,
+  'expected food_poisoning band Effects to be present after diagnosis')
+assert.ok(!fpEffects.some((e) => e.hidden === true),
+  `expected hidden=false on every band after diagnosis; got ${JSON.stringify(fpEffects)}`)
 
-}  // end of `else` guarding null stalledFp
+assert.equal(errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`)
 
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
-}
-if (failures.length) {
-  console.log('\nFAILURES:')
-  failures.forEach((f) => console.log('  ' + f))
-}
-
-const ok = failures.length === 0 && errors.length === 0
-console.log(ok ? '\nOK: multi-condition + clinic flow passed.' : '\nFAIL: multi-condition checks failed.')
-if (!ok) process.exitCode = 1
+console.log('OK — check-physiology-multi:')
+console.log(`  cold + food_poisoning stacked at workPerfMul < ${STACKED_WORK_PERF_MUL_CEILING}`)
+console.log(`  food_poisoning stalled then resumed after pharmacy commit`)
+console.log(`  diagnosed bands visible: ${fpEffects.length}`)
 
 await browser.close()

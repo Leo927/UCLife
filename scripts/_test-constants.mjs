@@ -10,6 +10,7 @@ export const BOOT_READY_TIMEOUT_MS = 30_000
 export const DOM_COMMIT_TIMEOUT_MS = 5_000
 export const MS_PER_GAME_MINUTE = 60_000
 export const MINUTES_PER_GAME_DAY = 24 * 60
+export const SAVE_LOAD_READY_TIMEOUT_MS = 15_000
 export const VIEWPORT = { width: 1280, height: 800 }
 
 // Test-mode (`?test=1` without `&assets=1`) installs empty portrait caches,

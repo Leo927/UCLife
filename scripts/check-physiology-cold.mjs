@@ -1,10 +1,11 @@
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import { BOOT_READY_TIMEOUT_MS, VIEWPORT } from './_test-constants.mjs'
 
-// Phase 4.0 cold lifecycle smoke test.
-//
-// Drives the entire arc through __uclife__ debug handles. No DOM clicks,
-// no real-time waits — every step is a deterministic call into the sim
-// layer.
+// Phase 4.0 cold lifecycle smoke test — migrated to the deterministic
+// API (Phase 6, Category A). The sim clock is frozen by ?test=1; the
+// physiologyTickDay verb advances the phase machine one game-day at a
+// time without driving the wall clock.
 //
 // Coverage:
 //   - force-onset cold_common
@@ -12,16 +13,17 @@ import { chromium } from 'playwright'
 //     → resolved-clean
 //   - StatSheet modifier presence during rising/peak (workPerfMul < 1)
 //   - StatSheet modifier removal on resolve (workPerfMul == 1)
-//   - condition strip icon present then absent
-//
-// Reliability bar (CLAUDE.md): 20/20 green via `npm run ci:local --
-// --workers 4`. No setTimeout polls, no DOM-text assertions on sprite
-// content.
+//   - condition Effect list empty after resolve
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
+
+const COLD_LIFECYCLE_MAX_DAYS = 18
+const COLD_SYMPTOM_SEVERITY_THRESHOLD = 20
+const BASELINE_WORK_PERF_MUL = 1
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+const ctx = await browser.newContext({ viewport: VIEWPORT })
 const page = await ctx.newPage()
 
 const errors = []
@@ -30,33 +32,33 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
 })
 
-const failures = []
-const fail = (msg) => failures.push(msg)
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForFunction(() => globalThis.__uclife__?.physiologyForceOnset !== undefined)
-
-// Pause the game so the day rollover can't fire from the RAF loop.
-await page.evaluate(() => { globalThis.__uclife__.useClock?.getState?.()?.setSpeed?.(0) })
-
-// 1. Force-onset cold_common.
-const onset = await page.evaluate(() =>
-  globalThis.__uclife__.physiologyForceOnset('cold_common', '测试'),
+await page.waitForFunction(
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.physiologyForceOnset === 'function'
+    && typeof window.__uclife__?.physiologyTickDay === 'function'
+    && typeof window.__uclife__?.getPlayerStatValue === 'function'
+    && typeof window.__uclife__?.getConditions === 'function'
+    && typeof window.__uclife__?.getEffectsList === 'function',
+  null,
+  { timeout: BOOT_READY_TIMEOUT_MS },
 )
-if (!onset) fail('forceOnset returned null — cold_common template missing or trait absent')
-if (onset?.phase !== 'incubating') fail(`expected initial phase incubating, got ${onset?.phase}`)
 
-// 2. Walk the lifecycle. Cold incubation [1,2], rise [1,2], peak 1, recovery
-// is endurance-driven so 14 days is plenty.
-let phasesSeen = new Set()
+const onset = await page.evaluate(() =>
+  window.__uclife__.physiologyForceOnset('cold_common', '测试'),
+)
+assert.ok(onset, 'forceOnset returned null — cold_common template missing or trait absent')
+assert.equal(onset.phase, 'incubating',
+  `expected initial phase incubating, got ${onset.phase}`)
+
+const phasesSeen = new Set()
 let workPerfDuringSymptoms = null
 let resolved = false
-for (let day = 1; day <= 18; day++) {
-  const list = await page.evaluate(() => globalThis.__uclife__.physiologyTickDay(1))
-  if (!Array.isArray(list)) {
-    fail('physiologyTickDay did not return an array')
-    break
-  }
+for (let day = 1; day <= COLD_LIFECYCLE_MAX_DAYS; day++) {
+  const list = await page.evaluate(() => window.__uclife__.physiologyTickDay(1))
+  assert.ok(Array.isArray(list),
+    `physiologyTickDay should return an array, got ${typeof list} on day ${day}`)
   if (list.length === 0) {
     phasesSeen.add('resolved')
     resolved = true
@@ -65,52 +67,46 @@ for (let day = 1; day <= 18; day++) {
   const inst = list[0]
   phasesSeen.add(inst.phase)
   if (inst.phase === 'rising' || inst.phase === 'peak') {
-    const wpm = await page.evaluate(() => globalThis.__uclife__.getPlayerStatValue('workPerfMul'))
+    const wpm = await page.evaluate(() => window.__uclife__.getPlayerStatValue('workPerfMul'))
     if (typeof wpm === 'number') {
-      // Cold's [20,100] band emits workPerfMul × -0.20 once severity ≥ 20.
-      if (inst.severity >= 20 && wpm >= 1) {
-        fail(`workPerfMul should be reduced when cold band is active; got ${wpm} at severity ${inst.severity} day ${day}`)
+      if (inst.severity >= COLD_SYMPTOM_SEVERITY_THRESHOLD && wpm >= BASELINE_WORK_PERF_MUL) {
+        assert.fail(
+          `workPerfMul should be reduced when cold band is active; got ${wpm} ` +
+          `at severity ${inst.severity} day ${day}`,
+        )
       }
       workPerfDuringSymptoms = wpm
     }
   }
 }
 
-if (!phasesSeen.has('rising'))     fail('phase machine never reached rising')
-if (!phasesSeen.has('peak'))       fail('phase machine never reached peak')
-if (!phasesSeen.has('recovering')) fail('phase machine never reached recovering')
-if (!resolved)                     fail('cold did not resolve within 18 game-days')
+assert.ok(phasesSeen.has('rising'), 'phase machine never reached rising')
+assert.ok(phasesSeen.has('peak'), 'phase machine never reached peak')
+assert.ok(phasesSeen.has('recovering'), 'phase machine never reached recovering')
+assert.ok(resolved, `cold did not resolve within ${COLD_LIFECYCLE_MAX_DAYS} game-days`)
+assert.ok(workPerfDuringSymptoms !== null,
+  'did not sample workPerfMul during symptomatic phases')
 
-if (workPerfDuringSymptoms === null) fail('did not sample workPerfMul during symptomatic phases')
+const wpmAfter = await page.evaluate(() => window.__uclife__.getPlayerStatValue('workPerfMul'))
+assert.equal(wpmAfter, BASELINE_WORK_PERF_MUL,
+  `workPerfMul should return to ${BASELINE_WORK_PERF_MUL} after resolve, got ${wpmAfter}`)
 
-// 3. After resolve, the StatSheet should be back at base.
-const wpmAfter = await page.evaluate(() => globalThis.__uclife__.getPlayerStatValue('workPerfMul'))
-if (wpmAfter !== 1) fail(`workPerfMul should return to 1 after resolve, got ${wpmAfter}`)
+const finalList = await page.evaluate(() => window.__uclife__.getConditions())
+assert.ok(Array.isArray(finalList) && finalList.length === 0,
+  `expected empty conditions list after resolve, got ${JSON.stringify(finalList)}`)
 
-// 4. Conditions list should be empty.
-const finalList = await page.evaluate(() => globalThis.__uclife__.getConditions())
-if (!Array.isArray(finalList) || finalList.length !== 0) {
-  fail(`expected empty conditions list after resolve, got ${JSON.stringify(finalList)}`)
-}
-
-// 5. Effects list should carry no `family === 'condition'` rows.
-const effList = await page.evaluate(() => globalThis.__uclife__.getEffectsList())
+const effList = await page.evaluate(() => window.__uclife__.getEffectsList())
 const condEffects = (effList ?? []).filter((e) => e.family === 'condition')
-if (condEffects.length !== 0) {
-  fail(`expected zero condition Effects after resolve, got ${condEffects.length}: ${JSON.stringify(condEffects)}`)
-}
+assert.equal(condEffects.length, 0,
+  `expected zero condition Effects after resolve, got ${condEffects.length}: ${JSON.stringify(condEffects)}`)
 
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
-}
-if (failures.length) {
-  console.log('\nFAILURES:')
-  failures.forEach((f) => console.log('  ' + f))
-}
+assert.equal(errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`)
 
-const ok = failures.length === 0 && errors.length === 0
-console.log(ok ? '\nOK: cold lifecycle passed.' : '\nFAIL: cold lifecycle checks failed.')
-if (!ok) process.exitCode = 1
+console.log('OK — check-physiology-cold:')
+console.log(`  phases seen: ${[...phasesSeen].join(',')}`)
+console.log(`  workPerfMul during symptoms: ${workPerfDuringSymptoms}`)
+console.log(`  workPerfMul after resolve : ${wpmAfter}`)
+console.log(`  conditions after resolve  : ${finalList.length}`)
 
 await browser.close()
