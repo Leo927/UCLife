@@ -37,7 +37,7 @@ Category key:
 | check-captains-office.mjs | A | 1 patt | `waitFor` helper wraps `waitForFunction` over game state — swap predicates to `step({ until })`. No real UI input. |
 | check-cockpit.mjs | A | 1 patt | Same `waitFor` helper. Pure debug-handle drive (boardShip, takeHelmCheat, launchPlayerMs). |
 | check-daily-economics.mjs | A | 2 patt | `setSpeed(0)` + bespoke `forceDailyEconomics(N)` — keep the verb, drop the speed pin (frozen anyway). |
-| check-faction-office.mjs | A | 2 patt | Currently broken at baseline — do NOT pick for migration until fixed. |
+| check-faction-office.mjs | A | migrated | Phase 6 fix-baseline PR — `?test=1` boot, listing-drops-after-buy is the new invariant. |
 | check-fleet-launch.mjs | A | 5 patt | `setSpeed(0)` + `waitForFunction` for `clock.mode !== 'combat'` → `step({ until: () => …mode !== combat })`. |
 | check-fleet-supply.mjs | B | 7 patt, 4 clicks | Dialog branch clicks + bulk-order buttons. Same shape as the pilot, larger scope. |
 | check-flights.mjs | A | 5 patt | All `waitForFunction` are DOM-mount waits — those stay as `waitForSelector` (allowed). Game-state polling absent. |
@@ -59,7 +59,7 @@ Category key:
 | check-portrait-enlarge.mjs | C | 7 patt, 2 inputs | `awaitAssetsReady()` already wired. Real mouse click + Escape. Boot with `&assets=1`; the click flow stays. |
 | check-portrait-modals.mjs | C | 5 patt | Already drains assets via `awaitAssetsReady()`. Mostly DOM-readiness `waitForFunction` — those stay. |
 | check-realtor.mjs | A | 1 patt | Pure debug verbs; no nondeterministic patterns to migrate. Near-D. |
-| check-recruit-office.mjs | A | 2 patt | Currently broken at baseline — do NOT pick for migration until fixed. |
+| check-recruit-office.mjs | A | migrated | Phase 6 fix-baseline PR — `?test=1` boot, listing-drops-after-buy is the new invariant. |
 | check-research.mjs | A | 2 patt | `setSpeed(0)` + `forceResearchTick(day)` — keep verb, drop speed pin. |
 | check-saveload.mjs | A | 3 patt | `setSpeed(0)` + `advanceGameDays`. Save/load resets the world — fixture won't survive a load; assert on save-restored state. |
 | check-scene-swap.mjs | B | 4 patt, 1 click | Real click on flight-modal `购票`. Animation uses `requestAnimationFrame` directly — survives test-mode RAF (frozen sim ≠ frozen browser RAF). |
@@ -71,9 +71,12 @@ Category key:
 
 Totals: **A: 25  ·  B: 6 (incl. pilot)  ·  C: 5  ·  D: 1**
 
-Two tests (`check-faction-office`, `check-recruit-office`) are
-documented broken at baseline — do not include in any migration batch
-until they pass at HEAD.
+Both previously-deferred tests (`check-faction-office`,
+`check-recruit-office`) have been repaired and migrated in a follow-up
+PR — the stale assertion was that a player-owned facility would
+re-appear on the realtor with `ownerKind=character`, but commit
+`afc7470` (May 8) intentionally hid player-owned facilities via
+`excludeOwner`. Updated tests assert the listing drops entirely.
 
 ## Per-category recipes
 
@@ -343,8 +346,9 @@ batch.
    Save/load resets the world so fixture-state-after-load is
    subtle — handle in its own PR. Effort: ~3 hr total.
 
-Deferred until separate fix-PR: `check-faction-office`,
-`check-recruit-office` (broken at baseline).
+Both previously-deferred baseline-broken tests
+(`check-faction-office`, `check-recruit-office`) repaired + migrated
+in a follow-up PR — see triage-table footnote.
 
 ## The pilot — `scripts/check-systemmenu.mjs`
 
@@ -417,6 +421,4 @@ for follow-up.
 
 - New `__uclife__` methods (covered by gaps #2 + #3 above).
 - Migrating any test beyond the pilot.
-- Fixing the two broken baseline tests
-  (`check-faction-office`, `check-recruit-office`).
 - Refactoring test-boot or fixture-loader internals.
