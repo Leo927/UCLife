@@ -1,25 +1,35 @@
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import { BOOT_READY_TIMEOUT_MS, VIEWPORT } from './_test-constants.mjs'
 
-// Phase 4.2 AE clinic faction-perk smoke test.
-//
-// Drives the AE clinic visit end-to-end through __uclife__ debug
-// handles. No DOM clicks, no real-time waits — every step is a
-// deterministic call into the sim layer.
+// Phase 4.2 AE clinic faction-perk smoke test — migrated to the
+// deterministic API (Phase 6, Category A). Drives the AE clinic visit
+// end-to-end through __uclife__ debug handles. The sim clock is frozen
+// by ?test=1.
 //
 // Coverage:
-//   - rep gate: below threshold the AE commit refuses; above it
-//     succeeds with perks stamped on the instance
+//   - rep gate: above threshold the AE commit succeeds with perks stamped
 //   - perks: a tier-2 AE commit writes peakReductionBonus +
 //     scarThresholdOverride onto the live condition instance
 //   - rep ledger: each AE clinic visit deducts the configured rep cost
-//     from the player's Anaheim ledger
-//   - diagnosis flips: the instance becomes diagnosed after the
-//     diagnose call, so the AE panel could show its canonical name
+//   - diagnosis flips: the instance becomes diagnosed after the call
+//   - rising arc honors the perk: peakTracking stays under the untreated
+//     ceiling
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
+
+const AE_CLINIC_GATE_OPEN_REP = 25
+const AE_TIER_2 = 2
+const AE_TREATMENT_REGEN_RATE = 5
+const AE_REP_DEDUCT_PER_VISIT = 1
+const FLU_AE_PEAK_REDUCTION_BONUS = 10
+const FLU_AE_SCAR_THRESHOLD_OVERRIDE = 100
+const AE_ARC_WALK_DAYS = 6
+const PEAK_TRACKING_CEILING_TREATED = 50
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+const ctx = await browser.newContext({ viewport: VIEWPORT })
 const page = await ctx.newPage()
 
 const errors = []
@@ -28,88 +38,69 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
 })
 
-const failures = []
-const fail = (msg) => failures.push(msg)
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForFunction(() => globalThis.__uclife__?.physiologyCommitTreatmentAE !== undefined)
-await page.waitForFunction(() => globalThis.__uclife__?.getPlayerReputation !== undefined)
+await page.waitForFunction(
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.physiologyCommitTreatmentAE === 'function'
+    && typeof window.__uclife__?.physiologyForceOnset === 'function'
+    && typeof window.__uclife__?.physiologyDiagnose === 'function'
+    && typeof window.__uclife__?.physiologyTickDay === 'function'
+    && typeof window.__uclife__?.getConditions === 'function'
+    && typeof window.__uclife__?.getPlayerReputation === 'function'
+    && typeof window.__uclife__?.setPlayerStat === 'function',
+  null,
+  { timeout: BOOT_READY_TIMEOUT_MS },
+)
 
-// Pause the game so the active-zone RAF tick doesn't interleave.
-await page.evaluate(() => { globalThis.__uclife__.useClock?.getState?.()?.setSpeed?.(0) })
+await page.evaluate((rep) =>
+  window.__uclife__.setPlayerStat('reputation.anaheim', rep), AE_CLINIC_GATE_OPEN_REP)
+const startRep = await page.evaluate(() => window.__uclife__.getPlayerReputation('anaheim'))
+assert.equal(startRep, AE_CLINIC_GATE_OPEN_REP,
+  `failed to seed Anaheim rep to ${AE_CLINIC_GATE_OPEN_REP}; got ${startRep}`)
 
-// 1. Set Anaheim rep above the clinic gate. setPlayerStat takes an
-// absolute value so this also resets any pre-existing rep.
-const gateOpenRep = 25  // physiology.json5 aeClinicMinRep = 20
-await page.evaluate((rep) => globalThis.__uclife__.setPlayerStat('reputation.anaheim', rep), gateOpenRep)
-const startRep = await page.evaluate(() => globalThis.__uclife__.getPlayerReputation('anaheim'))
-if (startRep !== gateOpenRep) fail(`failed to seed Anaheim rep to ${gateOpenRep}; got ${startRep}`)
+const onset = await page.evaluate(() => window.__uclife__.physiologyForceOnset('flu', '调试'))
+assert.ok(onset?.instanceId, 'failed to onset flu for AE clinic visit')
+const fluId = onset.instanceId
 
-// 2. Force-onset flu so we have a live instance to treat.
-const onset = await page.evaluate(() => globalThis.__uclife__.physiologyForceOnset('flu', '调试'))
-if (!onset?.instanceId) fail('failed to onset flu for AE clinic visit')
-const fluId = onset?.instanceId
+const diagOk = await page.evaluate((id) => window.__uclife__.physiologyDiagnose(id), fluId)
+assert.ok(diagOk, 'diagnose returned false')
 
-// 3. Diagnose first (mirrors the AE panel's two-step flow).
-if (fluId) {
-  const diagOk = await page.evaluate((id) => globalThis.__uclife__.physiologyDiagnose(id), fluId)
-  if (!diagOk) fail('diagnose returned false')
-}
+const commitOk = await page.evaluate(([id, tier, rate]) =>
+  window.__uclife__.physiologyCommitTreatmentAE(id, tier, rate),
+  [fluId, AE_TIER_2, AE_TREATMENT_REGEN_RATE],
+)
+assert.ok(commitOk, 'physiologyCommitTreatmentAE returned false')
 
-// 4. Commit AE tier-2 treatment. Should stamp perks + deduct rep.
-if (fluId) {
-  const commitOk = await page.evaluate(
-    ([id]) => globalThis.__uclife__.physiologyCommitTreatmentAE(id, 2, 5),
-    [fluId],
-  )
-  if (!commitOk) fail('physiologyCommitTreatmentAE returned false')
-}
-
-// 5. Verify the instance carries the perks and the diagnosis flag.
-const condList = await page.evaluate(() => globalThis.__uclife__.getConditions())
+const condList = await page.evaluate(() => window.__uclife__.getConditions())
 const flu = (condList ?? []).find((c) => c.instanceId === fluId)
-if (!flu) {
-  fail('flu instance vanished after AE commit')
-} else {
-  if (!flu.diagnosed) fail('flu should be diagnosed after AE clinic visit')
-  if (flu.peakReductionBonus !== 10) {
-    fail(`expected peakReductionBonus 10 (AE perk), got ${flu.peakReductionBonus}`)
-  }
-  // Flu's authored scarThreshold is 90; AE override raises by 10 → 100.
-  if (flu.scarThresholdOverride !== 100) {
-    fail(`expected scarThresholdOverride 100 (90 + 10 raise), got ${flu.scarThresholdOverride}`)
-  }
-  if (flu.currentTreatmentTier !== 2) {
-    fail(`expected currentTreatmentTier 2, got ${flu.currentTreatmentTier}`)
-  }
-}
+assert.ok(flu, 'flu instance vanished after AE commit')
+assert.ok(flu.diagnosed, 'flu should be diagnosed after AE clinic visit')
+assert.equal(flu.peakReductionBonus, FLU_AE_PEAK_REDUCTION_BONUS,
+  `expected peakReductionBonus ${FLU_AE_PEAK_REDUCTION_BONUS} (AE perk), got ${flu.peakReductionBonus}`)
+assert.equal(flu.scarThresholdOverride, FLU_AE_SCAR_THRESHOLD_OVERRIDE,
+  `expected scarThresholdOverride ${FLU_AE_SCAR_THRESHOLD_OVERRIDE}, got ${flu.scarThresholdOverride}`)
+assert.equal(flu.currentTreatmentTier, AE_TIER_2,
+  `expected currentTreatmentTier ${AE_TIER_2}, got ${flu.currentTreatmentTier}`)
 
-// 6. Verify the rep ledger was deducted by exactly the configured cost.
-const afterRep = await page.evaluate(() => globalThis.__uclife__.getPlayerReputation('anaheim'))
-if (afterRep !== gateOpenRep - 1) {
-  fail(`expected Anaheim rep ${gateOpenRep - 1} after one AE clinic visit, got ${afterRep}`)
-}
+const afterRep = await page.evaluate(() => window.__uclife__.getPlayerReputation('anaheim'))
+assert.equal(afterRep, AE_CLINIC_GATE_OPEN_REP - AE_REP_DEDUCT_PER_VISIT,
+  `expected Anaheim rep ${AE_CLINIC_GATE_OPEN_REP - AE_REP_DEDUCT_PER_VISIT} after one AE clinic visit, got ${afterRep}`)
 
-// 7. Verify the rising arc honors the bonus by walking a few days and
-// reading peakTracking. The bonus + the tier-2 base together should
-// hold peakTracking below the untreated peak ceiling (75) by ≥ 25.
-const arc = await page.evaluate(() => globalThis.__uclife__.physiologyTickDay(6))
+const arc = await page.evaluate((n) =>
+  window.__uclife__.physiologyTickDay(n), AE_ARC_WALK_DAYS)
 const fluAfter = (arc ?? []).find?.((c) => c.instanceId === fluId)
-if (fluAfter && fluAfter.peakTracking > 50) {
-  fail(`AE tier-2 + bonus should hold peakTracking ≤ 50, got ${fluAfter.peakTracking}`)
+if (fluAfter) {
+  assert.ok(fluAfter.peakTracking <= PEAK_TRACKING_CEILING_TREATED,
+    `AE tier-${AE_TIER_2} + bonus should hold peakTracking ≤ ${PEAK_TRACKING_CEILING_TREATED}, got ${fluAfter.peakTracking}`)
 }
 
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
-}
-if (failures.length) {
-  console.log('\nFAILURES:')
-  failures.forEach((f) => console.log('  ' + f))
-}
+assert.equal(errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`)
 
-const ok = failures.length === 0 && errors.length === 0
-console.log(ok ? '\nOK: AE clinic faction-perk smoke passed.' : '\nFAIL: AE clinic faction-perk smoke failed.')
-if (!ok) process.exitCode = 1
+console.log('OK — check-physiology-ae-clinic:')
+console.log(`  AE rep deducted: ${AE_CLINIC_GATE_OPEN_REP} → ${afterRep}`)
+console.log(`  flu perks: peakReductionBonus=${flu.peakReductionBonus} scarThresholdOverride=${flu.scarThresholdOverride}`)
+console.log(`  peakTracking after ${AE_ARC_WALK_DAYS} days: ${fluAfter?.peakTracking ?? '(resolved)'}`)
 
 await browser.close()
