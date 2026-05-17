@@ -1,48 +1,51 @@
 // Save → advance sim time → load → verify the clock round-tripped.
-// Driven entirely through __uclife__: pause via useClock.setSpeed(0),
-// save/load via the saveGame/loadGame handles (same code path as the
-// system menu), advance via advanceGameDays — no real-time waits.
+// Driven entirely through the deterministic test runtime — clock is
+// frozen by ?test=1, step() advances sim time, saveGame/loadGame run
+// the same code path as the system menu.
 
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import { BOOT_READY_TIMEOUT_MS } from './_test-constants.mjs'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const MINUTES_ADVANCED = 60
+const SAVE_SLOT = 1
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
 
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage()
 
-const errors = []
-page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+const pageErrors = []
+page.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`))
+page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(`console.error: ${m.text()}`) })
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.saveGame === 'function'
-    && typeof globalThis.__uclife__?.loadGame === 'function'
-    && typeof globalThis.__uclife__?.advanceGameDays === 'function'
-    && typeof globalThis.__uclife__?.useClock?.getState === 'function',
-  null,
-  { timeout: 30_000 },
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function'
+    && typeof window.__uclife__?.getGameState === 'function',
+  null, { timeout: BOOT_READY_TIMEOUT_MS },
 )
 
-const readClock = () => page.evaluate(() => globalThis.__uclife__.useClock.getState().gameDate.getTime())
-
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+const readClock = () => page.evaluate(
+  () => window.__uclife__.useClock.getState().gameDate.getTime(),
+)
 
 const savedClock = await readClock()
-const saveResult = await page.evaluate(async () => {
-  await globalThis.__uclife__.saveGame(1)
-  return true
-})
-if (!saveResult) errors.push('saveGame returned falsy')
+await page.evaluate(async (slot) => { await window.__uclife__.saveGame(slot) }, SAVE_SLOT)
 
-await page.evaluate(() => globalThis.__uclife__.advanceGameDays(2))
+await page.evaluate(async (mins) => {
+  await window.__uclife_test__.step({ gameMinutes: mins })
+}, MINUTES_ADVANCED)
 const advancedClock = await readClock()
+assert.notEqual(savedClock, advancedClock,
+  `step({ gameMinutes }) should advance the clock; both = ${savedClock}`)
 
-const loadResult = await page.evaluate(async () => globalThis.__uclife__.loadGame(1))
-if (!loadResult || loadResult.ok !== true) {
-  errors.push(`loadGame failed: ${JSON.stringify(loadResult)}`)
-}
+const loadResult = await page.evaluate(async (slot) => window.__uclife__.loadGame(slot), SAVE_SLOT)
+assert.equal(loadResult.ok, true, `loadGame failed: ${JSON.stringify(loadResult)}`)
 
 const reloadedClock = await readClock()
 
@@ -50,20 +53,12 @@ console.log('saved   :', new Date(savedClock).toISOString())
 console.log('advanced:', new Date(advancedClock).toISOString())
 console.log('reloaded:', new Date(reloadedClock).toISOString())
 
-const failures = []
-if (savedClock === advancedClock) failures.push('advanceGameDays did not advance the clock')
-if (savedClock !== reloadedClock) failures.push(`reloaded clock ${reloadedClock} != saved ${savedClock}`)
+assert.equal(reloadedClock, savedClock,
+  `reloaded clock ${reloadedClock} != saved ${savedClock}`)
 
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
-}
-if (failures.length) {
-  console.log('\nFAILURES:')
-  failures.forEach((f) => console.log('  ' + f))
-}
+assert.equal(pageErrors.length, 0,
+  `page error(s) during test:\n${pageErrors.map((e) => '  ' + e).join('\n')}`)
 
 await browser.close()
 
-if (errors.length || failures.length) process.exit(1)
 console.log('\nOK: save/load round-trip restored the clock.')
