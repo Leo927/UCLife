@@ -73,11 +73,31 @@ identity axes:
 
 ### Respec
 
-The player can re-pick via a **diegetic retraining verb** at a future
-training facility (location TBD — civilian school / AE training
-center / private tutor are all plausible). Cost = money + several
-days. The friction is real, but a 200-hour run shouldn't permanently
-punish a level-30 pick made at hour 5.
+The player respecs via a **diegetic retraining verb** offered by a
+rare **Tutor** worker role that occasionally takes a shift at one of
+the city's bars. Not every bar hosts a tutor seat; not every tutor
+seat is staffed on a given day. Discovery is part of the loop — the
+player finds the right bar at the right time (or hears about it via
+the newsfeed in Phase 5.1+) and pays cash for a respec slot.
+
+Routing follows the worker-not-workstation principle
+([../DESIGN.md](../DESIGN.md)): the verb lives on the on-duty Tutor
+NPC, not on a fixed tile. An empty seat exposes no verb. Tutoring is
+**never** an AE service — Skill Perks stay a civilian / personal
+identity axis, deliberately decoupled from faction politics.
+
+**Cost grows per character per respec.** The first respec is cheap
+enough to forgive an hour-5 mistake; the third or fourth is meant to
+sting. Both money and lost days scale monotonically with the player's
+prior respec count (final curve at implementation time; money is the
+dominant lever, days are a smaller fixed-plus-scaling block). The
+system trusts the first reroll and disciplines compulsive
+re-rolling — a level-30 mistake should be a recoverable choice, not
+a free reset button.
+
+Authoring: the Tutor is a new workstation type + worker role
+(`src/data/building-types.json5`); a sparse subset of bars in
+worldgen / scene authoring host the slot.
 
 ### Data: Skill Perks ride the Effect channel
 
@@ -137,7 +157,7 @@ Catalog lives in `src/config/skill-perks.json5`. Example row shapes
 | Medicine | 30 | *分诊* (Triage) | unlocks | `'diagnose:reveal_all'` — diagnosing an NPC reveals every active condition, not just the most-severe |
 | Mechanics | 30 | *拾荒者* (Salvager) | unlocks | `'verb:salvage_workstation'` — broken workstations become a parts source |
 | Mechanics | 30 | *修补匠* (Tinkerer) | modifiers | `percentMult −0.50` on `workstationDegradeRate` |
-| Mechanics | 60 | *战地工程师* (Field Engineer) | abilities | `{ id: 'ms_emergency_repair', cooldownSec: 300 }` — instant MS subsystem repair mid-combat *(deferred until combat ships)* |
+| Mechanics | 60 | *战地工程师* (Field Engineer) | abilities | `{ id: 'ms_emergency_repair', cooldownDays: 3 }` — instant MS subsystem repair mid-combat, multi-day cooldown *(deferred until combat ships)* |
 | Bartending | 30 | *招牌特饮* (Signature Cocktail) | unlocks | `'recipe:signature_drink'` — author one bespoke drink in your inventory with a custom buff bundle |
 | Bartending | 30 | *吧台老练* (Tabkeeper) | modifiers | `percentMult +0.20` on bar-revenue stat |
 | Marksmanship | 30 | *placeholder a* | unlocks | `'placeholder:marksmanship:30:a'` |
