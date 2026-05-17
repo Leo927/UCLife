@@ -19,10 +19,23 @@ page.on('console', (m) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(800)
+await page.waitForFunction(
+  () => typeof window.uclifeUI?.getState === 'function'
+    && typeof globalThis.__uclife__?.awaitAssetsReady === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
 await page.evaluate(() => window.uclifeUI.getState().setStatus(true))
-await page.waitForTimeout(1500)  // first portrait cache load
+// First portrait cache load happens here — drain it deterministically,
+// then wait for the rendered SVG to commit to the DOM (the enlarge click
+// targets the portrait's bounding box).
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+await page.waitForFunction(
+  () => !!document.querySelector('svg[class^="art"]'),
+  null,
+  { timeout: 10_000 },
+)
 
 async function findPortraitBoxes() {
   return await page.evaluate(() => {
@@ -51,7 +64,22 @@ if (!playerBox) {
     errors.push(`player portrait cursor expected 'zoom-in', got '${playerBox.cursor}'`)
   }
   await page.mouse.click(playerBox.x, playerBox.y)
-  await page.waitForTimeout(800)
+  // The enlarged modal is a fresh Portrait mount — wait for the store flip,
+  // every asset job to drain, then the 400x560 SVG to actually commit.
+  await page.waitForFunction(() => window.uclifeUI.getState().enlargedPortrait !== null)
+  await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+  await page.waitForFunction(
+    () => {
+      const containers = Array.from(document.querySelectorAll('div'))
+      return containers.some((d) => {
+        if (!d.querySelector('svg[class^="art"]')) return false
+        const r = d.getBoundingClientRect()
+        return Math.round(r.width) === 400 && Math.round(r.height) === 560
+      })
+    },
+    null,
+    { timeout: 10_000 },
+  )
 }
 
 const afterClick = await findPortraitBoxes()
@@ -72,7 +100,23 @@ if (!storeAfterClick) {
 }
 
 await page.keyboard.press('Escape')
-await page.waitForTimeout(400)
+// Wait deterministically for the store to flip + the enlarged modal SVG
+// to unmount. Playwright throws on timeout, which becomes the failure
+// signal — no try/catch swallowing; if Escape was a no-op the script
+// stack trace points at this line.
+await page.waitForFunction(
+  () => {
+    if (window.uclifeUI.getState().enlargedPortrait !== null) return false
+    const containers = Array.from(document.querySelectorAll('div'))
+    return !containers.some((d) => {
+      if (!d.querySelector('svg[class^="art"]')) return false
+      const r = d.getBoundingClientRect()
+      return Math.round(r.width) === 400 && Math.round(r.height) === 560
+    })
+  },
+  null,
+  { timeout: 5_000 },
+)
 const storeAfterEsc = await page.evaluate(() => window.uclifeUI.getState().enlargedPortrait)
 if (storeAfterEsc !== null) {
   errors.push('Escape did not close the portrait modal')

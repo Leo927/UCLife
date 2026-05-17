@@ -12,10 +12,21 @@ page.on('console', (m) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(800)
+// Boot is settled once the uiStore + at least one debug handle exist.
+await page.waitForFunction(
+  () => typeof window.uclifeUI?.getState === 'function'
+    && typeof globalThis.__uclife__?.useScene === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
 await page.locator('button.hud-system').click()
-await page.waitForTimeout(300)
+// systemOpen flips synchronously inside the click handler — wait on the
+// store rather than guessing 300ms for React to commit the panel.
+await page.waitForFunction(() => window.uclifeUI.getState().systemOpen === true)
+// Wait for the panel header to actually mount before scraping its
+// children (Playwright would otherwise race the React commit).
+await page.waitForSelector('.status-panel .status-header h2', { timeout: 5_000 })
 
 const buttons = await page.locator('.status-panel button.debug-action').allTextContents()
 console.log('system menu actions:', buttons)

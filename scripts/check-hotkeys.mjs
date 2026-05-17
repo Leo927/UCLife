@@ -33,7 +33,12 @@ const state = () => page.evaluate(() => {
 
 async function press(key) {
   await page.keyboard.press(key)
-  await page.waitForTimeout(60)
+  // The Hud keydown handler calls zustand `set()` synchronously. The
+  // page.keyboard.press → next page.evaluate round-trip already yields
+  // far more than the listener needs to fire and commit. Forcing one
+  // explicit microtask + raf flush makes the ordering explicit without
+  // a fixed sleep.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())))
 }
 
 // C opens status

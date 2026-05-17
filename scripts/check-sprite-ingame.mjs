@@ -25,8 +25,20 @@ page.on('response', (r) => {
 })
 
 await page.goto(url, { waitUntil: 'networkidle' })
-// Wait for the world to spawn and the sprite ticker to advance.
-await page.waitForTimeout(3500)
+// Wait for the world to spawn (debug handle ready), let one Pixi frame
+// commit so the ground renderer asks composeSheet for its first NPC
+// batch, then drain every in-flight sprite job. No fixed waitForTimeout.
+await page.waitForFunction(
+  () => typeof globalThis.__uclife__?.awaitAssetsReady === 'function'
+    && typeof globalThis.__uclife__?.pendingAssetJobs === 'function'
+    && typeof globalThis.__uclife__?.countByKind === 'function',
+  null,
+  { timeout: 30_000 },
+)
+// Two raf yields → guaranteed Pixi ticker ran at least once, scheduling
+// the first composeSheet batch; awaitAssetsReady then drains it.
+await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
 
 await page.screenshot({ path: join(outDir, 'sprite-ingame.png'), fullPage: false })
 await browser.close()

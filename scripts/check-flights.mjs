@@ -16,10 +16,18 @@ const failures = []
 page.on('pageerror', (err) => errors.push(`${err.name}: ${err.message}`))
 
 await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(1500)
+// Boot is settled once the ui store + debug handle are live.
+await page.waitForFunction(
+  () => typeof window.uclifeUI?.getState === 'function'
+    && typeof globalThis.__uclife__?.useScene === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
 await page.evaluate(() => window.uclifeUI.getState().setMap(true))
-await page.waitForTimeout(300)
+// Wait on the store flag + the map element actually committing.
+await page.waitForFunction(() => window.uclifeUI.getState().mapOpen === true)
+await page.waitForSelector('.map-place-name', { timeout: 5_000 })
 
 const mapNames = await page.evaluate(() =>
   Array.from(document.querySelectorAll('.map-place-name')).map((e) => e.textContent),
@@ -43,7 +51,8 @@ await page.screenshot({ path: 'scripts/out/flight-map.png', fullPage: false })
 await page.evaluate(() => window.uclifeUI.getState().setMap(false))
 
 await page.evaluate(() => window.uclifeUI.getState().openFlight('vonBraunCityAirport'))
-await page.waitForTimeout(300)
+await page.waitForFunction(() => window.uclifeUI.getState().flightHubId === 'vonBraunCityAirport')
+await page.waitForSelector('.transit-terminal-row', { timeout: 5_000 })
 
 const startModal = await page.evaluate(() => {
   const headerH2 = document.querySelector('.status-panel .status-header h2')?.textContent ?? null
@@ -74,10 +83,11 @@ if (startOk) {
 }
 
 await page.evaluate(() => window.uclifeUI.getState().closeFlight())
-await page.waitForTimeout(200)
+await page.waitForFunction(() => window.uclifeUI.getState().flightHubId === null)
 
 await page.evaluate(() => window.uclifeUI.getState().openFlight('zumCityAirport'))
-await page.waitForTimeout(300)
+await page.waitForFunction(() => window.uclifeUI.getState().flightHubId === 'zumCityAirport')
+await page.waitForSelector('.transit-terminal-row', { timeout: 5_000 })
 
 const zumModal = await page.evaluate(() => {
   const headerH2 = document.querySelector('.status-panel .status-header h2')?.textContent ?? null
