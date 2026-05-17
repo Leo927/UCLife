@@ -1,6 +1,7 @@
 import json5 from 'json5'
 import minimalPlayerOnlyRaw from '../../tests/fixtures/minimal-player-only.json5?raw'
 import amuroAtRecruitOfficeRaw from '../../tests/fixtures/amuro-at-recruit-office.json5?raw'
+import playerWithCashAtVbRaw from '../../tests/fixtures/player-with-cash-at-vb.json5?raw'
 import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { applyBackground } from '../character/backgrounds'
@@ -78,6 +79,7 @@ const VALID_SKILL_IDS: ReadonlySet<string> = new Set(skillsConfig.order as reado
 const FIXTURES: Record<string, string> = {
   'minimal-player-only': minimalPlayerOnlyRaw,
   'amuro-at-recruit-office': amuroAtRecruitOfficeRaw,
+  'player-with-cash-at-vb': playerWithCashAtVbRaw,
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {

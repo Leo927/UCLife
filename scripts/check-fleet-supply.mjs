@@ -1,278 +1,265 @@
-// Phase 6.2.F fleet-supply smoke. Verifies:
-//   1. The VB state hangar spawns with supplyMax / fuelMax projected
-//      from facility-types.json5 (1000 / 400 at 6.2.F authoring).
-//   2. supplyPerDay projects onto the flagship ShipStatSheet from
-//      lightFreighter (4 / day).
-//   3. One daily fleet-supply tick drains the hangar by the docked
-//      flagship's supplyPerDay; multi-tick drains accumulate linearly.
-//   4. With supplyCurrent forced to 0, the next tick stays at 0 (no
-//      negative); hangarSupplySnapshot reports the cap-at-zero state.
+// Phase 6 deterministic migration of the fleet-supply smoke. Verifies:
+//   1. The VB state hangar spawns with supplyMax / fuelMax projected from
+//      facility-types.json5 (1000 / 400).
+//   2. supplyPerDay projects onto the flagship ShipStatSheet.
+//   3. One daily fleet-supply tick drains the hangar by the flagship's
+//      supplyPerDay; multi-tick drains accumulate linearly.
+//   4. Setting supplyCurrent to 0 caps the next drain at 0 (no negative).
 //   5. Placing an AE-dealer order via the dialog deducts player money,
-//      enqueues a pending delivery, and lands on the target hangar
-//      after `supplyDeliveryDays` (2) fleet-supply ticks.
-//   6. Secretary bulk-order applies the configured markup + faster
-//      delivery (1 day).
-//   7. Campaign HUD reports the fleet-wide aggregate via the debug
-//      handle (drives the same code the SpaceView reads).
-//   8. Save round-trip preserves supplyCurrent / pendingSupplyDeliveries
-//      across saveGame → loadGame.
+//      enqueues a pending delivery, and lands on the hangar after
+//      supplyDeliveryDays (2) fleet-supply ticks.
+//   6. Secretary bulk-order applies the configured markup + faster delivery.
+//   7. fleetSupplyTotals reports the HUD aggregate (VB + Granada drydock).
+//   8. Save round-trip preserves supplyCurrent / pendingSupplyDeliveries.
+//
+// Migrated to the deterministic stack: ?test=1&fixture=player-with-cash-at-vb,
+// frozen clock, real Playwright clicks on dialog branches + order buttons,
+// no waitForTimeout. setSpeed(0) is dropped (clock already frozen).
+// cheatMoney() is dropped — the fixture seeds 200_000 ¥ which is more than
+// enough for the dealer + secretary orders combined.
 
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import {
+  BOOT_READY_TIMEOUT_MS, DOM_COMMIT_TIMEOUT_MS, VIEWPORT,
+  isExpectedTestModePortraitMissing,
+} from './_test-constants.mjs'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const FIXTURE = 'player-with-cash-at-vb'
+const VB_HANGAR_TYPE = 'hangarSurface'
+const EXPECTED_SUPPLY_MAX = 1000
+const EXPECTED_FUEL_MAX = 400
+const FLAGSHIP_SUPPLY_PER_DAY = 4
+const SUPPLY_ORDER_QTY = 100
+const SUPPLY_PRICE_PER_UNIT = 5
+const SUPPLY_DELIVERY_DAYS = 2
+const SECRETARY_BULK_ORDER_DAYS = 1
+const SECRETARY_BULK_QTY = 100
+const FLEET_SUPPLY_MAX_TOTAL = 1000 + 5000  // VB + Granada drydock
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL(`?test=1&fixture=${FIXTURE}`, baseUrl).toString()
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+const ctx = await browser.newContext({ viewport: VIEWPORT })
 const page = await ctx.newPage()
 
-const errors = []
-page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+const pageErrors = []
+page.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`))
+page.on('console', (m) => {
+  if (m.type() !== 'error') return
+  const line = `console.error: ${m.text()}`
+  if (isExpectedTestModePortraitMissing(line)) return
+  pageErrors.push(line)
+})
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.listHangars === 'function'
-    && typeof globalThis.__uclife__?.hangarSupplySnapshot === 'function'
-    && typeof globalThis.__uclife__?.setHangarSupply === 'function'
-    && typeof globalThis.__uclife__?.enqueueHangarDelivery === 'function'
-    && typeof globalThis.__uclife__?.runFleetSupplyTick === 'function'
-    && typeof globalThis.__uclife__?.fleetSupplyTotals === 'function'
-    && typeof globalThis.__uclife__?.aeSupplyDealerEntity === 'function'
-    && typeof globalThis.__uclife__?.secretaryEntity === 'function'
-    && typeof globalThis.__uclife__?.forceSeatSecretary === 'function'
-    && typeof globalThis.__uclife__?.flagshipStatSheet === 'function'
-    && typeof globalThis.__uclife__?.fillJobVacancies === 'function'
-    && typeof globalThis.__uclife__?.saveGame === 'function'
-    && typeof globalThis.__uclife__?.loadGame === 'function'
-    && typeof globalThis.__uclife__?.cheatMoney === 'function',
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.getGameState === 'function'
+    && typeof window.__uclife__?.listHangars === 'function'
+    && typeof window.__uclife__?.hangarSupplySnapshot === 'function'
+    && typeof window.__uclife__?.setHangarSupply === 'function'
+    && typeof window.__uclife__?.enqueueHangarDelivery === 'function'
+    && typeof window.__uclife__?.runFleetSupplyTick === 'function'
+    && typeof window.__uclife__?.fleetSupplyTotals === 'function'
+    && typeof window.__uclife__?.aeSupplyDealerEntity === 'function'
+    && typeof window.__uclife__?.secretaryEntity === 'function'
+    && typeof window.__uclife__?.forceSeatSecretary === 'function'
+    && typeof window.__uclife__?.flagshipStatSheet === 'function'
+    && typeof window.__uclife__?.fillJobVacancies === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
   null,
-  { timeout: 30_000 },
+  { timeout: BOOT_READY_TIMEOUT_MS },
 )
 
-// Pause sim — no need for shift transitions or day rollover to race the
-// smoke. We drive everything via runFleetSupplyTick.
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
-
-const failures = []
-const fail = (m) => failures.push(m)
-const pass = (m) => console.log('PASS ' + m)
+const scene = await page.evaluate(() => window.__uclife__.getGameState().getScene().getId())
+assert.equal(scene, 'vonBraunCity', `fixture must boot in vonBraunCity, got ${scene}`)
 
 // 1. Hangar supply / fuel caps projected from facility-types.json5.
-const hangars = await page.evaluate(() => globalThis.__uclife__.listHangars())
-const vb = hangars.find((h) => h.typeId === 'hangarSurface')
-if (!vb) { fail('VB state hangar missing — 6.2.A regression'); await done() }
+const hangars = await page.evaluate(() => window.__uclife__.listHangars())
+const vb = hangars.find((h) => h.typeId === VB_HANGAR_TYPE)
+assert.ok(vb, `VB state hangar missing — fixedBuilding regression`)
 
-const snap0 = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-if (!snap0) fail('hangarSupplySnapshot returned null')
-else {
-  if (snap0.supplyMax !== 1000) fail(`supplyMax ${snap0.supplyMax} (want 1000 from facility-types.json5)`)
-  if (snap0.fuelMax !== 400)    fail(`fuelMax ${snap0.fuelMax} (want 400)`)
-  if (snap0.supplyCurrent !== 1000) fail(`supplyCurrent ${snap0.supplyCurrent} at boot (want full = 1000)`)
-  if (snap0.fuelCurrent !== 400)    fail(`fuelCurrent ${snap0.fuelCurrent} at boot (want full = 400)`)
-  if (snap0.pending.length !== 0)   fail(`pending deliveries ${snap0.pending.length} at boot (want 0)`)
-  pass(`VB hangar at boot: supply ${snap0.supplyCurrent}/${snap0.supplyMax} fuel ${snap0.fuelCurrent}/${snap0.fuelMax}`)
-}
+const snap0 = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.ok(snap0, `hangarSupplySnapshot returned null for ${vb.buildingKey}`)
+assert.equal(snap0.supplyMax, EXPECTED_SUPPLY_MAX,
+  `supplyMax ${snap0.supplyMax} (want ${EXPECTED_SUPPLY_MAX} from facility-types.json5)`)
+assert.equal(snap0.fuelMax, EXPECTED_FUEL_MAX,
+  `fuelMax ${snap0.fuelMax} (want ${EXPECTED_FUEL_MAX})`)
+assert.equal(snap0.supplyCurrent, EXPECTED_SUPPLY_MAX,
+  `supplyCurrent ${snap0.supplyCurrent} at boot (want full = ${EXPECTED_SUPPLY_MAX})`)
+assert.equal(snap0.fuelCurrent, EXPECTED_FUEL_MAX,
+  `fuelCurrent ${snap0.fuelCurrent} at boot (want full = ${EXPECTED_FUEL_MAX})`)
+assert.equal(snap0.pending.length, 0,
+  `pending deliveries ${snap0.pending.length} at boot (want 0)`)
 
-// 2. supplyPerDay base on the flagship sheet.
-const sheet = await page.evaluate(() => globalThis.__uclife__.flagshipStatSheet())
-if (!sheet) fail('flagshipStatSheet returned null')
-else if (typeof sheet.supplyPerDay !== 'number' && typeof sheet.hullPoints === 'number') {
-  // The sheet returned hullPoints etc; supplyPerDay may not be in the
-  // partial picker — check via getStat directly.
-}
-const perDay = await page.evaluate(() => {
-  const __ = globalThis.__uclife__
-  // Read the supplyPerDay stat via flagshipStatSheet — extend the handle if missing.
-  const fs = __.flagshipStatSheet()
-  return fs ? null : null  // placeholder; we'll use supplyPerDayDirect below
-})
-void perDay
-// 3. Drain landing on the hangar after one tick.
-const before1 = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-const tick1 = await page.evaluate(() => globalThis.__uclife__.runFleetSupplyTick(1))
-const after1 = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+// 2. supplyPerDay projects onto the flagship ShipStatSheet.
+const sheet = await page.evaluate(() => window.__uclife__.flagshipStatSheet())
+assert.ok(sheet, `flagshipStatSheet returned null`)
+
+// 3. Drain landing on the hangar after one tick. Tick number is a monotone
+//    counter — the system doesn't gate on the value yet.
+const before1 = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+await page.evaluate(() => window.__uclife__.runFleetSupplyTick(1))
+const after1 = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
 const drained = before1.supplyCurrent - after1.supplyCurrent
-if (drained <= 0) fail(`no supply drain on tick1: ${before1.supplyCurrent} → ${after1.supplyCurrent}`)
-else if (drained !== 4) fail(`drained ${drained} (want 4 from lightFreighter supplyPerDay)`)
-else pass(`drain tick1: supply ${before1.supplyCurrent} → ${after1.supplyCurrent} (Δ ${drained}); tick result ${JSON.stringify(tick1)}`)
+assert.equal(drained, FLAGSHIP_SUPPLY_PER_DAY,
+  `drained ${drained} (want ${FLAGSHIP_SUPPLY_PER_DAY} from lightFreighter supplyPerDay)`)
 
-// 4. Hangar runs dry — drain caps at 0.
-await page.evaluate((k) => globalThis.__uclife__.setHangarSupply(k, 2, 100), vb.buildingKey)
-await page.evaluate(() => globalThis.__uclife__.runFleetSupplyTick(2))
-const dryAfter = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-if (dryAfter.supplyCurrent !== 0) fail(`drain did not bottom at 0: supplyCurrent=${dryAfter.supplyCurrent}`)
-else pass(`drain capped at 0 — dry hangar stays at 0`)
+// 4. Hangar runs dry — drain caps at 0; re-tick on a 0-supply hangar stays at 0.
+await page.evaluate((k) => window.__uclife__.setHangarSupply(k, 2, 100), vb.buildingKey)
+await page.evaluate(() => window.__uclife__.runFleetSupplyTick(2))
+const dryAfter = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.equal(dryAfter.supplyCurrent, 0,
+  `drain did not bottom at 0: supplyCurrent=${dryAfter.supplyCurrent}`)
 
-// Now run another tick — the drain on a 0-supply hangar must still be 0.
-const tickDry = await page.evaluate(() => globalThis.__uclife__.runFleetSupplyTick(3))
-const stillDry = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-if (stillDry.supplyCurrent !== 0) fail(`negative drain: supplyCurrent=${stillDry.supplyCurrent}`)
-else pass(`re-tick on dry hangar stays at 0 (delivery applied this tick: ${tickDry.unitsAppliedSupply})`)
+await page.evaluate(() => window.__uclife__.runFleetSupplyTick(3))
+const stillDry = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.equal(stillDry.supplyCurrent, 0,
+  `negative drain: supplyCurrent=${stillDry.supplyCurrent}`)
 
-// Refill the hangar for the dialog tests.
-await page.evaluate((k) => globalThis.__uclife__.setHangarSupply(k, 500, 100), vb.buildingKey)
+// Refill the hangar to a known mid-cap value for the dialog phase. Lets the
+// post-delivery cap-vs-add arithmetic stay deterministic regardless of how
+// many drain ticks ran above.
+await page.evaluate((k) => window.__uclife__.setHangarSupply(k, 500, 100), vb.buildingKey)
 
-// 5. AE dealer dialog → order → 2-day delivery lands.
-await page.evaluate(() => globalThis.__uclife__.fillJobVacancies(['ae_supply_dealer']))
-const dealerEnt = await page.evaluate(() => globalThis.__uclife__.aeSupplyDealerEntity())
-if (!dealerEnt) fail('AE supply dealer entity not seated — fillJobVacancies regression')
+// 5. AE dealer dialog → click 订补给 branch → click order button → assert
+//    pending delivery; advance ticks until it lands at supplyDeliveryDays.
+await page.evaluate(() => window.__uclife__.fillJobVacancies(['ae_supply_dealer']))
 
-// Seed cash so the order succeeds.
-await page.evaluate(() => globalThis.__uclife__.cheatMoney(10_000))
-
-const opened = await page.evaluate(() => {
-  const dealer = globalThis.__uclife__.aeSupplyDealerEntity()
+const dealerOpened = await page.evaluate(() => {
+  const dealer = window.__uclife__.aeSupplyDealerEntity()
   if (!dealer) return false
-  const ui = globalThis.uclifeUI
-  if (!ui?.getState) return false
-  ui.getState().setDialogNPC(dealer)
+  window.uclifeUI.getState().setDialogNPC(dealer)
   return true
 })
-if (!opened) fail('could not open NPCDialog for AE supply dealer')
-else {
-  await page.waitForFunction(() => !!document.querySelector('button.dialog-option'), null, { timeout: 5000 })
-  const branchBtn = await page.$('button.dialog-option:has-text("订补给")')
-  if (!branchBtn) fail('aeSupplyDealer branch button missing from NPCDialog')
-  else {
-    await branchBtn.click()
-    await page.waitForFunction(() => !!document.querySelector('[data-supply-order="supply"]'), null, { timeout: 5000 })
+assert.ok(dealerOpened, `could not open NPCDialog for AE supply dealer`)
 
-    // Snapshot money + pending state before ordering.
-    const preMoney = await page.evaluate(() => {
-      const __ = globalThis.__uclife__
-      const w = __.world()
-      // Walk the world for IsPlayer + Money via the existing flagship handle pattern.
-      const ent = __.playerEntity ? __.playerEntity() : null
-      return ent ? ent.get(w.Money ?? null) : null
-    }).catch(() => null)
-    void preMoney
+const moneyBeforeDealer = await page.evaluate(
+  () => window.__uclife__.getGameState().getPlayerCharacter().getResource('Money'),
+)
 
-    // Click order — defaults to qty=quantum (100), target = first hangar (VB).
-    const orderBtn = await page.$('[data-supply-order="supply"]')
-    if (!orderBtn) fail('order-supply button missing on dealer panel')
-    else {
-      await orderBtn.click()
-      const pendingAfter = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-      if (pendingAfter.pending.length !== 1) {
-        fail(`expected 1 pending delivery after order, got ${pendingAfter.pending.length}`)
-      } else {
-        const p = pendingAfter.pending[0]
-        if (p.kind !== 'supply') fail(`pending delivery kind=${p.kind} (want supply)`)
-        if (p.qty !== 100) fail(`pending qty=${p.qty} (want 100 from supplyOrderQuantum)`)
-        if (p.daysRemaining !== 2) fail(`pending days=${p.daysRemaining} (want 2 from supplyDeliveryDays)`)
-        pass(`order placed: ${p.qty} supply, ${p.daysRemaining} days`)
-      }
-    }
-    // Close the dialog before the next phase.
-    await page.evaluate(() => globalThis.uclifeUI.getState().setDialogNPC(null))
-  }
-}
+await page.waitForSelector('button.dialog-option', { timeout: DOM_COMMIT_TIMEOUT_MS })
+await page.click('button.dialog-option:has-text("订补给")')
+await page.waitForSelector('[data-supply-order="supply"]', { timeout: DOM_COMMIT_TIMEOUT_MS })
 
-// Run two ticks to advance the delivery. Tick 1: days 2→1. Tick 2: days 1→0, lands.
-const beforeDelivery = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-await page.evaluate(() => globalThis.__uclife__.runFleetSupplyTick(10))
-const mid = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-if (mid.pending.length !== 1 || mid.pending[0].daysRemaining !== 1) {
-  fail(`delivery did not decrement: pending=${JSON.stringify(mid.pending)}`)
-}
-await page.evaluate(() => globalThis.__uclife__.runFleetSupplyTick(11))
-const landed = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-if (landed.pending.length !== 0) fail(`delivery still pending after 2 ticks: ${JSON.stringify(landed.pending)}`)
-const supplyGain = (landed.supplyCurrent - beforeDelivery.supplyCurrent) +
-                   (beforeDelivery.supplyCurrent - mid.supplyCurrent)
-// Hard assert: after both ticks, supplyCurrent should be (beforeDelivery + 100 - 4*2 drains) capped at 1000.
-const expected = Math.min(1000, beforeDelivery.supplyCurrent + 100 - 4 * 2)
-if (landed.supplyCurrent !== expected) {
-  fail(`final supply ${landed.supplyCurrent} (want ${expected}); supplyGain=${supplyGain}`)
-} else {
-  pass(`2-day delivery landed: supply ${beforeDelivery.supplyCurrent} → ${landed.supplyCurrent}`)
-}
+const preOrder = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+await page.click('[data-supply-order="supply"]')
 
-// 6. Secretary bulk-order verb. Force-seat the secretary (installOnly
-// makes fillJobVacancies refuse the seat; forceSeatSecretary writes
-// the occupant directly).
-await page.evaluate(() => globalThis.__uclife__.forceSeatSecretary())
-const secEnt = await page.evaluate(() => globalThis.__uclife__.secretaryEntity())
-if (!secEnt) fail('secretary entity not seated')
-else {
-  await page.evaluate(() => globalThis.__uclife__.cheatMoney(50_000))
-  const openedSec = await page.evaluate(() => {
-    const sec = globalThis.__uclife__.secretaryEntity()
-    globalThis.uclifeUI.getState().setDialogNPC(sec)
-    return true
-  })
-  void openedSec
-  await page.waitForFunction(() => !!document.querySelector('button.dialog-option'), null, { timeout: 5000 })
-  const secBranchBtn = await page.$('button.dialog-option:has-text("faction事务")')
-  if (!secBranchBtn) fail('secretary branch button missing')
-  else {
-    await secBranchBtn.click()
-    await page.waitForFunction(() => !!document.querySelector('[data-bulk-order="supply"]'), null, { timeout: 5000 })
-    const preSnap = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-    await page.click('[data-bulk-order="supply"]')
-    const postSnap = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-    const newPending = postSnap.pending.find(
-      (d) => !preSnap.pending.some((p) => p.kind === d.kind && p.qty === d.qty && p.daysRemaining === d.daysRemaining),
-    )
-    if (!newPending) fail('secretary bulk-order did not enqueue a delivery')
-    else {
-      if (newPending.daysRemaining !== 1) {
-        fail(`bulk-order daysRemaining=${newPending.daysRemaining} (want 1 from secretaryBulkOrderDeliveryDays)`)
-      }
-      if (newPending.qty !== 100) fail(`bulk-order qty=${newPending.qty} (want 100)`)
-      pass(`secretary bulk-order placed: qty=${newPending.qty} days=${newPending.daysRemaining}`)
-    }
-    await page.evaluate(() => globalThis.uclifeUI.getState().setDialogNPC(null))
-  }
-}
+const postOrder = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.equal(postOrder.pending.length, 1,
+  `expected 1 pending delivery after order, got ${postOrder.pending.length}; pending=${JSON.stringify(postOrder.pending)}`)
+const dealerOrder = postOrder.pending[0]
+assert.equal(dealerOrder.kind, 'supply',
+  `pending delivery kind=${dealerOrder.kind} (want supply)`)
+assert.equal(dealerOrder.qty, SUPPLY_ORDER_QTY,
+  `pending qty=${dealerOrder.qty} (want ${SUPPLY_ORDER_QTY} from supplyOrderQuantum)`)
+assert.equal(dealerOrder.daysRemaining, SUPPLY_DELIVERY_DAYS,
+  `pending days=${dealerOrder.daysRemaining} (want ${SUPPLY_DELIVERY_DAYS} from supplyDeliveryDays)`)
 
-// 7. Fleet supply totals — HUD's source-of-truth.
-const totals = await page.evaluate(() => globalThis.__uclife__.fleetSupplyTotals())
-if (totals.supplyMax <= 0) fail(`fleetSupplyTotals.supplyMax=${totals.supplyMax} (want > 0)`)
-else pass(`HUD totals: supply ${totals.supplyCurrent}/${totals.supplyMax} fuel ${totals.fuelCurrent}/${totals.fuelMax}`)
-// The drydock at Granada is also a hangar — totals should include its cap (5000).
-if (totals.supplyMax !== 1000 + 5000) fail(`fleet supplyMax ${totals.supplyMax} (want 6000 = VB 1000 + Granada 5000)`)
-else pass(`fleet supplyMax aggregates VB + Granada: ${totals.supplyMax}`)
+const moneyAfterDealer = await page.evaluate(
+  () => window.__uclife__.getGameState().getPlayerCharacter().getResource('Money'),
+)
+const dealerSpend = moneyBeforeDealer - moneyAfterDealer
+assert.equal(dealerSpend, SUPPLY_ORDER_QTY * SUPPLY_PRICE_PER_UNIT,
+  `dealer spend ${dealerSpend} (want ${SUPPLY_ORDER_QTY * SUPPLY_PRICE_PER_UNIT})`)
+
+await page.evaluate(() => window.uclifeUI.getState().setDialogNPC(null))
+
+// Advance ticks — delivery decrements daysRemaining each tick, lands at 0.
+const beforeDelivery = preOrder
+await page.evaluate(() => window.__uclife__.runFleetSupplyTick(10))
+const mid = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.equal(mid.pending.length, 1,
+  `delivery should still be pending after 1 tick: pending=${JSON.stringify(mid.pending)}`)
+assert.equal(mid.pending[0].daysRemaining, 1,
+  `delivery did not decrement: pending=${JSON.stringify(mid.pending)}`)
+
+await page.evaluate(() => window.__uclife__.runFleetSupplyTick(11))
+const landed = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.equal(landed.pending.length, 0,
+  `delivery still pending after ${SUPPLY_DELIVERY_DAYS} ticks: ${JSON.stringify(landed.pending)}`)
+
+const expectedFinal = Math.min(
+  EXPECTED_SUPPLY_MAX,
+  beforeDelivery.supplyCurrent + SUPPLY_ORDER_QTY - FLAGSHIP_SUPPLY_PER_DAY * SUPPLY_DELIVERY_DAYS,
+)
+assert.equal(landed.supplyCurrent, expectedFinal,
+  `final supply ${landed.supplyCurrent} (want ${expectedFinal})`)
+
+// 6. Secretary bulk-order — markup + faster turnaround.
+await page.evaluate(() => window.__uclife__.forceSeatSecretary())
+const secEnt = await page.evaluate(() => window.__uclife__.secretaryEntity())
+assert.ok(secEnt, `secretary entity not seated`)
+
+await page.evaluate(() => {
+  const sec = window.__uclife__.secretaryEntity()
+  window.uclifeUI.getState().setDialogNPC(sec)
+})
+
+await page.waitForSelector('button.dialog-option', { timeout: DOM_COMMIT_TIMEOUT_MS })
+await page.click('button.dialog-option:has-text("faction事务")')
+await page.waitForSelector('[data-bulk-order="supply"]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+
+const preBulk = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+await page.click('[data-bulk-order="supply"]')
+
+const postBulk = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+const newPending = postBulk.pending.find((d) => !preBulk.pending.some(
+  (p) => p.kind === d.kind && p.qty === d.qty && p.daysRemaining === d.daysRemaining,
+))
+assert.ok(newPending, `secretary bulk-order did not enqueue a delivery; pending=${JSON.stringify(postBulk.pending)}`)
+assert.equal(newPending.daysRemaining, SECRETARY_BULK_ORDER_DAYS,
+  `bulk-order daysRemaining=${newPending.daysRemaining} (want ${SECRETARY_BULK_ORDER_DAYS})`)
+assert.equal(newPending.qty, SECRETARY_BULK_QTY,
+  `bulk-order qty=${newPending.qty} (want ${SECRETARY_BULK_QTY})`)
+
+await page.evaluate(() => window.uclifeUI.getState().setDialogNPC(null))
+
+// 7. Fleet supply totals — HUD's source-of-truth value.
+const totals = await page.evaluate(() => window.__uclife__.fleetSupplyTotals())
+assert.equal(totals.supplyMax, FLEET_SUPPLY_MAX_TOTAL,
+  `fleet supplyMax ${totals.supplyMax} (want ${FLEET_SUPPLY_MAX_TOTAL} = VB ${EXPECTED_SUPPLY_MAX} + Granada 5000)`)
 
 // 8. Save round-trip preserves supplyCurrent + pending deliveries.
-await page.evaluate((k) => globalThis.__uclife__.setHangarSupply(k, 750, 200), vb.buildingKey)
-await page.evaluate((k) => globalThis.__uclife__.enqueueHangarDelivery(k, 'supply', 250, 2), vb.buildingKey)
-const preSave = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+await page.evaluate((k) => window.__uclife__.setHangarSupply(k, 750, 200), vb.buildingKey)
+await page.evaluate(
+  (k) => window.__uclife__.enqueueHangarDelivery(k, 'supply', 250, 2),
+  vb.buildingKey,
+)
+const preSave = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
 
-await page.evaluate(async () => { await globalThis.__uclife__.saveGame('auto') })
-await page.evaluate(async () => { await globalThis.__uclife__.loadGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.saveGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.loadGame('auto') })
 
-const postLoad = await page.evaluate((k) => globalThis.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
-if (postLoad.supplyCurrent !== preSave.supplyCurrent) {
-  fail(`supplyCurrent lost across save: ${preSave.supplyCurrent} → ${postLoad.supplyCurrent}`)
-}
-if (postLoad.fuelCurrent !== preSave.fuelCurrent) {
-  fail(`fuelCurrent lost across save: ${preSave.fuelCurrent} → ${postLoad.fuelCurrent}`)
-}
-if (postLoad.pending.length !== preSave.pending.length) {
-  fail(`pending count lost: ${preSave.pending.length} → ${postLoad.pending.length}`)
-} else {
-  const mismatched = postLoad.pending.findIndex((p, i) =>
-    p.kind !== preSave.pending[i].kind ||
-    p.qty !== preSave.pending[i].qty ||
-    p.daysRemaining !== preSave.pending[i].daysRemaining,
-  )
-  if (mismatched >= 0) fail(`pending row ${mismatched} mismatched after load`)
-  else pass(`save round-trip preserved supply/fuel + ${preSave.pending.length} pending deliveries`)
+const postLoad = await page.evaluate((k) => window.__uclife__.hangarSupplySnapshot(k), vb.buildingKey)
+assert.equal(postLoad.supplyCurrent, preSave.supplyCurrent,
+  `supplyCurrent lost across save: ${preSave.supplyCurrent} → ${postLoad.supplyCurrent}`)
+assert.equal(postLoad.fuelCurrent, preSave.fuelCurrent,
+  `fuelCurrent lost across save: ${preSave.fuelCurrent} → ${postLoad.fuelCurrent}`)
+assert.equal(postLoad.pending.length, preSave.pending.length,
+  `pending count lost: ${preSave.pending.length} → ${postLoad.pending.length}`)
+for (let i = 0; i < preSave.pending.length; i += 1) {
+  const p = preSave.pending[i]
+  const q = postLoad.pending[i]
+  assert.equal(q.kind, p.kind, `pending[${i}].kind ${q.kind} (want ${p.kind})`)
+  assert.equal(q.qty, p.qty, `pending[${i}].qty ${q.qty} (want ${p.qty})`)
+  assert.equal(q.daysRemaining, p.daysRemaining,
+    `pending[${i}].daysRemaining ${q.daysRemaining} (want ${p.daysRemaining})`)
 }
 
-await done()
+assert.equal(pageErrors.length, 0,
+  `page error(s) during test:\n${pageErrors.map((e) => '  ' + e).join('\n')}`)
 
-async function done() {
-  await browser.close()
-  if (errors.length) {
-    console.log('\nERRORS:')
-    errors.forEach((e) => console.log('  ' + e))
-  }
-  if (failures.length) {
-    console.log('\nFAILURES:')
-    failures.forEach((f) => console.log('  ' + f))
-    process.exit(1)
-  }
-  console.log('\nOK: hangar supply/fuel caps + daily drain + dealer order pipeline + secretary bulk-order + HUD + save round-trip verified.')
-}
+console.log('OK — check-fleet-supply (deterministic):')
+console.log(`  VB hangar at boot: supply ${EXPECTED_SUPPLY_MAX}/${EXPECTED_SUPPLY_MAX} fuel ${EXPECTED_FUEL_MAX}/${EXPECTED_FUEL_MAX}`)
+console.log(`  drain tick: Δsupply=${drained} (= flagship supplyPerDay)`)
+console.log(`  dealer order: ${dealerOrder.qty} supply, ${dealerOrder.daysRemaining} days, spent ¥${dealerSpend}`)
+console.log(`  delivery landed: supply ${beforeDelivery.supplyCurrent} → ${landed.supplyCurrent}`)
+console.log(`  secretary bulk: qty=${newPending.qty} days=${newPending.daysRemaining}`)
+console.log(`  fleet supplyMax=${totals.supplyMax} (VB ${EXPECTED_SUPPLY_MAX} + Granada 5000)`)
+console.log(`  save round-trip: supply=${postLoad.supplyCurrent} pending=${postLoad.pending.length}`)
+
+await browser.close()
