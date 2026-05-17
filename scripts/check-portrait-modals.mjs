@@ -1,9 +1,11 @@
-// Each conversation surface uses window.uclifePinClerk(specId) (defined in
-// src/render/portrait/__debug__/portraitFixtures.ts) to synthetically pin an
-// NPC to the target workstation in `working` state. This sidesteps the BT —
-// we don't wait for the game to schedule shifts; we force the world into the
-// exact state the conversation extension demands.
+// Phase 6 — Category C (renderer-pixel). Boots via `?test=1&assets=1` so
+// every conversation surface composites its portrait through the real
+// pipeline. Each surface uses window.uclifePinClerk(specId) (registered
+// in src/render/portrait/__debug__/portraitFixtures.ts) to synthetically
+// pin an NPC to the target workstation in `working` state — sidestepping
+// the BT so we don't wait for the game to schedule shifts.
 
+import { strict as assert } from 'node:assert'
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -13,7 +15,14 @@ const here = dirname(fileURLToPath(import.meta.url))
 const outDir = join(here, 'out')
 await mkdir(outDir, { recursive: true })
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const BOOT_READY_TIMEOUT_MS = 30_000
+const ASSET_DRAIN_TIMEOUT_MS = 30_000
+const DOM_COMMIT_TIMEOUT_MS = 10_000
+const CLERK_SPEC_IDS = ['city_hr_clerk', 'realtor', 'ae_director']
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1&assets=1', baseUrl).toString()
+
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage()
@@ -24,21 +33,25 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
 })
 
-await page.goto(url, { waitUntil: 'networkidle' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.fillJobVacancies === 'function'
-    && typeof globalThis.__uclife__?.awaitAssetsReady === 'function'
+  () => typeof window.__uclife__?.fillJobVacancies === 'function'
+    && typeof window.__uclife__?.awaitAssetsReady === 'function'
     && typeof window.uclifePinClerk === 'function',
   null,
-  { timeout: 30_000 },
+  { timeout: BOOT_READY_TIMEOUT_MS },
 )
 // Guarantee deterministic workers for every clerk specId used in this test,
 // regardless of procgen building placement outcomes.
-await page.evaluate(() =>
-  globalThis.__uclife__.fillJobVacancies(['city_hr_clerk', 'realtor', 'ae_director']),
+await page.evaluate(
+  (ids) => window.__uclife__.fillJobVacancies(ids),
+  CLERK_SPEC_IDS,
 )
 // Drain any boot-time asset jobs before opening dialogs.
-await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+await page.evaluate(
+  (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+  ASSET_DRAIN_TIMEOUT_MS,
+)
 
 async function probe() {
   return await page.evaluate(() => {
@@ -76,19 +89,19 @@ async function openClerkDialogPinned(specId) {
 
 async function runSurface(name, openFn, screenshotName) {
   const ok = await openFn()
-  if (!ok) {
-    errors.push(`fixture failed for ${name}`)
-    return []
-  }
+  assert.ok(ok, `fixture failed for ${name}`)
   // Two-step deterministic wait: the asset cache finishes loading, then
-  // React commits the Portrait useEffect that mounts an art* SVG into the
-  // DOM. The probe filters on those SVGs, so we wait for at least one
-  // before snapshotting.
-  await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+  // React commits the Portrait useEffect that mounts an art* SVG into
+  // the DOM. The probe filters on those SVGs, so we wait for at least
+  // one before snapshotting.
+  await page.evaluate(
+    (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+    ASSET_DRAIN_TIMEOUT_MS,
+  )
   await page.waitForFunction(
     () => !!document.querySelector('svg[class^="art"]'),
     null,
-    { timeout: 10_000 },
+    { timeout: DOM_COMMIT_TIMEOUT_MS },
   )
   await page.screenshot({ path: join(outDir, screenshotName) })
   const stats = await probe()
@@ -99,6 +112,8 @@ async function runSurface(name, openFn, screenshotName) {
   await page.waitForFunction(
     () => window.uclifeUI.getState().dialogNPC === null
       && !document.querySelector('svg[class^="art"]'),
+    null,
+    { timeout: DOM_COMMIT_TIMEOUT_MS },
   )
   return stats
 }
@@ -108,11 +123,14 @@ const results = {}
 await page.evaluate(() => window.uclifeUI.getState().setStatus(true))
 // First portrait cache load happens here — drain it, then wait for the
 // StatusPanel's portrait useEffect to commit at least one art* SVG.
-await page.evaluate(() => globalThis.__uclife__.awaitAssetsReady())
+await page.evaluate(
+  (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+  ASSET_DRAIN_TIMEOUT_MS,
+)
 await page.waitForFunction(
   () => !!document.querySelector('svg[class^="art"]'),
   null,
-  { timeout: 10_000 },
+  { timeout: DOM_COMMIT_TIMEOUT_MS },
 )
 await page.screenshot({ path: join(outDir, 'modal-status.png') })
 results.status = await probe()
@@ -121,27 +139,25 @@ await page.evaluate(() => window.uclifeUI.getState().setStatus(false))
 await page.waitForFunction(
   () => window.uclifeUI.getState().statusOpen === false
     && !document.querySelector('svg[class^="art"]'),
+  null,
+  { timeout: DOM_COMMIT_TIMEOUT_MS },
 )
 
 results.hr = await runSurface('hr', () => openClerkDialogPinned('city_hr_clerk'), 'modal-hr.png')
 results.realtor = await runSurface('realtor', () => openClerkDialogPinned('realtor'), 'modal-realtor.png')
 results.ae = await runSurface('ae', () => openClerkDialogPinned('ae_director'), 'modal-ae.png')
 
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
-}
-
 const surfaces = ['status', 'hr', 'realtor', 'ae']
-let ok = errors.length === 0
 for (const s of surfaces) {
   const r = results[s] ?? []
   const found = r.find((c) => c.svgCount > 0 && !c.overflow)
   console.log(`  ${s}: ${found ? `OK (${found.box.w}x${found.box.h}, svg=${found.svgCount})` : 'FAIL (no contained svg)'}`)
-  if (!found) ok = false
+  assert.ok(found, `${s} portrait container has no contained svg`)
 }
 
-console.log(ok ? '\nOK: all four conversation surfaces render contained portraits.' : '\nFAIL.')
-if (!ok) process.exitCode = 1
+assert.equal(errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`)
+
+console.log('\nOK: all four conversation surfaces render contained portraits.')
 
 await browser.close()
