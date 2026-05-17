@@ -44,6 +44,13 @@ describe('applyFixture', () => {
       /applyFixture\(this-fixture-does-not-exist\).*not registered/,
     )
   })
+
+  it('loads player-with-cash-at-vb: large money balance + vonBraunCity scene', () => {
+    applyFixture('player-with-cash-at-vb')
+    const player = findPlayer()
+    expect(player).not.toBeNull()
+    expect(player!.get(Money)!.amount).toBe(200000)
+  })
 })
 
 import { __registerInlineFixtureForTest } from './fixtures'

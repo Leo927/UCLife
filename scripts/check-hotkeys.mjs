@@ -1,94 +1,116 @@
-import { chromium } from 'playwright'
+// Phase 6 deterministic migration of the hotkeys smoke. Verifies the Hud's
+// keydown handler:
+//   1. C opens status; ESC closes status; C toggles back open then closed.
+//   2. I opens inventory; ESC closes inventory.
+//   3. C while inventory open is a no-op (anyModal block); inventory stays.
+//   4. ESC with no modal open is a no-op.
+//   5. ESC closes the system menu (opened directly via the UI store).
+//
+// Migrated to the deterministic stack: ?test=1&fixture=minimal-player-only,
+// real `page.keyboard.press()` for every hotkey, listener-readiness is the
+// .hud root being mounted (its useEffect attaches keydown then). Sim time
+// never advances — UI store is browser-side, not sim state.
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import {
+  BOOT_READY_TIMEOUT_MS, DOM_COMMIT_TIMEOUT_MS, VIEWPORT,
+  isExpectedTestModePortraitMissing,
+} from './_test-constants.mjs'
+
+const FIXTURE = 'minimal-player-only'
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL(`?test=1&fixture=${FIXTURE}`, baseUrl).toString()
+
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+const ctx = await browser.newContext({ viewport: VIEWPORT })
 const page = await ctx.newPage()
 
-const errors = []
-page.on('pageerror', (e) => errors.push(`pageerror ${e.name}: ${e.message}`))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
-
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForFunction(() => typeof globalThis.__uclife__?.fillJobVacancies === 'function')
-await page.waitForFunction(() => typeof window.uclifeUI?.getState === 'function')
-// Hud's keydown listener registers in a useEffect; wait for it to be live by
-// firing a probe keypress and confirming it flips the store. Without this the
-// test races boot and silently drops early keystrokes.
-await page.waitForFunction(async () => {
-  const before = window.uclifeUI.getState().statusOpen
-  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC', key: 'c', bubbles: true }))
-  const after = window.uclifeUI.getState().statusOpen
-  if (after !== before) {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC', key: 'c', bubbles: true }))
-    return true
-  }
-  return false
-}, null, { timeout: 10_000, polling: 200 })
-
-const state = () => page.evaluate(() => {
-  const s = window.uclifeUI.getState()
-  return { statusOpen: s.statusOpen, inventoryOpen: s.inventoryOpen, mapOpen: s.mapOpen, systemOpen: s.systemOpen }
+const pageErrors = []
+page.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`))
+page.on('console', (m) => {
+  if (m.type() !== 'error') return
+  const line = `console.error: ${m.text()}`
+  if (isExpectedTestModePortraitMissing(line)) return
+  pageErrors.push(line)
 })
 
-async function press(key) {
-  await page.keyboard.press(key)
-  // The Hud keydown handler calls zustand `set()` synchronously. The
-  // page.keyboard.press → next page.evaluate round-trip already yields
-  // far more than the listener needs to fire and commit. Forcing one
-  // explicit microtask + raf flush makes the ordering explicit without
-  // a fixed sleep.
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())))
-}
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.getGameState === 'function'
+    && typeof window.uclifeUI?.getState === 'function',
+  null,
+  { timeout: BOOT_READY_TIMEOUT_MS },
+)
 
-// C opens status
-await press('c')
-let s = await state()
-if (!s.statusOpen) errors.push(`C should open status, got ${JSON.stringify(s)}`)
-// ESC closes
-await press('Escape')
-s = await state()
-if (s.statusOpen) errors.push(`ESC should close status, got ${JSON.stringify(s)}`)
-// C again toggles open
-await press('c')
-s = await state()
-if (!s.statusOpen) errors.push(`C should re-open status, got ${JSON.stringify(s)}`)
-// C toggles closed
-await press('c')
-s = await state()
-if (s.statusOpen) errors.push(`C should toggle status off, got ${JSON.stringify(s)}`)
+// Wait for the Hud root to commit. The Hud's keydown listener is attached
+// in a useEffect, so once the `.hud` element is in the DOM the listener is
+// guaranteed live. No probe-key trick needed under the deterministic boot.
+await page.waitForSelector('.hud', { timeout: DOM_COMMIT_TIMEOUT_MS })
 
-// I opens inventory
-await press('i')
-s = await state()
-if (!s.inventoryOpen) errors.push(`I should open inventory, got ${JSON.stringify(s)}`)
-await press('Escape')
-s = await state()
-if (s.inventoryOpen) errors.push(`ESC should close inventory, got ${JSON.stringify(s)}`)
+const readState = () => page.evaluate(() => {
+  const s = window.uclifeUI.getState()
+  return {
+    statusOpen: s.statusOpen,
+    inventoryOpen: s.inventoryOpen,
+    mapOpen: s.mapOpen,
+    systemOpen: s.systemOpen,
+  }
+})
 
-// C while inventory open: no-op (anyModal block)
+// 1. C opens, ESC closes, C reopens, C closes.
+await page.keyboard.press('c')
+let s = await readState()
+assert.equal(s.statusOpen, true, `C should open status, got ${JSON.stringify(s)}`)
+
+await page.keyboard.press('Escape')
+s = await readState()
+assert.equal(s.statusOpen, false, `ESC should close status, got ${JSON.stringify(s)}`)
+
+await page.keyboard.press('c')
+s = await readState()
+assert.equal(s.statusOpen, true, `C should re-open status, got ${JSON.stringify(s)}`)
+
+await page.keyboard.press('c')
+s = await readState()
+assert.equal(s.statusOpen, false, `C should toggle status off, got ${JSON.stringify(s)}`)
+
+// 2. I opens inventory, ESC closes.
+await page.keyboard.press('i')
+s = await readState()
+assert.equal(s.inventoryOpen, true, `I should open inventory, got ${JSON.stringify(s)}`)
+
+await page.keyboard.press('Escape')
+s = await readState()
+assert.equal(s.inventoryOpen, false, `ESC should close inventory, got ${JSON.stringify(s)}`)
+
+// 3. C while inventory open: no-op (anyModal block).
 await page.evaluate(() => window.uclifeUI.getState().setInventory(true))
-await press('c')
-s = await state()
-if (s.statusOpen) errors.push(`C should not open status while inventory open`)
-if (!s.inventoryOpen) errors.push(`Inventory should remain open after C press`)
+await page.keyboard.press('c')
+s = await readState()
+assert.equal(s.statusOpen, false,
+  `C should not open status while inventory open, got ${JSON.stringify(s)}`)
+assert.equal(s.inventoryOpen, true,
+  `Inventory should remain open after C press, got ${JSON.stringify(s)}`)
 await page.evaluate(() => window.uclifeUI.getState().setInventory(false))
 
-// ESC with no modal: no-op
-await press('Escape')
-s = await state()
-if (s.statusOpen || s.inventoryOpen || s.mapOpen || s.systemOpen) errors.push(`ESC opened something with no modal: ${JSON.stringify(s)}`)
+// 4. ESC with no modal open: no-op (every modal stays closed).
+await page.keyboard.press('Escape')
+s = await readState()
+assert.equal(s.statusOpen || s.inventoryOpen || s.mapOpen || s.systemOpen, false,
+  `ESC opened something with no modal: ${JSON.stringify(s)}`)
 
-// ESC closes systemMenu (opened via store)
+// 5. ESC closes the system menu (opened via store, then real key press).
 await page.evaluate(() => window.uclifeUI.getState().setSystem(true))
-await press('Escape')
-s = await state()
-if (s.systemOpen) errors.push(`ESC should close systemMenu, got ${JSON.stringify(s)}`)
+await page.keyboard.press('Escape')
+s = await readState()
+assert.equal(s.systemOpen, false, `ESC should close systemMenu, got ${JSON.stringify(s)}`)
+
+assert.equal(pageErrors.length, 0,
+  `page error(s) during test:\n${pageErrors.map((e) => '  ' + e).join('\n')}`)
+
+console.log('OK — check-hotkeys (deterministic): C/I/ESC behave correctly')
 
 await browser.close()
-
-if (errors.length) {
-  console.error('FAIL:', errors.join('\n  '))
-  process.exit(1)
-}
-console.log('OK: hotkeys C/I/ESC behave correctly')

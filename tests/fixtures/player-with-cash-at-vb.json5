@@ -1,0 +1,15 @@
+// Phase 6 batch-B fixture — player at Von Braun with enough cash for the
+// civic-dialog smokes (orbital lift fare, flight fares, AE supply-dealer
+// orders, secretary bulk-orders). Coordinates are tile-space in
+// vonBraunCity. The amount is large enough that no test in the batch has
+// to top up money mid-run via cheatMoney.
+{
+  seed: 'batch-b-player-with-cash-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 200000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+}
