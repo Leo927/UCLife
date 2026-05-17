@@ -8,7 +8,9 @@ import { getWorld } from '../../ecs/world'
 import {
   Position, CombatShipState, EnemyAI, EntityKey,
 } from '../../ecs/traits'
-import { useCombatStore, startCombat } from '../../systems/combat'
+import {
+  useCombatStore, startCombat, combatSystem, endCombat, type CombatOutcome,
+} from '../../systems/combat'
 import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
 import {
@@ -50,6 +52,22 @@ registerDebugHandle('fastWinCombat', () => {
     touched = true
   }
   return touched
+})
+
+// Test-mode driver: combatSystem runs from the RAF loop in prod, but
+// the loop is stopped under ?test=1. Call this to advance combat by
+// `dtMs` of tactical time. Pair with fastWinCombat() to resolve.
+registerDebugHandle('tickCombatSystem', (dtMs: number) => {
+  combatSystem(getWorld('playerShipInterior'), dtMs)
+  return true
+})
+
+// Test-mode shortcut: force combat to resolve immediately with the
+// given outcome. Used by smoke tests that don't want to drive the
+// tactical loop frame-by-frame.
+registerDebugHandle('endCombatCheat', (outcome: CombatOutcome) => {
+  endCombat(outcome)
+  return true
 })
 
 registerDebugHandle('listEnemies', () => {
