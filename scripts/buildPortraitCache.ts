@@ -12,14 +12,12 @@ const cacheDir = join(repoRoot, 'public', 'portrait-cache')
 async function buildOne(srcDir: string, outFile: string): Promise<{ count: number; bytes: number }> {
   const entries = await readdir(srcDir)
   const svgFiles = entries.filter((f) => f.toLowerCase().endsWith('.svg')).sort()
+  const bodies = await Promise.all(
+    svgFiles.map((f) => readFile(join(srcDir, f), 'utf8')),
+  )
   const dict: Record<string, string> = {}
-  let totalIn = 0
-  for (const f of svgFiles) {
-    const full = join(srcDir, f)
-    const body = await readFile(full, 'utf8')
-    totalIn += body.length
-    const key = basename(f, '.svg')
-    dict[key] = body.trim()
+  for (let i = 0; i < svgFiles.length; i++) {
+    dict[basename(svgFiles[i], '.svg')] = bodies[i].trim()
   }
   const json = JSON.stringify(dict)
   await writeFile(outFile, json, 'utf8')
