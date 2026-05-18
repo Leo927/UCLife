@@ -33,7 +33,7 @@ const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
 // Pixel position to drop the player on at the other end of an orbital lift.
 // Resolves by querying the destination scene's OrbitalLift kiosk with the
 // matching liftId — keeps arrival data alongside the kiosk it pairs with,
-// so adding a new lift is one fixedInteractables row per endpoint and
+// so adding a new lift is one `orbitalLift` building per endpoint and
 // nothing else. Returns null if the destination scene has no matching
 // kiosk (data drift — surfaces as a toast at call site).
 function findOrbitalLiftArrivalPx(

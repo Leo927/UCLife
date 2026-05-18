@@ -210,6 +210,25 @@
     layout: { algorithm: 'transit' },
   },
 
+  // ── ORBITAL LIFT ────────────────────────────────────────────────────────
+
+  // Phase 6.2.A.2 orbital-lift vestibule. One small enclosed building per
+  // endpoint of an orbital-lifts.json5 pair: a kiosk inside, walls + door
+  // outside. Bound 1:1 by sceneId at spawn time — the lift row whose
+  // sceneIdA / sceneIdB contains the host scene becomes this building's
+  // kiosk binding (mirrors how `transit` resolves the matching terminal).
+  // Footprint kept small (4×4 fixed) so it slots into any street block in
+  // a procgen district, the same way transitTerminal does.
+  //
+  // stateLocked: civic infrastructure — orbital lifts are public transport
+  // and never list on the realtor.
+  orbitalLift: {
+    labelZh: '轨道升降梯',
+    size: { w: 4, h: 4 },
+    stateLocked: true,
+    layout: { algorithm: 'lift' },
+  },
+
   // ── PARK ────────────────────────────────────────────────────────────────
 
   // No walls, no doors — just an open rect with scattered survival

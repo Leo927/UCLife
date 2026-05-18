@@ -7,10 +7,12 @@ import { isSceneId } from './scenes'
 // data tier can't import from ecs/.
 type SceneId = string
 
-// Static metadata about an orbital-lift pair. The lift kiosk positions live
-// per-scene as fixedInteractables in scenes.json5 — this catalog only owns
-// the (source, dest, duration, fare) economics that are independent of the
-// kiosk's tile placement.
+// Static metadata about an orbital-lift pair. Each row's sceneIdA/sceneIdB
+// double as the binding for the per-endpoint `orbitalLift` building (see
+// building-types.json5 + spawnLiftBuilding) — spawn looks up which lift
+// names the host scene as an endpoint and stamps the kiosk's OrbitalLift
+// trait with that liftId. Catalog only owns the (source, dest, duration,
+// fare) economics that are independent of the kiosk's tile placement.
 export interface OrbitalLift {
   id: string
   labelZh: string
@@ -70,4 +72,11 @@ export function liftOtherEndpoint(lift: OrbitalLift, fromSceneId: SceneId): Scen
   if (fromSceneId === lift.sceneIdA) return lift.sceneIdB
   if (fromSceneId === lift.sceneIdB) return lift.sceneIdA
   return null
+}
+
+// All lifts that name `sceneId` as one of their endpoints. spawnLiftBuilding
+// pulls from this list and binds the next unbound row to each `orbitalLift`
+// building it spawns in the scene.
+export function liftsForScene(sceneId: SceneId): readonly OrbitalLift[] {
+  return parsed.lifts.filter((l) => l.sceneIdA === sceneId || l.sceneIdB === sceneId)
 }

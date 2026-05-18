@@ -101,6 +101,16 @@ export type TransitLayout = {
   algorithm: 'transit'
 }
 
+// Orbital-lift vestibule: open interior with a single lift kiosk centered
+// against the wall opposite the primary door. The kiosk is bound at spawn
+// time to whichever orbital-lifts.json5 row lists this scene as one of its
+// endpoints (one lift per scene at this slice). Same kiosk-in-vestibule
+// shape as transit; the algorithm is split out so the spawner can resolve
+// the lift row instead of a transit terminal row.
+export type LiftLayout = {
+  algorithm: 'lift'
+}
+
 // Park: an outdoor area with no exterior walls and no door. Random
 // fixtures (taps, scavenge points, benches) scatter inside the rect.
 // Spawn-time fixture counts are drawn uniformly from the per-kind ranges.
@@ -143,6 +153,7 @@ export type BuildingLayout =
   | CellsLayout
   | AirportLayout
   | TransitLayout
+  | LiftLayout
   | ParkLayout
   | CraftedLayout
 

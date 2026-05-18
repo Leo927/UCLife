@@ -20,7 +20,7 @@ import {
   type BarSeatTemplate, type InteractableTemplate,
 } from '../data/objectTemplates'
 import { getHangarFacilityType } from '../data/facilityTypes'
-import { getOrbitalLift } from '../data/orbitalLifts'
+import { liftsForScene } from '../data/orbitalLifts'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ship-classes'
@@ -174,6 +174,7 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
     case 'cells':       spawnCells(typeId, layout, slot, rng); break
     case 'airport':     spawnAirport(slot, sceneId); break
     case 'transit':     spawnTransitBuilding(slot, sceneId); break
+    case 'lift':        spawnLiftBuilding(slot, sceneId); break
     case 'park':        spawnPark(layout, slot, rng); break
     case 'crafted':     spawnCrafted(layout, slot, rng); break
   }
@@ -578,12 +579,16 @@ function spawnCraftedItem(
 
 // ── AIRPORT + PARK SPAWNERS ─────────────────────────────────────────────────
 
-// Tracks which hubs / terminals have been bound this bootstrap pass, so a
-// runaway district config asking for two airports in one scene doesn't
+// Tracks which hubs / terminals / lifts have been bound this bootstrap pass,
+// so a runaway district config asking for two airports in one scene doesn't
 // silently claim both ends of an inter-city flight pair (and similarly for
-// transit terminals — one per scene per placement kind).
+// transit terminals — one per scene per placement kind — and orbital lifts —
+// one liftId per `orbitalLift` building per scene). Lift keys are
+// `${sceneId}::${liftId}` because each lift row spans two scenes and each
+// endpoint needs its own kiosk.
 const airportHubsBound = new Set<string>()
 const transitTerminalsBound = new Set<string>()
+const orbitalLiftsBound = new Set<string>()
 
 function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   const { rect, primaryDoor } = slot
@@ -754,27 +759,32 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : (v > hi ? hi : v)
 }
 
-// ── FIXED INTERACTABLES ──────────────────────────────────────────────────────
+// ── ORBITAL LIFT VESTIBULE ───────────────────────────────────────────────────
 
-// Standalone kiosk spawn — no Building backing. Centered on the tile;
-// resolves any kind-specific extra traits (OrbitalLift today) by inspecting
-// the FixedInteractableRef payload.
-function spawnFixedInteractable(fi: import('../data/scenes').FixedInteractableRef): void {
-  const px = fi.tile.x * TILE + TILE / 2
-  const py = fi.tile.y * TILE + TILE / 2
-  if (fi.kind === 'orbitalLift') {
-    const liftId = fi.liftId
-    if (!liftId) throw new Error(`fixedInteractable orbitalLift missing liftId at (${fi.tile.x},${fi.tile.y})`)
-    const lift = getOrbitalLift(liftId)
-    if (!lift) throw new Error(`fixedInteractable orbitalLift references unknown liftId "${liftId}"`)
-    world.spawn(
-      Position({ x: px, y: py }),
-      Interactable({ kind: 'orbitalLift', label: fi.labelZh ?? lift.shortZh, fee: lift.fare }),
-      OrbitalLift({ liftId }),
-      EntityKey({ key: `orbital-lift-${liftId}-${fi.tile.x}-${fi.tile.y}` }),
-      TemplateRef({ id: 'orbital-lift-kiosk' }),
-    )
-  }
+function spawnLiftBuilding(slot: PlacedSlot, sceneId: SceneId): void {
+  const { rect, primaryDoor } = slot
+  const lift = liftsForScene(sceneId).find((l) => !orbitalLiftsBound.has(`${sceneId}::${l.id}`))
+  if (!lift) return  // No matching/free lift for this scene; vestibule is inert.
+  orbitalLiftsBound.add(`${sceneId}::${lift.id}`)
+
+  // Kiosk centered against the wall opposite the primary door — same
+  // geometry as the airport's ticket counter and the transit kiosk.
+  const cx = rect.x + rect.w / 2
+  const cy = rect.y + rect.h / 2
+  let kx = cx, ky = cy
+  const inset = TILE * 1.5
+  if (primaryDoor.side === 'n')      ky = rect.y + rect.h - inset
+  else if (primaryDoor.side === 's') ky = rect.y + inset
+  else if (primaryDoor.side === 'w') kx = rect.x + rect.w - inset
+  else                               kx = rect.x + inset
+
+  world.spawn(
+    Position({ x: kx, y: ky }),
+    Interactable({ kind: 'orbitalLift', label: lift.shortZh, fee: lift.fare }),
+    OrbitalLift({ liftId: lift.id }),
+    EntityKey({ key: `orbital-lift-${lift.id}-${sceneId}` }),
+    TemplateRef({ id: 'orbital-lift-kiosk' }),
+  )
 }
 
 function spawnPark(layout: ParkLayout, slot: PlacedSlot, rng: SeededRng): void {
@@ -1031,14 +1041,6 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
     spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
   }
 
-  // Standalone fixed interactables — hand-placed kiosks that don't belong to
-  // any building footprint. Phase 6.2.A.2 ships the first kind: the orbital
-  // lift kiosk pairs two scenes; the interaction system reads
-  // orbital-lifts.json5 to resolve the destination + fare + duration.
-  for (const fi of scene.fixedInteractables ?? []) {
-    spawnFixedInteractable(fi)
-  }
-
   // Phase 6.2.C2 — Granada drydock concourse AE sales desk. Spawned in
   // its own scene so the granada-bound rep entry in special-npcs.json5
   // can pre-claim the seat. Other scenes get nothing.
@@ -1126,6 +1128,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       Building({ x: px, y: py, w: pw, h: ph, label: room.nameZh }),
       ShipRoom({ roomDefId: room.id }),
       EntityKey({ key: `ship-room-${room.id}` }),
+      TemplateRef({ id: 'building-outline' }),
     )
   }
 
@@ -1161,13 +1164,34 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
     room.interactables.forEach((k, i) => {
       const dx = (k.offset?.dx ?? 0) * TILE
       const dy = (k.offset?.dy ?? 0) * TILE
+      const templateId = shipKioskTemplateFor(k.kind)
       world.spawn(
         Position({ x: cx + dx, y: cy + dy }),
         Interactable({ kind: k.kind, label: k.label, fee: 0 }),
         EntityKey({ key: `ship-kiosk-${room.id}-${i}` }),
+        TemplateRef({ id: templateId }),
       )
     })
   }
+}
+
+// Ship-room interactable kinds and their authored object-templates.
+// Kept colocated with the spawn site so adding a new ship kiosk kind
+// fails loudly at boot if the template hasn't been authored yet.
+const SHIP_KIOSK_TEMPLATES: Record<string, ObjectTemplateId> = {
+  helm:           'ship-helm',
+  captainsDesk:   'ship-captains-desk',
+  commPanel:      'ship-comm-panel',
+  warRoom:        'ship-war-room',
+  disembarkShip:  'ship-disembark',
+  climbIntoMs:    'ship-climb-into-ms',
+  brig:           'ship-brig',
+}
+
+function shipKioskTemplateFor(kind: string): ObjectTemplateId {
+  const id = SHIP_KIOSK_TEMPLATES[kind]
+  if (!id) throw new Error(`ship-kiosk kind "${kind}" has no template binding in spawn.ts`)
+  return id
 }
 
 function runSceneBootstrap(scene: SceneConfig, opts: SetupWorldOpts): void {
@@ -1212,6 +1236,7 @@ export function setupWorld(opts: SetupWorldOpts = { skipDefaultPlayer: false }) 
   roughSpotCounter = 0
   airportHubsBound.clear()
   transitTerminalsBound.clear()
+  orbitalLiftsBound.clear()
   for (const k of Object.keys(buildingKeyCounters)) delete buildingKeyCounters[k]
   clearAirportPlacements()
   clearTransitPlacements()
