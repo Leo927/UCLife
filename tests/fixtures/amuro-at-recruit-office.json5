@@ -1,4 +1,5 @@
-// Phase 5 example fixture — mirrors Design/test-determinism.md §Fixture schema.
+// Phase 5 example fixture — mirrors the fixture schema documented in the
+// deterministic-tests skill (.claude/skills/deterministic-tests/).
 // Hand-crafted setup for the future hire-Amuro smoke test (Phase 6). Coordinates
 // are tile-space inside the named scenes. The AE faction balance is set here so
 // the hire transaction can be tested deterministically.

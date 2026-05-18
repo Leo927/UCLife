@@ -1,8 +1,9 @@
 # Test Migration Playbook — Phase 6
 
 Recipes for converting `scripts/check-*.mjs` smoke tests onto the
-deterministic API shipped in Phases 1–5. The why lives in
-`Design/test-determinism.md`. This file is just the how.
+deterministic API shipped in Phases 1–5. The why lives in the
+`deterministic-tests` skill
+(`.claude/skills/deterministic-tests/SKILL.md`). This file is just the how.
 
 The pilot test for the Category B recipe is **`scripts/check-systemmenu.mjs`** —
 read it side-by-side with the recipes below. Pilot passed 10/10 back-to-back

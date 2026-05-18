@@ -1,6 +1,7 @@
 // `__uclife_test__` runtime — the sole wait primitive in test code.
 // Sim clock is frozen in test mode (set by bootTestMode), so the only
-// way time advances is via `step()`. See Design/test-determinism.md.
+// way time advances is via `step()`. See the deterministic-tests skill
+// at .claude/skills/deterministic-tests/.
 //
 // Cadence is sign-off #4: predicate evaluated after EVERY game tick
 // (~16 game-ms). If perf bites under a hot test, expose

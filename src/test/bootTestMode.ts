@@ -3,8 +3,8 @@
 // builds — no test code ships to players.
 //
 // Boot order matters: state flag → RNG seed → frozen clock → world →
-// fixture → debug handles → React mount. See
-// Design/test-determinism.md §"Boot via URL params".
+// fixture → debug handles → React mount. See the deterministic-tests
+// skill at .claude/skills/deterministic-tests/.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
