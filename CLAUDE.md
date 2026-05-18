@@ -6,7 +6,7 @@ Operating rules for Claude Code in this repo. Architecture description is canoni
 
 UC Life Sim — a browser RPG life simulator set in Gundam UC 0077 lunar city Von Braun. Player-facing language is **zh-CN**; this file, code, comments, commit messages, debug labels, and inspector UI are in English. See `Design/DESIGN.md` for the design index.
 
-License: **GPL-3.0-or-later** (transitively, via the verbatim FC pregmod portrait code in `src/render/portrait/`). Do not strip the content guardrail in `src/render/portrait/adapter/characterToSlave.ts`.
+License: **GPL-3.0-or-later** (transitively, via the verbatim FC pregmod portrait code in `src/render/portrait/providers/fc-pregmod/`). Do not strip the content guardrail in `src/render/portrait/providers/fc-pregmod/adapter/characterToSlave.ts`.
 
 ## Commands
 
@@ -45,6 +45,8 @@ Follow *Clean Code* (Robert C. Martin) discipline: small intention-revealing nam
 
 A flaky smoke test is worse than no smoke test: it teaches the team to ignore CI red, and the next real regression slips through. **Smoke tests must be deterministic by construction — not statistically reliable.** A correctly-built test passes 1/1 under any CI load. If yours doesn't, the test is broken, not unlucky.
 
+**For new tests, use the deterministic substrate first** — boot via `?test=1&fixture=<name>`, advance with `step({ until, maxGameMinutes })`, assert via `getGameState()`. See the `deterministic-tests` skill (`.claude/skills/deterministic-tests/SKILL.md`) before writing or migrating any test. The rules below apply to *both* substrates; they're what makes either shape deterministic.
+
 Reliability is the primary acceptance criterion for any new `check-*.mjs` / playwright scenario, ranked above coverage breadth.
 
 **Construction rules** — every new smoke test must obey all of these:
@@ -53,7 +55,7 @@ Reliability is the primary acceptance criterion for any new `check-*.mjs` / play
 2. **No fixed `sleep` / `waitForTimeout`.** Wait on a *condition* (`page.waitForFunction(() => __uclife__.something)`). If you reach for `setTimeout(2000)`, expose a deterministic signal on `__uclife__` instead.
 3. **Drive sim time, not real time.** Advance the clock via the debug handle (or `superSpeed` / `alwaysHyperspeed` overrides). Never click a speed button and wait for the wall clock to catch up.
 4. **Seeded determinism only.** Same `WORLD_SEED` → same world. If a scenario depends on a specific spawn, pin it via `special-npcs.json5` / `scenes.json5` rather than fishing for a procedural NPC.
-5. **No dynamic `await import('/src/...')` from inside the page.** Vite hands the test a different module instance than the running app, so trait-identity queries (`world.queryFirst(traitsMod.IsPlayer)`) silently match nothing. Expose helpers on `__uclife__` instead (see `src/main.tsx`).
+5. **No dynamic `await import('/src/...')` from inside the page.** Vite hands the test a different module instance than the running app, so trait-identity queries (`world.queryFirst(traitsMod.IsPlayer)`) silently match nothing. Expose helpers on `__uclife__` instead (slices live under `src/boot/debugHandles/`, assembled in `src/bootProd.tsx`).
 6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** If a check needs retries to stay green, the underlying signal is wrong — fix the signal.
 7. **Fail loud, fail fast.** Every assertion must produce a message that points at the broken invariant. On failure, dump relevant `__uclife__` state to the log.
 
