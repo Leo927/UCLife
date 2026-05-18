@@ -122,13 +122,18 @@
     'ship-war-room':       { kind: 'interactable', interactableKind: 'warRoom',       labelZh: '作战室',   visual: { w: 28, h: 28, fill: 0x1e1b4b, stroke: 0x818cf8 } },
     'ship-climb-into-ms':  { kind: 'interactable', interactableKind: 'climbIntoMs',   labelZh: '登舱',     visual: { w: 28, h: 28, fill: 0x172554, stroke: 0x60a5fa } },
     'ship-board':          { kind: 'interactable', interactableKind: 'boardShip',     labelZh: '登舰',     visual: { w: 28, h: 28, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
-    // Per-ship marker rendered inside a hangar for each fleet ship docked
-    // at that POI. Visual is a larger, ship-shaped silhouette so the
-    // hangar floor reads as "there's a hull parked here." Click routes
-    // through interaction.ts: flagship → board interior; fleet ship →
-    // inspect toast (boardable interior is a 6.3+ concern).
-    'docked-ship-marker':  { kind: 'interactable', interactableKind: 'inspectShip',   labelZh: '舰艇',     visual: { w: 56, h: 36, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
-    'docked-flagship-marker': { kind: 'interactable', interactableKind: 'boardShip', labelZh: '旗舰',     visual: { w: 56, h: 36, fill: 0x172554, stroke: 0xfbbf24 } },
+    // Per-ship markers rendered inside a hangar for each fleet ship docked
+    // at that POI. Footprint scales with the docked hull's hangar slot
+    // class so the floor reads as "there's a hull parked here" at the
+    // ship's actual relative size — a Pegasus-class capital towers over
+    // a militia shuttle. Click routes through interaction.ts: flagship →
+    // board interior; fleet ship → inspect toast (boardable interior for
+    // non-flagship hulls is a 6.3+ concern). shipMarkers.ts picks the
+    // template id by `${flagship ? 'flagship' : 'ship'}` × hangarSlotClass.
+    'docked-ship-marker-smallcraft':     { kind: 'interactable', interactableKind: 'inspectShip', labelZh: '舰艇',     visual: { w: 56,  h: 36,  fill: 0x0c4a6e, stroke: 0x38bdf8 } },
+    'docked-flagship-marker-smallcraft': { kind: 'interactable', interactableKind: 'boardShip',   labelZh: '旗舰',     visual: { w: 56,  h: 36,  fill: 0x172554, stroke: 0xfbbf24 } },
+    'docked-ship-marker-capital':        { kind: 'interactable', interactableKind: 'inspectShip', labelZh: '战舰',     visual: { w: 224, h: 112, fill: 0x1e3a8a, stroke: 0x93c5fd } },
+    'docked-flagship-marker-capital':    { kind: 'interactable', interactableKind: 'boardShip',   labelZh: '旗舰',     visual: { w: 224, h: 112, fill: 0x172554, stroke: 0xfbbf24 } },
     'ship-disembark':      { kind: 'interactable', interactableKind: 'disembarkShip', labelZh: '下舰',     visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x94a3b8 } },
 
     // — Park fixtures —

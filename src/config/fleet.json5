@@ -72,6 +72,30 @@
   secretaryBulkOrderMarkup: 1.5,
   secretaryBulkOrderDeliveryDays: 1,
 
+  // Phase 6.2.A — docked-ship marker layout inside a hangar building.
+  // Per-slotClass placement so a capital tower (Pegasus-class) gets its
+  // own wide row above the smallCraft parking rows. Numbers are in
+  // tiles relative to the hangar building's top-left corner. `rowOffsets`
+  // is read top-to-bottom; `stride` is the horizontal step between slot
+  // centers; `startTileX` is the X offset of the first slot center.
+  // Capital row is dimensioned so 4 Pegasus-class hulls (the drydock's
+  // `slotCapacity.capital`) fit edge-to-edge with a 1-tile margin from
+  // each wall. SmallCraft rows fit 14 markers each at 2-tile stride;
+  // drydock total `smallCraft` cap is 12, so even a fully-stocked yard
+  // fits without spilling onto worker grid / cafeteria / bunk strip.
+  hangarMarkerLayout: {
+    capital: {
+      rowOffsetsTiles: [4],
+      strideTiles: 7,
+      startTileX: 4,
+    },
+    smallCraft: {
+      rowOffsetsTiles: [9, 12],
+      strideTiles: 2,
+      startTileX: 3,
+    },
+  },
+
   // Phase 6.2.C1 — delivery lead time (in game days) by hull class.
   // Counts the day-rollover transitions between the order day and the
   // arrival day. lightHull = the AE VB sales rep's product; capital

@@ -262,12 +262,12 @@ export class PixiGroundRenderer {
     this.buildingLayer.eventMode = 'none'
     this.wallLayer.eventMode = 'none'
     this.doorLayer.eventMode = 'none'
-    this.bedLayer.eventMode = 'none'
-    this.barSeatLayer.eventMode = 'none'
     this.playerLayer.eventMode = 'none'
     this.moveTargetMarker.eventMode = 'none'
-    // npcLayer and interactableLayer use the default 'passive' which lets
-    // children's eventMode='static' nodes receive events.
+    // npcLayer, bedLayer, and interactableLayer use the default 'passive'
+    // which lets children's eventMode='static' nodes receive events. Bar
+    // seats stay non-interactive; they're driven by the bartender NPC.
+    this.barSeatLayer.eventMode = 'none'
 
     this.viewport.addChild(this.background)
     this.viewport.addChild(this.gridLayer)
@@ -496,7 +496,7 @@ export class PixiGroundRenderer {
       seen.add(b.ent)
       let node = this.bedNodes.get(b.ent)
       if (!node) {
-        node = this.makeBedNode()
+        node = this.makeBedNode(b.ent)
         this.bedLayer.addChild(node.root)
         this.bedNodes.set(b.ent, node)
       }
@@ -510,9 +510,19 @@ export class PixiGroundRenderer {
     }
   }
 
-  private makeBedNode(): BedNode {
+  private makeBedNode(ent: Entity): BedNode {
     const root = new Container()
-    root.eventMode = 'none'
+    // Click-to-sleep: route through the same dispatcher as the
+    // interactable layer so the player walks-and-queues-interact and
+    // the interaction system handles rent/occupant gating.
+    root.eventMode = 'static'
+    root.cursor = 'pointer'
+    root.on('pointerdown', (e: FederatedPointerEvent) => {
+      e.stopPropagation()
+      if ('stopPropagation' in e.nativeEvent) e.nativeEvent.stopPropagation()
+      const local = e.global
+      this.latestOnInteractableClick(ent, local.x, local.y)
+    })
     const body = new Graphics()
     const pillow = new Graphics()
     const artSprite = new Sprite()
@@ -555,6 +565,10 @@ export class PixiGroundRenderer {
     // (vw × vh) so the renderer paints 1:1 — never scaling. If a
     // mismatched texture lands anyway, we still draw at native size
     // and warn once, because scaled nearest-filter pixel art shimmers.
+    // Hit area tracks the bed's footprint each frame so click-to-sleep
+    // dispatches even as the visual asset (or template footprint) changes.
+    node.root.hitArea = new Rectangle(b.x - vw / 2, b.y - vh / 2, vw, vh)
+
     const texture = v.assetId ? getArt(v.assetId) : null
     if (v.assetId) {
       if (texture && node.artSprite.texture !== texture) {
