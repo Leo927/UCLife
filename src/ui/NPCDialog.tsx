@@ -108,7 +108,7 @@ export function NPCDialog() {
         </header>
         <section className="status-section npc-dialog-body">
           <div className="npc-dialog-portrait">
-            <Portrait entity={target} renderer="revamp" width={160} height={220} />
+            <Portrait entity={target} width={160} height={220} />
           </div>
           <div className="npc-dialog-info">
             <div className="status-meta">当前: {actionLabel(action?.kind ?? 'idle') || '空闲'}</div>

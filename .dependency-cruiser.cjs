@@ -112,6 +112,25 @@ module.exports = {
       to: { path: '^src/boot/' },
     },
 
+    // ───────── Portrait FC-pregmod GPL boundary ─────────
+    {
+      name: 'no-static-import-from-fc-pregmod',
+      severity: 'error',
+      comment:
+        'src/render/portrait/providers/fc-pregmod/ is the GPL-3.0-licensed FC pregmod portrait subtree. ' +
+        'Reach it only via dynamic import — registry.ts lazy-loads the provider chunk; App.tsx ' +
+        'lazy-loads the dev tester. Static imports drag the FC chunk into the main bundle and ' +
+        'erode the license boundary.',
+      from: {
+        path: '^src/',
+        pathNot: '^src/render/portrait/providers/fc-pregmod/',
+      },
+      to: {
+        path: '^src/render/portrait/providers/fc-pregmod/',
+        dependencyTypesNot: ['dynamic-import'],
+      },
+    },
+
     // ───────── Hygiene ─────────
     {
       name: 'no-circular',

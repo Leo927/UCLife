@@ -4,8 +4,8 @@
 // don't apply to UC's civilian setting.
 
 import type { Entity } from 'koota'
-import { Appearance, Character } from '../../../ecs/traits'
-import { hashSeed } from '../../../character/appearanceGen'
+import { Appearance, Character } from '../../../../../ecs/traits'
+import { hashSeed } from '../../../../../character/appearanceGen'
 import type { SlaveLike } from './SlaveLike'
 import { makeBaseSlave } from './defaults'
 

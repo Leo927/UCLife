@@ -1,11 +1,15 @@
 // Open via window.uclifePortraitTester() in devtools, or via DebugPanel.
+// Renders FC pregmod presets through the FC provider's slave-rendering path
+// directly — bypassing the user's active provider preference because this
+// tester exists specifically to inspect FC output (preg / piercings fields
+// that don't round-trip through Appearance traits).
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { DEBUG_AVAILABLE } from '../../../debug/store'
-import { Portrait } from '../react/Portrait'
+import { DEBUG_AVAILABLE } from '../../../../../debug/store'
 import { makeBaseSlave } from '../adapter/defaults'
 import type { SlaveLike } from '../adapter/SlaveLike'
+import { preloadFc, renderFromSlave } from '../index'
 
 interface TesterState {
   open: boolean
@@ -50,6 +54,42 @@ function buildPreset(p: Preset): SlaveLike {
       return s
     }
   }
+}
+
+function FcSlavePreview({ slave }: { slave: SlaveLike }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    preloadFc().then(
+      () => { if (!cancelled) setReady(true) },
+      (err) => { if (!cancelled) setError(err as Error) },
+    )
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !ready) return
+    try {
+      const fragment = renderFromSlave(slave)
+      while (el.firstChild) el.removeChild(el.firstChild)
+      el.appendChild(fragment)
+    } catch (err) {
+      setError(err as Error)
+    }
+  }, [slave, ready])
+
+  if (error) {
+    return <div style={{ width: 240, height: 320, color: '#a33', fontSize: 11 }}>Tester error: {error.message}</div>
+  }
+  if (!ready) {
+    return <div style={{ width: 240, height: 320, opacity: 0.5, fontSize: 11 }}>加载头像…</div>
+  }
+  // position: relative is load-bearing — FC layers use position: absolute.
+  return <div ref={containerRef} style={{ width: 240, height: 320, overflow: 'hidden', position: 'relative' }} />
 }
 
 export function PortraitTester(): JSX.Element | null {
@@ -97,7 +137,7 @@ export function PortraitTester(): JSX.Element | null {
           </button>
         </header>
         <div style={{ display: 'flex', gap: 16 }}>
-          <Portrait slave={slave} renderer="revamp" width={240} height={320} />
+          <FcSlavePreview slave={slave} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ marginBottom: 8 }}>
               <strong>preset:</strong>

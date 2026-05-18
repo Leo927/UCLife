@@ -4,6 +4,8 @@ import { useUI } from './uiStore'
 import { saveGame, loadGame, deleteSave, listSaves, MANUAL_SLOTS, type SlotId, type SaveMeta } from '../save'
 import { formatUC } from '../sim/clock'
 import { playUi } from '../audio/player'
+import { usePortraitPrefs } from '../render/portrait/prefs'
+import { listKnownProviders } from '../render/portrait/registry'
 
 function slotLabel(slot: SlotId): string {
   if (slot === 'auto') return '自动存档'
@@ -63,6 +65,8 @@ export function SystemMenu() {
   const setOpen = useUI((s) => s.setSystem)
   const playerAutoAI = useDebug((s) => s.playerAutoAI)
   const setPlayerAutoAI = useDebug((s) => s.setPlayerAutoAI)
+  const portraitProvider = usePortraitPrefs((s) => s.portraitProvider)
+  const setPortraitProvider = usePortraitPrefs((s) => s.setPortraitProvider)
 
   // Hooks must run unconditionally — keep them above the early return.
   const [metas, setMetas] = useState<Map<SlotId, SaveMeta>>(new Map())
@@ -157,6 +161,20 @@ export function SystemMenu() {
               checked={playerAutoAI}
               onChange={(e) => { playUi('ui.system.player-auto-toggle'); setPlayerAutoAI(e.target.checked) }}
             />
+          </label>
+          <label className="debug-row">
+            <span className="debug-row-label">头像生成器</span>
+            <span className="debug-row-desc">切换头像渲染后端;FC 提供精细矢量立绘,占位则不下载素材。</span>
+            <select
+              className="debug-toggle"
+              value={portraitProvider}
+              onChange={(e) => { playUi('ui.system.portrait-provider-change'); setPortraitProvider(e.target.value) }}
+              data-testid="portrait-provider-select"
+            >
+              {listKnownProviders().map(({ id, displayName }) => (
+                <option key={id} value={id}>{displayName}</option>
+              ))}
+            </select>
           </label>
         </section>
       </div>

@@ -40,7 +40,7 @@ import '../boot/fleetSupplyTick'
 import '../boot/shipDeliveryTick'
 import '../boot/fleetCrewSalaryTick'
 import '../boot/fleetTransitTick'
-import '../render/portrait/adapter/findClerk'
+import '../render/portrait/__debug__/findClerk'
 import '../render/portrait/__debug__/portraitFixtures'
 
 export interface TestBootParams {

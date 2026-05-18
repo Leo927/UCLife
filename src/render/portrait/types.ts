@@ -1,18 +1,18 @@
-export type RendererId = 'vector' | 'revamp'
+// Backend-agnostic portrait provider surface. The FC pregmod renderer lives
+// behind this interface in `providers/fc-pregmod/`; the built-in placeholder
+// lives in `providers/placeholder.ts`. Nothing in this file may import from
+// `providers/fc-pregmod/` — that directory is the GPL-3.0 boundary and is
+// only reached through the dynamic loader in `registry.ts`.
 
-export interface RendererContext {
-  /** FC: V.seeVectorArtHighlights — toggle for highlight/shadow CSS */
-  seeVectorArtHighlights: boolean
-  /** FC: V.showBodyMods — render piercings/scars/tattoos when true */
-  showBodyMods: boolean
-  /** FC: V.week — seed for any per-week random art */
-  week: number
+import type { Entity } from 'koota'
+
+export interface PortraitProvider {
+  /** Stable id used by the registry and persisted user preference. */
+  readonly id: string
+  /** zh-CN label shown in the settings dropdown. */
+  readonly displayName: string
+  /** One-time async setup (asset fetch, dynamic code import). Idempotent. */
+  preload(): Promise<void>
+  /** Synchronous render after preload resolves. Caller appends to container. */
+  render(entity: Entity): DocumentFragment | Element
 }
-
-export const DEFAULT_RENDERER_CONTEXT: RendererContext = {
-  seeVectorArtHighlights: false,
-  showBodyMods: true,
-  week: 0,
-}
-
-export type SvgCache = Map<string, Element>

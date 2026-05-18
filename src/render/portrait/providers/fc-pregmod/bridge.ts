@@ -3,8 +3,8 @@
 // `State`, `_` on globalThis before importing the FC files for side effects,
 // then re-exports their populated namespace as ESM functions.
 
-import type { RendererContext, SvgCache } from './types'
-import { DEFAULT_RENDERER_CONTEXT } from './types'
+import type { RendererContext, SvgCache } from './fcContext'
+import { DEFAULT_RENDERER_CONTEXT } from './fcContext'
 
 interface FCGlobalNamespace {
   Art: {
@@ -114,7 +114,7 @@ export async function ensureLoaded(): Promise<void> {
     import('./dispatcher/helpers/pregChecker.js'),
     import('./dispatcher/helpers/artHelpers.js'),
   ])
-  await import('./infrastructure/artInfrastructure.js')
+  await import('./artInfrastructure.js')
   await import('./revamp/vectorRevampedArtControl.js')
   if (typeof globalThis.App.Art.SvgQueue !== 'function') {
     throw new Error('Portrait bridge: App.Art.SvgQueue did not load — check artInfrastructure.js import path')

@@ -110,7 +110,7 @@ function RecruiterPanel({ recruiter }: { recruiter: Entity }) {
         {lobby.map(({ applicant, data }) => (
           <div key={applicant.id()} className="apt-row">
             <div className="npc-dialog-portrait" style={{ width: 64, marginRight: 8 }}>
-              <Portrait entity={applicant} renderer="revamp" width={64} height={84} />
+              <Portrait entity={applicant} width={64} height={84} />
             </div>
             <div className="apt-row-info">
               <div className="apt-row-name">{data.name}</div>

@@ -47,7 +47,7 @@ import './boot/fleetCrewSalaryTick'
 import './boot/fleetTransitTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
-import './render/portrait/adapter/findClerk'
+import './render/portrait/__debug__/findClerk'
 import './render/portrait/__debug__/portraitFixtures'
 
 export async function bootProd(): Promise<void> {

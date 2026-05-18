@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(here, '..')
-const assetsDir = join(repoRoot, 'src', 'render', 'portrait', 'assets')
+const assetsDir = join(repoRoot, 'src', 'render', 'portrait', 'providers', 'fc-pregmod', 'assets')
 // Emit into public/ so Vite serves the JSON as a static asset rather than
 // rewriting ~28 MB into an ESM module on first portrait load.
 const cacheDir = join(repoRoot, 'public', 'portrait-cache')

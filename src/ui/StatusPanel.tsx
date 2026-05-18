@@ -95,7 +95,7 @@ export function StatusPanel() {
         <section className="status-section status-identity status-section--full">
           {player && (
             <div className="status-identity-portrait">
-              <Portrait entity={player} renderer="revamp" width={96} height={128} />
+              <Portrait entity={player} width={96} height={128} />
             </div>
           )}
           <div className="status-identity-text">

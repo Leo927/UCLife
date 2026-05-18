@@ -5,13 +5,12 @@
 // than `await import('*.json')` so Vite doesn't rewrite ~28 MB of cache
 // data into ESM modules on every dev request.
 
-import type { SvgCache } from '../types'
-import { ensureLoaded, installFCGlobals } from '../bridge'
-import { beginAssetJob } from '../../assets/readiness'
-import { isSkipAssets } from '../../../test/state'
+import type { SvgCache } from './fcContext'
+import { ensureLoaded, installFCGlobals } from './bridge'
+import { beginAssetJob } from '../../../assets/readiness'
+import { isSkipAssets } from '../../../../test/state'
 
 let revampPromise: Promise<SvgCache> | null = null
-let vectorPromise: Promise<SvgCache> | null = null
 
 function parseCache(json: Record<string, string>): SvgCache {
   const map: SvgCache = new Map()
@@ -51,7 +50,7 @@ export function loadRevampCache(): Promise<SvgCache> {
     return revampPromise
   }
   const end = beginAssetJob('portrait:cache:revamp')
-  revampPromise = (async () => {
+  const promise = (async () => {
     installFCGlobals()
     await ensureLoaded()
     const json = await fetchCache('vector_revamp.cache.json')
@@ -59,30 +58,12 @@ export function loadRevampCache(): Promise<SvgCache> {
     globalThis.App.Data.Art.VectorRevamp = cache
     return cache
   })()
-  revampPromise.finally(end)
-  return revampPromise
+  // On rejection, clear the cached promise so a later retry can fire a fresh
+  // fetch (a transient 5xx or offline blip shouldn't lock out the provider
+  // for the rest of the session).
+  promise.catch(() => { if (revampPromise === promise) revampPromise = null })
+  promise.finally(end)
+  revampPromise = promise
+  return promise
 }
 
-export function loadVectorCache(): Promise<SvgCache> {
-  if (vectorPromise) return vectorPromise
-  if (isSkipAssets()) {
-    vectorPromise = (async () => {
-      installFCGlobals()
-      const empty: SvgCache = new Map()
-      globalThis.App.Data.Art.Vector = empty
-      return empty
-    })()
-    return vectorPromise
-  }
-  const end = beginAssetJob('portrait:cache:vector')
-  vectorPromise = (async () => {
-    installFCGlobals()
-    await ensureLoaded()
-    const json = await fetchCache('vector.cache.json')
-    const cache = parseCache(json)
-    globalThis.App.Data.Art.Vector = cache
-    return cache
-  })()
-  vectorPromise.finally(end)
-  return vectorPromise
-}

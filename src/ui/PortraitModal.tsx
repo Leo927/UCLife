@@ -39,7 +39,6 @@ export function PortraitModal() {
         <div className="portrait-modal-body">
           <Portrait
             entity={target}
-            renderer="revamp"
             width={400}
             height={560}
             clickable={false}

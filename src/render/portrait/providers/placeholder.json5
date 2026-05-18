@@ -1,0 +1,37 @@
+// Placeholder portrait palette + geometry. Numbers belong in JSON5 per
+// CLAUDE.md "No magic number" rule.
+{
+  // SVG viewBox dimensions — design the silhouette in this coordinate space,
+  // browser scales to the container's width/height.
+  viewBox: { w: 100, h: 140 },
+
+  // Bust silhouette (filled ellipse).
+  body: { cx: 50, cy: 90, rx: 35, ry: 55 },
+
+  // Head circle.
+  head: { cx: 50, cy: 30, r: 22 },
+
+  // Hair cap (filled ellipse on top of the head).
+  hair: { cx: 50, cy: 14, rx: 22, ry: 12 },
+
+  // Centered initial.
+  initial: { x: 50, y: 36, fontSize: 18, fill: '#1a1a1a' },
+
+  // Skin palette — keyed by FC skin string (matches Appearance.skin values).
+  // Hex fallback used when a key is missing.
+  skinColors: {
+    fair: '#f5d6bb',
+    pale: '#ede0d4',
+    light: '#e8c8a0',
+    tanned: '#c8955a',
+    dark: '#8b5e3c',
+    black: '#3d2314',
+  },
+  skinFallback: '#c8a878',
+
+  // Hair fallback when Appearance.hColor is empty.
+  hairFallback: '#444444',
+
+  // Background fill behind the silhouette.
+  background: '#1f1f1f',
+}

@@ -1,0 +1,12 @@
+// Default sizing + loading/error UI numerics for the React Portrait
+// surface. Numbers belong in JSON5 per CLAUDE.md "No magic number" rule.
+{
+  // Default container size when callers don't pass width/height props.
+  defaultWidth: 200,
+  defaultHeight: 280,
+
+  // Loading + error fallback panels (rendered inside the container box).
+  loadingFontSize: 11,
+  loadingOpacity: 0.5,
+  errorFontSize: 11,
+}

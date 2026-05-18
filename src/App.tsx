@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Game } from './render/Game'
 import { SpaceView } from './ui/SpaceView'
 import { useScene } from './sim/scene'
@@ -29,7 +30,13 @@ import { FleetRosterPanel } from './ui/FleetRosterPanel'
 import { WarRoomPanel } from './ui/WarRoomPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
 import { PortraitModal } from './ui/PortraitModal'
-import { PortraitTester } from './render/portrait/__debug__/PortraitTester'
+// PortraitTester lives inside the GPL-licensed FC pregmod subtree. Lazy-load
+// it so the FC adapter + SlaveLike type stay out of the main bundle until a
+// dev actually opens the tester via `uclifePortraitTester()` in devtools.
+const PortraitTester = lazy(() =>
+  import('./render/portrait/providers/fc-pregmod/__debug__/PortraitTester')
+    .then((m) => ({ default: m.PortraitTester })),
+)
 import { SpriteTester } from './render/sprite/__debug__/SpriteTester'
 
 export function App() {
@@ -71,7 +78,9 @@ export function App() {
       <PortraitModal />
       <DeathModal />
       <Toasts />
-      <PortraitTester />
+      <Suspense fallback={null}>
+        <PortraitTester />
+      </Suspense>
       <SpriteTester />
       <TransitionOverlay />
     </div>

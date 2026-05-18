@@ -28,6 +28,7 @@
     'ui.system.load':              { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.system.delete':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.system.player-auto-toggle':{ clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.system.portrait-provider-change': { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 
     // ── Status panel ────────────────────────────────────────────────
     'ui.status.close':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
