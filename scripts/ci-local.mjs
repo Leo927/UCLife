@@ -110,11 +110,17 @@ function findFreePort() {
 // the process count. Spawning warmup browsers concurrently with a live
 // `npm run dev` saturates Windows scheduling and stalls navigation.
 async function warmup(server) {
-  try {
-    await server.transformRequest('/src/main.tsx');
-  } catch {
-    // Pre-bundle errors here are non-fatal — child checks will surface
-    // them with proper context. Warmup is best-effort.
+  // main.tsx is a thin dispatcher; the real prod and test-mode boot
+  // chains hang off bootProd.tsx and test/bootTestMode.ts respectively.
+  // Transforming all three so the first-of-each-kind check.mjs doesn't
+  // race Vite's pre-bundle.
+  for (const id of ['/src/main.tsx', '/src/bootProd.tsx', '/src/test/bootTestMode.ts']) {
+    try {
+      await server.transformRequest(id);
+    } catch {
+      // Pre-bundle errors here are non-fatal — child checks will surface
+      // them with proper context. Warmup is best-effort.
+    }
   }
 }
 

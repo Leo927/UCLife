@@ -75,7 +75,7 @@ The agent default is "ship the simplest data structure that compiles" — linear
 Backgrounds, perks, conditions, gear, and skill XP all live on the per-character **`StatSheet`** (`src/stats/sheet.ts`). There is no second modifier engine. See `Design/characters/effects.md` for the data model.
 
 - All stat reads/writes go through `src/stats/sheet.ts` (`getStat`, `setBase`, `addModifier`, `removeBySource`).
-- Skill XP reads/writes go through `src/character/skills.ts` (`getSkillXp`, `addSkillXp`, `setSkillXp`). **Do not read the legacy `Skills` trait directly** — its removal is in flight (see *Hot zones* below).
+- Skill XP reads/writes go through `src/character/skills.ts` (`getSkillXp`, `addSkillXp`, `setSkillXp`).
 - Modifier `source` strings are namespaced (`'background:soldier'`, `'perk:long-distance'`, `'item:belt'`) so `removeBySource()` stays useful.
 - Save round-trip: `serializeSheet()` strips formulas + memo cache; `attachFormulas()` re-seeds on load.
 
@@ -105,7 +105,6 @@ Both rules are enforced by `dependency-cruiser` via `npm run lint:arch` (CI job 
 
 These are *currently* mid-migration. Treat the new API as canonical for new code; leave the old surface alone unless you're the one finishing the migration:
 
-- **`Skills` trait → `StatSheet`.** New code reads/writes XP via `src/character/skills.ts` helpers. The `Skills` trait, its serializer in `src/boot/traitSerializers/economy.ts`, and a handful of UI imports (`StatusPanel.tsx`, `DebugPanel.tsx`, `HRConversation.tsx`, `ShipDealer.tsx`) are pending removal. Check `git status` and ask before editing these — another agent may already have unstaged work.
 - **Effect / Modifier unification.** Backgrounds, perks, and conditions are converging onto one `Effect + StatSheet` shape (`Design/characters/effects.md`). New ModTypes `floor` and `cap` exist; physiology condition data is being authored in this shape.
 - **Per-trait save handler registry.** `src/save/registry.ts` + `src/boot/saveHandlers/`. Adding a new persisted subsystem = one new file in `saveHandlers/`, no edit to `src/save/index.ts`.
 
