@@ -18,7 +18,7 @@ Read state from the deterministic handle. Don't assert on rendered text, sprite 
 
 **Worked failure mode.** Pre-Phase-5 hire-amuro test asserted on `page.locator('.crew-list-row[data-key="amuro"]').textContent()` to read "captain". The list rendered eventually, but on a hot CI box React batched the commit one frame after the assert. Flake rate: ~5%. Fix: `getGameState().getCharacter('amuro').getHiredRole()` returns `'captain'` immediately after the hire transaction settles, no commit involved.
 
-**Exceptions.** Renderer tests (`check-portrait*`, `check-sprite*`) are *about* pixels — they boot with `?test=1&assets=1`, drain via `awaitAssetsReady()`, then assert pixels. That's the only valid carve-out.
+**Exceptions.** Renderer tests (`portrait*.spec.ts`, `sprite*.spec.ts`) are *about* pixels — they boot with `?test=1&assets=1`, drain via `awaitAssetsReady()`, then assert pixels. That's the only valid carve-out.
 
 ---
 
@@ -64,7 +64,7 @@ Vite hands the test page a different module instance than the running app. Trait
 
 **Why.** Koota's traits are identity-by-reference — `world.queryFirst(IsPlayer)` checks if the entity has the *exact same `IsPlayer` symbol* as the one registered into the world. Vite serves `/src/ecs/traits.ts` as a separate module to a dynamic import — different `IsPlayer` symbol — query returns empty. No error. Just a silent zero.
 
-**Worked failure mode.** An early Phase 4 draft of `check-fixture-authority` did:
+**Worked failure mode.** An early Phase 4 draft of the fixture-authority spec did:
 
 ```js
 const player = await page.evaluate(async () => {
@@ -102,7 +102,7 @@ Every assertion must produce a message that points at the broken invariant. On f
 
 **Why.** A CI failure log that says `AssertionError: false === true` tells you nothing. A log that says `player.Money = 30, want 1234 (fixture player.money) — default boot spawn likely shadowing fixture` tells the next engineer where to start.
 
-**Worked failure mode → repaired pattern.** `check-fixture-authority` was written specifically to catch the silent boot-default shadow bug. The assertion isn't `assert(money === 1234)` — it's:
+**Worked failure mode → repaired pattern.** `fixture-authority.spec.ts` was written specifically to catch the silent boot-default shadow bug. The assertion isn't `assert(money === 1234)` — it's:
 
 ```js
 if (snap.money !== EXPECT_MONEY) {

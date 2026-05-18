@@ -74,100 +74,28 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
 
-      - name: Start dev server
-        run: npm run dev &
+      # Single command: brings up an ephemeral Vite, runs Playwright Test
+      # over tests/smoke/*.spec.ts (discovery is filesystem-based — there
+      # is no per-test entry to maintain here), then runs survive.ts.
+      - run: npm run ci:local
+        env:
+          # Playwright Test reads CI to enable forbidOnly and the GitHub reporter.
+          CI: 'true'
 
-      - name: Wait for dev server
-        run: npx wait-on http://localhost:5173 --timeout 60000
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 
-      - run: node scripts/check.mjs
-      - if: always()
-        run: node scripts/check-test-boot.mjs
-      - if: always()
-        run: node scripts/check-fixture-authority.mjs
-      - if: always()
-        run: node scripts/check-saveload.mjs
-      - if: always()
-        run: node scripts/check-ambitions.mjs
-      - if: always()
-        run: node scripts/check-scene-swap.mjs
-      - if: always()
-        run: node scripts/check-flights.mjs
-      - if: always()
-        run: node scripts/check-systemmenu.mjs
-      - if: always()
-        run: node scripts/check-hotkeys.mjs
-      - if: always()
-        run: node scripts/check-sprite-ingame.mjs
-      - if: always()
-        run: node scripts/check-portrait.mjs
-      - if: always()
-        run: node scripts/check-portrait-modals.mjs
-      - if: always()
-        run: node scripts/check-portrait-enlarge.mjs
-      - if: always()
-        run: node scripts/check-sprite.mjs
-      - if: always()
-        run: node scripts/check-physiology-cold.mjs
-      - if: always()
-        run: node scripts/check-physiology-multi.mjs
-      - if: always()
-        run: node scripts/check-physiology-injury.mjs
-      - if: always()
-        run: node scripts/check-physiology-contagion.mjs
-      - if: always()
-        run: node scripts/check-physiology-sneeze.mjs
-      - if: always()
-        run: node scripts/check-physiology-ae-clinic.mjs
-      - if: always()
-        run: node scripts/check-space-combat.mjs
-      - if: always()
-        run: node scripts/check-cockpit.mjs
-      - if: always()
-        run: node scripts/check-captains-office.mjs
-      - if: always()
-        run: node scripts/check-realtor.mjs
-      - if: always()
-        run: node scripts/check-daily-economics.mjs
-      - if: always()
-        run: node scripts/check-faction-office.mjs
-      - if: always()
-        run: node scripts/check-player-faction.mjs
-      - if: always()
-        run: node scripts/check-recruit-office.mjs
-      - if: always()
-        run: node scripts/check-research.mjs
-      - if: always()
-        run: node scripts/check-hangar.mjs
-      - if: always()
-        run: node scripts/check-orbital-lift.mjs
-      - if: always()
-        run: node scripts/check-ship-repair.mjs
-      - if: always()
-        run: node scripts/check-fleet-supply.mjs
-      - if: always()
-        run: node scripts/check-light-hull-buy.mjs
-      - if: always()
-        run: node scripts/check-pegasus-buy.mjs
-      - if: always()
-        run: node scripts/check-hire-crew.mjs
-      - if: always()
-        run: node scripts/check-war-room.mjs
-      - if: always()
-        run: node scripts/check-fleet-launch.mjs
-      - if: always()
-        run: node scripts/check-mothball-transfer.mjs
-      - if: always()
-        run: node scripts/check-grant-fleet.mjs
-      - if: always()
-        run: npx tsx --import ./scripts/register-raw-loader.mjs scripts/survive.ts
-
-      - name: Upload screenshots on failure
+      - name: Upload Playwright traces / screenshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-test-screenshots
-          path: scripts/out/
+          name: playwright-traces
+          path: scripts/out/playwright/
 
   build:
     runs-on: ubuntu-latest

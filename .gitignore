@@ -6,6 +6,8 @@ dist-types-node
 .DS_Store
 *.tsbuildinfo
 scripts/out
+playwright-report
+test-results
 checkout.txt
 tscout.txt
 .claude/settings.local.json

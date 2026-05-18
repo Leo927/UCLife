@@ -12,6 +12,8 @@
     "test:unit": "vitest run",
     "lint:arch": "depcruise --ignore-known --config .dependency-cruiser.cjs src",
     "lint:arch:baseline": "depcruise --output-type baseline --output-to .dependency-cruiser-known-violations.json --config .dependency-cruiser.cjs src",
+    "test:e2e": "playwright test",
+    "test:e2e:list": "playwright test --list",
     "ci:local": "node scripts/ci-local.mjs"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

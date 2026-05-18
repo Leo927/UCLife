@@ -1,233 +1,213 @@
 #!/usr/bin/env node
-// Standalone CI runner — spawns its own Vite dev server on an ephemeral port,
-// runs the smoke-test commands listed in .github/workflows/ci.yml against it,
-// and tears the server down on exit. No external dev server required.
+// Local smoke / e2e runner. Spawns an ephemeral Vite dev server, points
+// Playwright Test at it, then runs the headless survive sim against the
+// same Vite. Designed to mirror what `.github/workflows/ci.yml` runs.
 //
-// Source of truth for the suite is .github/workflows/ci.yml — we parse the
-// `test` job's `run:` steps and execute each one, mirroring CI's
-// `if: always()` (every step runs even if a previous step failed). The bound
-// URL is forwarded to each child via UCLIFE_BASE_URL.
+// Test discovery is owned by Playwright Test (`tests/smoke/*.spec.ts`).
+// This script intentionally has no knowledge of which tests exist — adding
+// a new test is `tests/smoke/<name>.spec.ts`, no edit here, no edit in ci.yml.
 //
 // Flags:
-//   --workers N        run up to N steps concurrently against the same server
-//                      (default 1). All steps share one Vite server; Playwright
-//                      contexts are isolated per-launch so cross-step state
-//                      doesn't leak.
+//   --workers N        Playwright Test worker count (default: Playwright's auto).
+//   --skip-survive     Skip the long-running `scripts/survive.ts` post-step.
+//   <playwright-args>  Anything after `--` is forwarded to `playwright test`.
 //
-// Concurrency note: each `ci:local` invocation binds its own ephemeral port,
-// so multiple invocations (e.g. parallel subagent runs) coexist fine.
+// Concurrency: each `ci:local` invocation binds its own ephemeral port,
+// so parallel runs (e.g. sibling worktrees) coexist fine.
 
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { spawn } from 'node:child_process';
-import { createServer as createNetServer } from 'node:net';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createServer as createViteServer } from 'vite';
+import { mkdtempSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { createServer as createNetServer } from 'node:net'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { createServer as createViteServer } from 'vite'
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ciPath = join(repoRoot, '.github/workflows/ci.yml');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 function parseArgs(argv) {
-  const out = { workers: 1 };
+  const out = { workers: null, skipSurvive: false, passthrough: [] }
+  let inPassthrough = false
   for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
+    const a = argv[i]
+    if (inPassthrough) { out.passthrough.push(a); continue }
+    if (a === '--') { inPassthrough = true; continue }
     if (a === '--workers') {
-      out.workers = Math.max(1, parseInt(argv[++i] ?? '1', 10) || 1);
+      out.workers = Math.max(1, parseInt(argv[++i] ?? '1', 10) || 1)
     } else if (a.startsWith('--workers=')) {
-      out.workers = Math.max(1, parseInt(a.slice('--workers='.length), 10) || 1);
+      out.workers = Math.max(1, parseInt(a.slice('--workers='.length), 10) || 1)
+    } else if (a === '--skip-survive') {
+      out.skipSurvive = true
+    } else {
+      // Unknown flags become playwright passthrough so callers can do
+      //   npm run ci:local -- --grep portrait
+      out.passthrough.push(a)
     }
   }
-  return out;
+  return out
 }
 
-function extractTestCommands() {
-  const text = readFileSync(ciPath, 'utf8');
-  const cmds = [];
-  let inTestJob = false;
-  for (const line of text.split(/\r?\n/)) {
-    const jobMatch = line.match(/^ {2}([A-Za-z_][\w-]*):\s*$/);
-    if (jobMatch) {
-      inTestJob = jobMatch[1] === 'test';
-      continue;
-    }
-    if (!inTestJob) continue;
-    const runMatch = line.match(/^\s+(?:-\s+)?run:\s+(.+?)\s*$/);
-    if (!runMatch) continue;
-    const cmd = runMatch[1];
-    // Match `node ... scripts/foo.mjs` or `npx tsx ... scripts/foo.ts`,
-    // tolerating intervening flags like `--import ./scripts/loader.mjs`.
-    if (/^(?:node|npx tsx)\b.*\bscripts\/[\w.-]+\.(?:mjs|ts|js)\b/.test(cmd)) cmds.push(cmd);
-  }
-  return cmds;
-}
-
-function findDuplicates(cmds) {
-  const seen = new Map();
-  const dupes = [];
-  for (const c of cmds) seen.set(c, (seen.get(c) ?? 0) + 1);
-  for (const [c, n] of seen) if (n > 1) dupes.push({ cmd: c, count: n });
-  return dupes;
-}
-
-function run(cmd, env, label) {
+function run(cmd, args, env) {
   return new Promise((resolve) => {
-    const child = spawn(cmd, { cwd: repoRoot, stdio: 'inherit', shell: true, env });
-    child.on('close', (code) => {
-      if (label) console.log(`[ci-local] ${label} exited ${code ?? 1}`);
-      resolve(code ?? 1);
-    });
-  });
+    // shell:true joins args by spaces, which breaks regex metacharacters
+    // (|, ?, *, parens). Quote each arg defensively so shell parses it as
+    // one token. Cross-platform: POSIX shells respect single quotes;
+    // Windows cmd.exe needs double quotes.
+    const quote = process.platform === 'win32'
+      ? (s) => `"${String(s).replace(/"/g, '\\"')}"`
+      : (s) => `'${String(s).replace(/'/g, `'\\''`)}'`
+    const cmdline = [cmd, ...args.map(quote)].join(' ')
+    const child = spawn(cmdline, { cwd: repoRoot, stdio: 'inherit', shell: true, env })
+    child.on('close', (code) => resolve(code ?? 1))
+  })
 }
 
-// Vite's config-merge collapses `port: 0` to undefined (probably a `||` on the
-// numeric port somewhere), letting the user-config `port: 5173` win. Work
-// around it by pre-binding a kernel-assigned ephemeral port ourselves and
-// passing the explicit number into Vite. strictPort: false provides a backup
-// if the OS reassigns the port between close() and Vite's bind.
+// Vite's config-merge collapses `port: 0` to undefined, so we pre-bind the
+// kernel-assigned ephemeral port ourselves and pass the explicit number.
 function findFreePort() {
   return new Promise((resolve, reject) => {
-    const probe = createNetServer();
-    probe.unref();
-    probe.on('error', reject);
+    const probe = createNetServer()
+    probe.unref()
+    probe.on('error', reject)
     probe.listen(0, '127.0.0.1', () => {
-      const addr = probe.address();
-      const port = typeof addr === 'object' && addr ? addr.port : null;
-      probe.close(() => (port ? resolve(port) : reject(new Error('no port'))));
-    });
-  });
+      const addr = probe.address()
+      const port = typeof addr === 'object' && addr ? addr.port : null
+      probe.close(() => (port ? resolve(port) : reject(new Error('no port'))))
+    })
+  })
 }
 
 // Force Vite to finish pre-bundling deps before the first child check runs.
 // Each ci:local invocation gets its own (empty) cacheDir, so Vite would
 // otherwise pre-bundle on the first request — which Playwright's default
-// 30s timeout often beats under multi-Vite CPU load (this manifests as
-// `page.goto: Timeout 30000ms exceeded` on the first 1-3 checks).
+// 30s navigation timeout often beats under multi-Vite CPU load (manifests
+// as `page.goto: Timeout 30000ms exceeded` on the first 1-3 tests).
 //
 // We use Vite's in-process transformRequest() instead of spawning a warmup
 // browser: it walks the same transform pipeline (which discovers deps and
-// triggers the optimizer), but runs in-proc without adding a chromium to
-// the process count. Spawning warmup browsers concurrently with a live
-// `npm run dev` saturates Windows scheduling and stalls navigation.
+// triggers the optimizer) without adding a chromium to the process count.
 async function warmup(server) {
-  // main.tsx is a thin dispatcher; the real prod and test-mode boot
-  // chains hang off bootProd.tsx and test/bootTestMode.ts respectively.
-  // Transforming all three so the first-of-each-kind check.mjs doesn't
-  // race Vite's pre-bundle.
   for (const id of ['/src/main.tsx', '/src/bootProd.tsx', '/src/test/bootTestMode.ts']) {
     try {
-      await server.transformRequest(id);
+      await server.transformRequest(id)
     } catch {
-      // Pre-bundle errors here are non-fatal — child checks will surface
+      // Pre-bundle errors here are non-fatal — child tests will surface
       // them with proper context. Warmup is best-effort.
     }
   }
 }
 
 async function startVite() {
-  const port = await findFreePort();
+  const port = await findFreePort()
   // Per-invocation cacheDir so concurrent Vite servers (e.g. an active
-  // `npm run dev`, or a parallel ci:local run from a sibling worktree)
-  // don't thrash the shared `node_modules/.vite/deps/` pre-bundle. Without
-  // this, two Vite processes invalidate each other's optimized chunks
-  // mid-flight, the dev pages 404 on module fetches, and downstream
-  // Playwright checks crash on corrupted module loads.
-  const cacheDir = mkdtempSync(join(tmpdir(), 'uclife-vite-'));
+  // `npm run dev`, or a parallel ci:local from a sibling worktree) don't
+  // thrash the shared `node_modules/.vite/deps/` pre-bundle.
+  const cacheDir = mkdtempSync(join(tmpdir(), 'uclife-vite-'))
   const server = await createViteServer({
     root: repoRoot,
     configFile: join(repoRoot, 'vite.config.ts'),
     cacheDir,
     server: { port, strictPort: false, host: '127.0.0.1' },
     logLevel: 'warn',
-  });
-  await server.listen();
-  const addr = server.httpServer?.address();
+  })
+  await server.listen()
+  const addr = server.httpServer?.address()
   if (!addr || typeof addr !== 'object') {
-    await server.close();
-    rmSync(cacheDir, { recursive: true, force: true });
-    throw new Error('failed to determine bound port');
+    await server.close()
+    rmSync(cacheDir, { recursive: true, force: true })
+    throw new Error('failed to determine bound port')
   }
-  return { server, port: addr.port, cacheDir };
+  return { server, port: addr.port, cacheDir }
 }
 
 async function main() {
-  const args = parseArgs(process.argv);
-  const commands = extractTestCommands();
-  if (commands.length === 0) {
-    console.error('[ci-local] no smoke-test commands found in ci.yml — did the workflow change?');
-    process.exit(1);
-  }
-  const dupes = findDuplicates(commands);
-  if (dupes.length > 0) {
-    console.error('[ci-local] duplicate smoke-test step(s) in ci.yml:');
-    for (const d of dupes) console.error(`           ${d.count}× ${d.cmd}`);
-    console.error('           remove the duplicates from .github/workflows/ci.yml.');
-    process.exit(1);
-  }
+  const args = parseArgs(process.argv)
 
-  console.log('[ci-local] starting Vite dev server on ephemeral port…');
-  const { server, port, cacheDir } = await startVite();
-  const baseUrl = `http://127.0.0.1:${port}/`;
-  console.log(`[ci-local] dev server up at ${baseUrl}, warming pre-bundle…`);
-  await warmup(server);
-  console.log('[ci-local] dev server ready');
+  console.log('[ci-local] starting Vite dev server on ephemeral port…')
+  const { server, port, cacheDir } = await startVite()
+  const baseUrl = `http://127.0.0.1:${port}/`
+  console.log(`[ci-local] dev server up at ${baseUrl}, warming pre-bundle…`)
+  await warmup(server)
+  console.log('[ci-local] dev server ready')
 
-  let signalCleanup = false;
+  let signalCleanup = false
   const onSignal = async (sig) => {
-    if (signalCleanup) return;
-    signalCleanup = true;
-    console.log(`\n[ci-local] received ${sig}, shutting down…`);
-    try { await server.close(); } catch {}
-    rmSync(cacheDir, { recursive: true, force: true });
-    process.exit(sig === 'SIGINT' ? 130 : 143);
-  };
-  process.on('SIGINT', () => onSignal('SIGINT'));
-  process.on('SIGTERM', () => onSignal('SIGTERM'));
+    if (signalCleanup) return
+    signalCleanup = true
+    console.log(`\n[ci-local] received ${sig}, shutting down…`)
+    try { await server.close() } catch {}
+    rmSync(cacheDir, { recursive: true, force: true })
+    process.exit(sig === 'SIGINT' ? 130 : 143)
+  }
+  process.on('SIGINT', () => onSignal('SIGINT'))
+  process.on('SIGTERM', () => onSignal('SIGTERM'))
 
-  const childEnv = { ...process.env, UCLIFE_BASE_URL: baseUrl };
-  let exitCode = 1;
+  const childEnv = { ...process.env, UCLIFE_BASE_URL: baseUrl }
+  let exitCode = 1
 
   try {
-    console.log(`[ci-local] running ${commands.length} smoke-test step(s) (workers=${args.workers})`);
-    const results = new Array(commands.length);
+    // 1. Playwright Test discovers + runs everything under tests/smoke/.
+    // Two-pass split: renderer-pixel tests (portrait*, sprite*) thrash the
+    // shared Vite dev server when run concurrently with other asset-heavy
+    // tests — Vite's SVG/sprite middleware serializes file reads, and
+    // multiple chromium contexts racing for the same sprites starves the
+    // renderer's composeSheet batch. Pass 1: everything EXCEPT renderer-
+    // pixel, in parallel. Pass 2: renderer-pixel, workers=1.
+    //
+    // If --grep was passed in passthrough, the split is skipped and the
+    // user's filter applies to a single pass.
+    const RENDERER_FILTER = '(portrait|sprite).*\\.spec\\.ts'
+    const hasGrep = args.passthrough.some((a) => a === '--grep' || a.startsWith('--grep='))
 
-    if (args.workers === 1) {
-      for (let i = 0; i < commands.length; i++) {
-        const cmd = commands[i];
-        console.log(`\n=== ${cmd} ===`);
-        const code = await run(cmd, childEnv);
-        results[i] = { cmd, code };
-      }
+    let pwCode = 0
+    if (hasGrep) {
+      const pwArgs = ['playwright', 'test']
+      if (args.workers != null) pwArgs.push(`--workers=${args.workers}`)
+      pwArgs.push(...args.passthrough)
+      console.log(`\n[ci-local] running: npx ${pwArgs.join(' ')}`)
+      pwCode = await run('npx', pwArgs, childEnv)
     } else {
-      // Pull-based worker pool: each worker grabs the next index until exhausted.
-      let next = 0;
-      const worker = async (wid) => {
-        while (true) {
-          const i = next++;
-          if (i >= commands.length) return;
-          const cmd = commands[i];
-          console.log(`[ci-local] [w${wid}] start: ${cmd}`);
-          const code = await run(cmd, childEnv, `[w${wid}] ${cmd}`);
-          results[i] = { cmd, code };
-        }
-      };
-      const n = Math.min(args.workers, commands.length);
-      await Promise.all(Array.from({ length: n }, (_, k) => worker(k + 1)));
+      const dataWorkers = args.workers ?? (process.env.CI ? '2' : undefined)
+      const dataArgs = ['playwright', 'test', `--grep-invert=${RENDERER_FILTER}`]
+      if (dataWorkers != null) dataArgs.push(`--workers=${dataWorkers}`)
+      dataArgs.push(...args.passthrough)
+      console.log(`\n[ci-local] pass 1/2 (parallel, data): npx ${dataArgs.join(' ')}`)
+      const dataCode = await run('npx', dataArgs, childEnv)
+
+      const renderArgs = ['playwright', 'test', `--grep=${RENDERER_FILTER}`, '--workers=1']
+      renderArgs.push(...args.passthrough)
+      console.log(`\n[ci-local] pass 2/2 (serial, renderer): npx ${renderArgs.join(' ')}`)
+      const renderCode = await run('npx', renderArgs, childEnv)
+
+      pwCode = dataCode === 0 && renderCode === 0 ? 0 : 1
     }
 
-    console.log('\n=== Summary ===');
-    for (const r of results) console.log(`${r.code === 0 ? 'PASS' : 'FAIL'}  ${r.cmd}`);
-    const failed = results.filter((r) => r.code !== 0).length;
-    console.log(`\n${results.length - failed}/${results.length} passed`);
-    exitCode = failed === 0 ? 0 : 1;
+    // 2. Headless survive sim — not a Playwright test (imports src/* directly).
+    //    Run regardless of playwright outcome so we report both signals.
+    let surviveCode = 0
+    if (!args.skipSurvive) {
+      console.log('\n[ci-local] running: npx tsx scripts/survive.ts')
+      surviveCode = await run(
+        'npx',
+        ['tsx', '--import', './scripts/register-raw-loader.mjs', 'scripts/survive.ts'],
+        childEnv,
+      )
+    } else {
+      console.log('\n[ci-local] skipping survive.ts (--skip-survive)')
+    }
+
+    console.log('\n=== ci-local summary ===')
+    console.log(`  playwright test : ${pwCode === 0 ? 'PASS' : 'FAIL'}`)
+    if (!args.skipSurvive) console.log(`  survive.ts      : ${surviveCode === 0 ? 'PASS' : 'FAIL'}`)
+    exitCode = pwCode === 0 && surviveCode === 0 ? 0 : 1
   } finally {
-    try { await server.close(); } catch {}
-    rmSync(cacheDir, { recursive: true, force: true });
+    try { await server.close() } catch {}
+    rmSync(cacheDir, { recursive: true, force: true })
   }
-  process.exit(exitCode);
+  process.exit(exitCode)
 }
 
 main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+  console.error(err)
+  process.exit(1)
+})

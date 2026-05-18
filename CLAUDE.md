@@ -16,12 +16,18 @@ npm run build                # tsc -b && vite build (auto-runs build:portrait-ca
 npm run preview              # serve dist/
 npm run build:portrait-cache # rebuild SVG → JSON sprite maps under public/portrait-cache/
 npm run test:unit            # vitest, pure logic, co-located *.test.ts. CI job `unit`.
+npm run test:e2e             # playwright test — discovers tests/smoke/*.spec.ts.
+                             # Needs an already-running dev server (or playwright.config.ts's
+                             # webServer block spawns one on the default port).
 npm run lint:arch            # dependency-cruiser — engine boundary + layer direction.
                              # CI job `arch`. Baseline grandfathered; new violations fail.
 npm run lint:arch:baseline   # re-snapshot baseline after intentionally fixing violations.
-npm run ci:local             # smoke / regression. Spawns its own dev server on an ephemeral port.
-                             # Sources its step list from .github/workflows/ci.yml (`test` job).
-                             # Add --workers 4 for parallel.
+npm run ci:local             # smoke / regression. Spawns its own ephemeral Vite, runs
+                             # `playwright test` over tests/smoke/*.spec.ts (filesystem
+                             # discovery — no manifest, no ci.yml list), then runs survive.ts.
+                             # `npm run ci:local -- --grep portrait` to filter.
+                             # `npm run ci:local -- --workers=1` for serial debugging.
+                             # `npm run ci:local -- --skip-survive` to drop the long step.
 ```
 
 Type-checking is `tsc -b` (run as part of `npm run build`).
@@ -37,7 +43,7 @@ Type-checking is `tsc -b` (run as part of `npm run build`).
 
 ### TDD is mandatory
 
-Failing test first, then code. Pure logic → `npm run test:unit` (co-located `*.test.ts`). End-to-end behavior → `npm run ci:local`. **Extend the existing layer; do not fork it** — the smoke suite's source of truth is the `test` job in `.github/workflows/ci.yml`. Don't introduce parallel one-off check scripts that live outside it, and don't add unit-test runners to the smoke `test` job. New `check-*.mjs` scripts must read their target URL as `process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'` so the runner can inject the ephemeral port.
+Failing test first, then code. Pure logic → `npm run test:unit` (co-located `*.test.ts`). End-to-end behavior → `npm run ci:local`. **Extend the existing layer; do not fork it** — smoke tests live under `tests/smoke/*.spec.ts` and are auto-discovered by Playwright Test (no manifest, no per-test entry in `ci.yml`). Adding a smoke = drop a `*.spec.ts`. Don't introduce parallel one-off check scripts outside this convention, and don't add unit-test runners to the e2e `test` job.
 
 Follow *Clean Code* (Robert C. Martin) discipline: small intention-revealing names, small focused functions, single responsibility, composition + injection over globals.
 
@@ -45,19 +51,19 @@ Follow *Clean Code* (Robert C. Martin) discipline: small intention-revealing nam
 
 A flaky smoke test is worse than no smoke test: it teaches the team to ignore CI red, and the next real regression slips through. **Smoke tests must be deterministic by construction — not statistically reliable.** A correctly-built test passes 1/1 under any CI load. If yours doesn't, the test is broken, not unlucky.
 
-**For new tests, use the deterministic substrate first** — boot via `?test=1&fixture=<name>`, advance with `step({ until, maxGameMinutes })`, assert via `getGameState()`. See the `deterministic-tests` skill (`.claude/skills/deterministic-tests/SKILL.md`) before writing or migrating any test. The rules below apply to *both* substrates; they're what makes either shape deterministic.
+**For new tests, use the deterministic substrate first** — `import { test, expect } from './_fixtures'`, boot via `sim.boot({ fixture: '<name>' })`, advance with `sim.stepFor` / `sim.stepUntil`, assert via `getGameState()`. See the `deterministic-tests` skill (`.claude/skills/deterministic-tests/SKILL.md`) before writing or migrating any test. The rules below are what makes the substrate deterministic; ignoring them is how you get flake.
 
-Reliability is the primary acceptance criterion for any new `check-*.mjs` / playwright scenario, ranked above coverage breadth.
+Reliability is the primary acceptance criterion for any new spec, ranked above coverage breadth.
 
 **Construction rules** — every new smoke test must obey all of these:
 
 1. **Drive through `__uclife__`, not the DOM.** Read state from the deterministic debug handle. Don't assert on rendered text, sprite positions, or Pixi canvas pixels unless the test is explicitly *about* the renderer.
-2. **No fixed `sleep` / `waitForTimeout`.** Wait on a *condition* (`page.waitForFunction(() => __uclife__.something)`). If you reach for `setTimeout(2000)`, expose a deterministic signal on `__uclife__` instead.
-3. **Drive sim time, not real time.** Advance the clock via the debug handle (or `superSpeed` / `alwaysHyperspeed` overrides). Never click a speed button and wait for the wall clock to catch up.
-4. **Seeded determinism only.** Same `WORLD_SEED` → same world. If a scenario depends on a specific spawn, pin it via `special-npcs.json5` / `scenes.json5` rather than fishing for a procedural NPC.
+2. **No fixed `sleep` / `waitForTimeout`.** Wait on a *condition* (`sim.stepUntil(...)` for sim state, `page.waitForSelector` for DOM mount). If you reach for `setTimeout(2000)`, expose a deterministic signal on `__uclife__` instead.
+3. **Drive sim time, not real time.** `sim.stepFor` / `sim.stepUntil` only. Never click a speed button and wait for the wall clock to catch up.
+4. **Seeded determinism only.** Same seed + fixture → same world. If a scenario depends on a specific spawn, pin it via `special-npcs.json5` / `tests/fixtures/<name>.json5` rather than fishing for a procedural NPC.
 5. **No dynamic `await import('/src/...')` from inside the page.** Vite hands the test a different module instance than the running app, so trait-identity queries (`world.queryFirst(traitsMod.IsPlayer)`) silently match nothing. Expose helpers on `__uclife__` instead (slices live under `src/boot/debugHandles/`, assembled in `src/bootProd.tsx`).
-6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** If a check needs retries to stay green, the underlying signal is wrong — fix the signal.
-7. **Fail loud, fail fast.** Every assertion must produce a message that points at the broken invariant. On failure, dump relevant `__uclife__` state to the log.
+6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** `playwright.config.ts` pins `retries: 0` — keep it there. If a check needs retries to stay green, the underlying signal is wrong; fix it.
+7. **Fail loud, fail fast.** Every `expect` must name the broken invariant. The fixture auto-asserts no unexpected page errors on teardown — don't suppress that gate.
 
 If you can't meet rules 1–7 for a scenario, **don't add the test** — file the gap as a TODO.
 
@@ -109,7 +115,7 @@ These are *currently* mid-migration. Treat the new API as canonical for new code
 
 - **Effect / Modifier unification.** Backgrounds, perks, and conditions are converging onto one `Effect + StatSheet` shape (`Design/characters/effects.md`). New ModTypes `floor` and `cap` exist; physiology condition data is being authored in this shape.
 - **Per-trait save handler registry.** `src/save/registry.ts` + `src/boot/saveHandlers/`. Adding a new persisted subsystem = one new file in `saveHandlers/`, no edit to `src/save/index.ts`.
-- **Deterministic test mode.** The `deterministic-tests` skill (`.claude/skills/deterministic-tests/SKILL.md`) is canonical — load it before authoring, debugging, or migrating any test. Substrate (seeded RNG, `simNow()`, asset-ready barrier, fixture loader, frozen sim clock, `getGameState()` façade) is shipped; conversion of the `scripts/check-*.mjs` tail is in flight (batches A/B/C have landed — see `git log --grep "test(deterministic)"` and `Design/test-migration-playbook.md` for the triage table). New e2e tests boot via `?test=1&fixture=<name>` (fixtures in `tests/fixtures/*.json5`), advance sim time with `step({ until, maxGameMinutes })`, and assert against `getGameState()` — see `src/test/runtime.ts` + `src/test/gameStateView.ts`. The older `__uclife__` + `setSpeed + waitForTimeout` shape is being migrated out; don't add new tests in that style.
+- **Deterministic test mode.** Canonical reference: the `deterministic-tests` skill (`.claude/skills/deterministic-tests/SKILL.md`). Load it before authoring, debugging, or migrating any test. Substrate (seeded RNG, `simNow()`, asset-ready barrier, fixture loader, frozen sim clock, `getGameState()` façade) is shipped. Smoke / e2e tests run on **Playwright Test** (`@playwright/test`) — specs live in `tests/smoke/*.spec.ts` and are auto-discovered; the shared `sim` fixture in `tests/smoke/_fixtures.ts` boots `?test=1[&fixture=…]`, gates page errors on teardown, and exposes `sim.stepFor / sim.stepUntil / sim.waitForBoot`. Adding a test = drop a spec file; `ci.yml` and `scripts/ci-local.mjs` know nothing about individual tests. Fixtures stay in `tests/fixtures/*.json5`. The legacy `scripts/check-*.mjs` shape (hand-rolled `chromium.launch`, `node:assert`, `setSpeed + waitForTimeout`) is gone; don't reintroduce it.
 
 ### Parallel agent isolation — mandatory
 
