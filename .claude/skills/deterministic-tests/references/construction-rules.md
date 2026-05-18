@@ -28,7 +28,7 @@ Wait on a *condition*, not a clock. `step({ until })` for sim state. `waitForSel
 
 **Why.** A fixed sleep is a bet against the CI's worst case. If you guess high you waste suite time; if you guess low you flake. The deterministic substrate gives you exact signals — use them.
 
-**Worked failure mode.** `check-scene-swap` pre-migration: `await page.waitForTimeout(3500)` to "let the flight animation finish". On a cold-cache CI run, the dev server's first compile pushed total time to 4.1s — the test asserted on a half-finished transition. Fix: `step({ until: () => getScene().getId() === 'zumCity', maxGameMinutes: 24*60 })`. Exact.
+**Worked failure mode.** `scene-swap.spec.ts` pre-migration: `await page.waitForTimeout(3500)` to "let the flight animation finish". On a cold-cache CI run, the dev server's first compile pushed total time to 4.1s — the test asserted on a half-finished transition. Fix: `sim.stepUntil(() => getScene().getId() === 'zumCity', 24*60)`. Exact.
 
 **The legitimate uses.** A *one-shot* `waitForFunction` for the boot-existence check (`typeof window.__uclife_test__?.step === 'function'`) is fine — that's module-load, not sim-state polling. `waitForSelector` for DOM mount is fine — React commit, not sim-state. The boundary: anything reading game-world state with `waitForFunction` is forbidden; anything checking whether modules / DOM nodes exist is fine.
 
