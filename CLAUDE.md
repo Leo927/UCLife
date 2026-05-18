@@ -107,6 +107,7 @@ These are *currently* mid-migration. Treat the new API as canonical for new code
 
 - **Effect / Modifier unification.** Backgrounds, perks, and conditions are converging onto one `Effect + StatSheet` shape (`Design/characters/effects.md`). New ModTypes `floor` and `cap` exist; physiology condition data is being authored in this shape.
 - **Per-trait save handler registry.** `src/save/registry.ts` + `src/boot/saveHandlers/`. Adding a new persisted subsystem = one new file in `saveHandlers/`, no edit to `src/save/index.ts`.
+- **Deterministic test mode.** `Design/test-determinism.md` is canonical. Substrate (seeded RNG, `simNow()`, asset-ready barrier, fixture loader, frozen sim clock, `getGameState()` façade) is shipped; conversion of the `scripts/check-*.mjs` tail is in flight (batches A/B/C have landed — see `git log --grep "test(deterministic)"`). New e2e tests boot via `?test=1&fixture=<name>` (fixtures in `tests/fixtures/*.json5`), advance sim time with `step({ until, maxGameMinutes })`, and assert against `getGameState()` — see `src/test/runtime.ts` + `src/test/gameStateView.ts`. The older `__uclife__` + `setSpeed + waitForTimeout` shape is being migrated out; don't add new tests in that style.
 
 ### Parallel agent isolation — mandatory
 
@@ -124,7 +125,7 @@ Send N parallel `Agent` calls in a single message — each gets its own worktree
 ### No magic number
 No number shall be present in code (*.ts). Every single number must be in a config file (json5). Unless given explicit permission by the user.
 ### Prefer Diegetic
-When possible, design game objects to be Diegetic. They should be visible, touchable object inside the game. As oppose to just putting them in menu.
+When possible, design game objects to be diegetic — visible, touchable objects inside the game, rather than entries in a menu.
 
 ## Conventions
 
@@ -149,7 +150,7 @@ When possible, design game objects to be Diegetic. They should be visible, touch
 
 - Don't rush to implementation. Refine the design with the user first.
 - Always assume a feature has a big scale and lots of content. Ask explicit user permission before implementing naively.
-- Always commit on every iteration; use git for version control on each iteration.
+- Commit on every iteration — never leave the working tree dirty between turns.
 - Keep design docs in sync with shipped behavior.
 - Prefer delegating to subagents to maintain context integrity.
 - Always prefer MCP server over raw API call.

@@ -1,6 +1,6 @@
 # Test Determinism Architecture
 
-**Status:** Proposal — Wave 1 shipped (PRs #35, #36, #37), Wave 2 pending sign-off.
+**Status:** Substrate shipped (Phases 1–5, PRs #35–#39). Phase 6 in flight — pilot (#40) + batches B/C/A1/A2/A3 (#41–#46) + repair pass (#47) merged; remaining `scripts/check-*.mjs` conversions are the open tail.
 
 ## Problem
 
@@ -248,10 +248,10 @@ Hand-crafted JSON5 in `tests/fixtures/<name>.json5`. Loader translates schema �
 | 1 | Central seeded RNG | ✅ shipped, PR #35 | 7 systems/ sites routed through `getSimRng()`. 9 more sites in ecs/character/ai blocked by layer rules — promote to procgen if Phase 6 needs them. |
 | 2 | `simNow()` shim | ✅ shipped, PR #36 | 5 sites refactored. Caught TacticalView consumer bug. |
 | 3 | Asset-ready barrier | ✅ shipped, PR #37 | 10 portrait/sprite tests retrofitted, 50+ zero-flake runs. |
-| 3.5 | Skip-assets test mode | ⏳ pending | Wire `skipAssets:true` short-circuit at portrait/sprite/recolor entry points. Tiny — drops into Phase 3's `beginAssetJob` wrap. |
-| 4 | `step({ until })` + frozen-clock + `getEntityScreenCoords` | ⏳ pending | Sim-clock frozen by default in test mode. RAF accumulation paused. `step` is the sole wait primitive. Canvas hit-test bridge. |
-| 5 | Scenario loader + `getGameState()` façade | ⏳ pending | `loadScenario(name)` parses JSON5, translates → ECS ops. `GameStateView` façade wraps existing snapshot helpers. Starts minimal, grows per-test demand. |
-| 6 | Migrate flaky tests to deterministic API | ⏳ pending | Wave 1 already retrofitted 10 tests via `awaitAssetsReady`. Phase 6 converts the rest to fixtures + step + getGameState. |
+| 3.5 | Skip-assets test mode | ✅ shipped | `skipAssets:true` short-circuit wired at portrait/sprite/recolor/LPC entry points. Default-on in test mode. |
+| 4 | `step({ until })` + frozen-clock + `getEntityScreenCoords` | ✅ shipped, PR #39 | Sim-clock frozen by default in test mode. RAF accumulation paused. `step` is the sole wait primitive. Canvas hit-test bridge in `src/test/canvasHitTest.ts`. |
+| 5 | Scenario loader + `getGameState()` façade | ✅ shipped, PR #38 | `loadScenario(name)` in `src/test/fixtures.ts`. `getGameState()` façade in `src/test/gameStateView.ts`. |
+| 6 | Migrate flaky tests to deterministic API | 🚧 in flight | Pilot #40 + batches B (#42), C (#43), A1 (#46), A2 (#45), A3 (#44), repair pass (#47) merged — ~26 tests converted. Remaining `scripts/check-*.mjs` (those still calling `setSpeed`/`waitForTimeout`) are the open tail. |
 
 ## Open follow-ups (tracked, deferred)
 
