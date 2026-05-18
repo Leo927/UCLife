@@ -1,3 +1,8 @@
+// Phase 6 — Category C (renderer-pixel). Boots via `?test=1&assets=1`
+// so composeSheet actually fetches LPC layers + recolors them; pixel
+// count + LPC request capture both assert on real asset output.
+
+import { strict as assert } from 'node:assert'
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +12,18 @@ const here = dirname(fileURLToPath(import.meta.url))
 const outDir = join(here, 'out')
 await mkdir(outDir, { recursive: true })
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const BOOT_READY_TIMEOUT_MS = 30_000
+const ASSET_DRAIN_TIMEOUT_MS = 30_000
+const CANVAS_TIMEOUT_MS = 10_000
+
+const SHEET_W = 832
+const SHEET_H = 256
+const MIN_OPAQUE_PIXELS = 1000
+const TESTER_OVERLAY_Z_INDEX = '9999'
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1&assets=1', baseUrl).toString()
+
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage()
@@ -24,28 +40,43 @@ page.on('response', (r) => {
   if (u.includes('/lpc/')) lpcRequests.push({ url: u, status: r.status() })
 })
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(500)
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(
+  () => typeof window.uclifeSpriteTester === 'function'
+    && typeof window.__uclife__?.awaitAssetsReady === 'function',
+  null,
+  { timeout: BOOT_READY_TIMEOUT_MS },
+)
 
 await page.evaluate(() => window.uclifeSpriteTester())
-await page.waitForTimeout(2000) // image load + recolor
+// composeSheet registers asset jobs ('sprite:img:...', 'sprite:sheet:...').
+// Wait for the overlay canvas to mount, then drain the barrier.
+await page.waitForSelector(
+  `div[style*="z-index: ${TESTER_OVERLAY_Z_INDEX}"] canvas`,
+  { timeout: CANVAS_TIMEOUT_MS },
+)
+await page.evaluate(
+  (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+  ASSET_DRAIN_TIMEOUT_MS,
+)
 
-await page.fill('input[type=text]', 'Wei Tanaka')
-await page.waitForTimeout(500)
-await page.evaluate(() => {
-  const sel = document.querySelectorAll('select')[1]
-  if (sel) {
-    sel.value = 'male'
-    sel.dispatchEvent(new Event('change', { bubbles: true }))
-  }
-})
-await page.waitForTimeout(2000)
+// Real Playwright input: change the name + gender. selectOption drives
+// React's synthetic onChange path; dispatchEvent shortcuts are an
+// anti-pattern banned by the playbook.
+await page.fill(`div[style*="z-index: ${TESTER_OVERLAY_Z_INDEX}"] input[type=text]`, 'Wei Tanaka')
+const genderSelect = page.locator(
+  `div[style*="z-index: ${TESTER_OVERLAY_Z_INDEX}"] label`,
+).filter({ hasText: 'gender:' }).locator('select')
+await genderSelect.selectOption('male')
+// Sex switch kicks off a fresh composeSheet — drain again before probe.
+await page.evaluate(
+  (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+  ASSET_DRAIN_TIMEOUT_MS,
+)
 
-const stats = await page.evaluate(() => {
-  // Skip the Game stage's Konva canvas by picking the canvas inside the
-  // SpriteTester modal overlay (z-index 9999).
+const stats = await page.evaluate((zIndex) => {
   const overlay = Array.from(document.querySelectorAll('div')).find(
-    (d) => getComputedStyle(d).zIndex === '9999',
+    (d) => getComputedStyle(d).zIndex === zIndex,
   )
   const canvas = overlay?.querySelector('canvas')
   if (!canvas) return { found: false }
@@ -64,39 +95,33 @@ const stats = await page.evaluate(() => {
     opaquePixels: opaque,
     totalPixels: img.length / 4,
   }
-})
+}, TESTER_OVERLAY_Z_INDEX)
 
 await page.screenshot({ path: join(outDir, 'sprite-tester.png'), fullPage: false })
 
 await browser.close()
 
-let failed = false
 console.log('--- LPC sprite smoke test ---')
 console.log(`canvas: ${JSON.stringify(stats)}`)
-console.log(`lpc requests: ${lpcRequests.length} (${lpcRequests.filter((r) => r.status === 200).length} ok, ${lpcRequests.filter((r) => r.status !== 200).length} fail)`)
+const okCount = lpcRequests.filter((r) => r.status === 200).length
+const failCount = lpcRequests.filter((r) => r.status !== 200).length
+console.log(`lpc requests: ${lpcRequests.length} (${okCount} ok, ${failCount} fail)`)
 for (const r of lpcRequests) {
   console.log(`  ${r.status} ${r.url}`)
 }
-if (errors.length) {
-  console.log(`errors:`)
-  for (const e of errors) console.log(`  ${e}`)
-  failed = true
-}
-if (!stats.found || !stats.ctx) {
-  console.log('FAIL: no canvas found')
-  failed = true
-} else if (stats.width !== 832 || stats.height !== 256) {
-  console.log(`FAIL: expected 832x256 sheet, got ${stats.width}x${stats.height}`)
-  failed = true
-} else if (stats.opaquePixels < 1000) {
-  console.log(`FAIL: only ${stats.opaquePixels} opaque pixels — likely empty sheet`)
-  failed = true
-}
-if (lpcRequests.length === 0) {
-  console.log('FAIL: no /lpc/ requests captured — middleware not exercised')
-  failed = true
-}
-if (failed) {
-  process.exit(1)
-}
+assert.equal(errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`)
+assert.ok(stats.found, 'no canvas found in sprite tester overlay')
+assert.ok(stats.ctx, 'canvas has no 2D context')
+assert.equal(stats.width, SHEET_W,
+  `expected ${SHEET_W}x${SHEET_H} sheet, got ${stats.width}x${stats.height}`)
+assert.equal(stats.height, SHEET_H,
+  `expected ${SHEET_W}x${SHEET_H} sheet, got ${stats.width}x${stats.height}`)
+assert.ok(stats.opaquePixels >= MIN_OPAQUE_PIXELS,
+  `only ${stats.opaquePixels} opaque pixels (want >= ${MIN_OPAQUE_PIXELS}) — likely empty sheet`)
+assert.ok(lpcRequests.length > 0,
+  'no /lpc/ requests captured — middleware not exercised')
+assert.equal(failCount, 0,
+  `${failCount} sprite requests returned non-200`)
+
 console.log('OK')

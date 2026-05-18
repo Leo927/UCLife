@@ -1,203 +1,198 @@
 // Phase 6.2.B ship-repair smoke. Verifies:
 //  1. The flagship spawns with a ShipStatSheet whose bases match the
-//     lightFreighter template (hullPoints, armorPoints, topSpeed,
-//     brigCapacity, crewRequired, fuelStorage, supplyStorage).
-//  2. Damage applied via damageFlagship persists across the dock state —
-//     no auto-restore at the next tick / next-frame loop.
-//  3. The VB state hangar produces non-zero daily throughput once its
-//     manager + workers are seated, and that throughput credits the
-//     flagship while it's docked at vonBraun.
-//  4. The repair-priority verb focuses throughput on a single ship and
-//     auto-clears the focus key when that ship is fully repaired.
-//  5. Save round-trip (saveGame → resetWorld via loadGame) preserves
-//     ShipStatSheet base values, hull/armor damage, and the hangar's
-//     repairPriorityShipKey.
+//     lightFreighter template.
+//  2. Damage via damageFlagship persists.
+//  3. The VB state hangar produces non-zero daily throughput once staffed.
+//  4. Repair-priority focuses throughput; auto-clears when ship fully repaired.
+//  5. Save round-trip preserves ShipStatSheet bases, hull/armor damage,
+//     and the hangar's repairPriorityShipKey.
 
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
+import { BOOT_READY_TIMEOUT_MS } from './_test-constants.mjs'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const EXPECTED_HULL_BASE = 800
+const EXPECTED_ARMOR_BASE = 200
+const EXPECTED_TOP_SPEED = 60
+const EXPECTED_BRIG = 2
+const EXPECTED_CREW_REQUIRED = 4
+const EXPECTED_FUEL_STORAGE = 16
+const EXPECTED_SUPPLY_STORAGE = 40
+
+const FIRST_DAMAGE_HULL = 600
+const FIRST_DAMAGE_ARMOR = 150
+const FIRST_TICK_DAY = 1
+const SECOND_DAMAGE_HULL = 300
+const SECOND_DAMAGE_ARMOR = 80
+const MAX_REPAIR_TICKS = 20
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
 
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage()
 
-const errors = []
-page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+const pageErrors = []
+page.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`))
+page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(`console.error: ${m.text()}`) })
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.listHangars === 'function'
-    && typeof globalThis.__uclife__?.flagshipStatSheet === 'function'
-    && typeof globalThis.__uclife__?.flagshipDamage === 'function'
-    && typeof globalThis.__uclife__?.damageFlagship === 'function'
-    && typeof globalThis.__uclife__?.setHangarRepairPriority === 'function'
-    && typeof globalThis.__uclife__?.hangarRepairDescribe === 'function'
-    && typeof globalThis.__uclife__?.runHangarRepairTick === 'function'
-    && typeof globalThis.__uclife__?.fillJobVacancies === 'function'
-    && typeof globalThis.__uclife__?.saveGame === 'function'
-    && typeof globalThis.__uclife__?.loadGame === 'function',
-  null,
-  { timeout: 30_000 },
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.listHangars === 'function'
+    && typeof window.__uclife__?.flagshipStatSheet === 'function'
+    && typeof window.__uclife__?.flagshipDamage === 'function'
+    && typeof window.__uclife__?.damageFlagship === 'function'
+    && typeof window.__uclife__?.setHangarRepairPriority === 'function'
+    && typeof window.__uclife__?.hangarRepairDescribe === 'function'
+    && typeof window.__uclife__?.runHangarRepairTick === 'function'
+    && typeof window.__uclife__?.fillJobVacancies === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
+  null, { timeout: BOOT_READY_TIMEOUT_MS },
 )
 
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+const sheet = await page.evaluate(() => window.__uclife__.flagshipStatSheet())
+assert.ok(sheet, 'flagshipStatSheet() returned null at boot — sheet not attached')
+assert.equal(sheet.hullPoints, EXPECTED_HULL_BASE, `hullPoints base ${sheet.hullPoints} (want ${EXPECTED_HULL_BASE})`)
+assert.equal(sheet.armorPoints, EXPECTED_ARMOR_BASE, `armorPoints base ${sheet.armorPoints}`)
+assert.equal(sheet.topSpeed, EXPECTED_TOP_SPEED, `topSpeed base ${sheet.topSpeed}`)
+assert.equal(sheet.brigCapacity, EXPECTED_BRIG, `brigCapacity base ${sheet.brigCapacity}`)
+assert.equal(sheet.crewRequired, EXPECTED_CREW_REQUIRED, `crewRequired base ${sheet.crewRequired}`)
+assert.equal(sheet.fuelStorage, EXPECTED_FUEL_STORAGE, `fuelStorage base ${sheet.fuelStorage}`)
+assert.equal(sheet.supplyStorage, EXPECTED_SUPPLY_STORAGE, `supplyStorage base ${sheet.supplyStorage}`)
+console.log(`statSheet bases: hull=${sheet.hullPoints} armor=${sheet.armorPoints} speed=${sheet.topSpeed} brig=${sheet.brigCapacity}`)
 
-const failures = []
-const fail = (m) => failures.push(m)
-const pass = (m) => console.log('PASS ' + m)
-
-// 1. ShipStatSheet bases match the lightFreighter template.
-const sheet = await page.evaluate(() => globalThis.__uclife__.flagshipStatSheet())
-if (!sheet) fail('flagshipStatSheet() returned null at boot — sheet not attached')
-else {
-  if (sheet.hullPoints !== 800) fail(`hullPoints base ${sheet.hullPoints} (want 800 from lightFreighter)`)
-  if (sheet.armorPoints !== 200) fail(`armorPoints base ${sheet.armorPoints} (want 200)`)
-  if (sheet.topSpeed !== 60) fail(`topSpeed base ${sheet.topSpeed} (want 60)`)
-  if (sheet.brigCapacity !== 2) fail(`brigCapacity base ${sheet.brigCapacity} (want 2)`)
-  if (sheet.crewRequired !== 4) fail(`crewRequired base ${sheet.crewRequired} (want 4 = crewMax)`)
-  if (sheet.fuelStorage !== 16) fail(`fuelStorage base ${sheet.fuelStorage} (want 16)`)
-  if (sheet.supplyStorage !== 40) fail(`supplyStorage base ${sheet.supplyStorage} (want 40)`)
-  pass(`statSheet bases: hull=${sheet.hullPoints} armor=${sheet.armorPoints} speed=${sheet.topSpeed} brig=${sheet.brigCapacity}`)
-}
-
-// Locate the state hangar.
-const hangars = await page.evaluate(() => globalThis.__uclife__.listHangars())
+const hangars = await page.evaluate(() => window.__uclife__.listHangars())
 const vb = hangars.find((h) => h.typeId === 'hangarSurface')
-if (!vb) { fail('VB state hangar missing — 6.2.A regression'); await done() }
+assert.ok(vb, 'VB state hangar missing — 6.2.A regression')
 
-// Seat the manager + workers so throughput math is non-zero.
-await page.evaluate(() => globalThis.__uclife__.fillJobVacancies(['hangar_manager', 'hangar_worker']))
-const seated = await page.evaluate(() => globalThis.__uclife__.listHangars())
+await page.evaluate(() => window.__uclife__.fillJobVacancies(['hangar_manager', 'hangar_worker']))
+const seated = await page.evaluate(() => window.__uclife__.listHangars())
 const vbSeated = seated.find((h) => h.buildingKey === vb.buildingKey)
-if (!vbSeated?.manager) fail('manager seat empty after fillJobVacancies')
-if (vbSeated.workersSeated < 1) fail(`workersSeated=${vbSeated.workersSeated} (want >= 1)`)
+assert.ok(vbSeated?.manager, 'manager seat empty after fillJobVacancies')
+assert.ok(vbSeated.workersSeated >= 1, `workersSeated=${vbSeated.workersSeated} (want >= 1)`)
 
-const initialDesc = await page.evaluate((k) => globalThis.__uclife__.hangarRepairDescribe(k), vb.buildingKey)
-if (!initialDesc) fail('hangarRepairDescribe returned null at boot')
-else if (initialDesc.throughput <= 0) fail(`throughput=${initialDesc.throughput} at boot (want > 0 with seated crew)`)
-else pass(`throughput at boot: ${initialDesc.throughput.toFixed(1)} pts/day`)
+const initialDesc = await page.evaluate(
+  (k) => window.__uclife__.hangarRepairDescribe(k),
+  vb.buildingKey,
+)
+assert.ok(initialDesc, 'hangarRepairDescribe returned null at boot')
+assert.ok(initialDesc.throughput > 0,
+  `throughput=${initialDesc.throughput} at boot (want > 0 with seated crew)`)
+console.log(`throughput at boot: ${initialDesc.throughput.toFixed(1)} pts/day`)
 
-// 2. Persistent damage.
-const before = await page.evaluate(() => globalThis.__uclife__.flagshipDamage())
-if (!before) fail('flagshipDamage() returned null at boot')
-const hullLoss = 600
-const armorLoss = 150
-const damaged = await page.evaluate((p) => globalThis.__uclife__.damageFlagship(p.hull, p.armor), { hull: hullLoss, armor: armorLoss })
-if (!damaged) fail('damageFlagship() returned null')
-else {
-  if (damaged.hullCurrent !== before.hullCurrent - hullLoss) {
-    fail(`hullCurrent after damage = ${damaged.hullCurrent} (want ${before.hullCurrent - hullLoss})`)
-  }
-  if (damaged.armorCurrent !== before.armorCurrent - armorLoss) {
-    fail(`armorCurrent after damage = ${damaged.armorCurrent} (want ${before.armorCurrent - armorLoss})`)
-  }
-  pass(`damage applied: hull ${damaged.hullCurrent}/${damaged.hullMax} armor ${damaged.armorCurrent}/${damaged.armorMax}`)
-}
+const before = await page.evaluate(() => window.__uclife__.flagshipDamage())
+assert.ok(before, 'flagshipDamage() returned null at boot')
 
-// 3. One repair tick — credits should land on the docked-at-vonBraun flagship.
-const beforeTick = await page.evaluate(() => globalThis.__uclife__.flagshipDamage())
-const tickResult = await page.evaluate(() => globalThis.__uclife__.runHangarRepairTick(1))
-if (!tickResult) fail('runHangarRepairTick(1) returned null')
-else if (tickResult.hangarsTicked !== 1) fail(`hangarsTicked=${tickResult.hangarsTicked} (want 1)`)
-else if (tickResult.pointsApplied <= 0) fail(`pointsApplied=${tickResult.pointsApplied} on first tick (want > 0)`)
-else pass(`tick1: hangarsTicked=${tickResult.hangarsTicked} pointsApplied=${tickResult.pointsApplied.toFixed(1)}`)
+const damaged = await page.evaluate(
+  (p) => window.__uclife__.damageFlagship(p.hull, p.armor),
+  { hull: FIRST_DAMAGE_HULL, armor: FIRST_DAMAGE_ARMOR },
+)
+assert.ok(damaged, 'damageFlagship() returned null')
+assert.equal(damaged.hullCurrent, before.hullCurrent - FIRST_DAMAGE_HULL,
+  `hullCurrent after damage = ${damaged.hullCurrent}`)
+assert.equal(damaged.armorCurrent, before.armorCurrent - FIRST_DAMAGE_ARMOR,
+  `armorCurrent after damage = ${damaged.armorCurrent}`)
+console.log(`damage applied: hull ${damaged.hullCurrent}/${damaged.hullMax} armor ${damaged.armorCurrent}/${damaged.armorMax}`)
 
-const afterTick = await page.evaluate(() => globalThis.__uclife__.flagshipDamage())
-const totalRestored = (afterTick.armorCurrent - beforeTick.armorCurrent) + (afterTick.hullCurrent - beforeTick.hullCurrent)
-if (totalRestored <= 0) fail(`no repair progress on tick1: hull ${beforeTick.hullCurrent}→${afterTick.hullCurrent} armor ${beforeTick.armorCurrent}→${afterTick.armorCurrent}`)
-else pass(`restored ${totalRestored} points on tick1 — hull ${beforeTick.hullCurrent}→${afterTick.hullCurrent} armor ${beforeTick.armorCurrent}→${afterTick.armorCurrent}`)
+const beforeTick = await page.evaluate(() => window.__uclife__.flagshipDamage())
+const tickResult = await page.evaluate(
+  (d) => window.__uclife__.runHangarRepairTick(d),
+  FIRST_TICK_DAY,
+)
+assert.ok(tickResult, 'runHangarRepairTick returned null')
+assert.equal(tickResult.hangarsTicked, 1, `hangarsTicked=${tickResult.hangarsTicked} (want 1)`)
+assert.ok(tickResult.pointsApplied > 0, `pointsApplied=${tickResult.pointsApplied}`)
+console.log(`tick1: hangarsTicked=${tickResult.hangarsTicked} pointsApplied=${tickResult.pointsApplied.toFixed(1)}`)
 
-// Verify armor-first ordering: armor restored first because the deficit
-// is smaller than the per-tick throughput at baseline staffing.
+const afterTick = await page.evaluate(() => window.__uclife__.flagshipDamage())
+const totalRestored =
+  (afterTick.armorCurrent - beforeTick.armorCurrent) +
+  (afterTick.hullCurrent - beforeTick.hullCurrent)
+assert.ok(totalRestored > 0, `no repair progress on tick1: hull ${beforeTick.hullCurrent}→${afterTick.hullCurrent}`)
 if (afterTick.armorCurrent <= beforeTick.armorCurrent && afterTick.hullCurrent > beforeTick.hullCurrent) {
-  fail('hull repaired before armor — should be armor-first per Starsector repair model')
+  throw new Error('hull repaired before armor — should be armor-first per Starsector repair model')
 }
 
-// 4. Repair-priority focus: set focus on the flagship; run ticks until restored.
-const setRes = await page.evaluate((k) => globalThis.__uclife__.setHangarRepairPriority(k, 'ship'), vb.buildingKey)
-if (setRes !== 'ship') fail(`setHangarRepairPriority returned ${setRes} (want 'ship')`)
+const setRes = await page.evaluate(
+  (k) => window.__uclife__.setHangarRepairPriority(k, 'ship'),
+  vb.buildingKey,
+)
+assert.equal(setRes, 'ship', `setHangarRepairPriority returned ${setRes}`)
 
-const focusedDesc = await page.evaluate((k) => globalThis.__uclife__.hangarRepairDescribe(k), vb.buildingKey)
-if (focusedDesc.priorityShipKey !== 'ship') fail(`priorityShipKey=${focusedDesc.priorityShipKey} after set (want 'ship')`)
-else pass(`priority focus set: ${focusedDesc.priorityShipKey}`)
+const focusedDesc = await page.evaluate(
+  (k) => window.__uclife__.hangarRepairDescribe(k),
+  vb.buildingKey,
+)
+assert.equal(focusedDesc.priorityShipKey, 'ship', `priorityShipKey=${focusedDesc.priorityShipKey}`)
 
-// Run up to 20 ticks (well above the ~5 needed at baseline 200 pts/day vs.
-// ~750 deficit) to finish the demo. Stop early once fully repaired.
 let ticks = 0
 let final = afterTick
-while (ticks < 20) {
+while (ticks < MAX_REPAIR_TICKS) {
   ticks += 1
-  await page.evaluate((d) => globalThis.__uclife__.runHangarRepairTick(d), ticks + 1)
-  final = await page.evaluate(() => globalThis.__uclife__.flagshipDamage())
+  await page.evaluate(
+    (d) => window.__uclife__.runHangarRepairTick(d),
+    ticks + 1,
+  )
+  final = await page.evaluate(() => window.__uclife__.flagshipDamage())
   if (final.hullCurrent >= final.hullMax && final.armorCurrent >= final.armorMax) break
 }
-if (final.hullCurrent < final.hullMax || final.armorCurrent < final.armorMax) {
-  fail(`flagship not fully repaired after ${ticks} ticks: hull ${final.hullCurrent}/${final.hullMax} armor ${final.armorCurrent}/${final.armorMax}`)
-} else {
-  pass(`flagship fully repaired in ${ticks} ticks → hull ${final.hullCurrent}/${final.hullMax} armor ${final.armorCurrent}/${final.armorMax}`)
-}
+assert.ok(final.hullCurrent >= final.hullMax && final.armorCurrent >= final.armorMax,
+  `flagship not fully repaired after ${ticks} ticks: hull ${final.hullCurrent}/${final.hullMax}`)
+console.log(`flagship fully repaired in ${ticks} ticks → hull ${final.hullCurrent}/${final.hullMax} armor ${final.armorCurrent}/${final.armorMax}`)
 
-const clearedDesc = await page.evaluate((k) => globalThis.__uclife__.hangarRepairDescribe(k), vb.buildingKey)
-if (clearedDesc.priorityShipKey !== '') {
-  fail(`priorityShipKey=${clearedDesc.priorityShipKey} after full repair (want '' — auto-clear)`)
-} else {
-  pass('priority focus auto-cleared after ship reached full health')
-}
+const clearedDesc = await page.evaluate(
+  (k) => window.__uclife__.hangarRepairDescribe(k),
+  vb.buildingKey,
+)
+assert.equal(clearedDesc.priorityShipKey, '',
+  `priorityShipKey=${clearedDesc.priorityShipKey} after full repair (want '' — auto-clear)`)
 
-// 5. Save round-trip.
-await page.evaluate(() => globalThis.__uclife__.damageFlagship(300, 80))
-const setBack = await page.evaluate((k) => globalThis.__uclife__.setHangarRepairPriority(k, 'ship'), vb.buildingKey)
-if (setBack !== 'ship') fail(`re-set priority returned ${setBack}`)
+await page.evaluate(
+  (p) => window.__uclife__.damageFlagship(p.hull, p.armor),
+  { hull: SECOND_DAMAGE_HULL, armor: SECOND_DAMAGE_ARMOR },
+)
+const setBack = await page.evaluate(
+  (k) => window.__uclife__.setHangarRepairPriority(k, 'ship'),
+  vb.buildingKey,
+)
+assert.equal(setBack, 'ship', `re-set priority returned ${setBack}`)
 
-const preSave = await page.evaluate((k) => ({
-  damage: globalThis.__uclife__.flagshipDamage(),
-  sheet: globalThis.__uclife__.flagshipStatSheet(),
-  desc: globalThis.__uclife__.hangarRepairDescribe(k),
-}), vb.buildingKey)
-const saveOk = await page.evaluate(async () => {
-  await globalThis.__uclife__.saveGame('auto')
-  return true
-})
-if (!saveOk) fail('saveGame returned falsy')
+const preSave = await page.evaluate(
+  (k) => ({
+    damage: window.__uclife__.flagshipDamage(),
+    sheet: window.__uclife__.flagshipStatSheet(),
+    desc: window.__uclife__.hangarRepairDescribe(k),
+  }),
+  vb.buildingKey,
+)
+await page.evaluate(async () => { await window.__uclife__.saveGame('auto') })
+const loadOk = await page.evaluate(async () => window.__uclife__.loadGame('auto'))
+assert.equal(loadOk.ok, true, `loadGame failed: ${JSON.stringify(loadOk)}`)
 
-await page.evaluate(async () => {
-  await globalThis.__uclife__.loadGame('auto')
-})
+const postLoad = await page.evaluate(
+  (k) => ({
+    damage: window.__uclife__.flagshipDamage(),
+    sheet: window.__uclife__.flagshipStatSheet(),
+    desc: window.__uclife__.hangarRepairDescribe(k),
+  }),
+  vb.buildingKey,
+)
+assert.equal(postLoad.damage.hullCurrent, preSave.damage.hullCurrent,
+  `hull lost across save: ${preSave.damage.hullCurrent} → ${postLoad.damage.hullCurrent}`)
+assert.equal(postLoad.damage.armorCurrent, preSave.damage.armorCurrent,
+  `armor lost across save: ${preSave.damage.armorCurrent} → ${postLoad.damage.armorCurrent}`)
+assert.equal(postLoad.sheet.hullPoints, preSave.sheet.hullPoints,
+  `sheet.hullPoints lost across save: ${preSave.sheet.hullPoints} → ${postLoad.sheet.hullPoints}`)
+assert.equal(postLoad.desc.priorityShipKey, 'ship',
+  `priorityShipKey lost across save: 'ship' → '${postLoad.desc.priorityShipKey}'`)
+console.log('save round-trip preserved damage + statSheet + repair priority')
 
-const postLoad = await page.evaluate((k) => ({
-  damage: globalThis.__uclife__.flagshipDamage(),
-  sheet: globalThis.__uclife__.flagshipStatSheet(),
-  desc: globalThis.__uclife__.hangarRepairDescribe(k),
-}), vb.buildingKey)
+assert.equal(pageErrors.length, 0,
+  `page error(s) during test:\n${pageErrors.map((e) => '  ' + e).join('\n')}`)
 
-if (postLoad.damage.hullCurrent !== preSave.damage.hullCurrent) {
-  fail(`hull lost across save: ${preSave.damage.hullCurrent} → ${postLoad.damage.hullCurrent}`)
-}
-if (postLoad.damage.armorCurrent !== preSave.damage.armorCurrent) {
-  fail(`armor lost across save: ${preSave.damage.armorCurrent} → ${postLoad.damage.armorCurrent}`)
-}
-if (postLoad.sheet.hullPoints !== preSave.sheet.hullPoints) {
-  fail(`sheet.hullPoints lost across save: ${preSave.sheet.hullPoints} → ${postLoad.sheet.hullPoints}`)
-}
-if (postLoad.desc.priorityShipKey !== 'ship') {
-  fail(`priorityShipKey lost across save: 'ship' → '${postLoad.desc.priorityShipKey}'`)
-} else {
-  pass(`save round-trip preserved damage + statSheet + repair priority`)
-}
+await browser.close()
 
-await done()
-
-async function done() {
-  await browser.close()
-  if (errors.length) {
-    console.log('\nERRORS:')
-    errors.forEach((e) => console.log('  ' + e))
-  }
-  if (failures.length) {
-    console.log('\nFAILURES:')
-    failures.forEach((f) => console.log('  ' + f))
-    process.exit(1)
-  }
-  console.log('\nOK: ShipStatSheet + persistent damage + hangar repair throughput + repair-priority verb verified.')
-}
+console.log('\nOK: ShipStatSheet + persistent damage + hangar repair throughput + repair-priority verb verified.')

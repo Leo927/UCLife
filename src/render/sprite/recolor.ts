@@ -4,6 +4,7 @@
 // cost is paid once per character.
 
 import { getPalette, getSourcePalette } from './palettes'
+import { isSkipAssets } from '../../test/state'
 
 interface Rgb { r: number; g: number; b: number }
 
@@ -40,6 +41,9 @@ export function recolor(
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('recolor: 2D context unavailable')
   ctx.drawImage(source as CanvasImageSource, 0, 0)
+  // Test-mode short-circuit: skip the per-pixel palette swap (returns
+  // the source-drawn canvas unchanged). State + DOM keys preserved.
+  if (isSkipAssets()) return canvas
 
   const pairs = buildPairs(getSourcePalette(material), getPalette(material, target))
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height)

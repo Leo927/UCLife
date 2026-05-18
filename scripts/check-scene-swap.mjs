@@ -1,105 +1,127 @@
-// Two-leg flight smoke. Drives through __uclife__ + uclifeUI:
-// open flight modal → click 购票 → wait on transition.inProgress flipping
-// false → assert active scene + player landed at the registered arrival
-// pixel for the destination hub. No dynamic /src imports, no fixed sleeps.
+// Phase 6 deterministic migration of the scene-swap smoke. Two-leg flight:
+//   1. Open the Von Braun flight modal via the UI store.
+//   2. Click the real 购票 button.
+//   3. Wait for the RAF-driven transition to complete + the scene to swap.
+//   4. Repeat for the return leg (zumCity → vonBraunCity).
+//
+// Migrated to the deterministic stack: ?test=1&fixture=player-with-cash-at-vb,
+// real `page.click('.transit-terminal-go')`. The fade animation is driven
+// by `requestAnimationFrame` and `performance.now()` — those are browser
+// state, NOT sim state. The frozen-clock rule applies to sim-state polling,
+// not to RAF animations, so it's fine to wait on the transition overlay
+// detaching + active scene flipping (both browser-side).
+//
+// The flight's midpoint callback calls `useClock.getState().advance(durMin)`
+// which mutates gameDate directly. simNow is NOT advanced. The migration
+// asserts on the destination scene + player arrival pixel — both are
+// authoritative state, not clock progression. Clock-progression assertions
+// would need step({ gameMinutes }) (which is the sole way to advance simNow
+// in test mode).
 
 import { chromium } from 'playwright'
-import { mkdir } from 'node:fs/promises'
+import { strict as assert } from 'node:assert'
+import {
+  BOOT_READY_TIMEOUT_MS, DOM_COMMIT_TIMEOUT_MS, VIEWPORT,
+  isExpectedTestModePortraitMissing,
+} from './_test-constants.mjs'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
-await mkdir('scripts/out', { recursive: true })
+const FIXTURE = 'player-with-cash-at-vb'
+const VB_HUB = 'vonBraunCityAirport'
+const ZUM_HUB = 'zumCityAirport'
+const VB_SCENE = 'vonBraunCity'
+const ZUM_SCENE = 'zumCity'
+const BUY_LABEL = '购票'
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL(`?test=1&fixture=${FIXTURE}`, baseUrl).toString()
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } })
+const ctx = await browser.newContext({ viewport: VIEWPORT })
 const page = await ctx.newPage()
 
-const errors = []
-const failures = []
-page.on('pageerror', (err) => errors.push(`${err.name}: ${err.message}`))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+const pageErrors = []
+page.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`))
+page.on('console', (m) => {
+  if (m.type() !== 'error') return
+  const line = `console.error: ${m.text()}`
+  if (isExpectedTestModePortraitMissing(line)) return
+  pageErrors.push(line)
+})
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.cheatMoney === 'function'
-    && typeof globalThis.__uclife__?.listAirports === 'function'
-    && typeof globalThis.__uclife__?.playerSnapshot === 'function'
-    && typeof globalThis.__uclife__?.useScene?.getState === 'function'
-    && typeof globalThis.__uclife__?.useTransition?.getState === 'function'
-    && typeof globalThis.uclifeUI?.getState === 'function',
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.getGameState === 'function'
+    && typeof window.__uclife__?.listAirports === 'function'
+    && typeof window.uclifeUI?.getState === 'function'
+    && typeof window.__uclife__?.useScene?.getState === 'function'
+    && typeof window.__uclife__?.useTransition?.getState === 'function',
   null,
-  { timeout: 30_000 },
+  { timeout: BOOT_READY_TIMEOUT_MS },
 )
 
-const initialScene = await page.evaluate(() => globalThis.__uclife__.useScene.getState().activeId)
-console.log('Initial active scene:', initialScene)
+const initialScene = await page.evaluate(() => window.__uclife__.getGameState().getScene().getId())
+assert.equal(initialScene, VB_SCENE, `fixture must boot in ${VB_SCENE}, got ${initialScene}`)
 
-const airports = await page.evaluate(() => globalThis.__uclife__.listAirports())
-const expectedArrival = Object.fromEntries(
+// Pull expected arrival placements from the same source the runtime reads.
+const airports = await page.evaluate(() => window.__uclife__.listAirports())
+const arrivalByHub = Object.fromEntries(
   airports.filter((a) => a.placement).map((a) => [a.hubId, a.placement.arrivalPx]),
 )
-const zumArrival = expectedArrival.zumCityAirport
-const startArrival = expectedArrival.vonBraunCityAirport
-if (!zumArrival || !startArrival) {
-  console.log('FAIL · missing airport placement(s):', expectedArrival)
-  await browser.close()
-  process.exit(1)
-}
-
-await page.evaluate(() => globalThis.__uclife__.cheatMoney(2000))
+const zumArrival = arrivalByHub[ZUM_HUB]
+const vbArrival = arrivalByHub[VB_HUB]
+assert.ok(zumArrival, `${ZUM_HUB} placement missing from listAirports`)
+assert.ok(vbArrival, `${VB_HUB} placement missing from listAirports`)
 
 async function flyVia(fromHubId, expectedSceneId, expectedArrivalPx, label) {
-  await page.evaluate((hubId) => globalThis.uclifeUI.getState().openFlight(hubId), fromHubId)
-  await page.waitForSelector('.transit-terminal-go', { state: 'visible' })
+  await page.evaluate((hubId) => window.uclifeUI.getState().openFlight(hubId), fromHubId)
+
+  // DOM-readiness wait — React commit, not sim state.
+  await page.waitForSelector('.transit-terminal-go', { state: 'visible', timeout: DOM_COMMIT_TIMEOUT_MS })
 
   const btnText = await page.locator('.transit-terminal-go').first().textContent()
-  console.log(`${label} buy button:`, btnText)
-  if (btnText !== '购票') {
-    failures.push(`${label}: expected buy button '购票', got '${btnText}'`)
-    return
-  }
+  assert.equal(btnText, BUY_LABEL,
+    `${label}: expected buy button '${BUY_LABEL}', got '${btnText}' (likely insufficient funds)`)
 
   await page.click('.transit-terminal-go')
 
-  // The transition animates over ~560ms real time, but instead of waiting on
-  // the wall clock we wait on the actual signal: useTransition.inProgress
-  // flips false once the in-fade finishes, and useScene.activeId already
-  // flipped at midpoint.
+  // The transition is RAF-driven (browser state), not sim state — frozen
+  // clock doesn't affect requestAnimationFrame. Wait on the cover element
+  // detaching AND on the scene id flipping; both are browser-side mutations
+  // settled by the time the in-fade unmounts the overlay.
+  await page.waitForSelector('.transition-overlay', { state: 'detached', timeout: DOM_COMMIT_TIMEOUT_MS })
   await page.waitForFunction(
-    (sceneId) => {
-      const u = globalThis.__uclife__
-      return u.useTransition.getState().inProgress === false
-        && u.useScene.getState().activeId === sceneId
-    },
+    (sceneId) => window.__uclife__.useScene.getState().activeId === sceneId
+      && window.__uclife__.useTransition.getState().inProgress === false,
     expectedSceneId,
-    { timeout: 5000 },
+    { timeout: DOM_COMMIT_TIMEOUT_MS },
   )
 
-  const after = await page.evaluate(() => ({
-    activeId: globalThis.__uclife__.useScene.getState().activeId,
-    player: globalThis.__uclife__.playerSnapshot(),
-  }))
-  console.log(`${label}:`, after, 'expected arrival:', expectedArrivalPx)
-  const ok = after.activeId === expectedSceneId
-    && after.player?.pos.x === expectedArrivalPx.x
-    && after.player?.pos.y === expectedArrivalPx.y
-  if (ok) console.log(`PASS · ${label}`)
-  else failures.push(`${label}: scene=${after.activeId}, pos=${JSON.stringify(after.player?.pos)}`)
-
-  await page.screenshot({ path: `scripts/out/scene-swap-${expectedSceneId}.png`, fullPage: false })
+  const after = await page.evaluate(() => {
+    const gs = window.__uclife__.getGameState()
+    return {
+      activeId: gs.getScene().getId(),
+      pos: gs.getPlayerCharacter().getPosition(),
+    }
+  })
+  assert.equal(after.activeId, expectedSceneId,
+    `${label}: scene id ${after.activeId} (want ${expectedSceneId})`)
+  assert.equal(after.pos.scene, expectedSceneId,
+    `${label}: player.position.scene ${after.pos.scene} (want ${expectedSceneId})`)
+  assert.equal(after.pos.x, expectedArrivalPx.x,
+    `${label}: player.x ${after.pos.x} (want ${expectedArrivalPx.x})`)
+  assert.equal(after.pos.y, expectedArrivalPx.y,
+    `${label}: player.y ${after.pos.y} (want ${expectedArrivalPx.y})`)
 }
 
-await flyVia('vonBraunCityAirport', 'zumCity', zumArrival, 'leg 1 (vonBraunCity → zumCity)')
-await flyVia('zumCityAirport', 'vonBraunCity', startArrival, 'leg 2 (zumCity → vonBraunCity)')
+await flyVia(VB_HUB, ZUM_SCENE, zumArrival, 'leg 1 (vonBraunCity → zumCity)')
+await flyVia(ZUM_HUB, VB_SCENE, vbArrival, 'leg 2 (zumCity → vonBraunCity)')
 
-if (errors.length) {
-  console.log('PAGE ERRORS:')
-  for (const e of errors) console.log(`  ${e}`)
-}
+assert.equal(pageErrors.length, 0,
+  `page error(s) during test:\n${pageErrors.map((e) => '  ' + e).join('\n')}`)
+
+console.log('OK — check-scene-swap (deterministic):')
+console.log(`  leg 1: ${VB_SCENE} → ${ZUM_SCENE} arrival=${JSON.stringify(zumArrival)}`)
+console.log(`  leg 2: ${ZUM_SCENE} → ${VB_SCENE} arrival=${JSON.stringify(vbArrival)}`)
 
 await browser.close()
-
-if (failures.length || errors.length) {
-  console.log(`\nFAILED · ${failures.length} assertion(s), ${errors.length} page error(s)`)
-  process.exit(1)
-}
-console.log('\nOK · scene-swap round-trip passed')

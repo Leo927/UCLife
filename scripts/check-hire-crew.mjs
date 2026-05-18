@@ -1,29 +1,28 @@
 // Phase 6.2.D hire-as-captain / hire-as-crew + crew assignment +
 // captain's-office "man the rest" + officer Effect + save round-trip
-// smoke. Drives every assertion through __uclife__ debug handles per
-// CLAUDE.md smoke-test rules — no DOM scraping.
+// smoke.
+//
+// Migrated to Phase 6 deterministic boot: ?test=1 freezes the clock,
+// the loop is stopped, so no setSpeed(0) pin needed.
 //
 // Coverage:
 //   1. Procedural NPC's dialog tree exposes hireAsCaptain + hireAsCrew
 //      branches when at least one ship vacancy matches.
 //   2. hireAsCaptain assigns the NPC + debits the signing fee + emits
-//      `eff:officer:<key>:engineering` on the ship's stat sheet —
-//      observable as a topSpeed bump and a new effect id in
-//      shipEffectIds.
+//      `eff:officer:<key>:engineering` on the ship's stat sheet.
 //   3. hireAsCrew appends to Ship.crewIds + debits the signing fee.
 //   4. The crew-roster snapshot mirrors what the panel renders.
 //   5. moveCrewMember relocates a crew member between two ships.
 //   6. fireCrewMember removes from Ship.crewIds.
-//   7. fireCaptain clears assignedCaptainId AND drops the captain
-//      Effect (topSpeed reverts).
-//   8. manRestFromIdlePool pulls hireable NPCs until vacancy filled
-//      (or money runs out).
-//   9. Save round-trip preserves captain + crew assignments + crew
-//      Effect re-applies (the captain stays bonusing topSpeed).
+//   7. fireCaptain clears assignedCaptainId AND drops the captain Effect.
+//   8. manRestFromIdlePool pulls hireable NPCs until vacancy filled.
+//   9. Save round-trip preserves captain + crew + Effect.
 
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
 
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
@@ -33,244 +32,233 @@ const errors = []
 page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
 await page.waitForFunction(
-  () => typeof globalThis.__uclife__?.fillJobVacancies === 'function'
-    && typeof globalThis.__uclife__?.fleetRosterSnapshot === 'function'
-    && typeof globalThis.__uclife__?.spawnTestNpc === 'function'
-    && typeof globalThis.__uclife__?.hireBranchListing === 'function'
-    && typeof globalThis.__uclife__?.hireCaptainViaDebug === 'function'
-    && typeof globalThis.__uclife__?.hireCrewViaDebug === 'function'
-    && typeof globalThis.__uclife__?.fireCaptainViaDebug === 'function'
-    && typeof globalThis.__uclife__?.fireCrewMemberViaDebug === 'function'
-    && typeof globalThis.__uclife__?.moveCrewMemberViaDebug === 'function'
-    && typeof globalThis.__uclife__?.manRestFromIdleViaDebug === 'function'
-    && typeof globalThis.__uclife__?.crewRosterSnapshot === 'function'
-    && typeof globalThis.__uclife__?.shipStatSheetTopSpeed === 'function'
-    && typeof globalThis.__uclife__?.shipEffectIds === 'function'
-    && typeof globalThis.__uclife__?.captainEffectIdForKey === 'function'
-    && typeof globalThis.__uclife__?.listShipsInFleet === 'function'
-    && typeof globalThis.__uclife__?.enqueueShipDelivery === 'function'
-    && typeof globalThis.__uclife__?.runShipDeliveryTick === 'function'
-    && typeof globalThis.__uclife__?.receiveShipDelivery === 'function'
-    && typeof globalThis.__uclife__?.listHangarsAllScenes === 'function'
-    && typeof globalThis.__uclife__?.cheatMoney === 'function'
-    && typeof globalThis.__uclife__?.useClock?.getState === 'function'
-    && typeof globalThis.__uclife__?.saveGame === 'function'
-    && typeof globalThis.__uclife__?.loadGame === 'function',
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.fillJobVacancies === 'function'
+    && typeof window.__uclife__?.fleetRosterSnapshot === 'function'
+    && typeof window.__uclife__?.spawnTestNpc === 'function'
+    && typeof window.__uclife__?.hireBranchListing === 'function'
+    && typeof window.__uclife__?.hireCaptainViaDebug === 'function'
+    && typeof window.__uclife__?.hireCrewViaDebug === 'function'
+    && typeof window.__uclife__?.fireCaptainViaDebug === 'function'
+    && typeof window.__uclife__?.fireCrewMemberViaDebug === 'function'
+    && typeof window.__uclife__?.moveCrewMemberViaDebug === 'function'
+    && typeof window.__uclife__?.manRestFromIdleViaDebug === 'function'
+    && typeof window.__uclife__?.crewRosterSnapshot === 'function'
+    && typeof window.__uclife__?.shipStatSheetTopSpeed === 'function'
+    && typeof window.__uclife__?.shipEffectIds === 'function'
+    && typeof window.__uclife__?.captainEffectIdForKey === 'function'
+    && typeof window.__uclife__?.listShipsInFleet === 'function'
+    && typeof window.__uclife__?.enqueueShipDelivery === 'function'
+    && typeof window.__uclife__?.runShipDeliveryTick === 'function'
+    && typeof window.__uclife__?.receiveShipDelivery === 'function'
+    && typeof window.__uclife__?.listHangarsAllScenes === 'function'
+    && typeof window.__uclife__?.cheatMoney === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
   null,
   { timeout: 30_000 },
 )
 
-await page.evaluate(() => globalThis.__uclife__.useClock.getState().setSpeed(0))
+await page.evaluate(() => window.__uclife__.cheatMoney(2_000_000))
+await page.evaluate(() => window.__uclife__.fillJobVacancies(['hangar_manager']))
+await page.evaluate(() => window.__uclife__.fillJobVacancies(['hangar_manager']))
 
-const failures = []
-const fail = (m) => failures.push(m)
-const pass = (m) => console.log('PASS ' + m)
-
-// Seed: give the player plenty of money so signing fees don't gate
-// the assertions on a wallet-empty scenario.
-await page.evaluate(() => globalThis.__uclife__.cheatMoney(2_000_000))
-
-// Seat both hangar managers so a second ship can be received at the
-// Granada drydock.
-await page.evaluate(() => globalThis.__uclife__.fillJobVacancies(['hangar_manager']))
-await page.evaluate(() => globalThis.__uclife__.fillJobVacancies(['hangar_manager']))
-
-// Spawn a second ship at Granada via the C2 buy pipeline so we have
-// two hulls to exercise move/fire/hire across.
-const hangars = await page.evaluate(() => globalThis.__uclife__.listHangarsAllScenes())
+const hangars = await page.evaluate(() => window.__uclife__.listHangarsAllScenes())
 const drydock = hangars.find((h) => h.typeId === 'hangarDrydock')
-if (!drydock) { fail('Granada drydock missing'); await done() }
+assert.ok(drydock, 'Granada drydock missing')
 
-await page.evaluate((k) => globalThis.__uclife__.enqueueShipDelivery(k, 'pegasusClass', 1, 5), drydock.buildingKey)
-await page.evaluate(() => globalThis.__uclife__.runShipDeliveryTick(6))
-const rx = await page.evaluate((k) => globalThis.__uclife__.receiveShipDelivery(k, 0), drydock.buildingKey)
-if (!rx.ok) { fail(`pegasus receive failed: ${JSON.stringify(rx)}`); await done() }
-pass(`second ship received: ${rx.entityKey}`)
+await page.evaluate((k) => window.__uclife__.enqueueShipDelivery(k, 'pegasusClass', 1, 5), drydock.buildingKey)
+await page.evaluate(() => window.__uclife__.runShipDeliveryTick(6))
+const rx = await page.evaluate((k) => window.__uclife__.receiveShipDelivery(k, 0), drydock.buildingKey)
+assert.ok(rx.ok, `pegasus receive failed: ${JSON.stringify(rx)}`)
 
-const fleet0 = await page.evaluate(() => globalThis.__uclife__.listShipsInFleet())
-if (fleet0.length !== 2) { fail(`expected 2 ships in fleet, got ${fleet0.length}`); await done() }
+const fleet0 = await page.evaluate(() => window.__uclife__.listShipsInFleet())
+assert.equal(fleet0.length, 2, `expected 2 ships in fleet; got ${fleet0.length}`)
 const flagship = fleet0.find((s) => s.isFlagship)
 const pegasus = fleet0.find((s) => !s.isFlagship)
-if (!flagship || !pegasus) { fail('could not isolate flagship + pegasus'); await done() }
+assert.ok(flagship && pegasus, 'could not isolate flagship + pegasus')
 
 // 1. Hire branches surface on a procedural NPC.
 const npcKey = 'test-npc-a'
-await page.evaluate((k) => globalThis.__uclife__.spawnTestNpc({ key: k, name: 'TestCaptain' }), npcKey)
-const branches = await page.evaluate((k) => globalThis.__uclife__.hireBranchListing(k), npcKey)
-if (!branches.includes('hireAsCaptain')) fail(`hireAsCaptain branch missing for ${npcKey}: ${branches}`)
-else pass('hireAsCaptain branch surfaces')
-if (!branches.includes('hireAsCrew')) fail(`hireAsCrew branch missing for ${npcKey}: ${branches}`)
-else pass('hireAsCrew branch surfaces')
+await page.evaluate((k) => window.__uclife__.spawnTestNpc({ key: k, name: 'TestCaptain' }), npcKey)
+const branches = await page.evaluate((k) => window.__uclife__.hireBranchListing(k), npcKey)
+assert.ok(
+  branches.includes('hireAsCaptain'),
+  `hireAsCaptain branch should surface for ${npcKey}; got ${JSON.stringify(branches)}`,
+)
+assert.ok(
+  branches.includes('hireAsCrew'),
+  `hireAsCrew branch should surface for ${npcKey}; got ${JSON.stringify(branches)}`,
+)
 
-// 2. Hire as captain of flagship; assert topSpeed bumps + Effect id added.
-const baseTopSpeed = await page.evaluate((k) => globalThis.__uclife__.shipStatSheetTopSpeed(k), flagship.entityKey)
-const moneyBefore1 = await page.evaluate(() => globalThis.__uclife__.useClock.getState() && globalThis.__uclife__.uclifeWorld?.queryFirst?.(globalThis.__uclife__.world))
-void moneyBefore1
+// 2. Hire as captain of flagship.
+const baseTopSpeed = await page.evaluate((k) => window.__uclife__.shipStatSheetTopSpeed(k), flagship.entityKey)
 const captainResult = await page.evaluate(
-  (args) => globalThis.__uclife__.hireCaptainViaDebug(args.npcKey, args.shipKey),
+  (args) => window.__uclife__.hireCaptainViaDebug(args.npcKey, args.shipKey),
   { npcKey, shipKey: flagship.entityKey },
 )
-if (!captainResult.ok) { fail(`hire captain failed: ${JSON.stringify(captainResult)}`); await done() }
-pass(`captain hired · signing fee ¥${captainResult.signingFee}`)
+assert.ok(captainResult.ok, `hire captain failed: ${JSON.stringify(captainResult)}`)
 
-const roster1 = await page.evaluate(() => globalThis.__uclife__.fleetRosterSnapshot())
+const roster1 = await page.evaluate(() => window.__uclife__.fleetRosterSnapshot())
 const flagshipRow = roster1.find((r) => r.entityKey === flagship.entityKey)
-if (!flagshipRow) fail('flagship row missing from roster')
-else if (!flagshipRow.captainKey) fail('flagship.captainKey empty after hire')
-else if (!flagshipRow.captainKey.startsWith('npc-crew-')) {
-  fail(`captainKey did not promote to npc-crew-N: ${flagshipRow.captainKey}`)
-} else pass(`flagship.captainKey promoted: ${flagshipRow.captainKey}`)
+assert.ok(flagshipRow, 'flagship row missing from roster')
+assert.ok(flagshipRow.captainKey, 'flagship.captainKey should be set after hire')
+assert.ok(
+  flagshipRow.captainKey.startsWith('npc-crew-'),
+  `captainKey should promote to npc-crew-N; got "${flagshipRow.captainKey}"`,
+)
 
-const promotedNpcKey = flagshipRow?.captainKey
+const promotedNpcKey = flagshipRow.captainKey
 const captainEffectIdExpected = await page.evaluate(
-  (k) => globalThis.__uclife__.captainEffectIdForKey(k),
+  (k) => window.__uclife__.captainEffectIdForKey(k),
   promotedNpcKey,
 )
-const effectIds1 = await page.evaluate((k) => globalThis.__uclife__.shipEffectIds(k), flagship.entityKey)
-if (!effectIds1.includes(captainEffectIdExpected)) {
-  fail(`captain Effect id missing from ship: expected ${captainEffectIdExpected}, got ${JSON.stringify(effectIds1)}`)
-} else pass(`captain Effect id present on flagship: ${captainEffectIdExpected}`)
+const effectIds1 = await page.evaluate((k) => window.__uclife__.shipEffectIds(k), flagship.entityKey)
+assert.ok(
+  effectIds1.includes(captainEffectIdExpected),
+  `captain Effect id missing from ship: expected ${captainEffectIdExpected}, got ${JSON.stringify(effectIds1)}`,
+)
 
-const newTopSpeed = await page.evaluate((k) => globalThis.__uclife__.shipStatSheetTopSpeed(k), flagship.entityKey)
-// Engineering Lv on a fresh-spawned test NPC = 0 → percentMult of 0
-// would render the Effect a no-op on topSpeed. The smoke asserts the
-// Effect id is present (above); the numeric bump is exercised later
-// after we grant the captain some XP.
-if (newTopSpeed === null) fail('shipStatSheetTopSpeed returned null')
-else pass(`flagship topSpeed pre-XP: ${newTopSpeed} (was ${baseTopSpeed})`)
+const newTopSpeed = await page.evaluate((k) => window.__uclife__.shipStatSheetTopSpeed(k), flagship.entityKey)
+assert.notEqual(newTopSpeed, null, 'shipStatSheetTopSpeed returned null after captain hire')
 
 // 3. Hire as crew (second NPC, on the pegasus).
 const crewNpcKey = 'test-npc-crew-1'
-await page.evaluate((k) => globalThis.__uclife__.spawnTestNpc({ key: k, name: 'TestCrew1' }), crewNpcKey)
+await page.evaluate((k) => window.__uclife__.spawnTestNpc({ key: k, name: 'TestCrew1' }), crewNpcKey)
 const crewResult = await page.evaluate(
-  (args) => globalThis.__uclife__.hireCrewViaDebug(args.npcKey, args.shipKey),
+  (args) => window.__uclife__.hireCrewViaDebug(args.npcKey, args.shipKey),
   { npcKey: crewNpcKey, shipKey: pegasus.entityKey },
 )
-if (!crewResult.ok) { fail(`hire crew failed: ${JSON.stringify(crewResult)}`); await done() }
-pass(`crew hired on pegasus · signing fee ¥${crewResult.signingFee}`)
+assert.ok(crewResult.ok, `hire crew failed: ${JSON.stringify(crewResult)}`)
 
-const rosterC = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
+const rosterC = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
 const pegasusCrew = rosterC.find((r) => r.shipKey === pegasus.entityKey)
-if (!pegasusCrew) fail('pegasus crew row missing')
-else if (pegasusCrew.crew.length !== 1) fail(`pegasus crew.length=${pegasusCrew.crew.length} (want 1)`)
-else pass(`pegasus crew row: ${pegasusCrew.crew[0].name} (${pegasusCrew.crew[0].npcKey})`)
-
-const promotedCrewKey = pegasusCrew?.crew[0]?.npcKey
+assert.ok(pegasusCrew, 'pegasus crew row missing')
+assert.equal(
+  pegasusCrew.crew.length, 1,
+  `pegasus crew.length should be 1; got ${pegasusCrew.crew.length}`,
+)
+const promotedCrewKey = pegasusCrew.crew[0].npcKey
 
 // 4. Move crew from pegasus to flagship.
 const moveRes = await page.evaluate(
-  (args) => globalThis.__uclife__.moveCrewMemberViaDebug(args.from, args.to, args.who),
+  (args) => window.__uclife__.moveCrewMemberViaDebug(args.from, args.to, args.who),
   { from: pegasus.entityKey, to: flagship.entityKey, who: promotedCrewKey },
 )
-if (!moveRes.ok) fail(`move crew failed: ${JSON.stringify(moveRes)}`)
-else {
-  const rosterM = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
-  const pegM = rosterM.find((r) => r.shipKey === pegasus.entityKey)
-  const flM = rosterM.find((r) => r.shipKey === flagship.entityKey)
-  if (!pegM || pegM.crew.length !== 0) fail(`pegasus crew not emptied after move: ${JSON.stringify(pegM)}`)
-  if (!flM || flM.crew.find((c) => c.npcKey === promotedCrewKey) == null) {
-    fail(`flagship crew did not gain the moved entry: ${JSON.stringify(flM)}`)
-  }
-  if (pegM?.crew.length === 0 && flM?.crew.find((c) => c.npcKey === promotedCrewKey)) {
-    pass(`crew moved pegasus → flagship`)
-  }
-}
+assert.ok(moveRes.ok, `move crew failed: ${JSON.stringify(moveRes)}`)
+
+const rosterM = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
+const pegM = rosterM.find((r) => r.shipKey === pegasus.entityKey)
+const flM = rosterM.find((r) => r.shipKey === flagship.entityKey)
+assert.equal(
+  pegM.crew.length, 0,
+  `pegasus crew should be empty after move; got ${JSON.stringify(pegM.crew)}`,
+)
+assert.ok(
+  flM.crew.find((c) => c.npcKey === promotedCrewKey),
+  `flagship crew should contain moved entry ${promotedCrewKey}: ${JSON.stringify(flM.crew)}`,
+)
 
 // 5. Fire crew on flagship.
 const fireRes = await page.evaluate(
-  (args) => globalThis.__uclife__.fireCrewMemberViaDebug(args.ship, args.npc),
+  (args) => window.__uclife__.fireCrewMemberViaDebug(args.ship, args.npc),
   { ship: flagship.entityKey, npc: promotedCrewKey },
 )
-if (fireRes !== true) fail(`fire crew returned ${fireRes}`)
-else {
-  const rosterF = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
-  const flF = rosterF.find((r) => r.shipKey === flagship.entityKey)
-  if (flF?.crew.find((c) => c.npcKey === promotedCrewKey)) fail('flagship crew still has fired entry')
-  else pass('crew fired off flagship')
-}
+assert.equal(fireRes, true, `fire crew should return true; got ${fireRes}`)
+
+const rosterF = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
+const flF = rosterF.find((r) => r.shipKey === flagship.entityKey)
+assert.ok(
+  !flF.crew.find((c) => c.npcKey === promotedCrewKey),
+  `flagship crew should not contain fired entry ${promotedCrewKey}`,
+)
 
 // 6. manRestFromIdlePool fills the pegasus.
-// Spawn a handful of idle NPCs the auto-man verb can pick up.
-const idleSpawned = []
 for (let i = 0; i < 10; i++) {
-  const k = `test-idle-${i}`
-  await page.evaluate((key) => globalThis.__uclife__.spawnTestNpc({ key }), k)
-  idleSpawned.push(k)
+  await page.evaluate((key) => window.__uclife__.spawnTestNpc({ key }), `test-idle-${i}`)
 }
-// Assign a captain to pegasus so the auto-man verb is unblocked.
 const pegCaptainNpc = 'test-npc-pegcap'
-await page.evaluate((k) => globalThis.__uclife__.spawnTestNpc({ key: k, name: 'PegasusCaptain' }), pegCaptainNpc)
+await page.evaluate((k) => window.__uclife__.spawnTestNpc({ key: k, name: 'PegasusCaptain' }), pegCaptainNpc)
 const pegHireCap = await page.evaluate(
-  (args) => globalThis.__uclife__.hireCaptainViaDebug(args.npcKey, args.shipKey),
+  (args) => window.__uclife__.hireCaptainViaDebug(args.npcKey, args.shipKey),
   { npcKey: pegCaptainNpc, shipKey: pegasus.entityKey },
 )
-if (!pegHireCap.ok) fail(`pegasus captain hire failed: ${JSON.stringify(pegHireCap)}`)
-else pass('pegasus captain hired')
+assert.ok(pegHireCap.ok, `pegasus captain hire failed: ${JSON.stringify(pegHireCap)}`)
 
-const manRes = await page.evaluate((k) => globalThis.__uclife__.manRestFromIdleViaDebug(k), pegasus.entityKey)
-if (!manRes || manRes.hired <= 0) fail(`manRestFromIdle hired 0 — ${JSON.stringify(manRes)}`)
-else pass(`manRestFromIdle: ${manRes.hired} hired · fees ¥${manRes.signingFeesPaid} · ${manRes.stoppedReason}`)
+const manRes = await page.evaluate((k) => window.__uclife__.manRestFromIdleViaDebug(k), pegasus.entityKey)
+assert.ok(
+  manRes && manRes.hired > 0,
+  `manRestFromIdle should hire >0; got ${JSON.stringify(manRes)}`,
+)
 
-const rosterAfterMan = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
+const rosterAfterMan = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
 const pegAfterMan = rosterAfterMan.find((r) => r.shipKey === pegasus.entityKey)
-if (!pegAfterMan) fail('pegasus row missing post-man')
-else {
-  if (pegAfterMan.crew.length < manRes.hired) {
-    fail(`pegasus crew.length (${pegAfterMan.crew.length}) < hired (${manRes.hired})`)
-  } else pass(`pegasus crew after man: ${pegAfterMan.crew.length} / ${pegAfterMan.crewRequired}`)
-}
+assert.ok(pegAfterMan, 'pegasus row missing post-man')
+assert.ok(
+  pegAfterMan.crew.length >= manRes.hired,
+  `pegasus crew.length (${pegAfterMan.crew.length}) should be ≥ hired (${manRes.hired})`,
+)
 
-// 7. Save round-trip preserves captain + crew + Effect.
-const preSaveRoster = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
-const preSaveEffects = await page.evaluate((k) => globalThis.__uclife__.shipEffectIds(k), flagship.entityKey)
+// 7. Save round-trip.
+const preSaveRoster = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
+const preSaveEffects = await page.evaluate((k) => window.__uclife__.shipEffectIds(k), flagship.entityKey)
 const preSaveCaptain = preSaveRoster.find((r) => r.shipKey === flagship.entityKey)?.captainKey
-await page.evaluate(async () => { await globalThis.__uclife__.saveGame('auto') })
-await page.evaluate(async () => { await globalThis.__uclife__.loadGame('auto') })
-const postLoadRoster = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
-const postLoadEffects = await page.evaluate((k) => globalThis.__uclife__.shipEffectIds(k), flagship.entityKey)
+await page.evaluate(async () => { await window.__uclife__.saveGame('auto') })
+await page.evaluate(async () => { await window.__uclife__.loadGame('auto') })
+const postLoadRoster = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
+const postLoadEffects = await page.evaluate((k) => window.__uclife__.shipEffectIds(k), flagship.entityKey)
 const postLoadCaptain = postLoadRoster.find((r) => r.shipKey === flagship.entityKey)?.captainKey
-if (preSaveCaptain !== postLoadCaptain) fail(`save round-trip captain key: ${preSaveCaptain} → ${postLoadCaptain}`)
-else pass(`save round-trip preserved flagship captain: ${postLoadCaptain}`)
+assert.equal(
+  preSaveCaptain, postLoadCaptain,
+  `save round-trip should preserve flagship captain; ${preSaveCaptain} → ${postLoadCaptain}`,
+)
 
 const preCrewCount = preSaveRoster.reduce((n, r) => n + r.crew.length, 0)
 const postCrewCount = postLoadRoster.reduce((n, r) => n + r.crew.length, 0)
-if (preCrewCount !== postCrewCount) fail(`save round-trip crew count: ${preCrewCount} → ${postCrewCount}`)
-else pass(`save round-trip preserved crew count: ${postCrewCount}`)
+assert.equal(
+  preCrewCount, postCrewCount,
+  `save round-trip should preserve crew count; ${preCrewCount} → ${postCrewCount}`,
+)
 
 const preEffectId = preSaveEffects.find((id) => id.startsWith('eff:officer:'))
 const postEffectId = postLoadEffects.find((id) => id.startsWith('eff:officer:'))
-if (!postEffectId) fail(`captain Effect lost on save round-trip: ${JSON.stringify(postLoadEffects)}`)
-else if (preEffectId !== postEffectId) fail(`captain Effect id changed: ${preEffectId} → ${postEffectId}`)
-else pass(`save round-trip preserved captain Effect: ${postEffectId}`)
+assert.ok(
+  postEffectId,
+  `captain Effect lost on save round-trip: ${JSON.stringify(postLoadEffects)}`,
+)
+assert.equal(
+  preEffectId, postEffectId,
+  `captain Effect id changed across save round-trip: ${preEffectId} → ${postEffectId}`,
+)
 
 // 8. Fire captain → Effect drops.
-const fireCapRes = await page.evaluate((k) => globalThis.__uclife__.fireCaptainViaDebug(k), flagship.entityKey)
-if (fireCapRes !== true) fail(`fireCaptain returned ${fireCapRes}`)
-else {
-  const effectsAfterFire = await page.evaluate((k) => globalThis.__uclife__.shipEffectIds(k), flagship.entityKey)
-  if (effectsAfterFire.find((id) => id.startsWith('eff:officer:'))) {
-    fail(`captain Effect still on ship after fire: ${JSON.stringify(effectsAfterFire)}`)
-  } else pass('captain Effect dropped after fire')
-  const rosterAfterFire = await page.evaluate(() => globalThis.__uclife__.crewRosterSnapshot())
-  const flAfterFire = rosterAfterFire.find((r) => r.shipKey === flagship.entityKey)
-  if (flAfterFire?.captainKey !== '') fail(`flagship captainKey not cleared: ${flAfterFire?.captainKey}`)
-  else pass('flagship captainKey cleared after fire')
-}
+const fireCapRes = await page.evaluate((k) => window.__uclife__.fireCaptainViaDebug(k), flagship.entityKey)
+assert.equal(fireCapRes, true, `fireCaptain should return true; got ${fireCapRes}`)
 
-await done()
+const effectsAfterFire = await page.evaluate((k) => window.__uclife__.shipEffectIds(k), flagship.entityKey)
+assert.ok(
+  !effectsAfterFire.find((id) => id.startsWith('eff:officer:')),
+  `captain Effect should drop after fire; got ${JSON.stringify(effectsAfterFire)}`,
+)
+const rosterAfterFire = await page.evaluate(() => window.__uclife__.crewRosterSnapshot())
+const flAfterFire = rosterAfterFire.find((r) => r.shipKey === flagship.entityKey)
+assert.equal(
+  flAfterFire?.captainKey, '',
+  `flagship captainKey should be cleared after fire; got "${flAfterFire?.captainKey}"`,
+)
 
-async function done() {
-  await browser.close()
-  if (errors.length) {
-    console.log('\nERRORS:')
-    errors.forEach((e) => console.log('  ' + e))
-  }
-  if (failures.length) {
-    console.log('\nFAILURES:')
-    failures.forEach((f) => console.log('  ' + f))
-    process.exit(1)
-  }
-  console.log('\nOK: 6.2.D hire branches + crew assignment + man-rest + officer Effect verified.')
-}
+assert.equal(
+  errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`,
+)
+
+await browser.close()
+
+console.log('OK — check-hire-crew:')
+console.log(`  captain hired (${promotedNpcKey}) · Effect: ${captainEffectIdExpected}`)
+console.log(`  topSpeed pre=${baseTopSpeed} post=${newTopSpeed}`)
+console.log(`  crew move/fire round-trip ok`)
+console.log(`  manRestFromIdle hired: ${manRes.hired} · fees ¥${manRes.signingFeesPaid}`)
+console.log(`  save round-trip preserved captain + ${postCrewCount} crew + Effect`)

@@ -38,6 +38,7 @@ import { getEnemyShip } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
+import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim, onSim } from '../sim/events'
@@ -49,6 +50,7 @@ import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
 } from '../sim/cockpit'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
+import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
 
 function logEvent(textZh: string): void {
@@ -190,7 +192,7 @@ export const useCombatStore = create<CombatState>((set) => ({
   setInputAxis: (inputAxis) => set({ inputAxis }),
   setAimAtMouse: (aimAtMouse) => set({ aimAtMouse }),
   setAimMouse: (aimMouse) => set({ aimMouse }),
-  flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: performance.now() }),
+  flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: simNow() }),
   reset: () => set({
     open: false,
     paused: true,
@@ -574,7 +576,7 @@ function onEnemyDestroyed(ent: Entity): void {
       titleZh: npc.title,
       contextZh: npc.contextZh ?? npc.title ?? '',
       factionId: npc.factionRole?.faction ?? 'pirate',
-      capturedAtMs: performance.now(),
+      capturedAtMs: simNow(),
     })
     if (ok) {
       pushCombatLog(`俘获 · ${npc.name}${npc.title ? ` (${npc.title})` : ''}`, 'narr')
@@ -614,7 +616,7 @@ export function applyFleePenalty(): void {
 
 function applyDefeatConsequence(): void {
   // Pick a random ground colony (rescue transport drop-off).
-  const drop = DEFEAT_DROP_OPTIONS[Math.floor(Math.random() * DEFEAT_DROP_OPTIONS.length)]
+  const drop = getSimRng().pick(DEFEAT_DROP_OPTIONS)
 
   // Reset the flagship to factory-fresh state so a re-acquired ship
   // starts clean. The owned-flag flip below means the player can't board
@@ -696,8 +698,7 @@ export function endCombat(outcome: CombatOutcome): void {
   if (outcome === 'victory') {
     if (campaignKey) destroyCampaignEnemyByKey(campaignKey)
     // Phase 6.0 tally minimum — credits + supplies + fuel deltas.
-    const creditsRange = combatConfig.tallyCreditsMax - combatConfig.tallyCreditsMin
-    const reward = combatConfig.tallyCreditsMin + Math.floor(Math.random() * (creditsRange + 1))
+    const reward = getSimRng().int(combatConfig.tallyCreditsMin, combatConfig.tallyCreditsMax)
     const supplyGain = combatConfig.tallySuppliesGain
     const fuelGain = combatConfig.tallyFuelGain
     const player = findPlayer()

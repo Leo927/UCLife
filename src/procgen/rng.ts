@@ -59,4 +59,13 @@ export class SeededRng {
     if (arr.length === 0) throw new Error('SeededRng.pick: empty array')
     return arr[this.intRange(0, arr.length - 1)]
   }
+
+  // Opaque snapshot for round-trip determinism (save/load, test fixtures).
+  snapshot(): ReturnType<typeof RNG.getState> {
+    return this.state
+  }
+
+  restore(state: ReturnType<typeof RNG.getState>): void {
+    this.state = state
+  }
 }

@@ -1,0 +1,36 @@
+// Test-mode constants. Read by src/test/ modules at boot/step time.
+// Production builds tree-shake the entire src/test/ tree under
+// `import.meta.env.DEV`, so these values never reach players.
+{
+  // Sim-time step size used by step() to advance the clock per tick.
+  // 16 game-ms matches the prod loop's nominal frame budget — picking
+  // the same cadence keeps tick-driven systems exercised at the same
+  // granularity tests will see in real play.
+  tickGameMs: 16,
+
+  // Default sim-clock epoch when no `nowMs` URL param and no fixture
+  // startDate is provided. ISO-8601 in UTC — UC sets the campaign in
+  // year 77, but for an unspecified-fixture boot we just need a stable
+  // anchor (Date.parse() at this string never drifts).
+  defaultStartIso: '2026-04-27T09:00:00Z',
+
+  // Default RNG seed when no `seed` URL param and no fixture seed is
+  // provided. Any literal string is fine — pinned so back-to-back
+  // boots reproduce the same world.
+  defaultSeed: 'test-boot-default',
+
+  // Safety upper bound on per-step tick count. The `until` form is
+  // bounded by `maxGameMinutes`; this bound applies to the
+  // `gameMinutes` form too so a runaway "advance a year" call doesn't
+  // freeze the page indefinitely.
+  maxStepTicks: 5000000,
+
+  // Game-minute → game-ms conversion. 60000 ms in one minute.
+  // Hoisted into config so step({ gameMinutes }) doesn't hard-code it.
+  msPerGameMinute: 60000,
+
+  // Game-second → game-ms conversion. spaceSimSystem takes dt in
+  // seconds (real-ms / 1000) — hoisted into config so the test-mode
+  // tick doesn't hard-code the conversion.
+  msPerGameSecond: 1000,
+}

@@ -1,3 +1,9 @@
+// Phase 6 — Category C (renderer-pixel). Boots via `?test=1&assets=1`
+// so portrait cache + SvgQueue actually run; awaitAssetsReady() drains
+// each preset switch deterministically (replaces the legacy 800+300ms
+// waits). Preset switching is real Playwright input on the label.
+
+import { strict as assert } from 'node:assert'
 import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +13,15 @@ const here = dirname(fileURLToPath(import.meta.url))
 const outDir = join(here, 'out')
 await mkdir(outDir, { recursive: true })
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const BOOT_READY_TIMEOUT_MS = 30_000
+const ASSET_DRAIN_TIMEOUT_MS = 30_000
+const DOM_COMMIT_TIMEOUT_MS = 15_000
+const PRESETS = ['default-female', 'default-male', 'preg', 'punk']
+const MIN_SVG_DIM_PX = 50
+
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1&assets=1', baseUrl).toString()
+
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 const page = await ctx.newPage()
@@ -18,24 +32,24 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
 })
 
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.waitForTimeout(800)
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(
+  () => typeof window.uclifePortraitTester === 'function'
+    && typeof window.__uclife__?.awaitAssetsReady === 'function',
+  null,
+  { timeout: BOOT_READY_TIMEOUT_MS },
+)
 
 await page.evaluate(() => window.uclifePortraitTester())
-await page.waitForTimeout(300)
+// The PortraitTester's React commit kicks off the cache load on mount.
+// Wait for one art* SVG so the asset jobs have certainly registered,
+// then drain the readiness barrier deterministically.
+await page.waitForSelector('svg[class^="art"]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+await page.evaluate(
+  (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+  ASSET_DRAIN_TIMEOUT_MS,
+)
 
-// Wait for the placeholder ('加载头像…') to be replaced by an actual SVG —
-// the cache load is async (~5.6 MB gzipped) so first paint can take a moment.
-const portraitDiv = page.locator('div').filter({ has: page.locator('svg') }).first()
-try {
-  await portraitDiv.waitFor({ state: 'visible', timeout: 15_000 })
-} catch (e) {
-  errors.push(`timeout waiting for SVG to appear: ${e.message}`)
-}
-
-// Take stats snapshot of the default render first, before cycling presets
-// (avoids a race where mid-cycle re-render leaves the container empty for a
-// frame).
 const stats = await page.evaluate(() => {
   const containers = Array.from(document.querySelectorAll('div'))
     .filter((d) => {
@@ -57,7 +71,6 @@ const stats = await page.evaluate(() => {
       }),
       anyOverflowing: svgs.some((s) => {
         const r = s.getBoundingClientRect()
-        // 5px slack for browser rounding.
         return r.right - cb.right > 5 || cb.left - r.left > 5 || r.bottom - cb.bottom > 5 || cb.top - r.top > 5
       }),
     })
@@ -70,36 +83,35 @@ console.log('portrait container stats:', JSON.stringify(stats, null, 2))
 await page.screenshot({ path: join(outDir, 'portrait-tester.png'), fullPage: false })
 console.log(`screenshot: ${join(outDir, 'portrait-tester.png')}`)
 
-// Click the label text (not the input) — clicking the radio input with
-// force:true bypasses Playwright's actionability check but doesn't always
-// trigger React's onChange when the input is occluded by sibling SVG
-// pointer-events.
-const presets = ['default-female', 'default-male', 'preg', 'punk']
-for (const p of presets) {
+for (const p of PRESETS) {
   await page.locator(`label`).filter({ hasText: p }).click({ force: true })
-  await page.waitForTimeout(600)
+  // Each preset switch kicks off a fresh portrait re-render. Drain the
+  // asset jobs that the new render registers — no fixed sleep.
+  await page.evaluate(
+    (t) => window.__uclife__.awaitAssetsReady({ timeoutMs: t }),
+    ASSET_DRAIN_TIMEOUT_MS,
+  )
   await page.screenshot({ path: join(outDir, `portrait-${p}.png`) })
   console.log(`screenshot: portrait-${p}.png`)
-}
-
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
 }
 
 // FC's SvgQueue.output merges all layers with matching attributes into a
 // single optimized SVG, so svgCount >= 1 (not one per layer).
 const renderedContainer = stats.find((c) => c.svgCount > 0)
-const firstSvg = renderedContainer?.svgBoxes[0]
-const ok = !!renderedContainer
-  && renderedContainer.svgCount >= 1
-  && renderedContainer.styleCount >= 1
-  && !!firstSvg
-  && firstSvg.w > 50 && firstSvg.h > 50
-  && !renderedContainer.anyOverflowing
-  && errors.length === 0
+assert.ok(renderedContainer, 'no portrait container with an svg child found')
+assert.ok(renderedContainer.svgCount >= 1,
+  `expected svgCount >= 1, got ${renderedContainer.svgCount}`)
+assert.ok(renderedContainer.styleCount >= 1,
+  `expected styleCount >= 1, got ${renderedContainer.styleCount}`)
+const firstSvg = renderedContainer.svgBoxes[0]
+assert.ok(firstSvg, 'first svg bounding box missing')
+assert.ok(firstSvg.w > MIN_SVG_DIM_PX && firstSvg.h > MIN_SVG_DIM_PX,
+  `first svg too small (${firstSvg.w}x${firstSvg.h}, want >${MIN_SVG_DIM_PX}px each side)`)
+assert.equal(renderedContainer.anyOverflowing, false,
+  'svg overflowed the relative+overflow:hidden container')
+assert.equal(errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`)
 
-console.log(ok ? '\nOK: portrait rendered inside container.' : '\nFAIL.')
-if (!ok) process.exitCode = 1
+console.log('\nOK: portrait rendered inside container.')
 
 await browser.close()

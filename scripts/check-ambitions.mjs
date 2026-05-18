@@ -1,7 +1,22 @@
+// Phase 6 deterministic migration of the ambitions smoke. Boots via
+// ?test=1, drives the ambitions slot + stage tick + save/reload round-
+// trip through the debug handle.
+//
+// Coverage:
+//   1. No panel auto-opens at start.
+//   2. pickAmbitions(['mw_pilot', 'lazlos_owner']) seats the slots.
+//   3. After raising reflex+athletics and one game-day tick, mw_pilot
+//      promotes from stage 0 → stage 1, the Character.title updates,
+//      and the stage event lands in the event log.
+//   4. The ambitions panel renders the new title.
+//   5. Save → reload (same ?test=1 URL) → load preserves the slot.
+
 import { chromium } from 'playwright'
+import { strict as assert } from 'node:assert'
 import { mkdir } from 'node:fs/promises'
 
-const url = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const baseUrl = process.argv[2] ?? process.env.UCLIFE_BASE_URL ?? 'http://localhost:5173/'
+const testUrl = new URL('?test=1', baseUrl).toString()
 
 await mkdir('scripts/out', { recursive: true })
 
@@ -15,112 +30,133 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console.error: ${m.text()}`)
 })
 
-const failures = []
-const fail = (msg) => failures.push(msg)
+const EXPECTED_TITLE = '机工预备生'
 
-await page.goto(url, { waitUntil: 'domcontentloaded' })
-await page.waitForFunction(() => !!globalThis.__uclife__?.getAmbitions, null, { timeout: 30000 })
+await page.goto(testUrl, { waitUntil: 'domcontentloaded' })
+await page.waitForFunction(
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.getAmbitions === 'function'
+    && typeof window.__uclife__?.pickAmbitions === 'function'
+    && typeof window.__uclife__?.setPlayerStat === 'function'
+    && typeof window.__uclife__?.runAmbitionsTick === 'function'
+    && typeof window.__uclife__?.getEventLog === 'function'
+    && typeof window.__uclife__?.saveGame === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
-// ── Step 1: panel must NOT auto-open; player should already have a default ──
+// 1. Panel must NOT auto-open at start; player should have a default ambition slot.
 const overlayCount = await page.locator('.status-overlay').count()
-if (overlayCount !== 0) fail(`no overlay should auto-open at start, got ${overlayCount}`)
+assert.equal(
+  overlayCount, 0,
+  `no overlay should auto-open at start; got ${overlayCount}`,
+)
 
-const initial = await page.evaluate(() => globalThis.__uclife__.getAmbitions())
-if (!initial?.active?.length) fail('player should boot with a pre-seeded ambition slot')
+const initial = await page.evaluate(() => window.__uclife__.getAmbitions())
+assert.ok(
+  initial?.active?.length > 0,
+  `player should boot with a pre-seeded ambition slot; got ${JSON.stringify(initial)}`,
+)
 
-// ── Step 2: replace the placeholder with mw_pilot + lazlos_owner ──
+// 2. Replace placeholder with mw_pilot + lazlos_owner.
 await page.evaluate(() => {
-  return globalThis.__uclife__.pickAmbitions(['mw_pilot', 'lazlos_owner'])
+  return window.__uclife__.pickAmbitions(['mw_pilot', 'lazlos_owner'])
 })
 
-// ── Step 3: pause, then mutate stats so mw_pilot stage 1 thresholds clear ──
-await page.locator('.hud-controls button', { hasText: '暂停' }).click().catch(() => {})
-
+// 3. Mutate stats so mw_pilot stage 1 thresholds clear, advance one game-
+//    day via the bespoke verb (clock-only mutation), then force one
+//    ambitions tick. step() over 24h hits MAX_STEP_TICKS — and would
+//    over-tick every other system anyway. advanceGameDays is a clock
+//    bump only, not a sim tick, so it's the right scoped verb.
 await page.evaluate(() => {
-  globalThis.__uclife__.setPlayerStat('attributes.reflex', 35)
-  globalThis.__uclife__.setPlayerStat('skills.athletics', 600)
+  window.__uclife__.setPlayerStat('attributes.reflex', 35)
+  window.__uclife__.setPlayerStat('skills.athletics', 600)
 })
+await page.evaluate(() => window.__uclife__.advanceGameDays(1))
+await page.evaluate(() => window.__uclife__.runAmbitionsTick())
 
-// ── Step 4: advance one game-day + force a tick ─────────────────────────
-await page.evaluate(() => {
-  globalThis.__uclife__.advanceGameDays(1)
-  globalThis.__uclife__.runAmbitionsTick()
-})
-
-// ── Step 5: assert title + log + active[0].currentStage ─────────────────
-const after = await page.evaluate(() => {
-  return {
-    amb: globalThis.__uclife__.getAmbitions(),
-    log: globalThis.__uclife__.getEventLog(),
-  }
-})
-
-const expectedTitle = '机工预备生'
-if (after.amb?.title !== expectedTitle) {
-  fail(`expected Character.title === '${expectedTitle}', got '${after.amb?.title}'`)
-}
+const after = await page.evaluate(() => ({
+  amb: window.__uclife__.getAmbitions(),
+  log: window.__uclife__.getEventLog(),
+}))
+assert.equal(
+  after.amb?.title, EXPECTED_TITLE,
+  `Character.title should be "${EXPECTED_TITLE}" after stage 1 promotion; got "${after.amb?.title}"`,
+)
 
 const mwSlot = after.amb?.active?.find((s) => s.id === 'mw_pilot')
-if (!mwSlot) fail('mw_pilot slot missing from active list')
-else if (mwSlot.currentStage !== 1) {
-  fail(`expected mw_pilot.currentStage === 1, got ${mwSlot.currentStage}`)
-}
+assert.ok(mwSlot, 'mw_pilot slot missing from active list')
+assert.equal(
+  mwSlot.currentStage, 1,
+  `mw_pilot.currentStage should be 1 after threshold clear; got ${mwSlot.currentStage}`,
+)
 
 const stageLog = after.log.find((e) => e.textZh.includes('体检合格'))
-if (!stageLog) fail('expected stage-1 log line not found in event log')
+assert.ok(stageLog, 'expected stage-1 "体检合格" log line not found in event log')
 
-// ── Step 6: open panel manually, screenshot view mode ───────────────────
+// 4. Open panel manually, screenshot view mode.
 await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(true) })
-await page.waitForFunction(() => !!document.querySelector('.status-panel'))
+await page.waitForSelector('.status-panel', { timeout: 5_000 })
 await page.screenshot({ path: 'scripts/out/ambition-view.png', fullPage: false })
 
-const titleEl = await page.locator('[data-player-title]').first().textContent().catch(() => null)
-if (!titleEl || !titleEl.includes(expectedTitle)) {
-  await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(false); window.uclifeUI.getState().setStatus(true) })
-  await page.waitForFunction(() => !!document.querySelector('.status-panel'))
-  const t2 = await page.locator('[data-player-title]').first().textContent().catch(() => null)
-  if (!t2 || !t2.includes(expectedTitle)) {
-    fail(`StatusPanel title element does not contain '${expectedTitle}': got '${t2}'`)
-  }
-  await page.evaluate(() => { window.uclifeUI.getState().setStatus(false); window.uclifeUI.getState().setAmbitions(true) })
+// StatusPanel.tsx renders the title in [data-player-title]. The
+// ambitions panel may or may not include it; fall back to opening the
+// status panel if the data attribute isn't on the ambitions view.
+let titleEl = await page.locator('[data-player-title]').first().textContent().catch(() => null)
+if (!titleEl || !titleEl.includes(EXPECTED_TITLE)) {
+  await page.evaluate(() => {
+    window.uclifeUI.getState().setAmbitions(false)
+    window.uclifeUI.getState().setStatus(true)
+  })
+  await page.waitForSelector('.status-panel [data-player-title]', { timeout: 5_000 })
+  titleEl = await page.locator('[data-player-title]').first().textContent().catch(() => null)
 }
+assert.ok(
+  titleEl && titleEl.includes(EXPECTED_TITLE),
+  `StatusPanel [data-player-title] should contain "${EXPECTED_TITLE}"; got "${titleEl}"`,
+)
+await page.evaluate(() => {
+  window.uclifeUI.getState().setStatus(false)
+  window.uclifeUI.getState().setAmbitions(false)
+})
 
-// ── Step 7: save → reload → load → assert persistence ──────────────────
-await page.evaluate(() => { window.uclifeUI.getState().setAmbitions(false) })
-
-await page.evaluate(async () => { await globalThis.__uclife__.saveGame(1) })
+// 5. Save → reload (still ?test=1) → load → assert persistence.
+await page.evaluate(async () => { await window.__uclife__.saveGame(1) })
 
 await page.reload({ waitUntil: 'domcontentloaded' })
-await page.waitForFunction(() => !!globalThis.__uclife__?.getAmbitions, null, { timeout: 30000 })
+await page.waitForFunction(
+  () => typeof window.__uclife_test__?.step === 'function'
+    && typeof window.__uclife__?.getAmbitions === 'function'
+    && typeof window.__uclife__?.loadGame === 'function',
+  null,
+  { timeout: 30_000 },
+)
 
-await page.evaluate(async () => { await globalThis.__uclife__.loadGame(1) })
-await page.waitForFunction(() => {
-  const a = globalThis.__uclife__?.getAmbitions()
-  return a?.active?.some((s) => s.id === 'mw_pilot' && s.currentStage === 1)
-}, null, { timeout: 10000 })
+await page.evaluate(async () => { await window.__uclife__.loadGame(1) })
 
-const restored = await page.evaluate(() => globalThis.__uclife__.getAmbitions())
+// loadGame does not advance the clock; the ambitions data is restored
+// synchronously by the load handlers. Verify in one read.
+const restored = await page.evaluate(() => window.__uclife__.getAmbitions())
 const mwSlot2 = restored?.active?.find((s) => s.id === 'mw_pilot')
-if (!mwSlot2) fail('after reload, mw_pilot slot missing from active list')
-else if (mwSlot2.currentStage !== 1) {
-  fail(`after reload, expected mw_pilot.currentStage === 1, got ${mwSlot2.currentStage}`)
-}
-if (restored?.title !== expectedTitle) {
-  fail(`after reload, expected Character.title === '${expectedTitle}', got '${restored?.title}'`)
-}
+assert.ok(mwSlot2, 'after load, mw_pilot slot missing from active list')
+assert.equal(
+  mwSlot2.currentStage, 1,
+  `after load, mw_pilot.currentStage should be 1; got ${mwSlot2.currentStage}`,
+)
+assert.equal(
+  restored?.title, EXPECTED_TITLE,
+  `after load, Character.title should be "${EXPECTED_TITLE}"; got "${restored?.title}"`,
+)
 
-// ── Report ────────────────────────────────────────────────────────────────
-if (errors.length) {
-  console.log('\nERRORS:')
-  errors.forEach((e) => console.log('  ' + e))
-}
-if (failures.length) {
-  console.log('\nFAILURES:')
-  failures.forEach((f) => console.log('  ' + f))
-}
-
-const ok = failures.length === 0 && errors.length === 0
-console.log(ok ? '\nOK: ambitions round-trip passed.' : '\nFAIL: ambitions checks failed.')
-if (!ok) process.exitCode = 1
+assert.equal(
+  errors.length, 0,
+  `page error(s) during test:\n${errors.map((e) => '  ' + e).join('\n')}`,
+)
 
 await browser.close()
+
+console.log('OK — check-ambitions:')
+console.log(`  ambition slot picks: mw_pilot + lazlos_owner`)
+console.log(`  stage 0→1 promotion: title="${after.amb.title}" log="${stageLog.textZh}"`)
+console.log(`  save → reload → load preserved mw_pilot stage 1 + title`)

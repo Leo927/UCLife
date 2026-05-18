@@ -17,6 +17,7 @@ import { fleetFormationSystem } from './fleetFormation'
 import { useEngagement } from '../sim/engagement'
 import { spendFuel, getShipState, getDockedPoiId, setDockedPoi, setFleetPos } from '../sim/ship'
 import { emitSim } from '../sim/events'
+import { simNow } from '../sim/time'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -273,7 +274,7 @@ export function spaceSimSystem(world: World, dtSec: number): void {
   }
   if (playerPos && !useEngagement.getState().open) {
     const contactR = spaceConfig.aggroContactRadius
-    const nowMs = Date.now()
+    const nowMs = simNow()
     for (const e of world.query(EnemyAI, Position, EntityKey)) {
       const ai = e.get(EnemyAI)!
       const ePos = e.get(Position)!
