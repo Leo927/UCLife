@@ -15,6 +15,12 @@ export interface FleetConfig {
   fuelDeliveryDays: number
   secretaryBulkOrderMarkup: number
   secretaryBulkOrderDeliveryDays: number
+  // Phase 6.2.A — per-slotClass docked-ship marker layout inside a hangar.
+  hangarMarkerLayout: Record<'capital' | 'smallCraft', {
+    rowOffsetsTiles: number[]
+    strideTiles: number
+    startTileX: number
+  }>
   // Phase 6.2.C1 — ship-delivery lead times + AE VB sales-desk tile.
   delivery: {
     lightHull: number

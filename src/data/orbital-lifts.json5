@@ -11,8 +11,9 @@
 // modal, no multi-route catalog; the only player decision is whether to ride.
 //
 // Each row fields:
-//   id           — stable identifier; referenced by per-scene fixedInteractables
-//                  rows that spawn the lift kiosks.
+//   id           — stable identifier; the orbital-lift building (one per
+//                  endpoint) binds to a row by sceneId membership at spawn
+//                  time, so this id is mainly a debug-handle key.
 //   labelZh      — full player-facing name (used by debug surfaces only at MVP).
 //   shortZh      — the Interactable label on the kiosk.
 //   sceneIdA / sceneIdB — the two endpoints. Validated against scenes.json5.
@@ -31,7 +32,7 @@
       sceneIdB: 'granadaDrydock',
       durationMin: 90,
       fare: 500,
-      description: '冯·布劳恩航天港后侧的轨道升降梯。乘梯直达格拉纳达船坞群。',
+      description: 'AE 工业区中的轨道升降梯。乘梯直达格拉纳达船坞群。',
     },
   ],
 }

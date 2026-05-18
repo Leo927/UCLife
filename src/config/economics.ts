@@ -35,6 +35,10 @@ export interface EconomicsConfig {
     opinionDecayPerUnhousedDay: number
     minOpinionFromHousing: number
   }
+  playerFaction: {
+    creationStipend: number
+    minWalletToCreate: number
+  }
 }
 
 export const economicsConfig = json5.parse(raw) as EconomicsConfig

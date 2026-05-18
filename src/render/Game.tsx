@@ -40,8 +40,22 @@ import type {
 import {
   Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, QueuedTalk, Action,
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
-  Active, Road, Appearance, ManageCell, Owner,
+  Active, Road, Appearance, ManageCell, Owner, TemplateRef,
 } from '../ecs/traits'
+import type { ObjectVisual } from '../data/objectTemplates'
+
+/**
+ * Pull the visual descriptor for an entity by following its
+ * TemplateRef into `object-templates.json5`. Every world-object that
+ * gets rendered must carry a TemplateRef; missing-template entities
+ * surface as visible errors during dev rather than silently
+ * fallback-render.
+ */
+function visualOf(ent: Entity): ObjectVisual {
+  const ref = ent.get(TemplateRef)
+  if (!ref) throw new Error(`Entity missing TemplateRef — every renderable world-object must carry one`)
+  return getObjectTemplate(ref.id).visual
+}
 import { isSymptomaticInfectiousCarrier } from '../systems/workplacePrevalence'
 import { useCamera } from './cameraStore'
 import { useCombatStore } from '../systems/combat'
@@ -51,6 +65,7 @@ import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
 import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
+import { getObjectTemplate, type DoorVariant } from '../data/objectTemplates'
 import { getActiveSceneDimensions, getActiveSceneId, getWorld, world } from '../ecs/world'
 import { startAnimTicker, useAnimTick } from './sprite/animTick'
 import type { LpcDirection } from './sprite/types'
@@ -459,7 +474,7 @@ function buildSnapshot(
     const b = ent.get(Building)
     if (!b) continue
     if (!rectInView(b.x, b.y, b.w, b.h)) continue
-    buildings.push({ ent, x: b.x, y: b.y, w: b.w, h: b.h, label: b.label })
+    buildings.push({ ent, x: b.x, y: b.y, w: b.w, h: b.h, label: b.label, visual: visualOf(ent) })
   }
   // Walls.
   const walls: WallSnap[] = []
@@ -467,18 +482,24 @@ function buildSnapshot(
     const w = ent.get(Wall)
     if (!w) continue
     if (!rectInView(w.x, w.y, w.w, w.h)) continue
-    walls.push({ ent, x: w.x, y: w.y, w: w.w, h: w.h })
+    walls.push({ ent, x: w.x, y: w.y, w: w.w, h: w.h, visual: visualOf(ent) })
   }
-  // Doors.
+  // Doors. Variant resolves from the door's gating fields and matches
+  // the door template id chosen at spawn time.
   const doors: DoorSnap[] = []
   for (const ent of world.query(Door)) {
     const d = ent.get(Door)
     if (!d) continue
     if (!rectInView(d.x, d.y, d.w, d.h)) continue
+    const variant: DoorVariant = d.factionGate !== null
+      ? 'factionGated'
+      : d.bedEntity !== null
+        ? 'bedKeyed'
+        : 'open'
     doors.push({
       ent, x: d.x, y: d.y, w: d.w, h: d.h,
-      factionGated: d.factionGate !== null,
-      bedKeyed: d.bedEntity !== null,
+      variant,
+      visual: visualOf(ent),
     })
   }
 
@@ -496,12 +517,11 @@ function buildSnapshot(
     const bed = ent.get(Bed)
     if (!bed) continue
     const it = ent.get(Interactable)
-    const v = BED_VISUAL_FALLBACK[bed.tier as BedTier]
-    if (!v) continue
+    const visual = visualOf(ent)
     const active = bedActiveOccupant(bed, gameMs)
     const occupied = active !== null
     const isPlayerBed = active !== null && active === playerEnt
-    const labelText = it?.label ?? v.label
+    const labelText = it?.label ?? visual.label ?? ''
     const mult = BED_MULTIPLIERS[bed.tier as BedTier] ?? 1.0
     beds.push({
       ent,
@@ -512,6 +532,7 @@ function buildSnapshot(
       fee: it?.fee ?? 0,
       label: labelText,
       multiplier: mult,
+      visual,
     })
   }
 
@@ -529,6 +550,7 @@ function buildSnapshot(
       x: pos.x, y: pos.y,
       occupied: seat.occupant !== null,
       fee: it?.fee ?? 0,
+      visual: visualOf(ent),
     })
   }
 
@@ -560,6 +582,7 @@ function buildSnapshot(
       label: it.label,
       fee: it.fee,
       benchOccupied: !!rough && rough.occupant !== null,
+      visual: visualOf(ent),
     })
   }
 
@@ -697,13 +720,3 @@ function computeFacing(
   return dir
 }
 
-// Local fallback for bed visual sizes (mirrors PixiGroundRenderer's BED_VISUAL).
-// Used here for the snapshot builder to read sizing/labels without coupling to
-// the renderer's internal table.
-const BED_VISUAL_FALLBACK: Record<BedTier, { w: number; h: number; label: string }> = {
-  luxury:    { w: 28, h: 18, label: '高级床' },
-  apartment: { w: 26, h: 16, label: '床' },
-  dorm:      { w: 22, h: 14, label: '宿舍床' },
-  lounge:    { w: 26, h: 14, label: '员工沙发' },
-  flop:      { w: 20, h: 14, label: '投币床' },
-}

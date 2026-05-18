@@ -16,6 +16,12 @@ export type { BedTier, InteractableKind, RoadKind }
 // the realtor and daily-economics systems.
 export type OwnerKind = 'state' | 'faction' | 'character'
 
+// Authored-data backref. Stamped on every entity spawned from an
+// object template (`src/data/object-templates.json5`) so runtime
+// code can recover the entity's design-time origin. Inspector,
+// save/load, and future "swap template" tooling all key off this.
+export const TemplateRef = trait({ id: '' })
+
 export const Wall = trait({ x: 0, y: 0, w: 0, h: 0 })
 
 // Procgen road surface — purely visual + semantic; the pathfinder treats
@@ -124,6 +130,16 @@ export const OrbitalLift = trait({
   liftId: '',
 })
 
+// Scene-side anchor for a fleet ship parked in a hangar at this scene's
+// POI. The Ship entity itself lives in playerShipInterior world; this
+// marker is the Interactable representation rendered inside the hangar
+// scene so the player can see and click it. `shipKey` is the Ship's
+// EntityKey (stable across save/load); the marker sync system keeps the
+// set of markers aligned with currently-docked ships every tick.
+export const ShipMarker = trait({
+  shipKey: '',
+})
+
 export const Helm = trait({
   // An interact tile in playerShipInterior that, when pressed E, takes
   // helm. Slice 5 wires the actual interaction; this trait is the
@@ -148,6 +164,14 @@ export const Faction = trait({
   id: 'civilian' as FactionId,
   fund: 0,
 })
+
+// Phase 5.5.5 — marker on the player-led Faction entity. Distinguishes
+// it from the canonical 'player' FactionId at query time (only one
+// IsPlayerFaction-tagged entity ever exists; the id 'player' could in
+// principle drift if a future feature spawns parallel player-tier
+// factions). Queries that need "is this owner the player-led faction"
+// check `owner.entity.has(IsPlayerFaction)` rather than `id === 'player'`.
+export const IsPlayerFaction = trait()
 
 // Phase 5.5.6 — faction-side StatSheet, parallel to Attributes.sheet on
 // characters. Holds revenueMul / salaryMul / maintenanceMul /

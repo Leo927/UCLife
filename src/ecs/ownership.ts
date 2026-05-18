@@ -24,7 +24,9 @@ export function factionKey(id: FactionId): string {
 
 // Spawn one Faction entity per FactionId in `world`. Idempotent — calling
 // twice on the same world is a no-op (queries the existing set first).
-// Called from each city-scene bootstrap before any Building spawns.
+// Called from each city-scene bootstrap before any Building spawns. The
+// 'player' faction entity spawns here too; it stays inert until
+// createPlayerFaction adds the IsPlayerFaction marker.
 export function bootstrapFactions(world: World): void {
   const existing = new Set<FactionId>()
   for (const e of world.query(Faction)) {

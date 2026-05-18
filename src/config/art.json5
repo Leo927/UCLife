@@ -1,0 +1,13 @@
+// Asset catalog — the single registry that knows where physical art
+// files live. Each entry is keyed by an opaque asset id and carries
+// only the file path; rendering decisions (which game-object uses
+// which asset, what footprint to render at) belong with the object
+// definition, not here.
+//
+// Source PNGs live under `public/art/` (Vite serves that as the site
+// root); paths here are absolute under that root.
+{
+  catalog: {
+    'bed-flop': { path: '/art/objects/bed-flop.png' },
+  },
+}

@@ -92,6 +92,9 @@
     federation: { revenueMul: 1.5, dailyStipend: 8000 },
     zeon:       { revenueMul: 1.5, dailyStipend: 8000 },
     pirate:     { revenueMul: 0.9, dailyStipend: 0 },
+    // Player-led faction. revenueMul matches the unsponsored baseline; no
+    // stipend (the player earns their fund through facility revenue).
+    player:     { revenueMul: 1.0, dailyStipend: 0 },
   },
 
   insolvency: {
@@ -113,5 +116,19 @@
   housingPressure: {
     opinionDecayPerUnhousedDay: -1,
     minOpinionFromHousing: -40,
+  },
+
+  // Phase 5.5.5 — player-faction creation. creationStipend is the amount
+  // left on the player's Money trait when the wallet migrates into
+  // Faction.fund. The player's personal wallet from that point is a small
+  // pocket for personal spending (groceries, bar tabs); revenue/payroll
+  // route through the faction fund. The secretary's withdraw verb routes
+  // funds back to the player as needed.
+  //   minWalletToCreate — gate the verb behind a token amount so the
+  //     ceremony doesn't fire on a brand-new character with no savings
+  //     and no real ownership to migrate.
+  playerFaction: {
+    creationStipend: 2000,
+    minWalletToCreate: 1000,
   },
 }

@@ -1,10 +1,10 @@
-// Phase 5.5.3 player-faction queries. The player-faction is aliased to
-// the player's wallet + owned facilities until 5.5.5 ships explicit
-// creation; this module derives "members" / "facilities" / "beds" from
-// that alias without a new trait.
+// Phase 5.5.3 player-faction queries. Pre-5.5.5 the player-faction is
+// aliased to the player's wallet + owned facilities; post-5.5.5 it's a
+// real Faction entity carrying IsPlayerFaction. This module derives
+// "members" / "facilities" / "beds" from either shape without callers
+// having to branch.
 //
-// A *member* of the pre-creation player-faction is any character who
-// either:
+// A *member* of the player-faction is any character who either:
 //   • currently occupies a Workstation in a player-owned Building, or
 //   • holds a faction-bed claim (Bed.claimedBy === character) on a bed
 //     inside a player-owned residential facility.
@@ -13,19 +13,30 @@
 // employs and the housed members the secretary tracks. A character on
 // either list is a member; the union avoids double-counting.
 
-import type { Entity, World } from 'koota'
+import type { Entity, World, TraitInstance } from 'koota'
 import {
-  Building, Owner, IsPlayer, Workstation, Bed, Position,
+  Building, Owner, IsPlayer, IsPlayerFaction, Workstation, Bed, Position,
   Character, EntityKey, Job, Knows,
 } from './traits'
 
-// True when the building is currently owned by the player. Faction-owned
-// is *not* a player alias under the pre-creation model — only direct
-// character ownership maps to the player-faction.
+// True when `owner` resolves to either the pre-creation alias
+// (kind:'character' && entity === player) or the post-creation real
+// faction (kind:'faction' && entity has IsPlayerFaction). Centralized so
+// every caller — daily-economics warnings, realtor flagger, manage-cell
+// gating — shares one rule.
+export function isPlayerFactionOwner(
+  owner: TraitInstance<typeof Owner> | undefined,
+  player: Entity,
+): boolean {
+  if (!owner) return false
+  if (owner.kind === 'character') return owner.entity === player
+  if (owner.kind === 'faction') return !!owner.entity && owner.entity.has(IsPlayerFaction)
+  return false
+}
+
+// True when the building is owned by the player-faction (alias or real).
 export function isPlayerOwnedBuilding(building: Entity, player: Entity): boolean {
-  const o = building.get(Owner)
-  if (!o) return false
-  return o.kind === 'character' && o.entity === player
+  return isPlayerFactionOwner(building.get(Owner), player)
 }
 
 export function findPlayer(world: World): Entity | null {

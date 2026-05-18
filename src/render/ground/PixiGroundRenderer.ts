@@ -40,13 +40,14 @@ import {
   type FederatedPointerEvent,
 } from 'pixi.js'
 import type { Entity } from 'koota'
-import type { InteractableKind, RoadKind, BedTier, ActionKind } from '../../ecs/traits'
+import type { RoadKind, ActionKind } from '../../ecs/traits'
 import type { AppearanceData } from '../../character/appearanceGen'
 import { composeSheet } from '../sprite/compose'
 import { appearanceToLpc } from '../sprite/appearanceToLpc'
 import type { LpcAnimation, LpcDirection, LpcManifest } from '../sprite/types'
 import { actionLabel } from '../../data/actions'
 import { physiologyConfig } from '../../config'
+import { getArt } from '../assets/registry'
 import type {
   RoadSnap, BuildingSnap, WallSnap, DoorSnap, BedSnap, BarSeatSnap,
   InteractableSnap, NpcSnap, PlayerSnap, GroundSnapshot,
@@ -72,57 +73,6 @@ const ROAD_FILL: Record<RoadKind, number> = {
   alley:  0x3d3d47,
 }
 
-const INTERACT_COLORS: Record<InteractableKind, { fill: number; stroke: number }> = {
-  eat:             { fill: 0x7c2d12, stroke: 0xea580c },
-  sleep:           { fill: 0x1e3a8a, stroke: 0x3b82f6 },
-  wash:            { fill: 0x155e75, stroke: 0x06b6d4 },
-  work:            { fill: 0x3b1e7a, stroke: 0xa855f7 },
-  bar:             { fill: 0x7f1d1d, stroke: 0xef4444 },
-  gym:             { fill: 0x3a2c0a, stroke: 0xc9a047 },
-  tap:             { fill: 0x1e293b, stroke: 0x64748b },
-  scavenge:        { fill: 0x3a2e1a, stroke: 0xa3a3a3 },
-  rough:           { fill: 0x262626, stroke: 0x737373 },
-  transit:         { fill: 0x134e4a, stroke: 0x2dd4bf },
-  ticketCounter:   { fill: 0x1e3a8a, stroke: 0x60a5fa },
-  // Phase 6.2.A.2 — orbital-lift kiosk. Magenta to read as distinct from
-  // the airport ticket counter (warm blue) and the intra-scene transit
-  // kiosk (teal). Same blue-ish family but pushed toward violet so the
-  // two cross-scene transit primitives don't blur together.
-  orbitalLift:     { fill: 0x4c1d95, stroke: 0xa78bfa },
-  boardShip:       { fill: 0x0c4a6e, stroke: 0x38bdf8 },
-  disembarkShip:   { fill: 0x1e293b, stroke: 0x94a3b8 },
-  helm:            { fill: 0x3a1f4a, stroke: 0xa78bfa },
-  // Owner-control hue: deep amber + bright gold, distinct from the
-  // service-side palette (those are now scenery-only and carry no
-  // Interactable). 'manage' reads as 'this is your facility'.
-  manage:          { fill: 0x713f12, stroke: 0xfbbf24 },
-  // Captain's desk — pre-launch readiness summary. Same warm palette
-  // family as helm/manage so ship-command interactables read as one
-  // group on the floor.
-  captainsDesk:    { fill: 0x422006, stroke: 0xfcd34d },
-  // Phase 6.2 — comm panel in the captain's office. Cool teal so it
-  // reads as a sibling-but-distinct kiosk from the warm desk.
-  commPanel:       { fill: 0x0f3a3a, stroke: 0x2dd4bf },
-  // Phase 6.2 — brig occupant list. Muted iron tone to read as
-  // hostile-but-confined; distinct from the warm command palette.
-  brig:            { fill: 0x3a1212, stroke: 0xf87171 },
-  // Phase 6.2.E1 — war-room plot table. Deep indigo + cool steel —
-  // reads as the strategic/composition surface, distinct from the
-  // warm ship-command interactables and the iron-toned brig.
-  warRoom:         { fill: 0x1e1b4b, stroke: 0x818cf8 },
-  // Phase 6.1 — climb-into-MS interactable on the hangar bay floor.
-  // Cool blue to read as the friendly-MS color used in the tactical
-  // arena (snap.color = 0x60a5fa).
-  climbIntoMs:     { fill: 0x172554, stroke: 0x60a5fa },
-}
-
-const BED_VISUAL: Record<BedTier, { fill: number; stroke: number; w: number; h: number; label: string }> = {
-  luxury:    { fill: 0x0e2a3a, stroke: 0x22d3ee, w: 28, h: 18, label: '高级床' },
-  apartment: { fill: 0x1e3a8a, stroke: 0x60a5fa, w: 26, h: 16, label: '床' },
-  dorm:      { fill: 0x3a2e1a, stroke: 0xa78b4a, w: 22, h: 14, label: '宿舍床' },
-  lounge:    { fill: 0x3a2c0a, stroke: 0xc9a047, w: 26, h: 14, label: '员工沙发' },
-  flop:      { fill: 0x262626, stroke: 0x737373, w: 20, h: 14, label: '投币床' },
-}
 
 const ROUGH_HAZARD_TEXT: Record<'tap' | 'scavenge' | 'rough', string> = {
   tap: '⚠ 不卫生',
@@ -140,6 +90,10 @@ interface BedNode {
   root: Container
   body: Graphics
   pillow: Graphics
+  // Art-asset sprite. When the tier maps to a catalog id with a
+  // loaded texture, the procedural body/pillow are skipped and this
+  // sprite is shown instead.
+  artSprite: Sprite
   occupiedX: Graphics  // diagonal slash when someone else's bed
   multLabel: Text | null
   feeBox: Graphics | null
@@ -308,12 +262,12 @@ export class PixiGroundRenderer {
     this.buildingLayer.eventMode = 'none'
     this.wallLayer.eventMode = 'none'
     this.doorLayer.eventMode = 'none'
-    this.bedLayer.eventMode = 'none'
-    this.barSeatLayer.eventMode = 'none'
     this.playerLayer.eventMode = 'none'
     this.moveTargetMarker.eventMode = 'none'
-    // npcLayer and interactableLayer use the default 'passive' which lets
-    // children's eventMode='static' nodes receive events.
+    // npcLayer, bedLayer, and interactableLayer use the default 'passive'
+    // which lets children's eventMode='static' nodes receive events. Bar
+    // seats stay non-interactive; they're driven by the bartender NPC.
+    this.barSeatLayer.eventMode = 'none'
 
     this.viewport.addChild(this.background)
     this.viewport.addChild(this.gridLayer)
@@ -472,8 +426,8 @@ export class PixiGroundRenderer {
       // Dashed-outline rect with low-alpha fill, mirroring Konva BuildingMark.
       node.rect.clear()
         .rect(b.x, b.y, b.w, b.h)
-        .fill({ color: 0x32323c, alpha: 0.18 })
-      drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, 0x2f2f3a, 1)
+        .fill({ color: b.visual.fill, alpha: 0.18 })
+      drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, b.visual.stroke, 1)
       if (node.label.text !== b.label) node.label.text = b.label
       node.label.x = b.x + 8
       node.label.y = b.y + 6
@@ -500,8 +454,8 @@ export class PixiGroundRenderer {
       }
       node.rect.clear()
         .rect(w.x, w.y, w.w, w.h)
-        .fill(0x3f3f46)
-        .stroke({ color: 0x52525b, width: 1 })
+        .fill(w.visual.fill)
+        .stroke({ color: w.visual.stroke, width: 1 })
     }
     for (const [ent, node] of this.wallNodes) {
       if (!seen.has(ent)) {
@@ -523,14 +477,10 @@ export class PixiGroundRenderer {
         node = { rect }
         this.doorNodes.set(d.ent, node)
       }
-      let fill = 0x1f1f24
-      let stroke = 0x71717a
-      if (d.factionGated) { fill = 0x3a2c0a; stroke = 0xc9a047 }
-      else if (d.bedKeyed) { fill = 0x3a2206; stroke = 0xfbbf24 }
       node.rect.clear()
         .rect(d.x, d.y, d.w, d.h)
-        .fill(fill)
-      drawDashedRect(node.rect, d.x, d.y, d.w, d.h, 3, 2, stroke, 1)
+        .fill(d.visual.fill)
+      drawDashedRect(node.rect, d.x, d.y, d.w, d.h, 3, 2, d.visual.stroke, 1)
     }
     for (const [ent, node] of this.doorNodes) {
       if (!seen.has(ent)) {
@@ -546,7 +496,7 @@ export class PixiGroundRenderer {
       seen.add(b.ent)
       let node = this.bedNodes.get(b.ent)
       if (!node) {
-        node = this.makeBedNode()
+        node = this.makeBedNode(b.ent)
         this.bedLayer.addChild(node.root)
         this.bedNodes.set(b.ent, node)
       }
@@ -560,11 +510,27 @@ export class PixiGroundRenderer {
     }
   }
 
-  private makeBedNode(): BedNode {
+  private makeBedNode(ent: Entity): BedNode {
     const root = new Container()
-    root.eventMode = 'none'
+    // Click-to-sleep: route through the same dispatcher as the
+    // interactable layer so the player walks-and-queues-interact and
+    // the interaction system handles rent/occupant gating.
+    root.eventMode = 'static'
+    root.cursor = 'pointer'
+    root.on('pointerdown', (e: FederatedPointerEvent) => {
+      e.stopPropagation()
+      if ('stopPropagation' in e.nativeEvent) e.nativeEvent.stopPropagation()
+      const local = e.global
+      this.latestOnInteractableClick(ent, local.x, local.y)
+    })
     const body = new Graphics()
     const pillow = new Graphics()
+    const artSprite = new Sprite()
+    artSprite.anchor.set(0.5, 0.5)
+    // Snap to integer screen pixels every frame so nearest-filter
+    // pixel art doesn't shimmer when the camera moves sub-pixel.
+    artSprite.roundPixels = true
+    artSprite.visible = false
     const occupiedX = new Graphics()
     const label = new Text({
       text: '',
@@ -573,10 +539,11 @@ export class PixiGroundRenderer {
     label.anchor.set(0.5, 0)
     root.addChild(body)
     root.addChild(pillow)
+    root.addChild(artSprite)
     root.addChild(occupiedX)
     root.addChild(label)
     return {
-      root, body, pillow, occupiedX,
+      root, body, pillow, artSprite, occupiedX,
       multLabel: null, feeBox: null, feeText: null,
       occupiedTag: null, occupiedTagText: null,
       label,
@@ -584,27 +551,57 @@ export class PixiGroundRenderer {
   }
 
   private updateBedNode(node: BedNode, b: BedSnap): void {
-    const v = BED_VISUAL[b.tier]
-    if (!v) return
+    const v = b.visual
     const occupied = b.occupied
     const isPlayerBed = b.isPlayerBed
     const overlayStroke = isPlayerBed ? 0x4ade80 : occupied ? 0xef4444 : v.stroke
     const bodyAlpha = occupied ? 0.3 : 1
+    const vw = v.w ?? 0
+    const vh = v.h ?? 0
 
-    node.body.clear()
-      .roundRect(b.x - v.w / 2, b.y - v.h / 2, v.w, v.h, 3)
-      .fill({ color: v.fill, alpha: bodyAlpha })
-      .stroke({ color: overlayStroke, width: 2, alpha: bodyAlpha })
+    // One source of truth: the entity's template declares both the
+    // footprint and the optional sprite (via assetId). Per skill
+    // policy ("pixellab-asset"), the PNG is authored at exactly
+    // (vw × vh) so the renderer paints 1:1 — never scaling. If a
+    // mismatched texture lands anyway, we still draw at native size
+    // and warn once, because scaled nearest-filter pixel art shimmers.
+    // Hit area tracks the bed's footprint each frame so click-to-sleep
+    // dispatches even as the visual asset (or template footprint) changes.
+    node.root.hitArea = new Rectangle(b.x - vw / 2, b.y - vh / 2, vw, vh)
 
-    node.pillow.clear()
-      .roundRect(b.x - v.w / 2 + 2, b.y - v.h / 2 + 2, v.w - 4, 4, 2)
-      .fill({ color: v.stroke, alpha: occupied ? 0.25 : 0.7 })
+    const texture = v.assetId ? getArt(v.assetId) : null
+    if (v.assetId) {
+      if (texture && node.artSprite.texture !== texture) {
+        node.artSprite.texture = texture
+        warnIfArtSizeMismatch(v.assetId, texture, vw, vh)
+      }
+      node.artSprite.x = b.x
+      node.artSprite.y = b.y
+      // Don't set width/height — leave the sprite at native texture
+      // dims so there's no fractional scale to alias. The skill
+      // enforces texture == (vw, vh); a divergence is a bug to fix
+      // upstream, not paper over by scaling here.
+      node.artSprite.alpha = bodyAlpha
+      node.artSprite.visible = texture !== null
+      node.body.clear()
+      node.pillow.clear()
+    } else {
+      node.artSprite.visible = false
+      node.body.clear()
+        .roundRect(b.x - vw / 2, b.y - vh / 2, vw, vh, 3)
+        .fill({ color: v.fill, alpha: bodyAlpha })
+        .stroke({ color: overlayStroke, width: 2, alpha: bodyAlpha })
+
+      node.pillow.clear()
+        .roundRect(b.x - vw / 2 + 2, b.y - vh / 2 + 2, vw - 4, 4, 2)
+        .fill({ color: v.stroke, alpha: occupied ? 0.25 : 0.7 })
+    }
 
     node.occupiedX.clear()
     if (occupied && !isPlayerBed) {
       node.occupiedX
-        .moveTo(b.x - v.w / 2, b.y + v.h / 2)
-        .lineTo(b.x + v.w / 2, b.y - v.h / 2)
+        .moveTo(b.x - vw / 2, b.y + vh / 2)
+        .lineTo(b.x + vw / 2, b.y - vh / 2)
         .stroke({ color: 0xef4444, width: 2, alpha: 0.85 })
     }
 
@@ -623,7 +620,7 @@ export class PixiGroundRenderer {
       }
       const fw = 28, fh = 12
       const fx = b.x - fw / 2
-      const fy = b.y - v.h / 2 - 12
+      const fy = b.y - vh / 2 - 12
       node.feeBox.clear().roundRect(fx, fy, fw, fh, 3).fill(0xfacc15)
       const ft = `¥${b.fee}`
       if (node.feeText!.text !== ft) node.feeText!.text = ft
@@ -652,7 +649,7 @@ export class PixiGroundRenderer {
       if (node.multLabel.text !== txt) node.multLabel.text = txt
       node.multLabel.style.fill = v.stroke
       node.multLabel.x = b.x
-      node.multLabel.y = b.y - v.h / 2 - (showFee ? 23 : 11)
+      node.multLabel.y = b.y - vh / 2 - (showFee ? 23 : 11)
       node.multLabel.visible = true
     } else if (node.multLabel) {
       node.multLabel.visible = false
@@ -672,7 +669,7 @@ export class PixiGroundRenderer {
       }
       const tw = isPlayerBed ? 28 : 24
       const tx = b.x - tw / 2
-      const ty = b.y - v.h / 2 - 12
+      const ty = b.y - vh / 2 - 12
       node.occupiedTag.clear()
         .roundRect(tx, ty, tw, 12, 3)
         .fill(isPlayerBed ? 0x166534 : 0x7f1d1d)
@@ -690,7 +687,7 @@ export class PixiGroundRenderer {
     if (node.label.text !== b.label) node.label.text = b.label
     node.label.style.fill = occupied ? 0x71717a : 0xbdbdc6
     node.label.x = b.x
-    node.label.y = b.y + v.h / 2 + 4
+    node.label.y = b.y + vh / 2 + 4
   }
 
   private syncBarSeats(seats: BarSeatSnap[]): void {
@@ -709,16 +706,18 @@ export class PixiGroundRenderer {
         node = { root, body, pillow, feeBox: null, feeText: null }
         this.barSeatNodes.set(s.ent, node)
       }
-      const w = 18, h = 14
+      const bsv = s.visual
+      const w = bsv.w ?? 18
+      const h = bsv.h ?? 14
       const occupied = s.occupied
       node.root.alpha = occupied ? 0.4 : 1
       node.body.clear()
         .roundRect(s.x - w / 2, s.y - h / 2, w, h, 2)
-        .fill(0x7f1d1d)
-        .stroke({ color: 0xef4444, width: 2 })
+        .fill(bsv.fill)
+        .stroke({ color: bsv.stroke, width: 2 })
       node.pillow.clear()
         .roundRect(s.x - w / 2, s.y - h / 2, w, 3, 1)
-        .fill(0xef4444)
+        .fill(bsv.stroke)
 
       const showFee = !occupied && s.fee > 0
       if (showFee) {
@@ -810,21 +809,25 @@ export class PixiGroundRenderer {
   }
 
   private updateInteractableNode(node: InteractableNode, it: InteractableSnap): void {
-    const c = INTERACT_COLORS[it.kind]
+    const c = it.visual
     const isRough = it.kind === 'tap' || it.kind === 'scavenge' || it.kind === 'rough'
     node.root.alpha = it.benchOccupied ? 0.45 : 1
 
+    const cw = c.w ?? 28
+    const ch = c.h ?? 28
+    const halfW = cw / 2
+    const halfH = ch / 2
     node.rect.clear()
-      .roundRect(it.x - 14, it.y - 14, 28, 28, 4)
+      .roundRect(it.x - halfW, it.y - halfH, cw, ch, 4)
       .fill(c.fill)
     if (isRough) {
-      drawDashedRect(node.rect, it.x - 14, it.y - 14, 28, 28, 4, 3, 0xfacc15, 2, 4)
+      drawDashedRect(node.rect, it.x - halfW, it.y - halfH, cw, ch, 4, 3, 0xfacc15, 2, 4)
     } else {
       node.rect.stroke({ color: c.stroke, width: 2 })
     }
     // Set hitArea to the rect for accurate hit-test (default is the bounding box,
     // which is fine for our shapes but explicit for clarity).
-    node.root.hitArea = new Rectangle(it.x - 14, it.y - 14, 28, 28)
+    node.root.hitArea = new Rectangle(it.x - halfW, it.y - halfH, cw, ch)
 
     // Fee badge.
     if (it.fee > 0) {
@@ -1285,6 +1288,27 @@ function makeSpriteState(): SpriteState {
     facing: 'down',
     pending: 0,
   }
+}
+
+// Per-asset once-only sentinel for size-mismatch warnings — the
+// renderer paints at native texture dims regardless, but a mismatch
+// means the upstream skill policy (PNG === template visual.{w,h})
+// was violated and the asset should be regenerated.
+const artSizeWarned = new Set<string>()
+function warnIfArtSizeMismatch(
+  assetId: string, tex: Texture, targetW: number, targetH: number,
+): void {
+  const tw = tex.width
+  const th = tex.height
+  if (tw === targetW && th === targetH) return
+  if (artSizeWarned.has(assetId)) return
+  artSizeWarned.add(assetId)
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[art] '${assetId}' texture is ${tw}×${th} but template footprint is ` +
+    `${targetW}×${targetH} — regenerate at the template size to avoid ` +
+    `scaling shimmer (see .claude/skills/pixellab-asset/SKILL.md).`,
+  )
 }
 
 function manifestKeyFor(manifest: LpcManifest, animation: LpcAnimation): string {

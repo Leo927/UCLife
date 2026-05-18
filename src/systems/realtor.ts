@@ -19,6 +19,7 @@ import { worldConfig } from '../config'
 import type { FactionId } from '../data/factions'
 import { buildingTypes } from '../data/buildingTypes'
 import { bedActiveOccupant } from './bed'
+import { findPlayerFaction } from '../ecs/playerFactionCreate'
 
 const TILE = worldConfig.tilePx
 
@@ -162,16 +163,33 @@ export function gatherListings(world: World, filter?: ListingFilter): RealtyList
   return out
 }
 
+// Resolve the Owner trait payload a player-funded purchase should produce.
+// Pre-5.5.5 the player is aliased as kind:'character'; post-5.5.5 a real
+// player Faction exists in `world` (the building's home world) and
+// absorbs new purchases too.
+function playerPurchaseOwner(
+  world: World,
+  player: Entity,
+): { kind: 'character' | 'faction'; entity: Entity } {
+  const faction = findPlayerFaction(world)
+  if (faction) return { kind: 'faction', entity: faction }
+  return { kind: 'character', entity: player }
+}
+
 // Direct-seller close. Debits player wallet, transfers Owner. Returns the
 // purchase price on success, null on insufficient funds or invalid state.
-export function buyFromState(player: Entity, listing: RealtyListing): number | null {
+export function buyFromState(
+  world: World,
+  player: Entity,
+  listing: RealtyListing,
+): number | null {
   if (listing.ownerKind !== 'state') return null
   if (isStateLocked(listing.typeId)) return null
   if (listing.askingPrice === null) return null
   const m = player.get(Money)
   if (!m || m.amount < listing.askingPrice) return null
   player.set(Money, { amount: m.amount - listing.askingPrice })
-  listing.building.set(Owner, { kind: 'character', entity: player })
+  listing.building.set(Owner, playerPurchaseOwner(world, player))
   return listing.askingPrice
 }
 
@@ -179,7 +197,12 @@ export function buyFromState(player: Entity, listing: RealtyListing): number | n
 // seller to player. Caller computes the price via privateAskingPrice() and
 // passes it in — keeps the talk-verb in charge of the negotiation rather
 // than re-deriving the number here.
-export function buyFromOwner(player: Entity, listing: RealtyListing, price: number): boolean {
+export function buyFromOwner(
+  world: World,
+  player: Entity,
+  listing: RealtyListing,
+  price: number,
+): boolean {
   if (listing.ownerKind !== 'character') return false
   if (!listing.seller) return false
   const m = player.get(Money)
@@ -191,7 +214,7 @@ export function buyFromOwner(player: Entity, listing: RealtyListing, price: numb
   if (sellerMoney) {
     listing.seller.entity.set(Money, { amount: sellerMoney.amount + price })
   }
-  listing.building.set(Owner, { kind: 'character', entity: player })
+  listing.building.set(Owner, playerPurchaseOwner(world, player))
   return true
 }
 

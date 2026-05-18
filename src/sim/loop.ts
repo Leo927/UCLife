@@ -24,6 +24,7 @@ import { supplyDrainSystem } from '../systems/supplyDrain'
 import { dailyEconomicsSystem } from '../systems/dailyEconomics'
 import { housingPressureSystem } from '../systems/housingPressure'
 import { recruitmentSystem } from '../systems/recruitment'
+import { syncShipMarkers } from '../systems/shipMarkers'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
@@ -179,6 +180,12 @@ function frame(now: number) {
       const activeScene = getSceneConfig(getActiveSceneId())
       if (activeScene.sceneType === 'micro' && activeScene.replenishment) {
         populationSystem(world, useClock.getState().gameDate, activeScene.replenishment)
+      }
+      // Mirror ships docked at the active scene's POI as clickable
+      // Interactable markers inside the hangar building. Idempotent —
+      // adds for newly-docked ships, removes when they leave.
+      if (activeScene.sceneType === 'micro') {
+        syncShipMarkers(world, activeScene.id)
       }
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)

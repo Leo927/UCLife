@@ -22,7 +22,7 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world, getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Action, Building, Character, EntityKey, Hangar, Job, Owner, Position, Workstation, Ship,
-  IsFlagshipMark, ShipStatSheet,
+  IsFlagshipMark, ShipStatSheet, ShipMarker, Interactable,
   type HangarSlotClass, type HangarTier, type ShipDeliveryRow, type SupplyKind,
 } from '../../ecs/traits'
 import { worldConfig } from '../../config'
@@ -359,6 +359,32 @@ registerDebugHandle('listShipsInFleet', () => {
       dockedAtPoiId: s.dockedAtPoiId,
       hullCurrent: s.hullCurrent,
       hullMax: s.hullMax,
+    })
+  }
+  return out
+})
+
+// Phase 6.2.A — list ship markers currently mirrored into a scene's
+// hangar via syncShipMarkers. Used by smoke + UI to assert that a
+// received hull is rendered as a clickable parking-slot kiosk.
+registerDebugHandle('listShipMarkers', (sceneId: string) => {
+  const w = getWorld(sceneId)
+  const tilePx = worldConfig.tilePx
+  const out: Array<{
+    shipKey: string
+    posTile: { x: number; y: number }
+    interactableKind: string
+    label: string
+  }> = []
+  for (const e of w.query(ShipMarker, Position, Interactable)) {
+    const m = e.get(ShipMarker)!
+    const p = e.get(Position)!
+    const i = e.get(Interactable)!
+    out.push({
+      shipKey: m.shipKey,
+      posTile: { x: p.x / tilePx, y: p.y / tilePx },
+      interactableKind: i.kind,
+      label: i.label,
     })
   }
   return out

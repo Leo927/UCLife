@@ -5,7 +5,12 @@ import type {
   InteractableKind, RoadKind, BedTier, ActionKind,
 } from '../ecs/traits'
 import type { AppearanceData } from '../character/appearanceGen'
+import type { ObjectVisual, DoorVariant } from '../data/objectTemplates'
 import type { LpcDirection } from './sprite/types'
+
+// Per-object visuals are resolved by the snapshot builder from each
+// entity's TemplateRef -> objectTemplate.visual, so the renderer is
+// a pure visual consumer and never reaches back into authored data.
 
 export interface RoadSnap {
   ent: Entity
@@ -17,18 +22,20 @@ export interface BuildingSnap {
   ent: Entity
   x: number; y: number; w: number; h: number
   label: string
+  visual: ObjectVisual
 }
 
 export interface WallSnap {
   ent: Entity
   x: number; y: number; w: number; h: number
+  visual: ObjectVisual
 }
 
 export interface DoorSnap {
   ent: Entity
   x: number; y: number; w: number; h: number
-  factionGated: boolean
-  bedKeyed: boolean
+  variant: DoorVariant
+  visual: ObjectVisual
 }
 
 export interface BedSnap {
@@ -41,6 +48,7 @@ export interface BedSnap {
   fee: number
   label: string
   multiplier: number
+  visual: ObjectVisual
 }
 
 export interface BarSeatSnap {
@@ -48,6 +56,7 @@ export interface BarSeatSnap {
   x: number; y: number
   occupied: boolean
   fee: number
+  visual: ObjectVisual
 }
 
 export interface InteractableSnap {
@@ -57,6 +66,7 @@ export interface InteractableSnap {
   label: string
   fee: number
   benchOccupied: boolean
+  visual: ObjectVisual
 }
 
 export interface NpcSnap {

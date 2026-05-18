@@ -1,0 +1,159 @@
+// Authored data registry for every kind of object that lands on the
+// world floor. Each template owns:
+//
+//   - `kind`            spawn dispatcher discriminator
+//   - kind-specific     behavioral params (tier, specId, …)
+//   - `visual`          how the renderer paints it: { w, h, fill,
+//                       stroke, label?, assetId? }
+//                       `assetId` references `art.json5`. When set,
+//                       the renderer paints the sprite at (w × h);
+//                       otherwise the procedural fill/stroke roundRect
+//                       is drawn at the same footprint.
+//
+// What templates do NOT own:
+//   - Placement (count, role, relTile) — building-item shape
+//   - Runtime state (occupant, rentPaidUntilMs) — ECS traits
+//
+// Reuse-across-facilities is the point: `bed-flop` is one template
+// the flophouse uses 4 of and a luxury suite uses 0 of. Multiple
+// templates can reference the same `assetId` to share art.
+{
+  templates: {
+    // ── Beds ─────────────────────────────────────────────────────
+    // Footprint matches the 64×64 source PNG so the renderer paints
+    // 1:1 (no scale → no nearest-filter shimmer). Spills past the
+    // bed's 1-tile occupancy slot; collision still keys off the tile.
+    'bed-flop':      { kind: 'bed', tier: 'flop',      visual: { w: 64, h: 64, fill: 0x262626, stroke: 0x737373, label: '投币床', assetId: 'bed-flop' } },
+    'bed-dorm':      { kind: 'bed', tier: 'dorm',      visual: { w: 22, h: 14, fill: 0x3a2e1a, stroke: 0xa78b4a, label: '宿舍床' } },
+    'bed-apartment': { kind: 'bed', tier: 'apartment', visual: { w: 26, h: 16, fill: 0x1e3a8a, stroke: 0x60a5fa, label: '床' } },
+    'bed-luxury':    { kind: 'bed', tier: 'luxury',    visual: { w: 28, h: 18, fill: 0x0e2a3a, stroke: 0x22d3ee, label: '高级床' } },
+    'bed-lounge':    { kind: 'bed', tier: 'lounge',    visual: { w: 26, h: 14, fill: 0x3a2c0a, stroke: 0xc9a047, label: '员工沙发' } },
+
+    // ── Bar seat ─────────────────────────────────────────────────
+    'bar-seat': { kind: 'bar_seat', labelZh: '酒吧座位', fee: 10, visual: { w: 18, h: 14, fill: 0x7f1d1d, stroke: 0xef4444 } },
+
+    // ── Queue / landmark anchors ─────────────────────────────────
+    // Non-visible: the spawn dispatcher registers a named landmark
+    // at the placement coordinate. `visual` is required by the type
+    // but the renderer skips invisible kinds.
+    'queue-point-bar':        { kind: 'queue_point', landmarkRole: 'barQueue',   visual: { fill: 0, stroke: 0 } },
+    'landmark-shop-counter':  { kind: 'landmark', landmarkRole: 'shopCounter',  visual: { fill: 0, stroke: 0 } },
+    'landmark-shop-approach': { kind: 'landmark', landmarkRole: 'shopApproach', visual: { fill: 0, stroke: 0 } },
+    'landmark-shop-entry':    { kind: 'landmark', landmarkRole: 'shopEntry',    visual: { fill: 0, stroke: 0 } },
+    'landmark-shop-exit':     { kind: 'landmark', landmarkRole: 'shopExit',     visual: { fill: 0, stroke: 0 } },
+
+    // ── Partition ────────────────────────────────────────────────
+    // Horizontal internal wall with a door cutout. Visual is the
+    // shared wall palette — the partition wall segments draw with it.
+    'partition-horizontal': { kind: 'partition', orientation: 'h', visual: { fill: 0x3f3f46, stroke: 0x52525b } },
+
+    // ── Workstations ─────────────────────────────────────────────
+    // Each binds a Workstation to one NPC spec. `interactableKind:
+    // null` => scenery desk. Visuals all share the 'work' badge
+    // palette today (28×28 purple), with kind-specific overrides
+    // for service-side desks once we have art.
+
+    // — Commercial / service —
+    'workstation-bartender':           { kind: 'workstation', specId: 'bartender',           labelZh: '吧台',         interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-city-hr-clerk':       { kind: 'workstation', specId: 'city_hr_clerk',       labelZh: '招聘窗口',     interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-realtor':             { kind: 'workstation', specId: 'realtor',             labelZh: '中介台',       interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-recruiter':           { kind: 'workstation', specId: 'recruiter',           labelZh: '招聘办公桌',   interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 }, addRecruiterTrait: true },
+    'workstation-researcher':          { kind: 'workstation', specId: 'researcher',          labelZh: '研究台',       interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-secretary':           { kind: 'workstation', specId: 'secretary',           labelZh: '秘书办公桌',   interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-civilian-doctor':     { kind: 'workstation', specId: 'civilian_doctor',     labelZh: '诊台',         interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-civilian-pharmacist': { kind: 'workstation', specId: 'civilian_pharmacist', labelZh: '药品柜台',     interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-shop-clerk-morning':  { kind: 'workstation', specId: 'shop_morning_clerk',  labelZh: '柜台',         interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-shop-clerk-afternoon':{ kind: 'workstation', specId: 'shop_afternoon_clerk',                         interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+
+    // — Factory —
+    'workstation-factory-manager':         { kind: 'workstation', specId: 'factory_manager',         labelZh: '经理办公桌', interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 }, factoryManagerHub: true },
+    'workstation-factory-engineer':        { kind: 'workstation', specId: 'factory_engineer',                                                       interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-factory-worker-morning':  { kind: 'workstation', specId: 'factory_worker_morning',                                                 interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-factory-worker-early':    { kind: 'workstation', specId: 'factory_worker_early',                                                   interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-factory-worker-day':      { kind: 'workstation', specId: 'factory_worker_day',                                                     interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+
+    // — Hangar —
+    'workstation-hangar-manager':  { kind: 'workstation', specId: 'hangar_manager', labelZh: '机库主管', interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-hangar-worker':   { kind: 'workstation', specId: 'hangar_worker',                       interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+
+    // — Anaheim Electronics complex —
+    'workstation-ae-director':         { kind: 'workstation', specId: 'ae_director',         labelZh: '前台',       interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-supply-dealer':    { kind: 'workstation', specId: 'ae_supply_dealer',    labelZh: '补给柜台',   interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-doctor':           { kind: 'workstation', specId: 'ae_doctor',           labelZh: 'AE 诊台',    interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-board-chair':      { kind: 'workstation', specId: 'ae_board_chair',      labelZh: '董事办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-board-cfo':        { kind: 'workstation', specId: 'ae_board_cfo',        labelZh: '董事办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-board-cto':        { kind: 'workstation', specId: 'ae_board_cto',        labelZh: '董事办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-board-coo':        { kind: 'workstation', specId: 'ae_board_coo',        labelZh: '董事办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-board-cmo':        { kind: 'workstation', specId: 'ae_board_cmo',        labelZh: '董事办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-floor-manager':    { kind: 'workstation', specId: 'ae_floor_manager',    labelZh: '经理办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-design-lead':      { kind: 'workstation', specId: 'ae_design_lead',      labelZh: '经理办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-ops-manager':      { kind: 'workstation', specId: 'ae_ops_manager',      labelZh: '经理办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-hr-manager':       { kind: 'workstation', specId: 'ae_hr_manager',       labelZh: '经理办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-quality-manager':  { kind: 'workstation', specId: 'ae_quality_manager',  labelZh: '经理办公桌', interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-senior-engineer':  { kind: 'workstation', specId: 'ae_senior_engineer',                          interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-engineer':         { kind: 'workstation', specId: 'ae_engineer',                                 interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-technician':       { kind: 'workstation', specId: 'ae_technician',                               interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    'workstation-ae-assembler':        { kind: 'workstation', specId: 'ae_assembler',                                interactableKind: 'work', visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+
+    // ── AE fixtures (interactables) ──────────────────────────────
+    'gym-treadmill':     { kind: 'interactable', interactableKind: 'gym', labelZh: '跑步机', visual: { w: 28, h: 28, fill: 0x3a2c0a, stroke: 0xc9a047 } },
+    'gym-barbell':       { kind: 'interactable', interactableKind: 'gym', labelZh: '杠铃',   visual: { w: 28, h: 28, fill: 0x3a2c0a, stroke: 0xc9a047 } },
+    'gym-dumbbell-rack': { kind: 'interactable', interactableKind: 'gym', labelZh: '哑铃台', visual: { w: 28, h: 28, fill: 0x3a2c0a, stroke: 0xc9a047 } },
+    'snack-cabinet':     { kind: 'interactable', interactableKind: 'eat', labelZh: '零食柜', fee: 0, visual: { w: 28, h: 28, fill: 0x7c2d12, stroke: 0xea580c } },
+    'water-dispenser':   { kind: 'interactable', interactableKind: 'tap', labelZh: '饮水机', visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x64748b } },
+
+    // ── Direct-spawn world objects ───────────────────────────────
+    // Templates for entities not declared in building-types but
+    // still spawned at scene boot (airport, transit, ship interior,
+    // park, manage cells). The spawn code resolves these by id and
+    // stamps TemplateRef so the renderer picks up the visual the
+    // same way it does for building-item spawns.
+
+    // — Transit / airport / orbital —
+    'airport-ticket-counter': { kind: 'interactable', interactableKind: 'ticketCounter', labelZh: '售票处',     visual: { w: 28, h: 28, fill: 0x1e3a8a, stroke: 0x60a5fa } },
+    'transit-kiosk':          { kind: 'interactable', interactableKind: 'transit',       labelZh: '换乘机',     visual: { w: 28, h: 28, fill: 0x134e4a, stroke: 0x2dd4bf } },
+    'orbital-lift-kiosk':     { kind: 'interactable', interactableKind: 'orbitalLift',   labelZh: '轨道升降机', visual: { w: 28, h: 28, fill: 0x4c1d95, stroke: 0xa78bfa } },
+
+    // — Ship interior —
+    'ship-helm':           { kind: 'interactable', interactableKind: 'helm',          labelZh: '舰桥',     visual: { w: 28, h: 28, fill: 0x3a1f4a, stroke: 0xa78bfa } },
+    'ship-captains-desk':  { kind: 'interactable', interactableKind: 'captainsDesk',  labelZh: '舰长台',   visual: { w: 28, h: 28, fill: 0x422006, stroke: 0xfcd34d } },
+    'ship-comm-panel':     { kind: 'interactable', interactableKind: 'commPanel',     labelZh: '通讯台',   visual: { w: 28, h: 28, fill: 0x0f3a3a, stroke: 0x2dd4bf } },
+    'ship-brig':           { kind: 'interactable', interactableKind: 'brig',          labelZh: '禁闭室',   visual: { w: 28, h: 28, fill: 0x3a1212, stroke: 0xf87171 } },
+    'ship-war-room':       { kind: 'interactable', interactableKind: 'warRoom',       labelZh: '作战室',   visual: { w: 28, h: 28, fill: 0x1e1b4b, stroke: 0x818cf8 } },
+    'ship-climb-into-ms':  { kind: 'interactable', interactableKind: 'climbIntoMs',   labelZh: '登舱',     visual: { w: 28, h: 28, fill: 0x172554, stroke: 0x60a5fa } },
+    'ship-board':          { kind: 'interactable', interactableKind: 'boardShip',     labelZh: '登舰',     visual: { w: 28, h: 28, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
+    // Per-ship markers rendered inside a hangar for each fleet ship docked
+    // at that POI. Footprint scales with the docked hull's hangar slot
+    // class so the floor reads as "there's a hull parked here" at the
+    // ship's actual relative size — a Pegasus-class capital towers over
+    // a militia shuttle. Click routes through interaction.ts: flagship →
+    // board interior; fleet ship → inspect toast (boardable interior for
+    // non-flagship hulls is a 6.3+ concern). shipMarkers.ts picks the
+    // template id by `${flagship ? 'flagship' : 'ship'}` × hangarSlotClass.
+    'docked-ship-marker-smallcraft':     { kind: 'interactable', interactableKind: 'inspectShip', labelZh: '舰艇',     visual: { w: 56,  h: 36,  fill: 0x0c4a6e, stroke: 0x38bdf8 } },
+    'docked-flagship-marker-smallcraft': { kind: 'interactable', interactableKind: 'boardShip',   labelZh: '旗舰',     visual: { w: 56,  h: 36,  fill: 0x172554, stroke: 0xfbbf24 } },
+    'docked-ship-marker-capital':        { kind: 'interactable', interactableKind: 'inspectShip', labelZh: '战舰',     visual: { w: 224, h: 112, fill: 0x1e3a8a, stroke: 0x93c5fd } },
+    'docked-flagship-marker-capital':    { kind: 'interactable', interactableKind: 'boardShip',   labelZh: '旗舰',     visual: { w: 224, h: 112, fill: 0x172554, stroke: 0xfbbf24 } },
+    'ship-disembark':      { kind: 'interactable', interactableKind: 'disembarkShip', labelZh: '下舰',     visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x94a3b8 } },
+
+    // — Park fixtures —
+    'park-tap':       { kind: 'interactable', interactableKind: 'tap',      labelZh: '水龙头', visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x64748b } },
+    'park-scavenge':  { kind: 'interactable', interactableKind: 'scavenge', labelZh: '垃圾堆', visual: { w: 28, h: 28, fill: 0x3a2e1a, stroke: 0xa3a3a3 } },
+    'park-bench':     { kind: 'interactable', interactableKind: 'rough',    labelZh: '长椅',   visual: { w: 28, h: 28, fill: 0x262626, stroke: 0x737373 } },
+
+    // — Cell corridor / manage cell —
+    'corridor-washstand': { kind: 'interactable', interactableKind: 'wash',   labelZh: '洗手台', visual: { w: 28, h: 28, fill: 0x155e75, stroke: 0x06b6d4 } },
+    'manage-cell':        { kind: 'interactable', interactableKind: 'manage', labelZh: '管理',   visual: { w: 28, h: 28, fill: 0x713f12, stroke: 0xfbbf24 } },
+
+    // — Structural —
+    // Walls / doors / building outlines have per-instance footprints
+    // (procgen computes the rect), so the template omits w/h and the
+    // renderer reads the size off the entity's Wall/Door/Building
+    // trait. Palette comes from here.
+    'wall-default':      { kind: 'wall', visual: { fill: 0x3f3f46, stroke: 0x52525b } },
+    'door-open':         { kind: 'door', variant: 'open',         visual: { fill: 0x1f1f24, stroke: 0x71717a } },
+    'door-faction-gated':{ kind: 'door', variant: 'factionGated', visual: { fill: 0x3a2c0a, stroke: 0xc9a047 } },
+    'door-bed-keyed':    { kind: 'door', variant: 'bedKeyed',     visual: { fill: 0x3a2206, stroke: 0xfbbf24 } },
+    'building-outline':  { kind: 'building_outline',              visual: { fill: 0x32323c, stroke: 0x2f2f3a } },
+  },
+}

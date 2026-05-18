@@ -528,28 +528,61 @@ body to talk to has no other diegetic anchor.
 The player-faction does not exist on day one. Until the player
 explicitly creates it, **`PlayerFaction.fund` aliases to the player's
 wallet** and **`PlayerFaction.facilities` aliases to the player's
-owned-facility list.** All ownership economics work; the abstraction
-is transparent.
+owned-facility list** (any building tagged `Owner({kind:'character',
+entity: player})`). All ownership economics work; the abstraction is
+transparent.
 
 Creation is a dialogue branch on the secretary at the player's
-faction office: **"我想正式成立一个 faction."** Confirming:
+faction office: **"正式成立faction."** The verb is gated behind
+`economicsConfig.playerFaction.minWalletToCreate` (default ¥1000) so
+the ceremony doesn't fire on a brand-new character with no savings
+and no real ownership to migrate. Picking the verb opens a one-step
+confirmation pane that quotes the wallet, the stipend, and the
+seed fund the player is about to commit to.
 
-1. Allocates a `Faction` entity with the player as leader.
-2. Migrates ownership of player-owned facilities to the faction
-   entity (the alias becomes a real edge).
-3. Migrates the wallet to the faction's fund. The player's
-   personal wallet from this point is a small "stipend" the
-   player draws as a faction member, distinct from the faction
-   fund. (Fund withdrawals back to the player's wallet are a
-   secretary verb.)
-4. Unlocks faction-tier verbs: declare war, open formal
-   negotiations, sign treaties — all routed through the secretary
-   for now (Phase 6.4 will surface them as council scenes; the
-   secretary is the Phase 5.5 stand-in).
+Confirming:
+
+1. **Flips the `IsPlayerFaction` marker** on the catalog-bootstrapped
+   `Faction({id:'player'})` entity. The entity itself was spawned at
+   scene init alongside every other catalog row — that single decision
+   keeps the save layer free of any special spawn-on-load path, and
+   the marker is what distinguishes "officially formed" from "inert
+   placeholder slot." `findPlayerFaction(world)` is `queryFirst(IsPlayerFaction)`.
+2. **Migrates ownership** of every player-aliased facility
+   (`Owner.kind === 'character' && Owner.entity === player`) to
+   `Owner.kind === 'faction' && Owner.entity === playerFaction`. The
+   `isPlayerFactionOwner` helper in `src/ecs/playerFaction.ts` covers
+   both shapes so every downstream consumer (daily economics warnings,
+   realtor filter, manage-cell gate, secretary roster) reads
+   "player-owned" the same way before and after the migration.
+3. **Migrates the wallet to the faction's fund**, leaving a configurable
+   stipend on the player's `Money` trait (default ¥2000 via
+   `economicsConfig.playerFaction.creationStipend`). The personal wallet
+   from this point is a small pocket for groceries and bar tabs;
+   revenue/payroll route through the faction fund. The secretary's
+   "从 faction 拨款到个人账户" verb (`withdrawFromPlayerFaction`)
+   moves fund → personal wallet on demand.
+4. **Unlocks faction-tier verbs** as secretary stand-ins: declare war,
+   open formal negotiations, sign treaties. The Phase 5.5.5 ship is a
+   single placeholder verb that emits the "no external faction to
+   negotiate with yet" reply; Phase 6.4 surfaces these as council-
+   chamber scenes.
+
+After creation, new realtor purchases automatically stamp the
+faction-owned shape (the `playerPurchaseOwner` resolver in
+`src/systems/realtor.ts` chooses faction vs. character based on
+whether the marker is set), so the player never accidentally creates
+parallel inventories.
 
 The pre-creation aliasing is what avoids the "second wallet on day
 one" failure mode. A player who never creates the faction never has
 to think about the abstraction.
+
+**Default name placeholder.** The 'player' catalog row in
+`factions.json5` ships with `nameZh: '我的势力'` / `shortZh: '我的'`
+and a yellow accent. Player-chosen name lands with the character-
+creator UI work; the shape is data-driven so the override is a
+single field add when that ships.
 
 ## What's colony-only (Phase 6.3)
 
@@ -583,7 +616,7 @@ nudge that makes the colony arc earn its weight.
 | **5.5.3** | Faction office facility + secretary workstation, listed by the realtor as `factionMisc`. Secretary's consultative verbs (`assignIdleMembers`, `assignBeds`, `bookSummary`, `sidewaysReport`) render inside `NPCDialog` when the player talks to the seated secretary; restructure verb is a placeholder until 5.5.5. JobSiteConversation extension on NPCDialog when the player chats up a worker at any player-owned facility — fire / replace-from-idle / pick-from-roster. Bed claims persist via `Bed.claimedBy`; faction-of-one members are derived from player-owned workstation occupancy + owned-bed claims (no formal `MemberOf` relation yet). `housingPressureSystem` runs at `day:rollover` after the economics rollup, decaying `Knows(member→player).opinion` for unhoused members down to a configured floor. |
 | **5.5.4** | `recruitOffice` facility class + `recruiter` workstation, listed by the realtor as `factionMisc`. Once seated, the recruiter's criteria-as-conversation chip set + applicant lobby with accept/reject verbs render inside `NPCDialog`. `recruitmentSystem` runs at `day:rollover` after housingPressure: per seated recruiter, rolls the streak-bonused chance from `recruitment.json5`, spawns an `Applicant`-tagged procgen NPC inside the office (capped by `lobbyCapacity`), and expires applicants past `applicationLifetimeDays`. Auto-accept fires on spawn when criteria match. TalkHireConversation extends NPCDialog with an "offer to recruit" branch on civilians (gated by AE rep ≥ `factionRepGate.min` OR target opinion ≥ `opinionGate.min`); accept charges `signingBonus` from the player's wallet. AE-employed and existing player-faction members are filtered out. |
 | **5.5.4.5** | Diegetic-correctness sweep. Strip illegitimate cell-as-verb routes from `interactionSystem` for all service-side workstations (shop / clinic / pharmacy / hr / aeReception / manager / secretary / recruiter / buyShip). Service-worker desks become scenery (`noInteractable: true`); customer-side and owner-side verbs route exclusively through the talk-verb on the worker on duty. Per-facility manage cell ships in full: building types declare `hasManageCell: true` (factionOffice, recruitOffice, shop), `spawnBuilding` emits an `Interactable({ kind: 'manage' })` linked back to the building via the new `ManageCell` trait, and `interactionSystem` gates the verb on `Owner.kind === 'character' && Owner.entity === player`. The new `ManageFacilityDialog` (mounted in App.tsx, opened via the `ui:open-manage` sim event) shows the local roster + per-facility books and exposes an "assign idle members to this facility" verb backed by `assignIdleMembersToBuilding`. Bootstrap install for vacant seats works via this surface for any owned facility — no chicken/egg, even before the player owns a faction office. |
-| **5.5.5** | Player-faction creation dialogue. Aliasing → real entity migration. Diplomacy / war declaration verbs land as secretary stand-ins for Phase 6.4. |
+| **5.5.5** | Player-faction creation dialogue on the secretary. The 'player' Faction entity is bootstrapped inert at scene init; the secretary verb sets `IsPlayerFaction`, walks player-aliased Owner edges into faction-kind, and drains the wallet into `Faction.fund` minus a configurable stipend. `withdrawFromPlayerFaction` reverse-pumps fund → wallet. New realtor purchases auto-stamp faction ownership post-creation. Diplomacy / war declaration verbs land as a single secretary placeholder for Phase 6.4. |
 | **6.2** | Hangar facility class lands (surface tier in cities, drydock tier at orbital POIs). Hangar manager + workers job sites. Daily-throughput formula. Per-hangar `supplyStorage` + `fuelStorage` caps. State-owned rental hangars at major POIs as the early-game escape valve. Realtor's listings extend to drydock tab. Manager verbs: receive-delivery, repair-priority, scrap, transfer-unit-to-other-hangar, supply / fuel inspection. **Supply-dealer NPC at AE** lands as a new job-site class; orders supply / fuel with 2-day delivery to a target hangar. Secretary's `bulkOrderSupply` verb. See [../fleet.md](../fleet.md). |
 | **6.2.5** | Manager's verb branch extends to refit / assemble. Secretary's auto-house-undelivered verb lands as the late-game scale valve. |
 | **6.3** | Colony adds buildable facility classes (warship slipway, large MS factory). Sovereignty footing. Player-owned hangars open to outside customers (revenue source activates). |

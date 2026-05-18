@@ -1,5 +1,5 @@
 import { world } from '../ecs/world'
-import { Wall, Door, Position } from '../ecs/traits'
+import { Wall, Door, Position, TemplateRef } from '../ecs/traits'
 import { worldConfig } from '../config'
 import type { ShipClassDef, ShipRoomDef, ShipDoorDef, DoorSide } from '../data/ship-classes'
 
@@ -76,6 +76,7 @@ export function layoutShipInterior(cls: ShipClassDef): void {
     world.spawn(
       Position({ x: pd.rect.x + pd.rect.w / 2, y: pd.rect.y + pd.rect.h / 2 }),
       Door({ x: pd.rect.x, y: pd.rect.y, w: pd.rect.w, h: pd.rect.h, orient: pd.orient }),
+      TemplateRef({ id: 'door-open' }),
     )
   }
 
@@ -177,7 +178,7 @@ export function layoutShipInterior(cls: ShipClassDef): void {
         else if (side === 's') { wx = rect.x + a;            wy = rect.y + rect.h - WALL_T;  ww = len;     wh = WALL_T }
         else if (side === 'w') { wx = rect.x;                wy = rect.y + a;                ww = WALL_T;  wh = len }
         else                   { wx = rect.x + rect.w - WALL_T; wy = rect.y + a;             ww = WALL_T;  wh = len }
-        world.spawn(Wall({ x: wx, y: wy, w: ww, h: wh }))
+        world.spawn(Wall({ x: wx, y: wy, w: ww, h: wh }), TemplateRef({ id: 'wall-default' }))
       }
     }
   }
