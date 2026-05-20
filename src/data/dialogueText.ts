@@ -30,8 +30,6 @@ export interface DialogueText {
     hangarManager: string
     aeSupplyDealer: string
     aeShipSales: string
-    hireAsCaptain: string
-    hireAsCrew: string
   }
   branches: {
     shop: { title: string; intro: string }
@@ -215,6 +213,13 @@ export interface DialogueText {
       crewHireFromIdleLabel: string
       crewHireFromIdleLong: string
       crewHireFromIdleEmpty: string
+      crewAssignCaptainLabel: string
+      crewAssignCaptainPickLabel: string
+      crewAssignCaptainPickerTitle: string
+      crewAssignCaptainEmpty: string
+      crewAssignCaptainToastDone: string
+      crewAssignCaptainToastFailed: string
+      crewAssignCrewToastDone: string
       crewToastMoved: string
       crewToastFired: string
       crewToastFireCaptain: string
@@ -224,25 +229,6 @@ export interface DialogueText {
       crewToastMoveFailed: string
       crewVacancyLabel: string
       crewBackButton: string
-    }
-    hireAsCaptain: {
-      title: string
-      intro: string
-      feeLine: string
-      pickButton: string
-      toastHired: string
-      toastFailed: string
-      toastNoFunds: string
-    }
-    hireAsCrew: {
-      title: string
-      intro: string
-      feeLine: string
-      vacancyLabel: string
-      pickButton: string
-      toastHired: string
-      toastFailed: string
-      toastNoFunds: string
     }
     captainsOfficeManRest: {
       buttonIdle: string

@@ -18,6 +18,16 @@ import {
   Ship, EntityKey, Character, Job, Workstation, Money, RecruitedTo,
   EmployedAsCrew, IsPlayer, Applicant, FactionRole, Action,
 } from '../ecs/traits'
+
+// Skip the signing fee when the NPC is already a faction member of this
+// player. Phase 6.2.D-rev: the hire flow is now unified through the
+// `talkHire` dialogue branch — once an NPC carries `RecruitedTo({owner:
+// player})`, the player's already paid the signing bonus, and dropping
+// them into a ship slot is a no-fee position assignment.
+function isAlreadyRecruited(npc: Entity, player: Entity): boolean {
+  const r = npc.get(RecruitedTo)
+  return !!r && r.owner === player
+}
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
@@ -105,7 +115,7 @@ export function hireAsCaptain(
   const npcKey = npc.get(EntityKey)?.key ?? ''
   const shipKey = ship.get(EntityKey)?.key ?? ''
   if (!npcKey || !shipKey) return { ok: false, reason: 'no_keys' }
-  const fee = fleetConfig.hireCaptainSigningFee
+  const fee = isAlreadyRecruited(npc, player) ? 0 : fleetConfig.hireCaptainSigningFee
   if (!chargePlayerSigningFee(player, fee)) return { ok: false, reason: 'no_funds' }
   applyCaptainAssignment(player, npc, ship, npcKey, shipKey)
   return { ok: true, signingFee: fee }
@@ -167,7 +177,7 @@ export function hireAsCrew(
   const npcKey = npc.get(EntityKey)?.key ?? ''
   const shipKey = ship.get(EntityKey)?.key ?? ''
   if (!npcKey || !shipKey) return { ok: false, reason: 'no_keys' }
-  const fee = fleetConfig.hireCrewSigningFee
+  const fee = isAlreadyRecruited(npc, player) ? 0 : fleetConfig.hireCrewSigningFee
   if (!chargePlayerSigningFee(player, fee)) return { ok: false, reason: 'no_funds' }
   applyCrewAssignment(player, npc, ship, npcKey, shipKey)
   return { ok: true, signingFee: fee }
@@ -313,6 +323,63 @@ export function findIdleHireableNpcs(): Entity[] {
       out.push(npc)
     }
   }
+  return out
+}
+
+// Phase 6.2.D-rev — faction-member pool walker for ship-slot
+// assignment. Hire flow is unified through `talkHire` (邀请加入); once
+// an NPC carries `RecruitedTo({owner: player})`, dropping them into a
+// captain or crew seat is a free position assignment and pulls from
+// this pool. Filters: must be RecruitedTo this player, must not already
+// be EmployedAsCrew (one ship slot at a time), must not be Applicant /
+// player.
+export function findFactionPoolForAssignment(player: Entity): Entity[] {
+  const out: Entity[] = []
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const npc of w.query(Character, EntityKey, RecruitedTo)) {
+      if (npc.has(IsPlayer)) continue
+      if (npc.has(EmployedAsCrew)) continue
+      if (npc.has(Applicant)) continue
+      const r = npc.get(RecruitedTo)
+      if (!r || r.owner !== player) continue
+      out.push(npc)
+    }
+  }
+  return out
+}
+
+// Bulk-assign faction members to the ship's open crew slots. Mirrors
+// `manRestFromIdlePool`'s shape; the difference is that the pool is
+// `findFactionPoolForAssignment` (already-hired faction members) and
+// no signing fee is charged — `hireAsCrew` short-circuits the fee for
+// any NPC carrying RecruitedTo for this player.
+export function manRestFromFactionPool(
+  player: Entity,
+  ship: Entity,
+): ManFromIdleResult {
+  const out: ManFromIdleResult = { hired: 0, signingFeesPaid: 0, stoppedReason: 'filled' }
+  let vacancy = crewVacancyForShip(ship)
+  if (vacancy <= 0) return out
+  const cap = fleetConfig.manFromIdlePoolMaxPerClick
+  let toHire = Math.min(vacancy, cap)
+  const candidates = findFactionPoolForAssignment(player)
+  if (candidates.length === 0) {
+    out.stoppedReason = 'no_idle'
+    return out
+  }
+  for (const npc of candidates) {
+    if (toHire <= 0) break
+    const r = hireAsCrew(player, npc, ship)
+    if (!r.ok) continue
+    out.hired += 1
+    out.signingFeesPaid += r.signingFee
+    toHire -= 1
+    vacancy -= 1
+  }
+  if (vacancy > 0 && toHire === 0) out.stoppedReason = 'cap'
+  else if (vacancy > 0) out.stoppedReason = 'no_idle'
+  else out.stoppedReason = 'filled'
   return out
 }
 

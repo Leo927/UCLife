@@ -15,8 +15,8 @@
 
 import type { Entity } from 'koota'
 import {
-  Applicant, Building, Character, FactionRole, IsPlayer, Job, Knows, Money,
-  Owner, Position, RecruitedTo, Workstation,
+  Applicant, Building, Character, EmployedAsCrew, FactionRole, IsPlayer, Job, Knows,
+  Money, Owner, Position, RecruitedTo, Workstation,
 } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
 import { recruitmentConfig } from '../../../config'
@@ -32,6 +32,13 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
   const player = world.queryFirst(IsPlayer)
   if (!player || target === player) return null
   if (target.has(Applicant)) return null
+  // Already on one of the player's ships — no rehire branch surfaces.
+  if (target.has(EmployedAsCrew)) return null
+  // Already a faction member of this player — the talkHire branch is
+  // the hire-into-faction entry point; for re-assignment, go through
+  // the fleet roster's per-ship crew picker.
+  const existingRec = target.get(RecruitedTo)
+  if (existingRec && existingRec.owner === player) return null
 
   const fr = target.get(FactionRole)
   if (fr && fr.faction === 'anaheim') return null

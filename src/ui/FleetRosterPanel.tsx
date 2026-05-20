@@ -13,6 +13,7 @@
 // helper the captain's-office talk verb uses.
 
 import { useState } from 'react'
+import type { Entity } from 'koota'
 import {
   Ship, IsFlagshipMark, IsInActiveFleet, EntityKey, Building, Hangar, IsPlayer, Character,
   type HangarSlotClass,
@@ -26,7 +27,8 @@ import { dialogueText } from '../data/dialogueText'
 import { playUi } from '../audio/player'
 import {
   findShipByKey, findNpcByKey, fireCaptain, fireCrewMember, moveCrewMember,
-  manRestFromIdlePool, crewVacancyForShip, snapshotCrewRoster,
+  manRestFromFactionPool, crewVacancyForShip, snapshotCrewRoster,
+  findFactionPoolForAssignment, hireAsCaptain,
 } from '../systems/fleetCrew'
 import { setShipMothballed } from '../systems/fleetMothball'
 
@@ -348,7 +350,7 @@ function CrewDetailPanel({
     onMutate()
   }
 
-  const onHireFromIdle = () => {
+  const onAssignFromFactionPool = () => {
     let player = null
     for (const sceneId of SCENE_IDS) {
       const w = getWorld(sceneId)
@@ -359,18 +361,37 @@ function CrewDetailPanel({
       showToast(t.crewHireFromIdleEmpty)
       return
     }
-    const res = manRestFromIdlePool(player, ship)
+    const res = manRestFromFactionPool(player, ship)
     playUi(res.hired > 0 ? 'ui.hr.accept' : 'ui.npc.close')
     if (res.hired === 0) {
       if (res.stoppedReason === 'no_idle') showToast(t.crewHireFromIdleEmpty)
-      else showToast(
-        t.crewToastHireNoFunds.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
-      )
+      else showToast(t.crewToastHireNoFunds.replace('{n}', String(res.hired)))
     } else {
-      showToast(
-        t.crewToastHired.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
-      )
+      showToast(t.crewToastHired.replace('{n}', String(res.hired)))
     }
+    onMutate()
+  }
+
+  const onAssignCaptain = (npc: Entity, name: string) => {
+    let player = null
+    for (const sceneId of SCENE_IDS) {
+      const w = getWorld(sceneId)
+      const p = w.queryFirst(IsPlayer)
+      if (p) { player = p; break }
+    }
+    if (!player) {
+      showToast(t.crewAssignCaptainToastFailed.replace('{reason}', 'no_player'))
+      return
+    }
+    const r = hireAsCaptain(player, npc, ship)
+    if (!r.ok) {
+      showToast(t.crewAssignCaptainToastFailed.replace('{reason}', r.reason))
+      return
+    }
+    playUi('ui.hr.accept')
+    showToast(t.crewAssignCaptainToastDone
+      .replace('{name}', name || '该 NPC')
+      .replace('{ship}', roster.shipName))
     onMutate()
   }
 
@@ -381,7 +402,7 @@ function CrewDetailPanel({
         <li className="dev-row" data-crew-captain-row={roster.captainKey || ''}>
           <span className="dev-key">{t.crewCaptainLabel}</span>
           <span>{roster.captainName || t.captainEmpty}</span>
-          {roster.captainKey && (
+          {roster.captainKey ? (
             <button
               className="dialog-option"
               data-crew-fire-captain={roster.captainKey}
@@ -389,6 +410,8 @@ function CrewDetailPanel({
             >
               {t.crewFireLabel}
             </button>
+          ) : (
+            <CaptainAssignPicker shipKey={shipKey} onPick={onAssignCaptain} />
           )}
         </li>
         {roster.crew.length === 0 ? (
@@ -426,7 +449,7 @@ function CrewDetailPanel({
             className="dialog-option"
             data-crew-hire-from-idle={shipKey}
             disabled={vacancy <= 0}
-            onClick={onHireFromIdle}
+            onClick={onAssignFromFactionPool}
           >
             {t.crewHireFromIdleLabel}
           </button>
@@ -436,5 +459,66 @@ function CrewDetailPanel({
         {t.crewBackButton}
       </button>
     </section>
+  )
+}
+
+// Inline dropdown of faction-pool candidates for the captain slot. Shown
+// only when the slot is empty; lists every RecruitedTo NPC that isn't
+// already EmployedAsCrew. Pick = `hireAsCaptain` with no signing fee.
+function CaptainAssignPicker({
+  shipKey,
+  onPick,
+}: { shipKey: string; onPick: (npc: Entity, name: string) => void }) {
+  const t = dialogueText.branches.fleetRoster
+  const [open, setOpen] = useState(false)
+  if (!shipKey) return null
+  let player: Entity | null = null
+  for (const sceneId of SCENE_IDS) {
+    const p = getWorld(sceneId).queryFirst(IsPlayer)
+    if (p) { player = p; break }
+  }
+  const candidates = player ? findFactionPoolForAssignment(player) : []
+  if (!open) {
+    return (
+      <button
+        className="dialog-option"
+        data-crew-assign-captain-open={shipKey}
+        disabled={candidates.length === 0}
+        onClick={() => setOpen(true)}
+        title={candidates.length === 0 ? t.crewAssignCaptainEmpty : ''}
+      >
+        {t.crewAssignCaptainLabel}
+      </button>
+    )
+  }
+  return (
+    <span data-crew-assign-captain-picker={shipKey} style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.25em' }}>
+      <span className="dev-key">{t.crewAssignCaptainPickerTitle}</span>
+      {candidates.length === 0 ? (
+        <span className="hr-intro">{t.crewAssignCaptainEmpty}</span>
+      ) : (
+        candidates.map((npc) => {
+          const name = npc.get(Character)?.name ?? ''
+          const npcKey = npc.get(EntityKey)?.key ?? ''
+          return (
+            <button
+              key={npcKey}
+              className="dialog-option"
+              data-crew-assign-captain-pick={npcKey}
+              onClick={() => { onPick(npc, name); setOpen(false) }}
+            >
+              {name || npcKey} · {t.crewAssignCaptainPickLabel}
+            </button>
+          )
+        })
+      )}
+      <button
+        className="dialog-option"
+        data-crew-assign-captain-cancel={shipKey}
+        onClick={() => setOpen(false)}
+      >
+        {t.crewBackButton}
+      </button>
+    </span>
   )
 }

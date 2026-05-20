@@ -72,7 +72,10 @@ test('hire-crew end-to-end: captain Effect, crew move/fire, manRest, save round-
   const pegasus = fleet0.find((s: any) => !s.isFlagship)
   expect(flagship && pegasus, 'could not isolate flagship + pegasus').toBeTruthy()
 
-  // 1. Hire branches surface on a procedural NPC.
+  // 1. Unified hire flow: only the talkHire branch surfaces on a
+  //    procedural NPC's dialog tree; the legacy hireAsCaptain /
+  //    hireAsCrew branches have been removed in favor of position
+  //    assignment via the fleet roster.
   const npcKey = 'test-npc-a'
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,8 +87,9 @@ test('hire-crew end-to-end: captain Effect, crew move/fire, manRest, save round-
     (k) => (window as any).__uclife__.hireBranchListing(k),
     npcKey,
   )
-  expect(branches.includes('hireAsCaptain'), `hireAsCaptain branch missing`).toBeTruthy()
-  expect(branches.includes('hireAsCrew'), `hireAsCrew branch missing`).toBeTruthy()
+  expect(branches.includes('talkHire'), `talkHire branch missing`).toBeTruthy()
+  expect(!branches.includes('hireAsCaptain'), `hireAsCaptain branch should be retired`).toBeTruthy()
+  expect(!branches.includes('hireAsCrew'), `hireAsCrew branch should be retired`).toBeTruthy()
 
   // 2. Hire as captain of flagship.
   await sim.page.evaluate(

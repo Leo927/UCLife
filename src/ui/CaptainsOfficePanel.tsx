@@ -15,7 +15,7 @@ import { useScene } from '../sim/scene'
 import { playUi } from '../audio/player'
 import { dialogueText } from '../data/dialogueText'
 import {
-  crewVacancyForShip, manRestFromIdlePool,
+  crewVacancyForShip, manRestFromFactionPool,
 } from '../systems/fleetCrew'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 
@@ -116,27 +116,19 @@ function ManTheRestSection({ shipEnt }: { shipEnt: ReturnType<typeof useQueryFir
       showToast(t.toastNoIdle)
       return
     }
-    const res = manRestFromIdlePool(player, shipEnt)
+    const res = manRestFromFactionPool(player, shipEnt)
     playUi(res.hired > 0 ? 'ui.hr.accept' : 'ui.npc.close')
     if (res.hired === 0) {
       if (res.stoppedReason === 'no_idle') showToast(t.toastNoIdle)
-      else showToast(
-        t.toastNoFunds.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
-      )
+      else showToast(t.toastNoFunds.replace('{n}', String(res.hired)))
       return
     }
     if (res.stoppedReason === 'no_funds') {
-      showToast(
-        t.toastNoFunds.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
-      )
+      showToast(t.toastNoFunds.replace('{n}', String(res.hired)))
     } else if (res.stoppedReason === 'cap') {
-      showToast(
-        t.toastCap.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
-      )
+      showToast(t.toastCap.replace('{n}', String(res.hired)))
     } else {
-      showToast(
-        t.toastFilled.replace('{n}', String(res.hired)).replace('{cost}', String(res.signingFeesPaid)),
-      )
+      showToast(t.toastFilled.replace('{n}', String(res.hired)))
     }
   }
 

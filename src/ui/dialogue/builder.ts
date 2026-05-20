@@ -22,8 +22,6 @@ import { aeSupplyDealerBranch } from './branches/aeSupplyDealer'
 import { aeShipSalesBranch } from './branches/aeShipSales'
 import { jobSiteBranch } from './branches/jobSite'
 import { talkHireBranch } from './branches/talkHire'
-import { hireAsCaptainBranch } from './branches/hireAsCaptain'
-import { hireAsCrewBranch } from './branches/hireAsCrew'
 
 const ROLE_BRANCHES: BranchBuilder[] = [
   shopkeeperBranch,
@@ -44,8 +42,6 @@ const ROLE_BRANCHES: BranchBuilder[] = [
   factoryManagerBranch,
   jobSiteBranch,
   talkHireBranch,
-  hireAsCaptainBranch,
-  hireAsCrewBranch,
 ]
 
 export function buildNpcDialogue(ctx: DialogueCtx): DialogueNode {
