@@ -160,9 +160,10 @@
     talkHire: {
       title: '邀请加入',
       // NPC's spoken reply when at least one gate is open. The signing
-      // bonus is voiced diegetically inside the line — never surfaced as
-      // a separate "¥200" label. {bonus} is interpolated by the branch.
-      gateOpen: '"加入你那边？……行——你要是认真的，先付我一笔订金，{bonus}块算个心意，我就跟你走。"',
+      // bonus + daily wage are both voiced diegetically inside the line —
+      // never surfaced as separate "¥200" labels. {bonus} + {salary} are
+      // interpolated by the branch.
+      gateOpen: '"加入你那边？……行——你要是认真的，先给我一笔安家费，{bonus}块算个心意；以后工钱每天 {salary} 块，按faction的规矩准时发。这价钱要是没问题，我就跟你走。"',
       // Hesitation lines. The branch picks the gate closer to clearing
       // (opinion vs. AE rep) and the tier by gap size — the tone tells
       // the player both what's missing and roughly how far they are.
@@ -180,9 +181,9 @@
       // signing-bonus amount is already in the NPC's line above.
       acceptLabel: '我是认真的',
       // Diegetic feedback when the player accepts but can't pay.
-      toastNoMoney: '"……你这点钱不够订金。"',
+      toastNoMoney: '"……你这点钱连安家费都凑不齐。"',
       // Diegetic completion toast. {name} interpolated.
-      toastAccepted: '{name} 接过订金——"成交。"',
+      toastAccepted: '{name} 接过安家费——"成交。"',
     },
     // Phase 6.2.C1 + 6.2.C2 — AE ship sales rep (VB spaceport + Granada
     // drydock). Same panel shape; the SKU is picked by the rep's

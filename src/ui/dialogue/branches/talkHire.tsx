@@ -19,7 +19,7 @@ import {
   Money, Owner, Position, RecruitedTo, Workstation,
 } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
-import { recruitmentConfig } from '../../../config'
+import { fleetConfig, recruitmentConfig } from '../../../config'
 import { getRep } from '../../../systems/reputation'
 import { isPlayerOwnedBuilding } from '../../../ecs/playerFaction'
 import { world } from '../../../ecs/world'
@@ -80,7 +80,9 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
   }
 
   const info = gateOpen
-    ? t.gateOpen.replace('{bonus}', String(gates.signingBonus))
+    ? t.gateOpen
+        .replace('{bonus}', String(gates.signingBonus))
+        .replace('{salary}', String(fleetConfig.crewDailySalary))
     : hesitate()
 
   const onAccept = () => {
