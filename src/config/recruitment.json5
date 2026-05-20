@@ -69,7 +69,18 @@
   // the same rate (see systems/fleetCrew.ts). Captain pay sits on top
   // of this as a fleet-role band (fleetConfig.captainDailySalary) until
   // we finish modeling role bonuses as Effects.
-  factionMemberDailySalary: 30,
+  //
+  // Anchored against the NPC daily sustenance floor + competitive wage:
+  //   3 meals × ¥15  = ¥45 food
+  //   water          ≈ ¥10
+  //   apartment rent  = ¥5  (¥150 / 30-day window)
+  //   ────────────────────
+  //   floor          ≈ ¥60 / day just to not starve
+  //   ref factory wage 100 × npcBonus 1.6 = ¥160 / shift
+  // ¥120/day clears the floor with ~¥60 surplus for savings, sits in
+  // the same band as a regular working civilian's daily take, and is
+  // attractive enough that an NPC would actually quit a job to join.
+  factionMemberDailySalary: 120,
 
   // Talk-verb hire gate. Configured to be permissive for the mid-game —
   // the player who's spent some time around AE can recruit AE workers
