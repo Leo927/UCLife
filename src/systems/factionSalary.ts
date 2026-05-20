@@ -4,22 +4,41 @@
 // channel — ship crew are faction members slotted into ship seats and
 // draw the same base rate from this system.
 //
-// Pay shape per member:
-//   base   = recruitmentConfig.factionMemberDailySalary
-//   bonus  = fleetConfig.captainSalaryBonus when EmployedAsCrew.role === 'captain'
-//   total  = base + bonus
+// Per-member wage is computed by demandedDailyWage(). Today that's a
+// flat base + captain bonus; later it'll read the member's StatSheet
+// and bump the demand for high-skilled hires, with loyalty drift when
+// the player pays under the demand.
+//
+// Recruited NPCs do NOT also draw a per-shift wage — workSystem zeros
+// their wage payout when they have RecruitedTo, so the facility owner
+// keeps the full revenue and this system is the only pay channel.
 //
 // Mothballed-ship rule: an EmployedAsCrew member on a mothballed ship
 // is off the books for the day — they draw nothing, matching the
 // design-doc behavior that mothballing kills supply + salary drain on
 // a hull.
 
-import type { Entity, World } from 'koota'
+import type { Entity, World, TraitInstance } from 'koota'
 import {
   Character, EmployedAsCrew, IsPlayer, Money, RecruitedTo, Ship, EntityKey,
 } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig, recruitmentConfig } from '../config'
+
+// Daily salary owed to one recruited NPC. Currently a flat base plus a
+// captain bonus; this is the seam where stat-driven wage demands will
+// land — a high-skilled member will demand more than the base, and
+// paying below the demand will leak loyalty.
+function demandedDailyWage(
+  _npc: Entity,
+  employed: TraitInstance<typeof EmployedAsCrew> | null,
+): number {
+  let wage = recruitmentConfig.factionMemberDailySalary
+  if (employed?.role === 'captain') {
+    wage += fleetConfig.captainSalaryBonus
+  }
+  return wage
+}
 
 export interface FactionSalaryResult {
   membersPaid: number
@@ -53,8 +72,6 @@ export function factionSalarySystem(
   const m = player.get(Money)
   if (!m) return out
 
-  const base = recruitmentConfig.factionMemberDailySalary
-  const captainBonus = fleetConfig.captainSalaryBonus
   const shipMothballedCache = new Map<string, boolean>()
   const isShipMothballed = (shipKey: string): boolean => {
     const cached = shipMothballedCache.get(shipKey)
@@ -84,10 +101,9 @@ export function factionSalarySystem(
         continue
       }
 
-      totalRequested += base
+      totalRequested += demandedDailyWage(npc, employed)
       out.membersPaid += 1
       if (employed?.role === 'captain') {
-        totalRequested += captainBonus
         out.captainsPaid += 1
       } else if (employed?.role === 'crew') {
         out.crewPaid += 1

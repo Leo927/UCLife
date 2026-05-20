@@ -1,5 +1,5 @@
 import type { World, Entity } from 'koota'
-import { IsPlayer, Action, JobPerformance, Job, Money, Workstation, JobTenure, Attributes, Position, Facility, Owner, Building, Faction } from '../ecs/traits'
+import { IsPlayer, Action, JobPerformance, Job, Money, Workstation, JobTenure, Attributes, Position, Facility, Owner, Building, Faction, RecruitedTo } from '../ecs/traits'
 import { wageMultiplier, getJobSpec } from '../data/jobs'
 import { isWorkstationOpen } from './market'
 import { emitSim } from '../sim/events'
@@ -108,7 +108,13 @@ function processMinute(
       // stack on top via the <skill>XpMul stat.
       const intMult = statMult(statValue(entity, 'intelligence'))
       const skillMul = spec.skill ? skillXpMul(entity, spec.skill as SkillStatId) : 1
-      const wage = Math.floor(spec.wage * wageMultiplier(todayPerf) * npcBonus * attrMult * wageMul(entity))
+      // Faction members (RecruitedTo) draw a flat daily salary via
+      // factionSalarySystem instead of a per-shift wage — their facility
+      // output becomes pure revenue to the facility owner.
+      const onFactionPayroll = !isPlayer && entity.has(RecruitedTo)
+      const wage = onFactionPayroll
+        ? 0
+        : Math.floor(spec.wage * wageMultiplier(todayPerf) * npcBonus * attrMult * wageMul(entity))
       const xpGain = spec.skill ? Math.floor(spec.skillXp * (todayPerf / 100) * intMult * skillMul) : 0
 
       if (facilityEnt) accrueShiftEconomics(facilityEnt, todayPerf, wage)
