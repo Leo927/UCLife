@@ -29,7 +29,7 @@ function isAlreadyRecruited(npc: Entity, player: Entity): boolean {
   return !!r && r.owner === player
 }
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { fleetConfig } from '../config'
+import { fleetConfig, recruitmentConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
 import { getStat } from '../stats/sheet'
 import { ShipStatSheet, type ShipStatId } from '../ecs/traits'
@@ -428,8 +428,10 @@ function removeCaptainEffect(ship: Entity, captainKey: string): void {
 
 // Daily salary drain — invoked from boot/fleetCrewSalaryTick.ts on
 // day:rollover:settled. Walks every Ship across the ship world,
-// computes (captains × captainDailySalary + crew × crewDailySalary)
-// for non-mothballed hulls, debits the player's Money. Returns the
+// computes (captains × fleetConfig.captainDailySalary
+// + crew × recruitmentConfig.factionMemberDailySalary) for non-mothballed
+// hulls, debits the player's Money. Crew rate is the unified faction-
+// member channel; captain rate is the fleet-role overlay. Returns the
 // debited total + a shortfall flag if the player ran out mid-tick.
 export function fleetCrewSalarySystem(_world: World, _gameDay: number): {
   shipsTouched: number
@@ -462,7 +464,7 @@ export function fleetCrewSalarySystem(_world: World, _gameDay: number): {
       totalRequested += fleetConfig.captainDailySalary
       out.captainsPaid += 1
     }
-    totalRequested += s.crewIds.length * fleetConfig.crewDailySalary
+    totalRequested += s.crewIds.length * recruitmentConfig.factionMemberDailySalary
     out.crewPaid += s.crewIds.length
   }
 

@@ -36,7 +36,6 @@ export interface FleetConfig {
   hireCaptainSigningFee: number
   hireCrewSigningFee: number
   captainDailySalary: number
-  crewDailySalary: number
   captainEffectSkill: string
   captainEffectStat: string
   captainEffectPerLevel: number

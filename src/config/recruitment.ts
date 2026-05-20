@@ -14,6 +14,7 @@ export interface RecruitmentConfig {
   lobbyCapacity: number
   applicationLifetimeDays: number
   lobbySpawnRadiusPx: number
+  factionMemberDailySalary: number
   talkVerbHire: {
     factionRepGate: { faction: FactionId; min: number }
     opinionGate: { min: number }

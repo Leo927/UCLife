@@ -14,7 +14,7 @@ import {
   ShipEffectsList,
 } from '../ecs/traits'
 import { attachShipStatSheet } from '../ecs/shipEffects'
-import { fleetConfig } from '../config'
+import { fleetConfig, recruitmentConfig } from '../config'
 import { crewVacancyForShip, hasCaptainVacancy } from './fleetCrew'
 import { setBase } from '../stats/sheet'
 
@@ -110,7 +110,7 @@ describe('fleet crew helpers (no scene wiring)', () => {
     expect(fleetConfig.hireCaptainSigningFee).toBeGreaterThan(0)
     expect(fleetConfig.hireCrewSigningFee).toBeGreaterThan(0)
     expect(fleetConfig.captainDailySalary).toBeGreaterThan(0)
-    expect(fleetConfig.crewDailySalary).toBeGreaterThan(0)
+    expect(recruitmentConfig.factionMemberDailySalary).toBeGreaterThan(0)
     expect(fleetConfig.captainEffectSkill).toBe('engineering')
     expect(fleetConfig.captainEffectStat).toBe('topSpeed')
     expect(fleetConfig.manFromIdlePoolMaxPerClick).toBeGreaterThan(0)

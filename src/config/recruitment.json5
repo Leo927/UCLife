@@ -63,6 +63,14 @@
   // Pixels.
   lobbySpawnRadiusPx: 96,
 
+  // Unified faction-member daily wage. Every NPC carrying RecruitedTo
+  // for the player draws this each day they're under contract — fleet
+  // crew are faction members slotted into ship seats, so they consume
+  // the same rate (see systems/fleetCrew.ts). Captain pay sits on top
+  // of this as a fleet-role band (fleetConfig.captainDailySalary) until
+  // we finish modeling role bonuses as Effects.
+  factionMemberDailySalary: 30,
+
   // Talk-verb hire gate. Configured to be permissive for the mid-game —
   // the player who's spent some time around AE can recruit AE workers
   // off the floor; the player who's befriended a civilian can recruit

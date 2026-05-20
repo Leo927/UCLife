@@ -143,12 +143,14 @@
   // without code churn.
   hireCaptainSigningFee: 5000,
   hireCrewSigningFee: 500,
-  // Per-day per-NPC salary. Pulled from the player's Money on each
-  // day:rollover:settled. If the player can't cover the day's bill the
-  // tick records the shortfall in the event log; firing happens at
-  // the player's discretion (no auto-fire at this slice).
+  // Captain pay band — the role-specific rate paid to the assigned
+  // captain. Crew draw the faction-wide `factionMemberDailySalary` from
+  // recruitment.json5 (the unified faction-member channel); only the
+  // captain band lives here as a fleet-role overlay. Pulled from the
+  // player's Money on each day:rollover:settled; shortfall is recorded
+  // in the event log, firing is at the player's discretion (no auto-fire
+  // at this slice).
   captainDailySalary: 200,
-  crewDailySalary: 30,
 
   // Captain effect — per-captain Effect on the ship's StatSheet. Source
   // string: `eff:officer:<captainKey>:engineering`. Mods `topSpeed` as
