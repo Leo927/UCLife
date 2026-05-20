@@ -39,7 +39,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.listTransferDestinationsViaDebug',
   '__uclife__.enqueueHangarTransferViaDebug',
   '__uclife__.runFleetSupplyDrainTick',
-  '__uclife__.runFleetCrewSalaryTick',
+  '__uclife__.runFactionSalaryTick',
   '__uclife__.runFleetTransitTick',
   '__uclife__.fleetTransitDescribe',
   '__uclife__.warRoomDescribe',
@@ -138,7 +138,7 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
 
   const salaryPre = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (d) => (window as any).__uclife__.runFleetCrewSalaryTick(d),
+    (d) => (window as any).__uclife__.runFactionSalaryTick(d),
     SALARY_TICK_DAY_PRE,
   )
   expect(salaryPre.captainsPaid).toBeGreaterThanOrEqual(1)
@@ -186,7 +186,7 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
 
   const salaryPost = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (d) => (window as any).__uclife__.runFleetCrewSalaryTick(d),
+    (d) => (window as any).__uclife__.runFactionSalaryTick(d),
     SALARY_TICK_DAY_POST,
   )
   expect(salaryPost.captainsPaid).toBe(0)
@@ -215,7 +215,7 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
 
   const salaryReact = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (d) => (window as any).__uclife__.runFleetCrewSalaryTick(d),
+    (d) => (window as any).__uclife__.runFactionSalaryTick(d),
     SALARY_TICK_DAY_RESUMED,
   )
   expect(salaryReact.totalDebit).toBeGreaterThan(0)

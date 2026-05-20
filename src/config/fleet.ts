@@ -35,7 +35,7 @@ export interface FleetConfig {
   // Phase 6.2.D — hire economics + captain Effect + auto-man limit.
   hireCaptainSigningFee: number
   hireCrewSigningFee: number
-  captainDailySalary: number
+  captainSalaryBonus: number
   captainEffectSkill: string
   captainEffectStat: string
   captainEffectPerLevel: number

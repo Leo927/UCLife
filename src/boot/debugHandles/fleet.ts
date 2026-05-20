@@ -64,8 +64,9 @@ import { useClock, gameDayNumber } from '../../sim/clock'
 import {
   findNpcByKey, findShipByKey, hireAsCaptain, hireAsCrew, fireCaptain,
   fireCrewMember, moveCrewMember, manRestFromIdlePool, snapshotCrewRoster,
-  captainEffectId, fleetCrewSalarySystem,
+  captainEffectId,
 } from '../../systems/fleetCrew'
+import { factionSalarySystem } from '../../systems/factionSalary'
 import { setShipMothballedByKey } from '../../systems/fleetMothball'
 import {
   enqueueHangarTransfer, listTransferDestinations,
@@ -529,11 +530,12 @@ registerDebugHandle('enqueueHangarTransferViaDebug', (
   return { ok: false as const, reason: 'ship_not_found' as const }
 })
 
-// Drive the crew-salary daily tick directly. Returns the per-tick
-// summary so smoke can assert ship + total counts move/skip
-// correctly when mothballed ships flip in/out.
-registerDebugHandle('runFleetCrewSalaryTick', (gameDay: number = 0) => {
-  return fleetCrewSalarySystem(getWorld('playerShipInterior'), gameDay)
+// Drive the unified faction-salary daily tick directly. Returns the
+// per-tick summary so smoke can assert membersPaid / captainsPaid /
+// crewPaid / mothballed / totalDebit move correctly as members are
+// hired, ships are mothballed, etc.
+registerDebugHandle('runFactionSalaryTick', (gameDay: number = 0) => {
+  return factionSalarySystem(getWorld('playerShipInterior'), gameDay)
 })
 
 // Drive the supply drain daily tick directly. Smoke uses this to

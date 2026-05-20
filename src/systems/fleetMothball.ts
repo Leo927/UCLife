@@ -13,10 +13,11 @@
 //     assigned). Does NOT auto-add IsInActiveFleet — promoting back into
 //     the active fleet is a war-room decision.
 //
-// Drain skipping happens in fleetSupplyDrain (already gated on
-// Ship.mothballed) and fleetCrew.fleetCrewSalarySystem (same). The
-// hire-as-captain / hire-as-crew branches filter mothballed ships out
-// of their pickers via Ship.mothballed check (see those files).
+// Drain skipping happens in fleetSupplyDrain (gated on Ship.mothballed)
+// and in factionSalarySystem (mothballed-ship EmployedAsCrew members
+// are skipped — base + captain bonus both omitted). The hire-as-captain /
+// hire-as-crew branches filter mothballed ships out of their pickers
+// via Ship.mothballed check (see those files).
 
 import type { Entity } from 'koota'
 import { Ship, IsFlagshipMark, IsInActiveFleet } from '../ecs/traits'

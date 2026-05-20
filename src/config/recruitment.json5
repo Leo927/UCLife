@@ -66,9 +66,9 @@
   // Unified faction-member daily wage. Every NPC carrying RecruitedTo
   // for the player draws this each day they're under contract — fleet
   // crew are faction members slotted into ship seats, so they consume
-  // the same rate (see systems/fleetCrew.ts). Captain pay sits on top
-  // of this as a fleet-role band (fleetConfig.captainDailySalary) until
-  // we finish modeling role bonuses as Effects.
+  // the same rate. Captain role gets `fleetConfig.captainSalaryBonus`
+  // on top. Settled by `factionSalarySystem` on day:rollover:settled
+  // (see boot/factionSalaryTick.ts + systems/factionSalary.ts).
   //
   // Anchored against the NPC daily sustenance floor + competitive wage:
   //   3 meals × ¥15  = ¥45 food

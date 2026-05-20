@@ -37,10 +37,10 @@ import './boot/fleetSupplyTick'
 // Phase 6.2.C1 — advance pending ship deliveries on the same event;
 // rows transition in_transit → arrived once arrivalDay is reached.
 import './boot/shipDeliveryTick'
-// Phase 6.2.D — captain + crew daily salary drain. Same event; debits
-// the player's Money for every assigned officer / crew member across
-// the fleet.
-import './boot/fleetCrewSalaryTick'
+// Unified faction-member daily salary drain. Same event; debits the
+// player's Money for every NPC carrying RecruitedTo({owner: player}),
+// with the captain-role bonus added on top per EmployedAsCrew.role.
+import './boot/factionSalaryTick'
 // Phase 6.2.E2 — cross-POI ship transit lander. Same event; lands
 // in-transit non-flagship active ships at their destination POI when
 // arrivalDay rolls over.

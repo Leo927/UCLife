@@ -109,7 +109,7 @@ describe('fleet crew helpers (no scene wiring)', () => {
   it('fleetConfig publishes the new D-slice tunables', () => {
     expect(fleetConfig.hireCaptainSigningFee).toBeGreaterThan(0)
     expect(fleetConfig.hireCrewSigningFee).toBeGreaterThan(0)
-    expect(fleetConfig.captainDailySalary).toBeGreaterThan(0)
+    expect(fleetConfig.captainSalaryBonus).toBeGreaterThan(0)
     expect(recruitmentConfig.factionMemberDailySalary).toBeGreaterThan(0)
     expect(fleetConfig.captainEffectSkill).toBe('engineering')
     expect(fleetConfig.captainEffectStat).toBe('topSpeed')

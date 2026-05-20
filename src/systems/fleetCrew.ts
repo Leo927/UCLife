@@ -13,7 +13,7 @@
 // `removeShipEffect` keyed off the same id so a fire/reassign drops
 // the StatSheet bonus cleanly.
 
-import type { Entity, World } from 'koota'
+import type { Entity } from 'koota'
 import {
   Ship, EntityKey, Character, Job, Workstation, Money, RecruitedTo,
   EmployedAsCrew, IsPlayer, Applicant, FactionRole, Action,
@@ -29,7 +29,7 @@ function isAlreadyRecruited(npc: Entity, player: Entity): boolean {
   return !!r && r.owner === player
 }
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { fleetConfig, recruitmentConfig } from '../config'
+import { fleetConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
 import { getStat } from '../stats/sheet'
 import { ShipStatSheet, type ShipStatId } from '../ecs/traits'
@@ -424,55 +424,6 @@ function applyCaptainEffect(ship: Entity, captain: Entity): void {
 function removeCaptainEffect(ship: Entity, captainKey: string): void {
   if (!ship.has(ShipStatSheet)) return
   removeShipEffect(ship, captainEffectId(captainKey))
-}
-
-// Daily salary drain — invoked from boot/fleetCrewSalaryTick.ts on
-// day:rollover:settled. Walks every Ship across the ship world,
-// computes (captains × fleetConfig.captainDailySalary
-// + crew × recruitmentConfig.factionMemberDailySalary) for non-mothballed
-// hulls, debits the player's Money. Crew rate is the unified faction-
-// member channel; captain rate is the fleet-role overlay. Returns the
-// debited total + a shortfall flag if the player ran out mid-tick.
-export function fleetCrewSalarySystem(_world: World, _gameDay: number): {
-  shipsTouched: number
-  captainsPaid: number
-  crewPaid: number
-  totalDebit: number
-  shortfall: number
-} {
-  const out = { shipsTouched: 0, captainsPaid: 0, crewPaid: 0, totalDebit: 0, shortfall: 0 }
-  // Find the player entity. Multi-scene; the player lives in whichever
-  // scene world is active. We don't care which — the player has IsPlayer
-  // + Money; lookup is cheap.
-  let player: Entity | null = null
-  for (const sceneId of SCENE_IDS) {
-    const w = getWorld(sceneId)
-    const ent = w.queryFirst(IsPlayer, Money)
-    if (ent) { player = ent; break }
-  }
-  if (!player) return out
-  const m = player.get(Money)
-  if (!m) return out
-
-  let totalRequested = 0
-  const shipWorld = getWorld('playerShipInterior')
-  for (const ship of shipWorld.query(Ship)) {
-    const s = ship.get(Ship)!
-    if (s.mothballed) continue
-    out.shipsTouched += 1
-    if (s.assignedCaptainId) {
-      totalRequested += fleetConfig.captainDailySalary
-      out.captainsPaid += 1
-    }
-    totalRequested += s.crewIds.length * recruitmentConfig.factionMemberDailySalary
-    out.crewPaid += s.crewIds.length
-  }
-
-  const paid = Math.min(m.amount, totalRequested)
-  out.totalDebit = paid
-  out.shortfall = Math.max(0, totalRequested - paid)
-  if (paid > 0) player.set(Money, { amount: m.amount - paid })
-  return out
 }
 
 // Sanity helper for the smoke + the crew panel — fetch every crew /

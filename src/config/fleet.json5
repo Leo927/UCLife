@@ -132,25 +132,24 @@
     ae_ship_sales_granada: { shipClassId: 'pegasusClass' },
   },
 
-  // Phase 6.2.D — hire-as-captain / hire-as-crew economics. Each hire
-  // deducts a one-shot signing fee on accept; daily salary is charged
-  // by the day:rollover:settled tick (see boot/fleetCrewSalaryTick.ts).
-  // Captains cost more because they emit a Ship-StatSheet officer
-  // Effect (currently a small +topSpeed bonus; see captainEffectStat
-  // below) and because losing the captain breaks the ship's launch
-  // pipeline at 6.2.E+. Numbers are tunable; the smoke pins them via
-  // the config import so a tuning change ripples through the assert
-  // without code churn.
+  // Hire-as-captain / hire-as-crew economics. Each hire deducts a
+  // one-shot signing fee on accept; ongoing daily pay is settled by
+  // the unified factionSalarySystem on day:rollover:settled (see
+  // boot/factionSalaryTick.ts). Captains cost more because they emit
+  // a Ship-StatSheet officer Effect (currently a small +topSpeed bonus;
+  // see captainEffectStat below) and because losing the captain breaks
+  // the ship's launch pipeline at 6.2.E+. Numbers are tunable; the smoke
+  // pins them via the config import so a tuning change ripples through
+  // the assert without code churn.
   hireCaptainSigningFee: 5000,
   hireCrewSigningFee: 500,
-  // Captain pay band — the role-specific rate paid to the assigned
-  // captain. Crew draw the faction-wide `factionMemberDailySalary` from
-  // recruitment.json5 (the unified faction-member channel); only the
-  // captain band lives here as a fleet-role overlay. Pulled from the
-  // player's Money on each day:rollover:settled; shortfall is recorded
-  // in the event log, firing is at the player's discretion (no auto-fire
-  // at this slice).
-  captainDailySalary: 200,
+  // Captain salary bonus — the role-specific *additive overlay* on top
+  // of the faction-member base salary (recruitmentConfig.factionMemberDailySalary).
+  // Total captain take-home = factionMemberDailySalary + captainSalaryBonus.
+  // Lives here because captain is a fleet-role concept; the unified
+  // factionSalarySystem reads both this and the faction-wide base to
+  // settle daily salaries on day:rollover:settled.
+  captainSalaryBonus: 80,
 
   // Captain effect — per-captain Effect on the ship's StatSheet. Source
   // string: `eff:officer:<captainKey>:engineering`. Mods `topSpeed` as
