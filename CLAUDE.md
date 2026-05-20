@@ -163,3 +163,4 @@ When possible, design game objects to be diegetic — visible, touchable objects
 - Prefer delegating to subagents to maintain context integrity.
 - Always prefer MCP server over raw API call.
 - Use the plantuml skill to generate diagrams.
+- Always commit your changes
