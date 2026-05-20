@@ -57,25 +57,36 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
   const opinionOk = opinion >= gates.opinionGate.min
   const gateOpen = factionRepOk || opinionOk
 
-  const far = !factionRepOk && opinion < gates.opinionGate.min - 25
-  if (far) return null
+  const opGap = gates.opinionGate.min - opinion
+  const repGap = gates.factionRepGate.min - aeRep
 
-  const reasons: string[] = []
-  if (!factionRepOk) reasons.push(`AE声望 ${aeRep} → 需 ≥ ${gates.factionRepGate.min}`)
-  if (!opinionOk) reasons.push(`对方印象 ${Math.round(opinion)} → 需 ≥ ${gates.opinionGate.min}`)
+  // Hard-cutoff: both gates well below threshold — branch doesn't even
+  // surface, the NPC's not in a place to consider the conversation.
+  if (!gateOpen && opGap > 25) return null
 
-  const offerLabel = gateOpen
-    ? `提出邀请 · 付 ¥${gates.signingBonus}`
-    : '条件未达 · 不便邀请'
+  const t = dialogueText.branches.talkHire
+
+  // Whichever gate is closer to clearing drives the NPC's hesitation
+  // line — that's the path of least resistance the player can work on.
+  // Tier by gap size: the further the NPC is from saying yes, the more
+  // distant their language.
+  const hesitate = (): string => {
+    const closerIsOpinion = opGap <= repGap
+    const gap = closerIsOpinion ? opGap : repGap
+    const table = closerIsOpinion ? t.hesitateOpinion : t.hesitateFaction
+    if (gap > 20) return table.far
+    if (gap > 10) return table.medium
+    return table.near
+  }
+
+  const info = gateOpen
+    ? t.gateOpen.replace('{bonus}', String(gates.signingBonus))
+    : hesitate()
 
   const onAccept = () => {
-    if (!gateOpen) {
-      useUI.getState().showToast('对方还不太信任你 · 多打几次照面再来谈吧')
-      return
-    }
     const m = player.get(Money)
     if (!m || m.amount < gates.signingBonus) {
-      useUI.getState().showToast(`需要 ¥${gates.signingBonus} 签约金 · 钱不够`)
+      useUI.getState().showToast(t.toastNoMoney)
       return
     }
     playUi('ui.hr.accept')
@@ -102,42 +113,24 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
     }
 
     const ch = target.get(Character)
-    useUI.getState().showToast(`${ch?.name ?? '一名雇员'}已加入faction · 签约金 ¥${gates.signingBonus}`)
+    useUI.getState().showToast(t.toastAccepted.replace('{name}', ch?.name ?? '对方'))
     useUI.getState().setDialogNPC(null)
   }
 
-  const onDecline = () => {
-    playUi('ui.npc.farewell')
-    useUI.getState().setDialogNPC(null)
-  }
-
-  const intro = `签约金 ¥${gates.signingBonus} · ${
-    gateOpen
-      ? dialogueText.branches.talkHire.gateOpen
-      : dialogueText.branches.talkHire.gateClosed
-  }`
-
-  const info = gateOpen ? intro : `${intro}\n${reasons.join(' · ')}`
+  // When the gate is closed the player has no proposal to make — the
+  // NPC's line carries the rejection and the runner's 返回 button is
+  // the only way out. When open, a single diegetic "yes" leaf accepts;
+  // the signing-bonus amount is voiced inside the NPC's line, not as a
+  // separate label.
+  const children: DialogueNode[] = gateOpen
+    ? [{ id: 'accept', label: t.acceptLabel, closeOnEnter: true, onEnter: onAccept }]
+    : []
 
   return {
     id: 'talkHire',
     label: dialogueText.buttons.talkHire,
     info,
-    children: [
-      {
-        id: 'accept',
-        label: offerLabel,
-        enabled: gateOpen,
-        closeOnEnter: true,
-        onEnter: onAccept,
-      },
-      {
-        id: 'decline',
-        label: dialogueText.branches.talkHire.decline,
-        closeOnEnter: true,
-        onEnter: onDecline,
-      },
-    ],
+    children,
   }
 }
 

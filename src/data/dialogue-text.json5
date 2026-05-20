@@ -159,9 +159,30 @@
     },
     talkHire: {
       title: '邀请加入',
-      decline: '下次再说',
-      gateClosed: '对方还在观望',
-      gateOpen: '对方愿意听你说',
+      // NPC's spoken reply when at least one gate is open. The signing
+      // bonus is voiced diegetically inside the line — never surfaced as
+      // a separate "¥200" label. {bonus} is interpolated by the branch.
+      gateOpen: '"加入你那边？……行——你要是认真的，先付我一笔订金，{bonus}块算个心意，我就跟你走。"',
+      // Hesitation lines. The branch picks the gate closer to clearing
+      // (opinion vs. AE rep) and the tier by gap size — the tone tells
+      // the player both what's missing and roughly how far they are.
+      hesitateOpinion: {
+        far: '"……你这是哪儿来的？我们才说几句话呢。"',
+        medium: '"我们也就是认识——共事这种事，得让我再看看你这人。"',
+        near: '"你看着不差。可还差点意思——再多走动走动吧。"',
+      },
+      hesitateFaction: {
+        far: '"AE？我跟你们那边没什么打交道。这事谈不到我这儿。"',
+        medium: '"AE的名声我听过些。光是听过，我心里还没底。"',
+        near: '"AE这两年看着也算稳。可加入你们这步——我还没准备好。"',
+      },
+      // The player's "yes" button when gates are open. Diegetic —
+      // signing-bonus amount is already in the NPC's line above.
+      acceptLabel: '我是认真的',
+      // Diegetic feedback when the player accepts but can't pay.
+      toastNoMoney: '"……你这点钱不够订金。"',
+      // Diegetic completion toast. {name} interpolated.
+      toastAccepted: '{name} 接过订金——"成交。"',
     },
     // Phase 6.2.C1 + 6.2.C2 — AE ship sales rep (VB spaceport + Granada
     // drydock). Same panel shape; the SKU is picked by the rep's

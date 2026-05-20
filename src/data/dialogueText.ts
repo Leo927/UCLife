@@ -91,9 +91,12 @@ export interface DialogueText {
     }
     talkHire: {
       title: string
-      decline: string
-      gateClosed: string
       gateOpen: string
+      hesitateOpinion: { far: string; medium: string; near: string }
+      hesitateFaction: { far: string; medium: string; near: string }
+      acceptLabel: string
+      toastNoMoney: string
+      toastAccepted: string
     }
     hangarManager: {
       titleSuffix: string
