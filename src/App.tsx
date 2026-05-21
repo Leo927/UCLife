@@ -24,6 +24,7 @@ import { TransitionOverlay } from './ui/TransitionOverlay'
 import { NPCDialog } from './ui/NPCDialog'
 import { ManageFacilityDialog } from './ui/ManageFacilityDialog'
 import { CaptainsOfficePanel } from './ui/CaptainsOfficePanel'
+import { GateTerminalPanel } from './ui/GateTerminalPanel'
 import { CommPanelDialog } from './ui/CommPanelDialog'
 import { BrigPanel } from './ui/BrigPanel'
 import { FleetRosterPanel } from './ui/FleetRosterPanel'
@@ -70,6 +71,7 @@ export function App() {
       <NPCDialog />
       <ManageFacilityDialog />
       <CaptainsOfficePanel />
+      <GateTerminalPanel />
       <CommPanelDialog />
       <BrigPanel />
       <FleetRosterPanel />

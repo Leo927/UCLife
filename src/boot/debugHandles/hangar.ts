@@ -22,9 +22,10 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world, getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Action, Building, Character, EntityKey, Hangar, Job, Owner, Position, Workstation, Ship,
-  IsFlagshipMark, ShipStatSheet, ShipMarker, Interactable,
+  IsFlagshipMark, ShipStatSheet, ShipMarker, Interactable, GateSlot, GateKioskMark,
   type HangarSlotClass, type HangarTier, type ShipDeliveryRow, type SupplyKind,
 } from '../../ecs/traits'
+import { findShipByKey, shipOwnerLabel } from '../../systems/shipMarkers'
 import { worldConfig } from '../../config'
 import { hangarRepairSystem, describeHangarRepair } from '../../systems/hangarRepair'
 import {
@@ -362,6 +363,44 @@ registerDebugHandle('listShipsInFleet', () => {
     })
   }
   return out
+})
+
+// Snapshot of every persistent gate in a hangar scene, with the bound
+// ship resolved to its name + owner label. Smoke uses this to assert
+// that ship-docking flips a gate from VACANT to its ship's name.
+registerDebugHandle('listGates', (sceneId: string) => {
+  const w = getWorld(sceneId)
+  const tilePx = worldConfig.tilePx
+  const seen = new Map<string, {
+    gateNumber: string
+    slotClass: 'capital' | 'smallCraft'
+    boundShipKey: string
+    shipName: string
+    ownerLabel: string
+    kioskTile: { x: number; y: number } | null
+  }>()
+  for (const e of w.query(GateSlot, Position)) {
+    const slot = e.get(GateSlot)!
+    const p = e.get(Position)!
+    let row = seen.get(slot.gateNumber)
+    if (!row) {
+      const shipEnt = findShipByKey(slot.boundShipKey)
+      const ship = shipEnt?.get(Ship)
+      row = {
+        gateNumber: slot.gateNumber,
+        slotClass: slot.slotClass,
+        boundShipKey: slot.boundShipKey,
+        shipName: ship?.name ?? '',
+        ownerLabel: shipOwnerLabel(shipEnt),
+        kioskTile: null,
+      }
+      seen.set(slot.gateNumber, row)
+    }
+    if (e.has(GateKioskMark)) {
+      row.kioskTile = { x: p.x / tilePx, y: p.y / tilePx }
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => a.gateNumber.localeCompare(b.gateNumber))
 })
 
 // Phase 6.2.A — list ship markers currently mirrored into a scene's

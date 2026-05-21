@@ -52,6 +52,7 @@ import { recruitmentSystem } from '../systems/recruitment'
 import { supplyDrainSystem } from '../systems/supplyDrain'
 import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
+import { syncShipMarkers } from '../systems/shipMarkers'
 import { IsPlayer, ShipBody } from '../ecs/traits'
 import { testConfig } from './test-config'
 
@@ -143,6 +144,9 @@ export function advanceSimByGameMs(gameMs: number): void {
     const activeScene = getSceneConfig(getActiveSceneId())
     if (activeScene.sceneType === 'micro' && activeScene.replenishment) {
       populationSystem(world, useClock.getState().gameDate, activeScene.replenishment)
+    }
+    if (activeScene.sceneType === 'micro') {
+      syncShipMarkers(world, activeScene.id)
     }
     relationsSystem(world, useClock.getState().gameDate, minutesElapsed)
     ambitionsSystem(world, useClock.getState().gameDate)

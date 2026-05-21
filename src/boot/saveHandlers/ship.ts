@@ -23,14 +23,16 @@ import { getWorld, type SceneId } from '../../ecs/world'
 import {
   Ship, WeaponMount, EntityKey, IsFlagshipMark, IsInActiveFleet,
   ShipStatSheet, ShipEffectsList, FleetEscort, ShipBody, Position,
-  Velocity, Thrust,
+  Velocity, Thrust, Owner,
 } from '../../ecs/traits'
+import type { OwnerKind } from '../../ecs/traits'
 import { fleetConfig } from '../../config'
 import { attachShipStatSheet } from '../../ecs/shipEffects'
 import { serializeSheet, attachFormulas, type SerializedSheet } from '../../stats/sheet'
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { SHIP_STAT_IDS, SHIP_STAT_FORMULAS, type ShipStatId } from '../../stats/shipSchema'
 import { getShipClass } from '../../data/ship-classes'
+import { defaultShipName, noteRestoredShipName, resetShipNameCounters } from '../../data/shipNaming'
 import { reapplyCaptainEffectsOnRestore } from '../../systems/fleetCrew'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
@@ -76,6 +78,12 @@ interface ShipBlock {
   // Phase 6.2.G — mothball flag. Optional; pre-6.2.G saves load as
   // operational (mothballed=false), matching the trait default.
   mothballed?: boolean
+  // Per-instance ship name + owner kind. Optional — pre-rename-feature
+  // saves omit these; load re-derives the name from the class template
+  // and stamps a 'character' (player) Owner so the ship-as-player-owned
+  // invariant survives the round-trip.
+  name?: string
+  ownerKind?: OwnerKind
 }
 
 interface FleetBlock {
@@ -118,10 +126,13 @@ function snapshotFleet(): FleetBlock | undefined {
     }
     const statSheet = e.has(ShipStatSheet) ? serializeSheet(e.get(ShipStatSheet)!.sheet) : undefined
     const effects = e.has(ShipEffectsList) ? e.get(ShipEffectsList)!.list : undefined
+    const ownerKind = e.has(Owner) ? e.get(Owner)!.kind : 'character'
     ships.push({
       entityKey: key,
       templateId: s.templateId,
       isFlagship: e.has(IsFlagshipMark),
+      name: s.name,
+      ownerKind,
       hullCurrent: s.hullCurrent,
       armorCurrent: s.armorCurrent,
       fluxCurrent: s.fluxCurrent,
@@ -170,9 +181,15 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
   const newBlock = block as ShipBlock
   if (!shipEnt && newBlock.templateId) {
     const cls = getShipClass(newBlock.templateId)
+    // Persisted name wins; missing means a legacy/pre-name save — generate
+    // a fresh default so the runtime never carries an empty name.
+    const persistedName = newBlock.name && newBlock.name.length > 0
+      ? newBlock.name
+      : defaultShipName(cls)
     shipEnt = w.spawn(
       Ship({
         templateId: cls.id,
+        name: persistedName,
         hullCurrent: cls.hullMax, hullMax: cls.hullMax,
         armorCurrent: cls.armorMax, armorMax: cls.armorMax,
         fluxMax: cls.fluxMax, fluxCurrent: 0,
@@ -199,6 +216,7 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
         mothballed: false,
       }),
       EntityKey({ key: entityKey }),
+      Owner({ kind: (newBlock.ownerKind ?? 'character') as OwnerKind, entity: null }),
     )
     if (newBlock.isFlagship) shipEnt.add(IsFlagshipMark)
     attachShipStatSheet(shipEnt)
@@ -206,8 +224,27 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
   if (!shipEnt) return
   const cur = shipEnt.get(Ship)
   if (!cur) return
+  // Restore name + bump the in-process counter so a runtime spawn after
+  // load doesn't reuse the same serial. Legacy blocks without `name`
+  // keep whatever the entity was already carrying.
+  const restoredName = (block as ShipBlock).name
+  if (restoredName) {
+    const cls = getShipClass(cur.templateId)
+    noteRestoredShipName(cur.templateId, restoredName, cls.nameZh)
+  }
+  // Ensure Owner is present — flagship spawned by bootstrapShipScene
+  // may or may not carry one yet; this is the single restore-time
+  // re-stamp.
+  if (!shipEnt.has(Owner)) {
+    shipEnt.add(Owner)
+  }
+  shipEnt.set(Owner, {
+    kind: ((block as ShipBlock).ownerKind ?? 'character') as OwnerKind,
+    entity: null,
+  })
   shipEnt.set(Ship, {
     ...cur,
+    name: restoredName ?? cur.name,
     hullCurrent: block.hullCurrent,
     armorCurrent: block.armorCurrent,
     fluxCurrent: block.fluxCurrent,
@@ -334,6 +371,10 @@ registerSaveHandler<FleetBlock | LegacyShipBlock>({
   id: 'ship',
   snapshot: snapshotFleet,
   restore: restoreFleet,
-  // No reset — bootstrapShipScene already seeds defaults during
-  // resetWorld(). Missing block ⇒ defaults stand.
+  // Reset the per-process ship-name allocator so a New Game after a load
+  // re-starts the `#01` sequence; bootstrapShipScene re-runs after this
+  // and seeds the flagship at `#01`.
+  reset: () => {
+    resetShipNameCounters()
+  },
 })

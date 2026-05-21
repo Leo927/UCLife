@@ -51,8 +51,9 @@ import { getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   Workstation, Position, Building, Hangar, EntityKey, Ship, IsFlagshipMark,
   Character, IsPlayer, Money, ShipStatSheet, ShipEffectsList, IsInActiveFleet,
-  CombatShipState, FleetEscort,
+  CombatShipState, FleetEscort, Owner,
 } from '../../ecs/traits'
+import { defaultShipName } from '../../data/shipNaming'
 import { useUI } from '../../ui/uiStore'
 import { getShipClass } from '../../data/ship-classes'
 import { getPoi } from '../../data/pois'
@@ -561,6 +562,7 @@ registerDebugHandle('forceFillHangarSlots', (poiId: string, shipClassId: string,
     w.spawn(
       Ship({
         templateId: cls.id,
+        name: defaultShipName(cls),
         hullCurrent: cls.hullMax, hullMax: cls.hullMax,
         armorCurrent: cls.armorMax, armorMax: cls.armorMax,
         fluxMax: cls.fluxMax, fluxCurrent: 0,
@@ -578,6 +580,7 @@ registerDebugHandle('forceFillHangarSlots', (poiId: string, shipClassId: string,
         inCombat: false,
       }),
       EntityKey({ key }),
+      Owner({ kind: 'character', entity: null }),
     )
     out.push(key)
   }

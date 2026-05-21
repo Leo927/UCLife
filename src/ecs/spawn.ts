@@ -31,6 +31,7 @@ import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlace
 import { setTransitPlacement, clearTransitPlacements } from '../sim/transitPlacements'
 import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
 import { attachShipStatSheet } from './shipEffects'
+import { defaultShipName } from '../data/shipNaming'
 import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
@@ -1083,6 +1084,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   const flagship = world.spawn(
     Ship({
       templateId: cls.id,
+      name: defaultShipName(cls),
       hullCurrent: cls.hullMax, hullMax: cls.hullMax,
       armorCurrent: cls.armorMax, armorMax: cls.armorMax,
       fluxMax: cls.fluxMax, fluxCurrent: 0,
@@ -1111,6 +1113,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
     // enforces the constraint; the marker is the source of truth.
     IsInActiveFleet(),
     EntityKey({ key: 'ship' }),
+    Owner({ kind: 'character', entity: null }),
   )
   // Phase 6.2.B — project the class scalars into the per-ship StatSheet
   // and seed an empty ShipEffectsList. Save round-trip rebuilds the

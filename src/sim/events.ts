@@ -38,6 +38,11 @@ export interface SimEventPayloads {
   'ui:open-transit':           { terminalId: string }
   'ui:open-dialog-npc':        { entity: Entity }
   'ui:open-manage':            { building: Entity }
+  // Airport-style gate terminal in the drydock — opens GateTerminalPanel
+  // scoped to the ship currently bound to the gate. `shipKey` is the
+  // bound ship's stable EntityKey; the panel resolves it against the
+  // playerShipInterior world.
+  'ui:open-gate-terminal':     { gateNumber: string; shipKey: string }
   'ui:open-captains-office':   { reason: string }
   // Phase 6.2 — captain's-office comm-panel kiosk: officer face wall
   // + named-POW intel reveal. Per-prisoner verbs land at 6.2.5; the

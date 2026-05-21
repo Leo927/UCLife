@@ -11,11 +11,12 @@
 
 import type { Entity } from 'koota'
 import {
-  Building, Hangar, Ship, EntityKey,
+  Building, Hangar, Ship, EntityKey, Owner,
 } from '../ecs/traits'
 import type { ShipDeliveryRow } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getShipClass } from '../data/ship-classes'
+import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
 import { POIS } from '../data/pois'
 import { fleetConfig } from '../config'
@@ -97,6 +98,7 @@ export function spawnDeliveredShip(
   const ent = shipWorld.spawn(
     Ship({
       templateId: cls.id,
+      name: defaultShipName(cls),
       hullCurrent: cls.hullMax, hullMax: cls.hullMax,
       armorCurrent: cls.armorMax, armorMax: cls.armorMax,
       fluxMax: cls.fluxMax, fluxCurrent: 0,
@@ -122,6 +124,7 @@ export function spawnDeliveredShip(
       formationSlot: -1,
     }),
     EntityKey({ key }),
+    Owner({ kind: 'character', entity: null }),
   )
   attachShipStatSheet(ent)
   return { entity: ent, entityKey: key }

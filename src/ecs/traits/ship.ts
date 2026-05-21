@@ -31,6 +31,10 @@ import type { Effect } from '../../stats/effects'
 // captain's officer skill onto the ship's StatSheet via `eff:officer:...`.
 export const Ship = trait({
   templateId: '',
+  // Player-facing per-instance name; defaults to `${template.nameZh}-${seq}`
+  // at spawn so two same-class same-owner hulls stay distinguishable. The
+  // gate-terminal Rename tab writes this; sign rendering reads it.
+  name: '',
   hullCurrent: 0, hullMax: 0,
   armorMax: 0, armorCurrent: 0,
   fluxMax: 0, fluxCurrent: 0,

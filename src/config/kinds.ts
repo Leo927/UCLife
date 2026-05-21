@@ -36,6 +36,7 @@ export type InteractableKind =
   | 'brig'
   | 'warRoom'
   | 'climbIntoMs'
+  | 'gateTerminal'
 
 export type ActionKind =
   | 'idle' | 'walking' | 'eating' | 'sleeping' | 'washing'

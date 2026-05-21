@@ -41,7 +41,10 @@ import {
   Position, IsPlayer, Interactable, MoveTarget, QueuedInteract, QueuedTalk, Action,
   Vitals, Health, Building, Character, Bed, BarSeat, RoughSpot, Job, Workstation, Wall, Door, ChatLine,
   Active, Road, Appearance, ManageCell, Owner, TemplateRef,
+  GateSlot, GateSignMark,
 } from '../ecs/traits'
+import { findShipByKey, shipOwnerLabel } from '../systems/shipMarkers'
+import { Ship } from '../ecs/traits'
 import type { ObjectVisual } from '../data/objectTemplates'
 
 /**
@@ -575,6 +578,18 @@ function buildSnapshot(
       if (!owner || owner.kind !== 'character' || owner.entity !== playerEnt) continue
     }
     const rough = ent.get(RoughSpot)
+    const gateSlot = ent.get(GateSlot)
+    let gate: InteractableSnap['gate'] = undefined
+    if (gateSlot) {
+      const shipEnt = findShipByKey(gateSlot.boundShipKey)
+      const ship = shipEnt?.get(Ship)
+      gate = {
+        gateNumber: gateSlot.gateNumber,
+        shipName: ship?.name ?? '',
+        ownerLabel: shipOwnerLabel(shipEnt),
+        isSign: ent.has(GateSignMark),
+      }
+    }
     interactables.push({
       ent,
       x: pos.x, y: pos.y,
@@ -583,6 +598,7 @@ function buildSnapshot(
       fee: it.fee,
       benchOccupied: !!rough && rough.occupant !== null,
       visual: visualOf(ent),
+      gate,
     })
   }
 

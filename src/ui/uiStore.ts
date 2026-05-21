@@ -58,6 +58,10 @@ interface UIState {
   // captain's office "舰队名册" button. Standalone modal — closing it
   // returns to the captain's-office panel underneath.
   fleetRosterOpen: boolean
+  // Airport-style gate terminal — opened by pressing E on a gateTerminal
+  // interactable in the drydock. Carries the gate id and the bound ship's
+  // EntityKey so the panel can subscribe to the ship's traits directly.
+  gateTerminal: { gateNumber: string; shipKey: string } | null
   // Phase 6.2.E1 — war-room plot table on the flagship bridge. Opened
   // by walking onto the 'warRoom' interactable. Composition verb
   // surface: drag-and-drop tokens between the active grid + reserve
@@ -88,6 +92,7 @@ interface UIState {
   setCommPanel: (open: boolean) => void
   setBrigPanel: (open: boolean) => void
   setFleetRoster: (open: boolean) => void
+  openGateTerminal: (gate: { gateNumber: string; shipKey: string } | null) => void
   setWarRoom: (open: boolean) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
@@ -119,6 +124,7 @@ export const useUI = create<UIState>((set) => ({
   commPanelOpen: false,
   brigPanelOpen: false,
   fleetRosterOpen: false,
+  gateTerminal: null,
   warRoomOpen: false,
   combatTally: null,
   enlargedPortrait: null,
@@ -143,6 +149,7 @@ export const useUI = create<UIState>((set) => ({
   setCommPanel: (open) => set({ commPanelOpen: open }),
   setBrigPanel: (open) => set({ brigPanelOpen: open }),
   setFleetRoster: (open) => set({ fleetRosterOpen: open }),
+  openGateTerminal: (gate) => set({ gateTerminal: gate }),
   setWarRoom: (open) => set({ warRoomOpen: open }),
   setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),

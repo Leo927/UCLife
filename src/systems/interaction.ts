@@ -3,7 +3,7 @@ import type { Entity } from 'koota'
 import {
   Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
   Money, Character, Bed, BarSeat, Workstation, RoughUse, RoughSpot, Transit,
-  FlightHub, ManageCell, Owner, OrbitalLift, ShipMarker, EntityKey,
+  FlightHub, ManageCell, Owner, OrbitalLift, ShipMarker, EntityKey, GateSlot,
   type InteractableKind,
 } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
@@ -170,6 +170,16 @@ export function interactionSystem(world: World) {
     if (nearestKind === 'manage') {
       const building = nearestEnt?.get(ManageCell)?.building
       if (building) emitSim('ui:open-manage', { building })
+      continue
+    }
+    if (nearestKind === 'gateTerminal') {
+      const slot = nearestEnt?.get(GateSlot)
+      if (!slot) continue
+      if (!slot.boundShipKey) {
+        emitSim('toast', { textZh: `${slot.gateNumber} · 空泊位` })
+        continue
+      }
+      emitSim('ui:open-gate-terminal', { gateNumber: slot.gateNumber, shipKey: slot.boundShipKey })
       continue
     }
     if (nearestKind === 'boardShip') {

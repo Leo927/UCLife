@@ -62,6 +62,20 @@ export interface FleetConfig {
     npcPoolSize: number
     deliveryLeadDays: number
   }
+  // Ship-naming defaults. Generated names follow
+  // `${cls.nameZh} ${shipNamePrefix}${seq.padStart(shipNamePadDigits, '0')}`.
+  shipNamePrefix: string
+  shipNamePadDigits: number
+  // Per-gate tile-offset layout inside a hangar marker slot.
+  gateLayout: {
+    signOffsetTiles:     { x: number; y: number }
+    terminalOffsetTiles: { x: number; y: number }
+    boardOffsetTiles:    { x: number; y: number }
+  }
+  // Class-prefix used in gate ids: `${prefix}${1..N}` where N is the slot
+  // count for that class in hangarMarkerLayout.
+  gatePrefixCapital: string
+  gatePrefixSmallCraft: string
 }
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

@@ -290,4 +290,31 @@
     // to zero so the grant resolves in the same game day.
     deliveryLeadDays: 0,
   },
+
+  // ── Ship-naming defaults ───────────────────────────────────────────
+  //
+  // Generated names follow `${cls.nameZh} ${prefix}${seq.padStart(pad,'0')}`.
+  // Prefix is a serial sigil (#); pad keeps two-digit zero-padded serials
+  // through the typical fleet scale. Player-renamed ships skip this format.
+  shipNamePrefix: '#',
+  shipNamePadDigits: 2,
+
+  // ── Hangar gate layout ─────────────────────────────────────────────
+  //
+  // Each laid-out marker slot is rendered as an airport-style gate: a
+  // small kiosk where the player presses E to open the GateTerminalPanel,
+  // a sign tile above showing gate id + bound-ship name + owner, and a
+  // separate boarding portal a few tiles toward the bay where the ship
+  // would sit. Numbers are in tiles relative to each marker slot's anchor.
+  gateLayout: {
+    signOffsetTiles:     { x: 0, y: -2 },
+    terminalOffsetTiles: { x: 0, y:  0 },
+    boardOffsetTiles:    { x: 0, y:  2 },
+  },
+
+  // Gate numbering: capital gates use a "C" prefix, smallCraft use "S".
+  // Slot index within the class flows left-to-right, top-to-bottom across
+  // hangarMarkerLayout rows; e.g. drydock 4 capital slots → C1..C4.
+  gatePrefixCapital: 'C',
+  gatePrefixSmallCraft: 'S',
 }

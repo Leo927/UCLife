@@ -901,9 +901,27 @@ export class PixiGroundRenderer {
 
     const labelText = it.fee > 0 ? `${it.label} · ¥${it.fee}` : it.label
     const finalText = it.benchOccupied ? `${labelText} · 占用中` : labelText
-    if (node.label.text !== finalText) node.label.text = finalText
-    node.label.x = it.x
-    node.label.y = it.y + 18
+    if (it.gate?.isSign) {
+      // Hangar gate sign — three-line label centered over the rect:
+      //   line 1: Gate id (always visible, even when vacant)
+      //   line 2: bound ship name or '空泊位'
+      //   line 3: owner label or '—'
+      const line2 = it.gate.shipName || '空泊位'
+      const line3 = it.gate.ownerLabel || '—'
+      const signText = `${it.gate.gateNumber}\n${line2}\n${line3}`
+      if (node.label.text !== signText) node.label.text = signText
+      node.label.style.fontSize = 10
+      node.label.style.align = 'center'
+      node.label.anchor.set(0.5, 0.5)
+      node.label.x = it.x
+      node.label.y = it.y
+    } else {
+      if (node.label.style.fontSize !== 12) node.label.style.fontSize = 12
+      node.label.anchor.set(0.5, 0)
+      if (node.label.text !== finalText) node.label.text = finalText
+      node.label.x = it.x
+      node.label.y = it.y + 18
+    }
   }
 
   private syncNpcs(npcs: NpcSnap[], animTick: number, gameMs: number): void {

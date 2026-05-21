@@ -2,6 +2,7 @@ import json5 from 'json5'
 import minimalPlayerOnlyRaw from '../../tests/fixtures/minimal-player-only.json5?raw'
 import amuroAtRecruitOfficeRaw from '../../tests/fixtures/amuro-at-recruit-office.json5?raw'
 import playerWithCashAtVbRaw from '../../tests/fixtures/player-with-cash-at-vb.json5?raw'
+import gateAtDrydockRaw from '../../tests/fixtures/gate-at-drydock.json5?raw'
 import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { applyBackground } from '../character/backgrounds'
@@ -13,7 +14,8 @@ import { setSimNow } from '../sim/time'
 import { worldConfig, factionsConfig, skillsConfig, type SkillId as ConfigSkillId } from '../config'
 import { isSceneId } from '../data/scenes'
 import { isShipClassId, getShipClass } from '../data/ship-classes'
-import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { Ship, IsFlagshipMark, Owner } from '../ecs/traits'
+import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
 
 interface FixtureLocation {
@@ -80,6 +82,7 @@ const FIXTURES: Record<string, string> = {
   'minimal-player-only': minimalPlayerOnlyRaw,
   'amuro-at-recruit-office': amuroAtRecruitOfficeRaw,
   'player-with-cash-at-vb': playerWithCashAtVbRaw,
+  'gate-at-drydock': gateAtDrydockRaw,
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {
@@ -298,15 +301,35 @@ function applyFactions(name: string, fx: Fixture): void {
 function applyShips(name: string, fx: Fixture): void {
   if (!fx.ships) return
   const shipWorld = getWorld('playerShipInterior')
+
+  // Build a lookup of bootstrap-spawned ships so the fixture can adopt
+  // them by EntityKey rather than spawning duplicates. bootstrapShipScene
+  // always lands at least one entity (the default flagship with key='ship')
+  // and resetDeliveredShipCounter() is a no-op in test mode, so a fixture
+  // that declares `ships[].id === 'ship'` MUST reach in and rewrite that
+  // entity in place — otherwise IsFlagshipMark + EntityKey collide.
+  const existingByKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+  for (const e of shipWorld.query(Ship, EntityKey)) {
+    existingByKey.set(e.get(EntityKey)!.key, e)
+  }
+
   const seenIds = new Set<string>()
   for (let i = 0; i < fx.ships.length; i += 1) {
     const s = fx.ships[i]
     if (seenIds.has(s.id)) fail(name, `ships[${i}].id`, `duplicates ships[].id "${s.id}"`)
     seenIds.add(s.id)
     const cls = getShipClass(s.template)
-    const ship = shipWorld.spawn(
-      Ship({
+    let ship = existingByKey.get(s.id)
+    if (ship) {
+      // Adopt the bootstrap-spawned entity. Rewrite the Ship trait to
+      // match the fixture; the StatSheet / Owner already exist (the
+      // bootstrap stamps them) so we just overwrite the docked POI +
+      // name + template-derived stats.
+      const cur = ship.get(Ship)!
+      ship.set(Ship, {
+        ...cur,
         templateId: cls.id,
+        name: s.name ?? defaultShipName(cls),
         hullCurrent: cls.hullMax, hullMax: cls.hullMax,
         armorCurrent: cls.armorMax, armorMax: cls.armorMax,
         fluxMax: cls.fluxMax, fluxCurrent: 0,
@@ -324,11 +347,38 @@ function applyShips(name: string, fx: Fixture): void {
         dockedAtPoiId: s.dockedAt ?? '',
         fleetPos: { x: 0, y: 0 },
         inCombat: false,
-      }),
-      EntityKey({ key: s.id }),
-    )
-    attachShipStatSheet(ship)
-    if (i === 0) ship.add(IsFlagshipMark)
+      })
+      if (!ship.has(Owner)) ship.add(Owner)
+      ship.set(Owner, { kind: 'character', entity: null })
+    } else {
+      ship = shipWorld.spawn(
+        Ship({
+          templateId: cls.id,
+          name: s.name ?? defaultShipName(cls),
+          hullCurrent: cls.hullMax, hullMax: cls.hullMax,
+          armorCurrent: cls.armorMax, armorMax: cls.armorMax,
+          fluxMax: cls.fluxMax, fluxCurrent: 0,
+          fluxDissipation: cls.fluxDissipation,
+          hasShield: cls.hasShield,
+          shieldEfficiency: cls.shieldEfficiency,
+          topSpeed: cls.topSpeed,
+          accel: cls.accel,
+          decel: cls.decel,
+          angularAccel: cls.angularAccel,
+          maxAngVel: cls.maxAngVel,
+          crCurrent: cls.crMax, crMax: cls.crMax,
+          fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
+          suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
+          dockedAtPoiId: s.dockedAt ?? '',
+          fleetPos: { x: 0, y: 0 },
+          inCombat: false,
+        }),
+        EntityKey({ key: s.id }),
+        Owner({ kind: 'character', entity: null }),
+      )
+      attachShipStatSheet(ship)
+    }
+    if (i === 0 && !ship.has(IsFlagshipMark)) ship.add(IsFlagshipMark)
   }
 }
 

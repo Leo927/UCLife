@@ -67,6 +67,16 @@ export interface InteractableSnap {
   fee: number
   benchOccupied: boolean
   visual: ObjectVisual
+  // Hangar gate annotation. Present for entities tagged with GateSlot
+  // (sign tile + kiosk tile). `isSign=true` ⇒ the renderer overlays the
+  // three-line gate label on top of the rect; `isSign=false` ⇒ no
+  // overlay (the kiosk gets the standard interactable visual only).
+  gate?: {
+    gateNumber: string
+    shipName: string       // empty string = VACANT
+    ownerLabel: string     // '' for VACANT, '玩家' / '国营' / etc. otherwise
+    isSign: boolean
+  }
 }
 
 export interface NpcSnap {

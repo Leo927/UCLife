@@ -140,6 +140,28 @@ export const ShipMarker = trait({
   shipKey: '',
 })
 
+// Airport-style gate slot. Persisted in the hangar scene at a fixed tile
+// position; `boundShipKey` rotates as ships dock/undock at this POI.
+// The sign render and gate-terminal interaction both key off the bound
+// ship — empty string means a VACANT gate (no panel opens; sign labels
+// the slot as vacant). `gateNumber` is the player-facing label (e.g.
+// "C1", "S07"); `slotClass` lets layout code route ships of the matching
+// hangar slotClass into this gate.
+export const GateSlot = trait({
+  gateNumber: '',
+  slotClass: 'capital' as 'capital' | 'smallCraft',
+  boundShipKey: '',
+})
+
+// Side-role markers stamped on the three entities that make up a gate
+// triple. The kiosk is the player-interactable terminal; the sign is a
+// visual-only render with text overlay; the board portal is the tile the
+// player walks onto to enter the bound ship's interior. All three carry
+// the same GateSlot data so a single sync pass keeps them consistent.
+export const GateKioskMark = trait({})
+export const GateSignMark = trait({})
+export const GateBoardMark = trait({})
+
 export const Helm = trait({
   // An interact tile in playerShipInterior that, when pressed E, takes
   // helm. Slice 5 wires the actual interaction; this trait is the
