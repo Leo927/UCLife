@@ -217,6 +217,27 @@
       workstation: 'ae_ship_sales_granada',
     },
 
+    // === Phase 6.2.A.2 expansion — Granada drydock supply depot dealer ===
+    // Sits at the supplyDepot building's open-floor supervisor desk on the
+    // drydock concourse. Reuses specId 'ae_supply_dealer': koota gives each
+    // scene its own world, so this NPC links to the Granada depot's
+    // workstation while the VB AE Complex dealer links to its own — the
+    // sceneId filter in spawnSpecialNpcs processes each in its own scene.
+    // tileX/tileY sit inside the supplyDepot footprint (scene tile 48,11,
+    // size 6×4). The aeSupplyDealer dialog branch fires for either dealer.
+    {
+      name: '马科斯·雷耶斯',
+      color: '#0d9488',
+      title: 'AE 补给商务代表',
+      sceneId: 'granadaDrydock',
+      tileX: 51, tileY: 13,
+      fatigue: 14,
+      money: 8000,
+      skills: { mechanics: 900, computers: 1600 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_supply_dealer',
+    },
+
     // === Phase 6.2 — notable hostile captains ===
     // Virtual entries (no tileX/tileY); referenced by stable `id` from
     // src/data/space-entities.json5 `notableCaptains: { <slotIdx>: <id> }`.

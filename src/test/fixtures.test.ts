@@ -51,6 +51,16 @@ describe('applyFixture', () => {
     expect(player).not.toBeNull()
     expect(player!.get(Money)!.amount).toBe(200000)
   })
+
+  it('loads granada-station: player lands in the granadaDrydock concourse with cash', () => {
+    applyFixture('granada-station')
+    const player = getWorld('granadaDrydock').queryFirst(IsPlayer)
+    expect(player).not.toBeNull()
+    expect(player!.get(Money)!.amount).toBe(50000)
+    const pos = player!.get(Position)!
+    expect(pos.x).toBe(30 * TILE)
+    expect(pos.y).toBe(20 * TILE)
+  })
 })
 
 import { __registerInlineFixtureForTest } from './fixtures'

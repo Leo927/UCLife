@@ -417,6 +417,13 @@
     // scene runs its own replenishment loop so the worker pool keeps
     // topping up as crew rotate out. New arrivals walk out of the lift
     // and the BT find-job path seats them at empty hangar workstations.
+    //
+    // Mini-station expansion: the concourse hosts three service
+    // buildings (drydockBar, drydockClinic, supplyDepot) so the live-in
+    // crew have somewhere to drink, get patched up, and so the player
+    // can order hangar supply on-site. replenishment.target is unchanged
+    // — it tracks the job count (hangar + bar + clinic), not standing
+    // population; jobless NPCs can't survive.
     {
       id: 'granadaDrydock',
       titleZh: '格拉纳达 · 轨道船坞',
@@ -464,6 +471,51 @@
             shortZh: '轨道升降梯',
             kind: 'complex',
             description: '格拉纳达船坞群的轨道升降梯入口。乘梯直达冯·布劳恩月面市。',
+          },
+        },
+        // Concourse service row — the mini-station expansion. Three
+        // hand-placed service buildings line the open band between the
+        // lift (y=4..8) and the hangar's north wall (y=22): a crew bar
+        // and clinic on the west half, the AE supply depot on the east.
+        // All doors face south onto the walkable concourse. Coords stay
+        // clear of the lift, the hangar (x=14..46 / y=22..46), the
+        // replenishment arrival tile (30,10) and the ship-sales desk
+        // (30,16). bar/clinic auto-staff from the replenishment pool;
+        // the supply depot's AE dealer is a special NPC.
+        {
+          type: 'drydockBar',
+          tile: { x: 6, y: 11 },
+          door: { side: 's', offsetTiles: 4 },
+          display: {
+            id: 'granadaBar',
+            nameZh: '格拉纳达 · 船坞酒吧',
+            shortZh: '船坞酒吧',
+            kind: 'complex',
+            description: '船坞常驻机组的休憩场所——轮班工人和往来飞行员在这里喝一杯、放松一下。',
+          },
+        },
+        {
+          type: 'drydockClinic',
+          tile: { x: 38, y: 11 },
+          door: { side: 's', offsetTiles: 3 },
+          display: {
+            id: 'granadaClinic',
+            nameZh: '格拉纳达 · 船坞诊所',
+            shortZh: '船坞诊所',
+            kind: 'complex',
+            description: '为常驻船坞的机组提供诊断与基础治疗。当班医生全天候值守。',
+          },
+        },
+        {
+          type: 'supplyDepot',
+          tile: { x: 48, y: 11 },
+          door: { side: 's', offsetTiles: 3 },
+          display: {
+            id: 'granadaSupplyDepot',
+            nameZh: '格拉纳达 · 补给站',
+            shortZh: '补给站',
+            kind: 'complex',
+            description: '亚纳海姆电子在船坞区设立的补给与燃料分销点。可向驻场代表为机库订购补给。',
           },
         },
       ],

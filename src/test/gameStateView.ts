@@ -36,9 +36,15 @@ export interface DialogueView {
   getActiveOptionKeys(): string[]
 }
 
+export interface SceneBuildingView {
+  typeId: string
+  key: string
+}
+
 export interface SceneView {
   getId(): string
   getDimensions(): { tilesX: number; tilesY: number }
+  getBuildings(): SceneBuildingView[]
 }
 
 export interface GameStateView {
@@ -217,6 +223,17 @@ function makeSceneView(sceneId: string): SceneView {
     },
     getDimensions(): { tilesX: number; tilesY: number } {
       return getSceneDimensions(sceneId)
+    },
+    getBuildings(): SceneBuildingView[] {
+      const out: SceneBuildingView[] = []
+      for (const e of getWorld(sceneId).query(Building)) {
+        // Ship-interior rooms reuse the Building trait with an empty
+        // typeId (see traits/world.ts) — not listable buildings.
+        const typeId = e.get(Building)!.typeId
+        if (typeId === '') continue
+        out.push({ typeId, key: e.get(EntityKey)?.key ?? '' })
+      }
+      return out
     },
   }
 }

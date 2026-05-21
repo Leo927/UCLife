@@ -361,6 +361,52 @@
     },
   },
 
+  // ── DRYDOCK STATION FACILITIES ──────────────────────────────────────────
+
+  // Phase 6.2.A.2 expansion — service buildings for the Granada drydock
+  // concourse. The drydock scene has no procgen, so its facilities are
+  // hand-placed as fixedBuildings — which the scenes.ts validator only
+  // accepts for fixed-size { w, h } types. drydockBar / drydockClinic are
+  // fixed-size variants of the procgen-sized bar / clinic (identical
+  // open_floor layout + templates); supplyDepot is a small standalone
+  // shell for the AE supply-dealer kiosk that otherwise lives only inside
+  // the aeComplex crafted layout.
+
+  drydockBar: {
+    labelZh: '船坞酒吧',
+    size: { w: 8, h: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-bartender', role: 'supervisor' },
+        { template: 'bar-seat', role: 'customer_row', count: 5 },
+        { template: 'queue-point-bar', role: 'queue' },
+      ],
+    },
+  },
+
+  drydockClinic: {
+    labelZh: '船坞诊所',
+    size: { w: 6, h: 4 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-civilian-doctor', role: 'supervisor' },
+      ],
+    },
+  },
+
+  supplyDepot: {
+    labelZh: '补给站',
+    size: { w: 6, h: 4 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-ae-supply-dealer', role: 'supervisor' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.

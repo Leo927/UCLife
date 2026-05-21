@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { applyFixture, __registerInlineFixtureForTest } from './fixtures'
 import { getGameState } from './gameStateView'
 import { getWorld, SCENE_IDS } from '../ecs/world'
+import { Building, EntityKey } from '../ecs/traits'
 import { worldConfig } from '../config'
 
 const TILE = worldConfig.tilePx
@@ -79,6 +80,17 @@ describe('getGameState', () => {
     expect(scene.getId()).toBe('vonBraunCity')
     expect(scene.getDimensions().tilesX).toBeGreaterThan(0)
     expect(scene.getDimensions().tilesY).toBeGreaterThan(0)
+  })
+
+  it('SceneView.getBuildings lists Building entities in the active scene', () => {
+    applyFixture('minimal-player-only')
+    getWorld('vonBraunCity').spawn(
+      Building({ typeId: 'drydockBar' }),
+      EntityKey({ key: 'bld-test-bar' }),
+    )
+    const bar = getGameState().getScene().getBuildings().find((b) => b.typeId === 'drydockBar')
+    expect(bar, 'spawned drydockBar not surfaced by getBuildings()').toBeTruthy()
+    expect(bar!.key).toBe('bld-test-bar')
   })
 
   it('CharacterView.getHiredRole returns null when the NPC has no EmployedAsCrew', () => {

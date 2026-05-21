@@ -1,0 +1,18 @@
+// Player standing in the Granada drydock concourse — the mini-station
+// expansion smoke (drydockBar / drydockClinic / supplyDepot service
+// buildings + the AE supply-dealer special NPC).
+//
+// Player tile (30, 20) sits in the central concourse, south of the
+// orbital lift and north of the hangar's north door — open floor that
+// doesn't collide with any spawned building, worker, or kiosk. Noon
+// start so the AE supply dealer (shift 08:00–20:00) is on duty.
+{
+  seed: 'granada-station-001',
+  startDate: '2026-05-17T12:00:00Z',
+  scene: 'granadaDrydock',
+
+  player: {
+    money: 50000,
+    location: { scene: 'granadaDrydock', x: 30, y: 20 },
+  },
+}
