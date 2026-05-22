@@ -16,10 +16,15 @@
 //                  time, so this id is mainly a debug-handle key.
 //   labelZh      — full player-facing name (used by debug surfaces only at MVP).
 //   shortZh      — the Interactable label on the kiosk.
-//   sceneIdA / sceneIdB — the two endpoints. Validated against scenes.json5.
+//   sceneIdA / sceneIdB — the two endpoints. sceneIdA is the surface POI,
+//                  sceneIdB its orbital companion. Validated against scenes.json5.
 //   durationMin  — in-game minutes the ride costs; clock advances at midpoint.
-//   fare         — ¥ deducted up-front (consistent with flights / transit, so a
-//                  mid-transition cancel still reflects the commitment).
+//   fareUp       — ¥ deducted to depart sceneIdA → sceneIdB (surface → orbital).
+//   fareDown     — ¥ deducted to depart sceneIdB → sceneIdA (orbital → surface).
+//                  Fares are charged up-front (consistent with flights / transit,
+//                  so a mid-transition cancel still reflects the commitment). The
+//                  return leg is free so the player can never get stranded at the
+//                  orbital end for lack of cash.
 //   description  — long-form blurb the player-facing UI may surface later.
 
 {
@@ -31,7 +36,8 @@
       sceneIdA: 'vonBraunCity',
       sceneIdB: 'granadaDrydock',
       durationMin: 90,
-      fare: 500,
+      fareUp: 500,
+      fareDown: 0,
       description: 'AE 工业区中的轨道升降梯。乘梯直达格拉纳达船坞群。',
     },
   ],

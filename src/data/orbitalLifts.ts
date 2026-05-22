@@ -13,6 +13,7 @@ type SceneId = string
 // names the host scene as an endpoint and stamps the kiosk's OrbitalLift
 // trait with that liftId. Catalog only owns the (source, dest, duration,
 // fare) economics that are independent of the kiosk's tile placement.
+// fareUp gates sceneIdA → sceneIdB; fareDown gates sceneIdB → sceneIdA.
 export interface OrbitalLift {
   id: string
   labelZh: string
@@ -20,7 +21,8 @@ export interface OrbitalLift {
   sceneIdA: SceneId
   sceneIdB: SceneId
   durationMin: number
-  fare: number
+  fareUp: number
+  fareDown: number
   description?: string
 }
 
@@ -48,8 +50,11 @@ for (const l of parsed.lifts) {
   if (!Number.isFinite(l.durationMin) || l.durationMin < 0) {
     throw new Error(`orbital-lifts.json5: lift "${l.id}" durationMin must be a non-negative number`)
   }
-  if (!Number.isFinite(l.fare) || l.fare < 0) {
-    throw new Error(`orbital-lifts.json5: lift "${l.id}" fare must be a non-negative number`)
+  if (!Number.isFinite(l.fareUp) || l.fareUp < 0) {
+    throw new Error(`orbital-lifts.json5: lift "${l.id}" fareUp must be a non-negative number`)
+  }
+  if (!Number.isFinite(l.fareDown) || l.fareDown < 0) {
+    throw new Error(`orbital-lifts.json5: lift "${l.id}" fareDown must be a non-negative number`)
   }
 }
 
@@ -71,6 +76,15 @@ export function isOrbitalLiftId(id: string): boolean {
 export function liftOtherEndpoint(lift: OrbitalLift, fromSceneId: SceneId): SceneId | null {
   if (fromSceneId === lift.sceneIdA) return lift.sceneIdB
   if (fromSceneId === lift.sceneIdB) return lift.sceneIdA
+  return null
+}
+
+// Fare to depart `fromSceneId` on this lift — directional, since the orbital
+// (sceneIdB) end is free to leave so the player can never strand themselves
+// there for lack of cash. Returns null if the source isn't an endpoint.
+export function liftFareFrom(lift: OrbitalLift, fromSceneId: SceneId): number | null {
+  if (fromSceneId === lift.sceneIdA) return lift.fareUp
+  if (fromSceneId === lift.sceneIdB) return lift.fareDown
   return null
 }
 

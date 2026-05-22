@@ -6,7 +6,7 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, getActiveSceneId, type SceneId } from '../../ecs/world'
 import { IsPlayer, Money, OrbitalLift, Position } from '../../ecs/traits'
-import { getOrbitalLift, liftOtherEndpoint, orbitalLifts } from '../../data/orbitalLifts'
+import { getOrbitalLift, liftOtherEndpoint, liftFareFrom, orbitalLifts } from '../../data/orbitalLifts'
 import { useClock } from '../../sim/clock'
 import { migratePlayerToScene } from '../../sim/scene'
 import { worldConfig } from '../../config'
@@ -35,7 +35,7 @@ registerDebugHandle('listOrbitalLifts', (sceneIdOverride?: SceneId): OrbitalLift
       liftId: ol.liftId,
       sceneId,
       posTile: { x: Math.round(p.x / TILE), y: Math.round(p.y / TILE) },
-      fare: lift.fare,
+      fare: liftFareFrom(lift, sceneId) ?? 0,
       durationMin: lift.durationMin,
       destSceneId: liftOtherEndpoint(lift, sceneId),
     })
@@ -61,10 +61,11 @@ registerDebugHandle('runOrbitalLift', (liftId: string): SceneId | null => {
   const player = fromWorld.queryFirst(IsPlayer)
   if (!player) return null
 
-  if (lift.fare > 0) {
+  const fare = liftFareFrom(lift, fromSceneId) ?? 0
+  if (fare > 0) {
     const m = player.get(Money)
-    if (!m || m.amount < lift.fare) return null
-    player.set(Money, { amount: m.amount - lift.fare })
+    if (!m || m.amount < fare) return null
+    player.set(Money, { amount: m.amount - fare })
   }
 
   const destWorld = getWorld(destSceneId)

@@ -10,7 +10,8 @@ const FIXTURE = 'player-with-cash-at-vb'
 const LIFT_ID = 'vonBraunGranadaLift'
 const FROM_SCENE = 'vonBraunCity'
 const TO_SCENE = 'granadaDrydock'
-const LIFT_FARE = 500
+const FARE_UP = 500
+const FARE_DOWN = 0
 const LIFT_DURATION_MIN = 90
 const MS_PER_MINUTE = 60_000
 const DRYDOCK_TYPE_ID = 'hangarDrydock'
@@ -50,7 +51,8 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   expect(vbLift.sceneIdA).toBe(FROM_SCENE)
   expect(vbLift.sceneIdB).toBe(TO_SCENE)
   expect(vbLift.durationMin).toBe(LIFT_DURATION_MIN)
-  expect(vbLift.fare).toBe(LIFT_FARE)
+  expect(vbLift.fareUp).toBe(FARE_UP)
+  expect(vbLift.fareDown).toBe(FARE_DOWN)
 
   const vbKiosks = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,6 +61,7 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   )
   expect(vbKiosks.length).toBe(1)
   expect(vbKiosks[0].destSceneId).toBe(TO_SCENE)
+  expect(vbKiosks[0].fare, 'VB → Granada (up) leg must charge the up fare').toBe(FARE_UP)
 
   const granadaKiosks = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +70,7 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   )
   expect(granadaKiosks.length).toBe(1)
   expect(granadaKiosks[0].destSceneId).toBe(FROM_SCENE)
+  expect(granadaKiosks[0].fare, 'Granada → VB (down) leg must be free so the player cannot strand').toBe(FARE_DOWN)
 
   // 2. Capture pre-transit state.
   const pre = await sim.page.evaluate(() => {
@@ -98,7 +102,7 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   })
 
   expect(post.sceneId).toBe(TO_SCENE)
-  expect(pre.money - post.money).toBe(LIFT_FARE)
+  expect(pre.money - post.money).toBe(FARE_UP)
   expect(post.clockMs - pre.clockMs).toBe(LIFT_DURATION_MIN * MS_PER_MINUTE)
 
   // 4. listHangars in Granada returns the drydock.

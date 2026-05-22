@@ -25,7 +25,7 @@ import { getActiveSceneId, getWorld } from '../ecs/world'
 import { getPoi } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
-import { getOrbitalLift, liftOtherEndpoint } from '../data/orbitalLifts'
+import { getOrbitalLift, liftOtherEndpoint, liftFareFrom } from '../data/orbitalLifts'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
@@ -143,7 +143,7 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '升降梯目的地异常' })
         continue
       }
-      const fare = lift.fare
+      const fare = liftFareFrom(lift, fromSceneId) ?? 0
       const m = player.get(Money)
       if (fare > 0 && (!m || m.amount < fare)) {
         emitSim('toast', { textZh: `金钱不足 · 需 ¥${fare}` })

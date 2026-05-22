@@ -20,7 +20,7 @@ import {
   type BarSeatTemplate, type InteractableTemplate,
 } from '../data/objectTemplates'
 import { getHangarFacilityType } from '../data/facilityTypes'
-import { liftsForScene } from '../data/orbitalLifts'
+import { liftsForScene, liftFareFrom } from '../data/orbitalLifts'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass } from '../data/ship-classes'
@@ -781,7 +781,7 @@ function spawnLiftBuilding(slot: PlacedSlot, sceneId: SceneId): void {
 
   world.spawn(
     Position({ x: kx, y: ky }),
-    Interactable({ kind: 'orbitalLift', label: lift.shortZh, fee: lift.fare }),
+    Interactable({ kind: 'orbitalLift', label: lift.shortZh, fee: liftFareFrom(lift, sceneId) ?? 0 }),
     OrbitalLift({ liftId: lift.id }),
     EntityKey({ key: `orbital-lift-${lift.id}-${sceneId}` }),
     TemplateRef({ id: 'orbital-lift-kiosk' }),
