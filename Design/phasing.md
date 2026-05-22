@@ -25,6 +25,37 @@
 | **7. War event** | UC 0079.01.03 hits; world state shift; factions go hostile; Von Braun changes; `warPayoff` routes resolve the most-progressed ambition. Civilian-war content (newsfeed wartime mode, conscription, refugees, departing friends), real cockpit combat for the pilot path, wartime faction management, hostile expeditions vs player colonies. See [combat.md](combat.md) for the full structural design. | The prologue payoff |
 | **8. LLM dialogue + intent** | Persona-cached Claude prompts for dialogue and proposed actions | "Talking to NPCs feels alive" |
 
+## NPC transit navigation & drydock relocation
+
+Cross-cutting work; lands any time in the current era. Lets NPCs travel the world the way the player does — a Centro resident commutes to an AE-block job, an off-duty worker rides the lift to the drydock bar — by routing through transit terminals and the orbital lift, not just walking.
+
+**Why this shape.** Von Braun's central district and AE Industrial District are already one koota world (`vonBraunCity`), walkably connected — just far apart, with reserved empty space between them. So Centro↔AE NPC movement is already intra-map; it only needs the navigation layer to treat transit as a routing option. The Granada drydock is the one piece that is a separate scene today; folding it into the `vonBraunCity` world — as a spatially disconnected, player-hidden region reached only by the lift — keeps its NPCs on the same sim loop (Tier A/B applies, no off-map simulation) while the fiction that it is an orbital facility elsewhere still holds.
+
+**Out of scope.** Cross-*city* NPC migration (e.g. Von Braun ↔ Side 3). Cities that need a shuttle stay separate scenes; `zumCity` NPCs are not simulated while off-map — accepted, since city migration is not a goal. (This supersedes the earlier off-map-simulation plan.)
+
+### Step 1 — Transitable navigation
+
+NPC pathfinding can route through transit terminals and the orbital lift.
+
+- Model transit-terminal pairs and lift-kiosk pairs as **NPC-only** navigation edges over the HPA* graph, so an NPC pathfind whose destination is far — or in a different walkable component — can return a route that traverses one. Edge cost is low, so NPCs pick transit for long hauls and *require* it for disconnected regions (the drydock).
+- **These edges are excluded from the player's foot-pathfinding.** Otherwise click-to-move would route the player through a low-cost transit edge and teleport them across for free, bypassing the fare. The player traverses transit only via the existing fare-gated kiosk interaction (click kiosk → pay → ride); NPCs traverse free through pathfinding. The fee asymmetry is invisible — the player never sees an NPC's wallet.
+- An NPC executes a transit edge diegetically: walk to kiosk A → traverse → continue from kiosk B (MVP: instant teleport at the kiosk; an in-transit delay is later polish).
+- Perf: transit edges add O(terminal-pairs) nodes — negligible; per-tick cost and pathfind frequency unchanged.
+
+*Acceptance:* a fixture NPC with a destination across a transit edge walks to the kiosk, traverses, and arrives; a second fixture confirms the player's click-to-move never auto-routes through a transit edge — the fare gate holds.
+
+### Step 2 — Drydock relocation
+
+Move `granadaDrydock` into the `vonBraunCity` world as a disconnected, hidden region. Requires Step 1.
+
+- Expand the `vonBraunCity` envelope to host the drydock rect; relocate its fixed buildings (hangar, bar, clinic, supply depot, lift kiosk) into that region. It is its own walkable component — no road or walkable tile connects it to the city.
+- Re-wire the orbital lift as a same-world transit edge (Step 1) — the only way in or out. It keeps the fare + clock-advance.
+- Hide it: MapPanel does not render the drydock rect or its district/building markers, and city camera bounds exclude it. The drydock is reachable only via its dedicated lift kiosk, never listed on the general transit network. The player experiences it only after riding the lift.
+- Per-region replenishment: the drydock keeps its own NPC target + arrival tile, distinct from the city's — the `vonBraunCity` scene config grows to express a second replenishment region.
+- Delete the obsoleted `granadaDrydock` scene, the cross-scene orbital-lift path (`runOrbitalLift` migration, `orbital-lifts.json5` cross-scene wiring) and any now-dead serializers — no stale code.
+
+*Acceptance:* the player rides the lift and arrives at the drydock; drydock NPCs tick on the `vonBraunCity` loop; the drydock is absent from the city map view; an NPC routes from the city to the drydock bar via the lift.
+
 ## Open / deferred
 
 - Permadeath UX (unlock in Phase 4)
