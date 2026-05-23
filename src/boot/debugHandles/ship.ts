@@ -5,14 +5,18 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld } from '../../ecs/world'
-import { IsPlayer, Position, Course } from '../../ecs/traits'
-import { boardShip, disembarkShip } from '../../sim/scene'
+import {
+  IsPlayer, Position, Course,
+  ShipRoom, Building, WeaponMount,
+} from '../../ecs/traits'
+import { boardShip, boardShipByKey, disembarkShip } from '../../sim/scene'
 import { getShipState, refillFuelAndSupplies } from '../../sim/ship'
 import { takeHelm } from '../../sim/helm'
 import { spaceSimSystem } from '../../systems/spaceSim'
 import { useDebug } from '../../debug/store'
 
 registerDebugHandle('boardShip', boardShip)
+registerDebugHandle('boardShipByKey', boardShipByKey)
 registerDebugHandle('disembarkShip', disembarkShip)
 registerDebugHandle('getShipState', getShipState)
 
@@ -57,4 +61,21 @@ registerDebugHandle('setInfiniteFuelSupply', (enabled: boolean = true) => {
   useDebug.getState().setInfiniteFuelSupply(enabled)
   if (enabled) refillFuelAndSupplies()
   return enabled
+})
+
+// Snapshot of the ship-interior scene's class-specific layout. Used by
+// the drydock-boarding smoke to assert that a flagship-switch reseeds
+// rooms / mounts from the new ship class authoring (e.g. Pegasus brings
+// warRoom + brig rooms and 6 mounts; lightFreighter brings neither).
+registerDebugHandle('shipSceneLayoutSnapshot', () => {
+  const w = getWorld('playerShipInterior')
+  const roomIds: string[] = []
+  for (const e of w.query(ShipRoom)) {
+    roomIds.push(e.get(ShipRoom)!.roomDefId)
+  }
+  return {
+    roomIds: roomIds.slice().sort(),
+    mountCount: Array.from(w.query(WeaponMount)).length,
+    roomBuildings: Array.from(w.query(Building, ShipRoom)).length,
+  }
 })

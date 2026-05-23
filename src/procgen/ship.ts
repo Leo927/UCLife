@@ -1,4 +1,4 @@
-import { world } from '../ecs/world'
+import type { World } from 'koota'
 import { Wall, Door, Position, TemplateRef } from '../ecs/traits'
 import { worldConfig } from '../config'
 import type { ShipClassDef, ShipRoomDef, ShipDoorDef, DoorSide } from '../data/ship-classes'
@@ -19,7 +19,7 @@ type PlannedDoor = {
   orient: 'h' | 'v'
 }
 
-export function layoutShipInterior(cls: ShipClassDef): void {
+export function layoutShipInterior(cls: ShipClassDef, world: World): void {
   const TILE = worldConfig.tilePx
   const WALL_T = worldConfig.wallThicknessPx
 

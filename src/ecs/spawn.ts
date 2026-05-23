@@ -1,4 +1,4 @@
-import type { Entity } from 'koota'
+import type { Entity, World } from 'koota'
 import { world, setActiveSceneId, getWorld, SCENE_IDS, type SceneId } from './world'
 import {
   scenes, initialSceneId,
@@ -23,7 +23,7 @@ import { getHangarFacilityType } from '../data/facilityTypes'
 import { liftsForScene, liftFareFrom } from '../data/orbitalLifts'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
-import { getShipClass } from '../data/ship-classes'
+import { getShipClass, type ShipClassDef } from '../data/ship-classes'
 import { getWeapon } from '../data/weapons'
 import { transitTerminals } from '../data/transit'
 import { flightHubs } from '../data/flights'
@@ -1121,12 +1121,26 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   // shipEffects.ts).
   attachShipStatSheet(flagship)
 
+  seedShipSceneLayout(cls, getWorld(SHIP_SCENE_ID))
+}
+
+const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
+
+// Class-specific layout for the ship-interior scene: rooms, walls/doors,
+// weapon mounts, and per-room kiosks. Idempotent only on a torn-down
+// world — call `tearDownShipSceneLayout` first if the scene already
+// carries another class's layout.
+//
+// Used at boot by `bootstrapShipScene` and at runtime by the flagship-
+// switch flow in `src/sim/scene.ts` (boarding a different player-owned
+// ship swaps the interior to that ship's class).
+export function seedShipSceneLayout(cls: ShipClassDef, targetWorld: World): void {
   for (const room of cls.rooms) {
     const px = room.bounds.x * TILE
     const py = room.bounds.y * TILE
     const pw = room.bounds.w * TILE
     const ph = room.bounds.h * TILE
-    world.spawn(
+    targetWorld.spawn(
       Position({ x: px + pw / 2, y: py + ph / 2 }),
       Building({ x: px, y: py, w: pw, h: ph, label: room.nameZh }),
       ShipRoom({ roomDefId: room.id }),
@@ -1135,14 +1149,14 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
     )
   }
 
-  layoutShipInterior(cls)
-  markPathfindingDirty()
+  layoutShipInterior(cls, targetWorld)
+  markPathfindingDirty(SHIP_SCENE_ID)
 
   for (const m of cls.mounts) {
     const wid = cls.defaultWeapons[m.idx] ?? ''
     // Default targetIdx is 0 (first hostile in the EnemyShipState array);
     // tactical UI lets the player retarget.
-    world.spawn(
+    targetWorld.spawn(
       WeaponMount({
         mountIdx: m.idx,
         weaponId: wid,
@@ -1168,7 +1182,7 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       const dx = (k.offset?.dx ?? 0) * TILE
       const dy = (k.offset?.dy ?? 0) * TILE
       const templateId = shipKioskTemplateFor(k.kind)
-      world.spawn(
+      targetWorld.spawn(
         Position({ x: cx + dx, y: cy + dy }),
         Interactable({ kind: k.kind, label: k.label, fee: 0 }),
         EntityKey({ key: `ship-kiosk-${room.id}-${i}` }),
@@ -1176,6 +1190,24 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       )
     })
   }
+}
+
+// Inverse of `seedShipSceneLayout` — destroys every class-specific entity
+// in the ship-interior scene (rooms, walls, doors, weapon mounts, and
+// kiosks) while leaving per-ship instance state (Ship, ShipStatSheet,
+// ShipEffectsList, EntityKey, Owner, IsFlagshipMark) untouched. Used by
+// the flagship-switch flow before seeding a new class's layout.
+export function tearDownShipSceneLayout(targetWorld: World): void {
+  const doomed: Entity[] = []
+  for (const ent of targetWorld.query(ShipRoom)) doomed.push(ent)
+  for (const ent of targetWorld.query(Wall)) doomed.push(ent)
+  for (const ent of targetWorld.query(Door)) doomed.push(ent)
+  for (const ent of targetWorld.query(WeaponMount)) doomed.push(ent)
+  for (const ent of targetWorld.query(Interactable, EntityKey)) {
+    const k = ent.get(EntityKey)!.key
+    if (k.startsWith('ship-kiosk-')) doomed.push(ent)
+  }
+  for (const ent of doomed) ent.destroy()
 }
 
 // Ship-room interactable kinds and their authored object-templates.

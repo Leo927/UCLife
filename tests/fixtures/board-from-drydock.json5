@@ -1,0 +1,37 @@
+// Player standing in the Granada drydock concourse with two player-owned
+// ships in the fleet: the bootstrap flagship (lightFreighter) parked back
+// at Von Braun, and a Pegasus-class capital docked at this drydock. Drives
+// the drydock-boarding smoke — after syncShipMarkers binds the Pegasus to
+// a capital gate, the test calls boardShipByKey on the Pegasus, expects
+// the flagship marker to migrate and the interior to rebuild with the
+// Pegasus layout.
+//
+// Player tile (30, 20) sits inside the drydock concourse — open floor
+// south of the orbital lift, north of the hangar's north door.
+{
+  seed: 'board-drydock-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'granadaDrydock',
+
+  player: {
+    money: 50000,
+    location: { scene: 'granadaDrydock', x: 30, y: 20 },
+  },
+
+  ships: [
+    {
+      // First entry = flagship (applyShips marks i===0 with IsFlagshipMark).
+      id: 'ship',
+      template: 'lightFreighter',
+      name: '自由号',
+      dockedAt: 'vonBraun',
+    },
+    {
+      // Non-flagship player-owned Pegasus docked at this drydock.
+      id: 'pegasus-1',
+      template: 'pegasusClass',
+      name: '飞马号',
+      dockedAt: 'granada',
+    },
+  ],
+}

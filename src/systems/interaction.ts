@@ -16,7 +16,7 @@ import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
 import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
 import { Flags, Ship, IsFlagshipMark } from '../ecs/traits'
-import { boardShip, disembarkShip, migratePlayerToScene } from '../sim/scene'
+import { boardShip, boardShipByKey, disembarkShip, migratePlayerToScene } from '../sim/scene'
 import { getShipClass } from '../data/ship-classes'
 import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
@@ -189,7 +189,20 @@ export function interactionSystem(world: World) {
         continue
       }
       if (getActiveSceneId() === 'playerShipInterior') continue
-      runTransition({ midpoint: () => boardShip() })
+      // Gate booths carry a ShipMarker pointing at the bound ship; the
+      // legacy airport board kiosk has no marker and boards the current
+      // flagship via the unparameterized helper.
+      const targetKey = nearestEnt?.get(ShipMarker)?.shipKey ?? ''
+      if (targetKey) {
+        runTransition({
+          midpoint: () => {
+            const r = boardShipByKey(targetKey)
+            if (!r.ok) emitSim('toast', { textZh: r.reasonZh })
+          },
+        })
+      } else {
+        runTransition({ midpoint: () => boardShip() })
+      }
       continue
     }
     if (nearestKind === 'inspectShip') {

@@ -98,9 +98,9 @@ function gateNumberFor(slotClass: LaidOutSlotClass, indexInClass: number): strin
   return `${prefix}${indexInClass + 1}`
 }
 
-function boardTemplateId(slotClass: HangarSlotClass, isFlagship: boolean): string {
+function boardTemplateId(slotClass: HangarSlotClass, playerOwned: boolean): string {
   const tier = slotClass === 'capital' ? 'capital' : 'smallcraft'
-  return isFlagship
+  return playerOwned
     ? `gate-board-flagship-${tier}`
     : `gate-board-${tier}`
 }
@@ -181,6 +181,7 @@ interface ExpectedShip {
   ent: Entity
   shipKey: string
   isFlagship: boolean
+  playerOwned: boolean
   templateId: string
   slotClass: HangarSlotClass
   laidOutClass: LaidOutSlotClass
@@ -193,10 +194,12 @@ function expectedDockedShips(poiId: string): ExpectedShip[] {
     const s = ent.get(Ship)!
     if (s.dockedAtPoiId !== poiId) continue
     const cls = getShipClass(s.templateId)
+    const owner = ent.get(Owner)
     out.push({
       ent,
       shipKey: ent.get(EntityKey)!.key,
       isFlagship: ent.has(IsFlagshipMark),
+      playerOwned: owner?.kind === 'character',
       templateId: s.templateId,
       slotClass: cls.hangarSlotClass,
       laidOutClass: layoutClassFor(cls.hangarSlotClass),
@@ -249,10 +252,10 @@ function applyBoardPortal(
     return
   }
   const cls = getShipClass(info.templateId)
-  const tplId = boardTemplateId(info.slotClass, info.isFlagship)
+  const tplId = boardTemplateId(info.slotClass, info.playerOwned)
   if (!board.has(Interactable)) board.add(Interactable)
   board.set(Interactable, {
-    kind: info.isFlagship ? 'boardShip' : 'inspectShip',
+    kind: info.playerOwned ? 'boardShip' : 'inspectShip',
     label: cls.nameZh,
     fee: 0,
   })
@@ -317,9 +320,10 @@ export function syncShipMarkers(world: World, sceneId: string): void {
     applyBoardPortal(triple, ship)
   }
 
-  // Refresh board portal art for sticky bindings (handles the case where
-  // a ship's flagship-marker flipped while the binding stayed put — e.g.
-  // post-switch-flagship in the future).
+  // Refresh board portal art for sticky bindings — covers the case where
+  // a ship's flagship-marker or ownership flipped while the binding stayed
+  // put (e.g. post-switch-flagship, or a faction ship newly delivered into
+  // player ownership).
   for (const ship of expected) {
     const triple = stickyByClass[ship.laidOutClass].get(ship.shipKey)
     if (!triple) continue

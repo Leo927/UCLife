@@ -4,6 +4,7 @@ import amuroAtRecruitOfficeRaw from '../../tests/fixtures/amuro-at-recruit-offic
 import playerWithCashAtVbRaw from '../../tests/fixtures/player-with-cash-at-vb.json5?raw'
 import gateAtDrydockRaw from '../../tests/fixtures/gate-at-drydock.json5?raw'
 import granadaStationRaw from '../../tests/fixtures/granada-station.json5?raw'
+import boardFromDrydockRaw from '../../tests/fixtures/board-from-drydock.json5?raw'
 import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { applyBackground } from '../character/backgrounds'
@@ -85,6 +86,7 @@ const FIXTURES: Record<string, string> = {
   'player-with-cash-at-vb': playerWithCashAtVbRaw,
   'gate-at-drydock': gateAtDrydockRaw,
   'granada-station': granadaStationRaw,
+  'board-from-drydock': boardFromDrydockRaw,
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {
