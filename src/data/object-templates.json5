@@ -131,8 +131,14 @@
     // small so a fully-stocked drydock reads at the gate level, not the
     // ship-silhouette level.
     'gate-kiosk':                  { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '终端',   visual: { w: 28, h: 28, fill: 0x1c1f2b, stroke: 0x60a5fa } },
+    // Wide horizontal signs sit above a kiosk in the floor-grid layout
+    // (surface hangars) so they read as airport-style overhead boards.
     'gate-sign-smallcraft':        { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '指示牌', visual: { w: 96, h: 28, fill: 0x111827, stroke: 0x60a5fa } },
     'gate-sign-capital':           { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '指示牌', visual: { w: 144, h: 28, fill: 0x0b1220, stroke: 0x93c5fd } },
+    // Narrow vertical signs sit between booths in the wall-concourse
+    // layout (drydock hangars) so adjacent gates don't visually overlap.
+    'gate-sign-wall-smallcraft':   { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '指示牌', visual: { w: 32, h: 48, fill: 0x111827, stroke: 0x60a5fa } },
+    'gate-sign-wall-capital':      { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '指示牌', visual: { w: 36, h: 56, fill: 0x0b1220, stroke: 0x93c5fd } },
     'gate-board-smallcraft':       { kind: 'interactable', interactableKind: 'inspectShip',  labelZh: '舰艇',   visual: { w: 40, h: 40, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
     'gate-board-flagship-smallcraft': { kind: 'interactable', interactableKind: 'boardShip', labelZh: '旗舰',   visual: { w: 40, h: 40, fill: 0x172554, stroke: 0xfbbf24 } },
     'gate-board-capital':          { kind: 'interactable', interactableKind: 'inspectShip',  labelZh: '战舰',   visual: { w: 56, h: 56, fill: 0x1e3a8a, stroke: 0x93c5fd } },

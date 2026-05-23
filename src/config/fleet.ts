@@ -15,12 +15,15 @@ export interface FleetConfig {
   fuelDeliveryDays: number
   secretaryBulkOrderMarkup: number
   secretaryBulkOrderDeliveryDays: number
-  // Phase 6.2.A — per-slotClass docked-ship marker layout inside a hangar.
-  hangarMarkerLayout: Record<'capital' | 'smallCraft', {
-    rowOffsetsTiles: number[]
-    strideTiles: number
-    startTileX: number
-  }>
+  // Phase 6.2.A — docked-ship gate layout, dispatched per hangar tier.
+  // Surface hangars use a `floor` grid (rows × cols inside the building);
+  // drydock hangars use a `wall` column (one external booth column per
+  // class, anchored to the building's west or east wall). See fleet.json5
+  // for rationale and the offset semantics.
+  hangarMarkerLayout: {
+    surface: Partial<Record<'capital' | 'smallCraft', FloorGateLayout>>
+    drydock: Partial<Record<'capital' | 'smallCraft', WallGateLayout>>
+  }
   // Phase 6.2.C1 — ship-delivery lead times + AE VB sales-desk tile.
   delivery: {
     lightHull: number
@@ -66,16 +69,32 @@ export interface FleetConfig {
   // `${cls.nameZh} ${shipNamePrefix}${seq.padStart(shipNamePadDigits, '0')}`.
   shipNamePrefix: string
   shipNamePadDigits: number
-  // Per-gate tile-offset layout inside a hangar marker slot.
-  gateLayout: {
-    signOffsetTiles:     { x: number; y: number }
-    terminalOffsetTiles: { x: number; y: number }
-    boardOffsetTiles:    { x: number; y: number }
-  }
   // Class-prefix used in gate ids: `${prefix}${1..N}` where N is the slot
   // count for that class in hangarMarkerLayout.
   gatePrefixCapital: string
   gatePrefixSmallCraft: string
 }
+
+interface BoothShape {
+  signTemplate:        string
+  signOffsetTiles:     { x: number; y: number }
+  terminalOffsetTiles: { x: number; y: number }
+  boardOffsetTiles:    { x: number; y: number }
+}
+
+export interface FloorGateLayout extends BoothShape {
+  placement: 'floor'
+  rowOffsetsTiles: number[]
+  strideTiles: number
+  startTileX: number
+}
+
+export interface WallGateLayout extends BoothShape {
+  placement: 'wall'
+  side: 'w' | 'e'
+  rowOffsetsTiles: number[]
+}
+
+export type GateLayout = FloorGateLayout | WallGateLayout
 
 export const fleetConfig = json5.parse(raw) as FleetConfig

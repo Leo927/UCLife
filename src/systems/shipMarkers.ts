@@ -4,6 +4,11 @@
 // the first vacant gate of their hangarSlotClass; the sign reads the
 // bound ship's name + owner, and the boarding portal is only enabled
 // while a ship is bound. Vacant gates stay rendered (sign reads VACANT).
+//
+// Surface hangars host MS / smallCraft inside the open floor, so their
+// gates lay out as a grid inside the building. Drydock hangars dock
+// capital tonnage in orbit outside the building, so their gates flank
+// the building's west / east walls as external concourse booths.
 
 import type { World, Entity, TraitInstance } from 'koota'
 import {
@@ -14,8 +19,9 @@ import {
 import { getWorld } from '../ecs/world'
 import { poiIdForHangarScene } from './shipDelivery'
 import { getShipClass } from '../data/ship-classes'
-import type { HangarSlotClass } from '../data/facilityTypes'
+import type { HangarSlotClass, HangarTier } from '../data/facilityTypes'
 import { worldConfig, fleetConfig } from '../config'
+import type { FloorGateLayout, WallGateLayout, GateLayout } from '../config/fleet'
 
 const TILE = worldConfig.tilePx
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -31,16 +37,15 @@ interface MarkerSlot {
   y: number
 }
 
-function hangarMarkerSlots(
+function floorSlots(
   building: { x: number; y: number; w: number; h: number },
-  laidOutClass: LaidOutSlotClass,
+  layout: FloorGateLayout,
 ): MarkerSlot[] {
-  const layout = fleetConfig.hangarMarkerLayout[laidOutClass]
-  const slots: MarkerSlot[] = []
   const widthTiles = building.w / TILE
   const availableTiles = widthTiles - layout.startTileX * 2
   const cols = Math.max(1, Math.floor(availableTiles / layout.strideTiles) + 1)
   const startX = building.x + layout.startTileX * TILE
+  const slots: MarkerSlot[] = []
   for (const rowOffsetTiles of layout.rowOffsetsTiles) {
     const y = building.y + rowOffsetTiles * TILE
     for (let c = 0; c < cols; c++) {
@@ -50,10 +55,38 @@ function hangarMarkerSlots(
   return slots
 }
 
-function findHangarBuilding(world: World): { x: number; y: number; w: number; h: number } | null {
+function wallSlots(
+  building: { x: number; y: number; w: number; h: number },
+  layout: WallGateLayout,
+): MarkerSlot[] {
+  // Anchor at the wall tile so the booth offsets place sign / kiosk /
+  // board portal on the outside, with the board portal directly against
+  // the wall (the airlock the player walks through to board).
+  const anchorX = layout.side === 'w' ? building.x : building.x + building.w
+  const slots: MarkerSlot[] = []
+  for (const rowOffsetTiles of layout.rowOffsetsTiles) {
+    slots.push({ x: anchorX, y: building.y + rowOffsetTiles * TILE })
+  }
+  return slots
+}
+
+function gateSlots(
+  building: { x: number; y: number; w: number; h: number },
+  layout: GateLayout,
+): MarkerSlot[] {
+  return layout.placement === 'wall'
+    ? wallSlots(building, layout)
+    : floorSlots(building, layout)
+}
+
+function findHangar(world: World): {
+  rect: { x: number; y: number; w: number; h: number }
+  tier: HangarTier
+} | null {
   for (const ent of world.query(Hangar, Building)) {
     const b = ent.get(Building)!
-    return { x: b.x, y: b.y, w: b.w, h: b.h }
+    const h = ent.get(Hangar)!
+    return { rect: { x: b.x, y: b.y, w: b.w, h: b.h }, tier: h.tier }
   }
   return null
 }
@@ -72,42 +105,43 @@ function boardTemplateId(slotClass: HangarSlotClass, isFlagship: boolean): strin
     : `gate-board-${tier}`
 }
 
-function signTemplateId(slotClass: LaidOutSlotClass): string {
-  return slotClass === 'capital' ? 'gate-sign-capital' : 'gate-sign-smallcraft'
-}
-
 // Materialise the persistent gate triples for the hangar in this scene
 // if they don't already exist. Idempotent — a second call is a no-op.
 function ensureGates(world: World, sceneId: string): void {
   const existing = world.queryFirst(GateSlot)
   if (existing) return
 
-  const hangarRect = findHangarBuilding(world)
-  if (!hangarRect) return
+  const hangar = findHangar(world)
+  if (!hangar) return
 
-  const { gateLayout } = fleetConfig
+  const tierLayout = fleetConfig.hangarMarkerLayout[hangar.tier]
+  if (!tierLayout) return
 
   for (const slotClass of ['capital', 'smallCraft'] as LaidOutSlotClass[]) {
-    const slots = hangarMarkerSlots(hangarRect, slotClass)
+    const layout = tierLayout[slotClass]
+    if (!layout) continue
+    const slots = gateSlots(hangar.rect, layout)
     for (let i = 0; i < slots.length; i++) {
       const slot = slots[i]
       const gateNumber = gateNumberFor(slotClass, i)
       const gateKeyBase = `gate-${sceneId}-${gateNumber}`
 
-      // Sign — wide rect rendered above the kiosk, carries the gate label
-      // as a Pixi text overlay. Doubles as a fallback Interactable so the
-      // proximity scan opens the panel from either the sign or the kiosk
-      // tile (the player doesn't have to walk to a specific pixel).
+      // Sign — carries the gate label as a Pixi text overlay (3-line:
+      // gate id / ship name or VACANT / owner). Doubles as a fallback
+      // Interactable so the proximity scan opens the panel from either
+      // the sign or the kiosk tile. Position + template are picked from
+      // the per-class layout (wide horizontal for floor placement, narrow
+      // vertical for wall placement).
       world.spawn(
         Position({
-          x: slot.x + gateLayout.signOffsetTiles.x * TILE,
-          y: slot.y + gateLayout.signOffsetTiles.y * TILE,
+          x: slot.x + layout.signOffsetTiles.x * TILE,
+          y: slot.y + layout.signOffsetTiles.y * TILE,
         }),
         Interactable({ kind: 'gateTerminal', label: gateNumber, fee: 0 }),
         GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
         GateSignMark(),
         EntityKey({ key: `${gateKeyBase}-sign` }),
-        TemplateRef({ id: signTemplateId(slotClass) }),
+        TemplateRef({ id: layout.signTemplate }),
       )
 
       // Kiosk — Interactable gateTerminal. Press E to open the panel
@@ -115,8 +149,8 @@ function ensureGates(world: World, sceneId: string): void {
       // GateTerminalPanel scoped to the bound ship).
       world.spawn(
         Position({
-          x: slot.x + gateLayout.terminalOffsetTiles.x * TILE,
-          y: slot.y + gateLayout.terminalOffsetTiles.y * TILE,
+          x: slot.x + layout.terminalOffsetTiles.x * TILE,
+          y: slot.y + layout.terminalOffsetTiles.y * TILE,
         }),
         Interactable({ kind: 'gateTerminal', label: gateNumber, fee: 0 }),
         GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
@@ -132,8 +166,8 @@ function ensureGates(world: World, sceneId: string): void {
       // bind/unbind flip.
       world.spawn(
         Position({
-          x: slot.x + gateLayout.boardOffsetTiles.x * TILE,
-          y: slot.y + gateLayout.boardOffsetTiles.y * TILE,
+          x: slot.x + layout.boardOffsetTiles.x * TILE,
+          y: slot.y + layout.boardOffsetTiles.y * TILE,
         }),
         GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
         GateBoardMark(),

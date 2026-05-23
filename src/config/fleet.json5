@@ -72,27 +72,59 @@
   secretaryBulkOrderMarkup: 1.5,
   secretaryBulkOrderDeliveryDays: 1,
 
-  // Phase 6.2.A — docked-ship marker layout inside a hangar building.
-  // Per-slotClass placement so a capital tower (Pegasus-class) gets its
-  // own wide row above the smallCraft parking rows. Numbers are in
-  // tiles relative to the hangar building's top-left corner. `rowOffsets`
-  // is read top-to-bottom; `stride` is the horizontal step between slot
-  // centers; `startTileX` is the X offset of the first slot center.
-  // Capital row is dimensioned so 4 Pegasus-class hulls (the drydock's
-  // `slotCapacity.capital`) fit edge-to-edge with a 1-tile margin from
-  // each wall. SmallCraft rows fit 14 markers each at 2-tile stride;
-  // drydock total `smallCraft` cap is 12, so even a fully-stocked yard
-  // fits without spilling onto worker grid / cafeteria / bunk strip.
+  // Phase 6.2.A — docked-ship gate layout, dispatched per hangar tier.
+  //
+  // Surface hangars host MS + smallCraft inside the open floor (the bay
+  // is the parking surface — workers walk between the parked craft to
+  // service them), so gates are laid out as an inside-floor grid: rows
+  // span the building's width, columns step at `strideTiles`. Each gate
+  // triple (sign / kiosk / board portal) is stacked vertically per
+  // `*OffsetTiles` so the parked craft sit visibly behind the sign.
+  //
+  // Drydock hangars host the operations floor (manager / workers /
+  // cafeteria / bunks) and dock capital tonnage in orbit OUTSIDE the
+  // building, so gates take an external concourse-booth layout: each
+  // class flanks one wall (capital on the west, smallCraft on the east),
+  // with the booth triple oriented horizontally (sign furthest from the
+  // wall, kiosk middle, board portal directly against the wall — the
+  // airlock the player walks through to board the ship). 4 capital gates
+  // span the 24-tile-tall west wall at 6-tile spacing; 12 smallCraft
+  // gates fill the east wall at 2-tile spacing.
+  //
+  // Slot indices flow top-to-bottom within each class (so C1..C4 read
+  // north → south on the west wall, S1..S12 likewise on the east).
   hangarMarkerLayout: {
-    capital: {
-      rowOffsetsTiles: [4],
-      strideTiles: 7,
-      startTileX: 4,
+    surface: {
+      smallCraft: {
+        placement: 'floor',
+        rowOffsetsTiles: [9, 12],
+        strideTiles: 2,
+        startTileX: 3,
+        signTemplate: 'gate-sign-smallcraft',
+        signOffsetTiles:     { x: 0, y: -2 },
+        terminalOffsetTiles: { x: 0, y:  0 },
+        boardOffsetTiles:    { x: 0, y:  2 },
+      },
     },
-    smallCraft: {
-      rowOffsetsTiles: [9, 12],
-      strideTiles: 2,
-      startTileX: 3,
+    drydock: {
+      capital: {
+        placement: 'wall',
+        side: 'w',
+        rowOffsetsTiles: [3, 9, 15, 21],
+        signTemplate: 'gate-sign-wall-capital',
+        signOffsetTiles:     { x: -3, y: 0 },
+        terminalOffsetTiles: { x: -2, y: 0 },
+        boardOffsetTiles:    { x: -1, y: 0 },
+      },
+      smallCraft: {
+        placement: 'wall',
+        side: 'e',
+        rowOffsetsTiles: [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23],
+        signTemplate: 'gate-sign-wall-smallcraft',
+        signOffsetTiles:     { x: 3, y: 0 },
+        terminalOffsetTiles: { x: 2, y: 0 },
+        boardOffsetTiles:    { x: 1, y: 0 },
+      },
     },
   },
 
@@ -299,22 +331,11 @@
   shipNamePrefix: '#',
   shipNamePadDigits: 2,
 
-  // ── Hangar gate layout ─────────────────────────────────────────────
-  //
-  // Each laid-out marker slot is rendered as an airport-style gate: a
-  // small kiosk where the player presses E to open the GateTerminalPanel,
-  // a sign tile above showing gate id + bound-ship name + owner, and a
-  // separate boarding portal a few tiles toward the bay where the ship
-  // would sit. Numbers are in tiles relative to each marker slot's anchor.
-  gateLayout: {
-    signOffsetTiles:     { x: 0, y: -2 },
-    terminalOffsetTiles: { x: 0, y:  0 },
-    boardOffsetTiles:    { x: 0, y:  2 },
-  },
-
   // Gate numbering: capital gates use a "C" prefix, smallCraft use "S".
-  // Slot index within the class flows left-to-right, top-to-bottom across
-  // hangarMarkerLayout rows; e.g. drydock 4 capital slots → C1..C4.
+  // Slot index within the class flows in the layout's iteration order
+  // (top-to-bottom along each wall for drydock; left-to-right across
+  // each row for surface). E.g. drydock 4 capital slots → C1..C4 reading
+  // north to south down the west wall.
   gatePrefixCapital: 'C',
   gatePrefixSmallCraft: 'S',
 }
