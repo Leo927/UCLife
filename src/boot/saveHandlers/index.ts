@@ -19,6 +19,7 @@ import './stress'       // phase: 'post' — transient (reset only)
 import './supplyDrain'  // phase: 'post' — transient (reset only)
 import './spaceSim'     // phase: 'post' — transient (reset only)
 import './ship'         // phase: 'post' — long-arc ship state
+import './fleetPool'    // phase: 'post' — fleet fuel pool (after ship: needs recomputed fuelMax)
 import './space'        // phase: 'post' — spaceCampaign physics state
 import './relations'    // phase: 'post' — Knows graph (needs entities)
 import './dailyEconomics' // phase: 'post' — transient (reset only)

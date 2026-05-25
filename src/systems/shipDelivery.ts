@@ -111,7 +111,6 @@ export function spawnDeliveredShip(
       angularAccel: cls.angularAccel,
       maxAngVel: cls.maxAngVel,
       crCurrent: cls.crMax, crMax: cls.crMax,
-      fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
       suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
       dockedAtPoiId: poiId,
       fleetPos: { x: 0, y: 0 },

@@ -19,6 +19,7 @@ import { isShipClassId, getShipClass } from '../data/ship-classes'
 import { Ship, IsFlagshipMark, Owner } from '../ecs/traits'
 import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
+import { recomputeFleetFuelMax } from '../ecs/fleetPool'
 
 interface FixtureLocation {
   scene: string
@@ -346,7 +347,6 @@ function applyShips(name: string, fx: Fixture): void {
         angularAccel: cls.angularAccel,
         maxAngVel: cls.maxAngVel,
         crCurrent: cls.crMax, crMax: cls.crMax,
-        fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
         suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
         dockedAtPoiId: s.dockedAt ?? '',
         fleetPos: { x: 0, y: 0 },
@@ -371,7 +371,6 @@ function applyShips(name: string, fx: Fixture): void {
           angularAccel: cls.angularAccel,
           maxAngVel: cls.maxAngVel,
           crCurrent: cls.crMax, crMax: cls.crMax,
-          fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
           suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
           dockedAtPoiId: s.dockedAt ?? '',
           fleetPos: { x: 0, y: 0 },
@@ -384,6 +383,9 @@ function applyShips(name: string, fx: Fixture): void {
     }
     if (i === 0 && !ship.has(IsFlagshipMark)) ship.add(IsFlagshipMark)
   }
+  // Roster mutated — re-derive fleet fuel capacity and top off so the
+  // fixture starts in a flyable state.
+  recomputeFleetFuelMax({ topUp: true })
 }
 
 function applyNpcs(name: string, fx: Fixture): void {

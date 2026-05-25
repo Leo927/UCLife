@@ -31,6 +31,7 @@ import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlace
 import { setTransitPlacement, clearTransitPlacements } from '../sim/transitPlacements'
 import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
 import { attachShipStatSheet } from './shipEffects'
+import { recomputeFleetFuelMax } from './fleetPool'
 import { defaultShipName } from '../data/shipNaming'
 import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
@@ -1097,7 +1098,6 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       angularAccel: cls.angularAccel,
       maxAngVel: cls.maxAngVel,
       crCurrent: cls.crMax, crMax: cls.crMax,
-      fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
       suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
       dockedAtPoiId: 'vonBraun',
       fleetPos,
@@ -1122,6 +1122,11 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   attachShipStatSheet(flagship)
 
   seedShipSceneLayout(cls, getWorld(SHIP_SCENE_ID))
+
+  // Seed the fleet fuel pool full — bootstrap starts the player with a
+  // ready-to-fly tank. recomputeFleetFuelMax derives capacity from
+  // active-fleet ship statesheets (flagship is the sole member at boot).
+  recomputeFleetFuelMax({ topUp: true })
 }
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'

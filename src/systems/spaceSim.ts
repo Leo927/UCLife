@@ -15,7 +15,7 @@ import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
 import { fleetFormationSystem } from './fleetFormation'
 import { useEngagement } from '../sim/engagement'
-import { spendFuel, getShipState, getDockedPoiId, setDockedPoi, setFleetPos } from '../sim/ship'
+import { spendFuel, getFleetPool, getDockedPoiId, setDockedPoi, setFleetPos } from '../sim/ship'
 import { emitSim } from '../sim/events'
 import { simNow } from '../sim/time'
 
@@ -210,21 +210,21 @@ export function spaceSimSystem(world: World, dtSec: number): void {
       if (deltaV > 0) {
         const fuelSpent = deltaV * spaceConfig.fuelPerThrustSec / spaceConfig.thrustAccel
         const ok = spendFuel(fuelSpent)
-        const ship = getShipState()
-        if (!ok || (ship && ship.fuelCurrent <= 0)) {
+        const pool = getFleetPool()
+        if (!ok || pool.fuelCurrent <= 0) {
           appliedAx = 0
           appliedAy = 0
           if (!fuelOutLogged) {
             fuelOutLogged = true
             emitSim('log', { textZh: '燃料耗尽', atMs: useClock.getState().gameDate.getTime() })
           }
-        } else if (ship && ship.fuelCurrent > 0) {
+        } else if (pool.fuelCurrent > 0) {
           fuelOutLogged = false
         }
       }
     } else {
-      const ship = getShipState()
-      if (ship && ship.fuelCurrent > 0) fuelOutLogged = false
+      const pool = getFleetPool()
+      if (pool.fuelCurrent > 0) fuelOutLogged = false
     }
     const k = step(
       { pos, vel: { x: vel.vx, y: vel.vy } },

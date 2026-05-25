@@ -300,12 +300,14 @@
       kindSupply: '补给',
       kindFuel: '燃料',
     },
-    // Phase 6.2.F — campaign HUD fleet supply readout. Aggregate across
-    // every owned / rented hangar; rendered at the bottom-center of the
-    // SpaceView overlay alongside the existing fuel meter.
+    // Campaign HUD readout — rendered at the bottom-left of SpaceView.
+    // Supply line aggregates per-hangar warehouse stock across every
+    // owned/rented hangar. Fuel line is the fleet pool (FleetPool
+    // singleton, Starsector-style); per-ship fuel reserves no longer
+    // exist out of combat.
     fleetSupplyHud: {
       supplyLabel: '舰队补给',
-      fuelLabel: '舰队燃料',
+      fuelLabel: '燃料',
     },
     // Phase 6.2.C2 — fleet roster notebook surface. Opened from the
     // captain's office "船长简报" panel. Read-mostly list of every owned

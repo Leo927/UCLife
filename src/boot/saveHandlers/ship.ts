@@ -34,6 +34,7 @@ import { SHIP_STAT_IDS, SHIP_STAT_FORMULAS, type ShipStatId } from '../../stats/
 import { getShipClass } from '../../data/ship-classes'
 import { defaultShipName, noteRestoredShipName, resetShipNameCounters } from '../../data/shipNaming'
 import { reapplyCaptainEffectsOnRestore } from '../../systems/fleetCrew'
+import { recomputeFleetFuelMax } from '../../ecs/fleetPool'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -45,7 +46,10 @@ interface ShipBlock {
   armorCurrent: number
   fluxCurrent: number
   crCurrent: number
-  fuelCurrent: number
+  // Pre-fleet-pool-refactor saves carried per-ship `fuelCurrent`. The
+  // field is no longer authored on snapshot; load tolerates its absence
+  // and the FleetPool save handler restores the fleet-level pool.
+  fuelCurrent?: number
   suppliesCurrent: number
   dockedAtPoiId: string
   fleetPos: { x: number; y: number }
@@ -98,7 +102,7 @@ interface LegacyShipBlock {
   armorCurrent: number
   fluxCurrent: number
   crCurrent?: number
-  fuelCurrent: number
+  fuelCurrent?: number
   suppliesCurrent: number
   dockedAtPoiId: string
   fleetPos: { x: number; y: number }
@@ -137,7 +141,6 @@ function snapshotFleet(): FleetBlock | undefined {
       armorCurrent: s.armorCurrent,
       fluxCurrent: s.fluxCurrent,
       crCurrent: s.crCurrent,
-      fuelCurrent: s.fuelCurrent,
       suppliesCurrent: s.suppliesCurrent,
       dockedAtPoiId: s.dockedAtPoiId,
       fleetPos: { x: s.fleetPos.x, y: s.fleetPos.y },
@@ -202,7 +205,6 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
         angularAccel: cls.angularAccel,
         maxAngVel: cls.maxAngVel,
         crCurrent: cls.crMax, crMax: cls.crMax,
-        fuelCurrent: cls.fuelMax, fuelMax: cls.fuelMax,
         suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
         dockedAtPoiId: '',
         fleetPos: { x: 0, y: 0 },
@@ -251,7 +253,6 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // Saves predating CR (block.crCurrent === undefined) restore to a
     // full gauge — old saves don't lose flight readiness on load.
     crCurrent: block.crCurrent ?? cur.crMax,
-    fuelCurrent: block.fuelCurrent,
     suppliesCurrent: block.suppliesCurrent,
     dockedAtPoiId: block.dockedAtPoiId,
     fleetPos: { x: block.fleetPos.x, y: block.fleetPos.y },
@@ -334,6 +335,10 @@ function restoreFleet(blob: FleetBlock | LegacyShipBlock): void {
     // doesn't persist escort bodies; restoring them from Ship state at
     // load is the simpler invariant.
     rematerializeEscortBodies()
+    // Roster is final — re-derive fleet fuel capacity from the restored
+    // active-fleet sheets. The fleetPool save handler (registered after
+    // this one) restores fuelCurrent on top.
+    recomputeFleetFuelMax()
     return
   }
   // Legacy pre-6.1.5 payload: single flat ShipBlock without entityKey.
@@ -341,6 +346,7 @@ function restoreFleet(blob: FleetBlock | LegacyShipBlock): void {
   // 'ship' — apply there and migrate the loadout to the flagship's mounts.
   applyShipBlock(blob, 'ship')
   restoreWeapons(blob.weapons)
+  recomputeFleetFuelMax({ topUp: true })
 }
 
 function rematerializeEscortBodies(): void {

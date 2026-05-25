@@ -8,10 +8,17 @@
 
 import { getWorld } from '../ecs/world'
 import { Ship, IsFlagshipMark } from '../ecs/traits'
+import {
+  getFleetPool as _getFleetPool,
+  spendFleetFuel,
+  grantFleetFuel,
+  refillFleetFuel,
+} from '../ecs/fleetPool'
 import { useDebug } from '../debug/store'
 // Phase 6.2.B — re-export for callers that imported projection helpers
 // from sim/ship.ts before the engine boundary forced them to ecs/.
 export { attachShipStatSheet, projectShipSheet } from '../ecs/shipEffects'
+export { recomputeFleetFuelMax } from '../ecs/fleetPool'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -32,14 +39,17 @@ export function getShipState() {
   return ent?.get(Ship) ?? null
 }
 
+export function getFleetPool(): { fuelCurrent: number; fuelMax: number } {
+  return _getFleetPool()
+}
+
 export function spendFuel(amount: number): boolean {
-  const ent = getFlagshipEntity()
-  if (!ent) return false
   if (useDebug.getState().infiniteFuelSupply) return true
-  const s = ent.get(Ship)!
-  if (s.fuelCurrent < amount) return false
-  ent.set(Ship, { ...s, fuelCurrent: s.fuelCurrent - amount })
-  return true
+  return spendFleetFuel(amount)
+}
+
+export function grantFuel(amount: number): { fuelAfter: number; fuelMax: number } {
+  return grantFleetFuel(amount)
 }
 
 export function spendSupplies(amount: number): boolean {
@@ -52,11 +62,16 @@ export function spendSupplies(amount: number): boolean {
   return true
 }
 
+// Tops off the fleet fuel pool and refills the flagship's supplies.
+// Used by post-combat refits, gate-terminal "refuel/resupply" verbs, and
+// the debug infinite-fuel toggle. Supplies remain per-ship for now
+// (drains are per-ship daily; per-ship UI shows the gauge).
 export function refillFuelAndSupplies(): boolean {
   const ent = getFlagshipEntity()
   if (!ent) return false
   const s = ent.get(Ship)!
-  ent.set(Ship, { ...s, fuelCurrent: s.fuelMax, suppliesCurrent: s.suppliesMax })
+  ent.set(Ship, { ...s, suppliesCurrent: s.suppliesMax })
+  refillFleetFuel()
   return true
 }
 

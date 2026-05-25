@@ -53,7 +53,6 @@ export const Ship = trait({
   // Phase 6.0 only mutates CR on flee/defeat outcomes; per-tick CR drain
   // during tactical engagements lands with multi-ship deployment in 6.2.
   crCurrent: 0, crMax: 100,
-  fuelCurrent: 0, fuelMax: 0,
   suppliesCurrent: 0, suppliesMax: 0,
   dockedAtPoiId: '',
   fleetPos: { x: 0, y: 0 } as { x: number; y: number },
@@ -89,6 +88,19 @@ export const Ship = trait({
   transitDestinationId: '',
   transitDepartureDay: 0,
   transitArrivalDay: 0,
+})
+
+// Fleet-level operational fuel pool. Singleton in the playerShipInterior
+// world (the same world that hosts the Ship roster). Source of truth for
+// fuel while the fleet is out of combat — every maneuver debits this
+// pool via sim/ship.ts:spendFuel. Capacity is the sum of fuelStorage
+// across active-fleet, non-mothballed ships; recomputed whenever the
+// roster or active-fleet membership changes. Combat reads/writes are a
+// future concern (when combat actually drains fuel) and will go through
+// per-ship CombatShipState buckets at combat start/end.
+export const FleetPool = trait({
+  fuelCurrent: 0,
+  fuelMax: 0,
 })
 
 // Marker — present iff the player is currently aboard this ship. Phase 6.1.5
