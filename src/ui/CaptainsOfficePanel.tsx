@@ -74,7 +74,12 @@ export function CaptainsOfficePanel() {
             max={fleetPool?.fuelMax ?? 0}
             color="#60a5fa"
           />
-          <ReadinessBar label="物资" current={ship.suppliesCurrent} max={ship.suppliesMax} color="#34d399" />
+          <ReadinessBar
+            label="物资"
+            current={fleetPool?.supplyCurrent ?? 0}
+            max={fleetPool?.supplyMax ?? 0}
+            color="#34d399"
+          />
         </section>
         <ManTheRestSection shipEnt={shipEnt} />
         <section className="status-section">

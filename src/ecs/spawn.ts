@@ -1098,7 +1098,6 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
       angularAccel: cls.angularAccel,
       maxAngVel: cls.maxAngVel,
       crCurrent: cls.crMax, crMax: cls.crMax,
-      suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
       dockedAtPoiId: 'vonBraun',
       fleetPos,
       inCombat: false,

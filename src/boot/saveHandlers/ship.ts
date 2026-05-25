@@ -46,11 +46,12 @@ interface ShipBlock {
   armorCurrent: number
   fluxCurrent: number
   crCurrent: number
-  // Pre-fleet-pool-refactor saves carried per-ship `fuelCurrent`. The
-  // field is no longer authored on snapshot; load tolerates its absence
-  // and the FleetPool save handler restores the fleet-level pool.
+  // Pre-fleet-pool-refactor saves carried per-ship `fuelCurrent` /
+  // `suppliesCurrent`. The fields are no longer authored on snapshot;
+  // load tolerates their absence and the FleetPool save handler restores
+  // the fleet-level pool.
   fuelCurrent?: number
-  suppliesCurrent: number
+  suppliesCurrent?: number
   dockedAtPoiId: string
   fleetPos: { x: number; y: number }
   weapons: { mountIdx: number; weaponId: string }[]
@@ -103,7 +104,7 @@ interface LegacyShipBlock {
   fluxCurrent: number
   crCurrent?: number
   fuelCurrent?: number
-  suppliesCurrent: number
+  suppliesCurrent?: number
   dockedAtPoiId: string
   fleetPos: { x: number; y: number }
   weapons: { mountIdx: number; weaponId: string }[]
@@ -141,7 +142,6 @@ function snapshotFleet(): FleetBlock | undefined {
       armorCurrent: s.armorCurrent,
       fluxCurrent: s.fluxCurrent,
       crCurrent: s.crCurrent,
-      suppliesCurrent: s.suppliesCurrent,
       dockedAtPoiId: s.dockedAtPoiId,
       fleetPos: { x: s.fleetPos.x, y: s.fleetPos.y },
       weapons,
@@ -205,7 +205,6 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
         angularAccel: cls.angularAccel,
         maxAngVel: cls.maxAngVel,
         crCurrent: cls.crMax, crMax: cls.crMax,
-        suppliesCurrent: cls.suppliesMax, suppliesMax: cls.suppliesMax,
         dockedAtPoiId: '',
         fleetPos: { x: 0, y: 0 },
         inCombat: false,
@@ -253,7 +252,6 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // Saves predating CR (block.crCurrent === undefined) restore to a
     // full gauge — old saves don't lose flight readiness on load.
     crCurrent: block.crCurrent ?? cur.crMax,
-    suppliesCurrent: block.suppliesCurrent,
     dockedAtPoiId: block.dockedAtPoiId,
     fleetPos: { x: block.fleetPos.x, y: block.fleetPos.y },
     // Defense in depth: saves never write inCombat:true (manual

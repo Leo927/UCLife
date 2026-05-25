@@ -301,12 +301,13 @@
       kindFuel: '燃料',
     },
     // Campaign HUD readout — rendered at the bottom-left of SpaceView.
-    // Supply line aggregates per-hangar warehouse stock across every
-    // owned/rented hangar. Fuel line is the fleet pool (FleetPool
-    // singleton, Starsector-style); per-ship fuel reserves no longer
-    // exist out of combat.
+    // Both rows read the fleet pool (FleetPool singleton,
+    // Starsector-style): capacities are sums of active-fleet ship
+    // fuelStorage / supplyStorage. Per-ship reserves no longer exist
+    // out of combat. Hangar warehouses are a separate stockpile the
+    // player refuels/resupplies from when docked.
     fleetSupplyHud: {
-      supplyLabel: '舰队补给',
+      supplyLabel: '补给',
       fuelLabel: '燃料',
     },
     // Phase 6.2.C2 — fleet roster notebook surface. Opened from the

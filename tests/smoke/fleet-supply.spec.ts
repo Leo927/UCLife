@@ -1,16 +1,17 @@
 // fleet-supply smoke. Verifies:
 //   1. The VB state hangar spawns with supplyMax / fuelMax projected from
-//      facility-types.json5 (1000 / 400).
+//      facility-types.json5 (1000 / 400). Per-hangar warehouse stockpile,
+//      distinct from the fleet pool.
 //   2. supplyPerDay projects onto the flagship ShipStatSheet.
-//   3. One daily fleet-supply tick drains the hangar by the flagship's
+//   3. One daily fleet-supply tick drains the fleet pool by the flagship's
 //      supplyPerDay; multi-tick drains accumulate linearly.
-//   4. Setting supplyCurrent to 0 caps the next drain at 0 (no negative).
+//   4. Draining the fleet pool to 0 caps the next drain at 0 (no negative).
 //   5. Placing an AE-dealer order via the dialog deducts player money,
-//      enqueues a pending delivery, and lands on the hangar after
+//      enqueues a pending delivery, and lands on the hangar warehouse after
 //      supplyDeliveryDays (2) fleet-supply ticks.
 //   6. Secretary bulk-order applies the configured markup + faster delivery.
-//   7. fleetSupplyTotals reports the HUD aggregate.
-//   8. Save round-trip preserves supplyCurrent / pendingSupplyDeliveries.
+//   7. fleetSupplyTotals reports the fleet pool (HUD source of truth).
+//   8. Save round-trip preserves hangar warehouse pendingSupplyDeliveries.
 
 import { test, expect, DOM_COMMIT_TIMEOUT_MS, isExpectedTestModePortraitMissing } from './_fixtures'
 
@@ -24,7 +25,11 @@ const SUPPLY_PRICE_PER_UNIT = 5
 const SUPPLY_DELIVERY_DAYS = 2
 const SECRETARY_BULK_ORDER_DAYS = 1
 const SECRETARY_BULK_QTY = 100
-const FLEET_SUPPLY_MAX_TOTAL = 1000 + 5000
+// Fleet pool capacity for the lightFreighter flagship — ship-classes.json5
+// authors suppliesMax: 40, which projects onto ShipStatSheet.supplyStorage
+// and contributes to FleetPool.supplyMax via recomputeFleetPool.
+const FLEET_POOL_SUPPLY_MAX = 40
+const FLEET_POOL_FUEL_MAX = 16
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -35,6 +40,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.enqueueHangarDelivery',
   '__uclife__.runFleetSupplyTick',
   '__uclife__.fleetSupplyTotals',
+  '__uclife__.fleetFuelPool',
   '__uclife__.aeSupplyDealerEntity',
   '__uclife__.secretaryEntity',
   '__uclife__.forceSeatSecretary',
@@ -82,51 +88,57 @@ test('fleet supply: drain, dealer order, secretary bulk, save round-trip', async
   )
   expect(sheet, `flagshipStatSheet returned null`).toBeTruthy()
 
-  // 3. Drain landing on the hangar after one tick.
-  const before1 = await sim.page.evaluate(
+  // 3. Drain landing on the fleet pool after one tick. Hangar warehouse
+  // stockpile is no longer touched by daily upkeep — that's a fleet pool
+  // concern now (Starsector-style consolidation).
+  const poolBefore = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (k) => (window as any).__uclife__.hangarSupplySnapshot(k),
-    vb.buildingKey,
+    () => (window as any).__uclife__.fleetSupplyTotals(),
   )
+  expect(poolBefore.supplyMax).toBe(FLEET_POOL_SUPPLY_MAX)
+  expect(poolBefore.supplyCurrent).toBe(FLEET_POOL_SUPPLY_MAX)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.runFleetSupplyTick(1))
-  const after1 = await sim.page.evaluate(
+  const poolAfter1 = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.fleetSupplyTotals(),
+  )
+  const drained = poolBefore.supplyCurrent - poolAfter1.supplyCurrent
+  expect(drained).toBe(FLAGSHIP_SUPPLY_PER_DAY)
+  // Hangar warehouse stays untouched by daily upkeep.
+  const hangarSnap1 = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (k) => (window as any).__uclife__.hangarSupplySnapshot(k),
     vb.buildingKey,
   )
-  const drained = before1.supplyCurrent - after1.supplyCurrent
-  expect(drained).toBe(FLAGSHIP_SUPPLY_PER_DAY)
+  expect(hangarSnap1.supplyCurrent).toBe(EXPECTED_SUPPLY_MAX)
 
-  // 4. Hangar runs dry — drain caps at 0.
-  await sim.page.evaluate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (k) => (window as any).__uclife__.setHangarSupply(k, 2, 100),
-    vb.buildingKey,
-  )
+  // 4. Fleet pool runs dry — drain caps at 0.
+  // setHangarSupply remains a warehouse-only verb; to dry the pool we
+  // burn it directly through the drain ticks. With supplyPerDay=4 and a
+  // capacity of 40, one extra tick after the pool is already low will
+  // bottom out.
+  // Force-drain the pool: run enough ticks to exhaust it.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await sim.page.evaluate(() => (window as any).__uclife__.runFleetSupplyTick(2))
+  const ticksToDry = Math.ceil(poolAfter1.supplyCurrent / FLAGSHIP_SUPPLY_PER_DAY)
+  for (let i = 0; i < ticksToDry; i += 1) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await sim.page.evaluate((d) => (window as any).__uclife__.runFleetSupplyTick(d), 2 + i)
+  }
   const dryAfter = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (k) => (window as any).__uclife__.hangarSupplySnapshot(k),
-    vb.buildingKey,
+    () => (window as any).__uclife__.fleetSupplyTotals(),
   )
   expect(dryAfter.supplyCurrent, `drain did not bottom at 0: ${dryAfter.supplyCurrent}`).toBe(0)
 
+  // Another tick stays at 0 — drain caps cleanly.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await sim.page.evaluate(() => (window as any).__uclife__.runFleetSupplyTick(3))
+  await sim.page.evaluate(() => (window as any).__uclife__.runFleetSupplyTick(99))
   const stillDry = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (k) => (window as any).__uclife__.hangarSupplySnapshot(k),
-    vb.buildingKey,
+    () => (window as any).__uclife__.fleetSupplyTotals(),
   )
   expect(stillDry.supplyCurrent).toBe(0)
-
-  await sim.page.evaluate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (k) => (window as any).__uclife__.setHangarSupply(k, 500, 100),
-    vb.buildingKey,
-  )
 
   // 5. AE dealer dialog → order.
   await sim.page.evaluate(
@@ -252,12 +264,13 @@ test('fleet supply: drain, dealer order, secretary bulk, save round-trip', async
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).uclifeUI.getState().setDialogNPC(null))
 
-  // 7. Fleet supply totals.
+  // 7. Fleet pool totals (HUD source of truth).
   const totals = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.fleetSupplyTotals(),
   )
-  expect(totals.supplyMax).toBe(FLEET_SUPPLY_MAX_TOTAL)
+  expect(totals.supplyMax).toBe(FLEET_POOL_SUPPLY_MAX)
+  expect(totals.fuelMax).toBe(FLEET_POOL_FUEL_MAX)
 
   // 8. Save round-trip.
   await sim.page.evaluate(

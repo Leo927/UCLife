@@ -53,7 +53,6 @@ export const Ship = trait({
   // Phase 6.0 only mutates CR on flee/defeat outcomes; per-tick CR drain
   // during tactical engagements lands with multi-ship deployment in 6.2.
   crCurrent: 0, crMax: 100,
-  suppliesCurrent: 0, suppliesMax: 0,
   dockedAtPoiId: '',
   fleetPos: { x: 0, y: 0 } as { x: number; y: number },
   inCombat: false,
@@ -90,17 +89,21 @@ export const Ship = trait({
   transitArrivalDay: 0,
 })
 
-// Fleet-level operational fuel pool. Singleton in the playerShipInterior
-// world (the same world that hosts the Ship roster). Source of truth for
-// fuel while the fleet is out of combat — every maneuver debits this
-// pool via sim/ship.ts:spendFuel. Capacity is the sum of fuelStorage
-// across active-fleet, non-mothballed ships; recomputed whenever the
-// roster or active-fleet membership changes. Combat reads/writes are a
-// future concern (when combat actually drains fuel) and will go through
-// per-ship CombatShipState buckets at combat start/end.
+// Fleet-level operational pool. Singleton in the playerShipInterior
+// world (the same world that hosts the Ship roster). Source of truth
+// for fuel + supplies while the fleet is out of combat — every maneuver
+// debits fuel via sim/ship.ts:spendFuel; the daily upkeep tick debits
+// supplies via fleetSupplyDrain. Capacities are sums of fuelStorage /
+// supplyStorage across active-fleet, non-mothballed ships; recomputed
+// whenever the roster or active-fleet membership changes. Hangars keep
+// their own per-warehouse fuelCurrent / supplyCurrent — those are
+// stockpiles you refuel/resupply *from* when docked, not the fleet's
+// operational tank.
 export const FleetPool = trait({
   fuelCurrent: 0,
   fuelMax: 0,
+  supplyCurrent: 0,
+  supplyMax: 0,
 })
 
 // Marker — present iff the player is currently aboard this ship. Phase 6.1.5

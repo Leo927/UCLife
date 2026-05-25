@@ -3,7 +3,7 @@
 // elapsed minutes are derived from the clock so any speed multiplier is
 // already baked in.
 
-import { spendSupplies, getShipState, getFlagshipEntity } from '../sim/ship'
+import { spendSupplies, getShipState, getFlagshipEntity, getFleetPool } from '../sim/ship'
 import { useCombatStore } from './combat'
 import { spaceConfig } from '../config'
 import { MaintenanceLoad } from '../ecs/traits'
@@ -45,14 +45,12 @@ export function supplyDrainSystem(now: Date): void {
   const drainThisTick = drainPerHour * (elapsedMin / 60)
   spendSupplies(drainThisTick)
 
-  const after = getShipState()
-  if (after) {
-    if (after.suppliesCurrent <= 0 && !suppliesOutLogged) {
-      suppliesOutLogged = true
-      emitSim('log', { textZh: '补给耗尽 · 士气崩溃风险', atMs: now.getTime() })
-    } else if (after.suppliesCurrent > 0 && suppliesOutLogged) {
-      suppliesOutLogged = false
-    }
+  const pool = getFleetPool()
+  if (pool.supplyCurrent <= 0 && !suppliesOutLogged) {
+    suppliesOutLogged = true
+    emitSim('log', { textZh: '补给耗尽 · 士气崩溃风险', atMs: now.getTime() })
+  } else if (pool.supplyCurrent > 0 && suppliesOutLogged) {
+    suppliesOutLogged = false
   }
 }
 

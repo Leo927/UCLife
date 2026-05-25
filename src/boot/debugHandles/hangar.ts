@@ -31,6 +31,7 @@ import { hangarRepairSystem, describeHangarRepair } from '../../systems/hangarRe
 import {
   fleetSupplyDrainSystem, aggregateHangarReserves,
 } from '../../systems/fleetSupplyDrain'
+import { getFleetPool } from '../../ecs/fleetPool'
 import {
   fleetSupplyDeliverySystem, enqueueSupplyDelivery,
 } from '../../systems/fleetSupplyDelivery'
@@ -493,7 +494,8 @@ registerDebugHandle('enqueueHangarDelivery', (buildingKey: string, kind: SupplyK
 
 // Run one daily fleet-supply tick (deliveries first, then drain). Smoke
 // drives this in place of the loop's day:rollover:settled event so the
-// scenario is deterministic.
+// scenario is deterministic. Drain debits the fleet pool once per call
+// regardless of how many hangar scenes exist; deliveries land per-hangar.
 registerDebugHandle('runFleetSupplyTick', (gameDay: number = 0) => {
   const shipWorld = getWorld('playerShipInterior')
   const out = {
@@ -501,7 +503,7 @@ registerDebugHandle('runFleetSupplyTick', (gameDay: number = 0) => {
     unitsAppliedSupply: 0,
     unitsAppliedFuel: 0,
     drainSupply: 0,
-    hangarsRunDry: 0,
+    ranDry: false,
   }
   for (const sceneId of SCENE_IDS) {
     const w = getWorld(sceneId)
@@ -509,15 +511,23 @@ registerDebugHandle('runFleetSupplyTick', (gameDay: number = 0) => {
     out.deliveriesLanded += dr.deliveriesLanded
     out.unitsAppliedSupply += dr.unitsAppliedSupply
     out.unitsAppliedFuel += dr.unitsAppliedFuel
-    const dn = fleetSupplyDrainSystem(w, shipWorld, gameDay)
-    out.drainSupply += dn.totalDrainSupply
-    out.hangarsRunDry += dn.hangarsRunDry
   }
+  // Fleet pool drain is global — run exactly once with any scene's world.
+  const drainScene = SCENE_IDS[0]
+  const dn = fleetSupplyDrainSystem(getWorld(drainScene), shipWorld, gameDay)
+  out.drainSupply = dn.totalDrainSupply
+  out.ranDry = dn.ranDry
   return out
 })
 
-// Aggregate fleet-wide supply / fuel — the HUD's source-of-truth value.
-registerDebugHandle('fleetSupplyTotals', () => {
+// Fleet pool totals — what the HUD now displays. Per-hangar warehouse
+// stockpile aggregate is still available via `hangarWarehouseTotals`.
+registerDebugHandle('fleetSupplyTotals', () => getFleetPool())
+
+// Aggregate per-hangar warehouse stockpile (the supplyCurrent/fuelCurrent
+// drained by deliveries + replenished by AE orders). Distinct from the
+// fleet pool: hangars are stations the fleet refuels from when docked.
+registerDebugHandle('hangarWarehouseTotals', () => {
   let sc = 0, sm = 0, fc = 0, fm = 0
   for (const sceneId of SCENE_IDS) {
     const r = aggregateHangarReserves(getWorld(sceneId))

@@ -68,7 +68,6 @@ function spawnShipAt(
       hasShield: false, shieldEfficiency: 1,
       topSpeed: 0, accel: 0, decel: 0, angularAccel: 1, maxAngVel: 1,
       crCurrent: 100, crMax: 100,
-      suppliesCurrent: 0, suppliesMax: 40,
       dockedAtPoiId: poiId,
       fleetPos: { x: 0, y: 0 },
       inCombat: false,
@@ -83,55 +82,82 @@ function spawnShipAt(
 }
 
 describe('fleetSupplyDrainSystem', () => {
-  it('drains the host hangar by the docked ship supplyPerDay', () => {
+  // Tests inject a fake "spend" so they don't depend on the global
+  // FleetPool singleton (lives in playerShipInterior world). The fake
+  // mimics the cap-at-availability contract that production
+  // spendFleetSupply implements.
+  function spendFactory(initialAvailable: number) {
+    let avail = initialAvailable
+    const log: number[] = []
+    const spend = (amount: number): number => {
+      const applied = Math.min(amount, avail)
+      avail -= applied
+      log.push(applied)
+      return applied
+    }
+    return { spend, log, get available() { return avail } }
+  }
+
+  it('drains the fleet pool by the docked ship supplyPerDay', () => {
     const world = createWorld()
-    const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 'ship', 'vonBraun', 4)
 
-    const r = fleetSupplyDrainSystem(world, world, 1)
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
     expect(r.totalDrainSupply).toBe(4)
-    expect(hangar.get(Hangar)!.supplyCurrent).toBe(1000 - 4)
+    expect(r.shipsDraining).toBe(1)
+    expect(r.ranDry).toBe(false)
+    expect(sf.available).toBe(996)
   })
 
   it('skips mothballed ships', () => {
     const world = createWorld()
-    const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 'ship', 'vonBraun', 4, { mothballed: true })
 
-    const r = fleetSupplyDrainSystem(world, world, 1)
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
     expect(r.totalDrainSupply).toBe(0)
-    expect(hangar.get(Hangar)!.supplyCurrent).toBe(1000)
+    expect(r.shipsDraining).toBe(0)
+    expect(sf.available).toBe(1000)
   })
 
   it('caps drain at zero — never negative supplyCurrent', () => {
     const world = createWorld()
-    const hangar = spawnHangar(world, 'h1', 'vonBraun', 3, 0)
+    spawnHangar(world, 'h1', 'vonBraun', 3, 0)
     spawnShipAt(world, 'ship', 'vonBraun', 10)
 
-    const r = fleetSupplyDrainSystem(world, world, 1)
-    expect(hangar.get(Hangar)!.supplyCurrent).toBe(0)
+    const sf = spendFactory(3)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
     // Drain was capped to whatever was available — 3, not 10.
     expect(r.totalDrainSupply).toBe(3)
+    expect(r.ranDry).toBe(true)
+    expect(sf.available).toBe(0)
   })
 
-  it('aggregates drain across multiple docked ships at the same POI', () => {
+  it('aggregates drain across multiple ships (fleet pool is global)', () => {
     const world = createWorld()
-    const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 's1', 'vonBraun', 4)
     spawnShipAt(world, 's2', 'vonBraun', 6)
 
-    fleetSupplyDrainSystem(world, world, 1)
-    expect(hangar.get(Hangar)!.supplyCurrent).toBe(1000 - 10)
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    expect(r.totalDrainSupply).toBe(10)
+    expect(r.shipsDraining).toBe(2)
+    expect(sf.available).toBe(990)
   })
 
-  it('skips ships not docked at this POI (different docked POI)', () => {
+  it('drains regardless of docked POI — fleet pool is global, not per-hangar', () => {
     const world = createWorld()
-    const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
-    spawnShipAt(world, 's1', 'granada', 4)  // docked elsewhere — no host hangar at this POI
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnShipAt(world, 's1', 'granada', 4)  // dockedAtPoiId no longer gates drain
 
-    const r = fleetSupplyDrainSystem(world, world, 1)
-    expect(r.totalDrainSupply).toBe(0)
-    expect(hangar.get(Hangar)!.supplyCurrent).toBe(1000)
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    expect(r.totalDrainSupply).toBe(4)
+    expect(sf.available).toBe(996)
   })
 })
 

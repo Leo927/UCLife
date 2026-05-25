@@ -24,7 +24,7 @@ registerDebugHandle('shipFuelSupply', () => {
   const s = getShipState()
   if (!s) return null
   const pool = getFleetPool()
-  return { fuel: pool.fuelCurrent, supplies: s.suppliesCurrent }
+  return { fuel: pool.fuelCurrent, supplies: pool.supplyCurrent }
 })
 
 registerDebugHandle('fleetFuelPool', () => getFleetPool())
