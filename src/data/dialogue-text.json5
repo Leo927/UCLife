@@ -55,7 +55,6 @@
     realtor: '看房源',
     seller: '谈谈你的房产',
     ae: '申请晋升',
-    shipDealer: '看看那艘货船',
     clinic: '诊断与治疗',
     aeClinic: 'AE 诊室',
     pharmacy: '买药',
@@ -97,7 +96,6 @@
       intro: '本工坊设有四个职级，按下表逐级晋升 —— 技能、声望、与董事会成员的关系缺一不可。',
       empty: '暂无可申请的职级。',
     },
-    shipDealer: { title: '二手船坞' },
     clinic: {
       title: '诊断与治疗',
       noSymptoms: '你目前没有任何身体不适。',

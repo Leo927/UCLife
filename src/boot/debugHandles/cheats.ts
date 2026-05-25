@@ -5,7 +5,7 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import {
-  IsPlayer, Attributes, Money, Reputation, Flags,
+  IsPlayer, Attributes, Money, Reputation,
   type StatId,
 } from '../../ecs/traits'
 import { setBase, getStat } from '../../stats/sheet'
@@ -77,14 +77,6 @@ registerDebugHandle('cheatPiloting', (n: number) => {
   const p = world.queryFirst(IsPlayer)
   if (!p) return false
   setSkillXp(p, 'piloting', n)
-  return true
-})
-
-registerDebugHandle('setShipOwned', () => {
-  const p = world.queryFirst(IsPlayer)
-  if (!p) return false
-  const f = p.get(Flags) ?? { flags: {} }
-  p.set(Flags, { flags: { ...f.flags, shipOwned: true } })
   return true
 })
 

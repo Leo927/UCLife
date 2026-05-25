@@ -43,7 +43,7 @@ test('captains office: adjutant, brig capacity, POW capture, panels', async ({ s
   const setupOk = await sim.page.evaluate(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const u = (window as any).__uclife__
-    return u.cheatMoney(80000) && u.cheatPiloting(10) && u.setShipOwned()
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
   })
   expect(setupOk, 'cheat setup failed').toBeTruthy()
 

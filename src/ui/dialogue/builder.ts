@@ -10,7 +10,6 @@ import { hrBranch, factoryManagerBranch } from './branches/hr'
 import { realtorBranch } from './branches/realtor'
 import { sellerBranch } from './branches/seller'
 import { aeBranch } from './branches/ae'
-import { shipDealerBranch } from './branches/shipDealer'
 import { clinicBranch } from './branches/clinic'
 import { aeClinicBranch } from './branches/aeClinic'
 import { pharmacyBranch } from './branches/pharmacy'
@@ -29,7 +28,6 @@ const ROLE_BRANCHES: BranchBuilder[] = [
   realtorBranch,
   sellerBranch,
   aeBranch,
-  shipDealerBranch,
   clinicBranch,
   aeClinicBranch,
   pharmacyBranch,

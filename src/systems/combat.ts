@@ -31,7 +31,7 @@ import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
-  EnemyAI, Flags, IsFlagshipMark, IsInActiveFleet,
+  EnemyAI, IsFlagshipMark, IsInActiveFleet,
 } from '../ecs/traits'
 import { formationOffsetForSlot } from './fleetFormation'
 import { getEnemyShip } from '../data/enemyShips'
@@ -618,45 +618,28 @@ function applyDefeatConsequence(): void {
   // Pick a random ground colony (rescue transport drop-off).
   const drop = getSimRng().pick(DEFEAT_DROP_OPTIONS)
 
-  // Reset the flagship to factory-fresh state so a re-acquired ship
-  // starts clean. The owned-flag flip below means the player can't board
-  // it until they re-buy from the dealer.
-  const ship = getFlagshipEntity()
-  if (ship) {
-    const s = ship.get(Ship)!
-    const cls = getShipClass(s.templateId)
-    ship.set(Ship, {
-      ...s,
-      hullCurrent: cls.hullMax,
-      armorCurrent: cls.armorMax,
-      fluxCurrent: 0,
-      crCurrent: cls.crMax,
-      fuelCurrent: cls.fuelMax,
-      suppliesCurrent: cls.suppliesMax,
-      dockedAtPoiId: drop.poiId,
-      inCombat: false,
-    })
-  }
-
-  // Strip ship ownership + everything in the player's pockets bar a
-  // survivor stipend. Other progression (skills, perks, relationships,
-  // ambitions) survives — the run continues.
+  // Reset the player's pockets to a survivor stipend. Other progression
+  // (skills, perks, relationships, ambitions) survives — the run continues.
   const player = findPlayer()
   if (player) {
     player.set(Money, { amount: DEFEAT_SURVIVOR_MONEY })
-    const f = player.get(Flags)
-    if (f) {
-      player.set(Flags, { flags: { ...f.flags, shipOwned: false } })
-    }
   }
 
-  // Drop the player at the rescue colony's airport arrival tile if the
-  // procgen registry knows it, otherwise the scene's declared spawn tile.
+  // Eject the player to the rescue colony before destroying the ship —
+  // migratePlayerToScene moves the player entity out of playerShipInterior
+  // so the flagship destroy can't strand them.
   const placement = getAirportPlacement(drop.airportHubId)
   const arrival = placement
     ? { x: placement.arrivalPx.x, y: placement.arrivalPx.y }
     : { x: 20 * 20, y: 50 * 20 }   // vonBraunCity spawn fallback in tile px (TILE=20)
   migratePlayerToScene(drop.sceneId, arrival)
+
+  // Destroy the flagship Ship entity. Ownership is gone; the player must
+  // re-acquire via the AE ship sales rep (or grantFleet debug). Active-fleet
+  // escorts (if any) survive — the player can promote one to flagship at
+  // the war room when they next board.
+  const ship = getFlagshipEntity()
+  if (ship) ship.destroy()
 
   emitSim('toast', { textZh: '飞船被毁 · 救援运输船把你丢在了另一颗殖民地' })
   logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'}`)

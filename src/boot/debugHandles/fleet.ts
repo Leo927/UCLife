@@ -236,7 +236,6 @@ registerDebugHandle('hireBranchListing', (npcKey: string): string[] => {
       isSecretaryOnDuty: false,
       isRecruiterOnDuty: false,
       isResearcherOnDuty: false,
-      isShipDealerOnDuty: false,
       isRecruitingManagerOnDuty: false,
       isHangarManagerOnDuty: false,
       isAeSupplyDealerOnDuty: false,

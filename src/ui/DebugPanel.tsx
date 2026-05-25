@@ -1,6 +1,6 @@
 import { useQuery, useQueryFirst } from 'koota/react'
 import { useDebug, DEBUG_AVAILABLE } from '../debug/store'
-import { IsPlayer, Money, Character, Health, Knows, Flags } from '../ecs/traits'
+import { IsPlayer, Money, Character, Health, Knows } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { useClock } from '../sim/clock'
@@ -68,26 +68,21 @@ export function DebugPanel() {
     useUI.getState().showToast(`+ ${repGift} 声望 × ${count} 派系 (上限 S)`)
   }
 
-  // Sets the shipOwned flag, walks the player into the ship interior, then
-  // opens the bridge via takeHelm. Equivalent to: AE buy → board kiosk →
-  // helm tile, collapsed into one click. The ship stays docked at vonBraun
-  // until the player commits a course in the starmap. Skips when already
-  // in space — the city player (which carries Money and is what
-  // useQueryFirst picks up) doesn't exist in the spaceCampaign world, so
-  // the button is naturally disabled there.
-  const giveAndLaunchShip = () => {
+  // Walks the player into the ship interior, then opens the bridge via
+  // takeHelm. Equivalent to: board kiosk → helm tile, collapsed into one
+  // click. The bootstrap flagship is already player-owned, so this just
+  // shortcuts the walk. Skips when already in space — the city player
+  // (which carries Money and is what useQueryFirst picks up) doesn't
+  // exist in the spaceCampaign world, so the button is naturally disabled
+  // there.
+  const launchShip = () => {
     if (!player) return
     playUi('ui.debug.give-and-launch-ship')
-    const f = player.get(Flags) ?? { flags: {} }
-    const next = { flags: { ...f.flags, shipOwned: true } }
-    if (player.has(Flags)) player.set(Flags, next)
-    else player.add(Flags(next))
-
     if (useScene.getState().activeId !== 'playerShipInterior') {
       boardShip()
     }
     takeHelm()
-    useUI.getState().showToast('飞船已获得 · 操舵台开启')
+    useUI.getState().showToast('操舵台开启')
   }
 
   // Phase 6.2.H — debug "grant fleet" function. Buys + receives a
@@ -248,9 +243,9 @@ export function DebugPanel() {
             </button>
           </div>
           <div className="debug-row">
-            <span className="debug-row-label">立即获得飞船并起航</span>
-            <span className="debug-row-desc">设置飞船持有标志，登船，从冯·布劳恩起航进入星图</span>
-            <button className="debug-action" onClick={giveAndLaunchShip} disabled={!player}>
+            <span className="debug-row-label">立即登船起航</span>
+            <span className="debug-row-desc">登上旗舰，从冯·布劳恩起航进入星图</span>
+            <button className="debug-action" onClick={launchShip} disabled={!player}>
               起航
             </button>
           </div>

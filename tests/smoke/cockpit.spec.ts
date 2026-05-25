@@ -31,9 +31,9 @@ test('cockpit: launch MS, dock, re-helm flagship', async ({ sim }) => {
   const setupOk = await sim.page.evaluate(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const u = (window as any).__uclife__
-    return u.cheatMoney(80000) && u.cheatPiloting(10) && u.setShipOwned()
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
   })
-  expect(setupOk, 'cheatMoney+cheatPiloting+setShipOwned failed at setup').toBeTruthy()
+  expect(setupOk, 'cheatMoney+cheatPiloting failed at setup').toBeTruthy()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.boardShip())

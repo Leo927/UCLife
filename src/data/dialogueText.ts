@@ -17,7 +17,6 @@ export interface DialogueText {
     realtor: string
     seller: string
     ae: string
-    shipDealer: string
     clinic: string
     aeClinic: string
     pharmacy: string
@@ -44,7 +43,6 @@ export interface DialogueText {
     }
     seller: { title: string; intro: string }
     ae: { titleSuffix: string; intro: string; empty: string }
-    shipDealer: { title: string }
     clinic: { title: string; noSymptoms: string; treatmentHeader: string; couponBlurb: string }
     aeClinic: {
       title: string

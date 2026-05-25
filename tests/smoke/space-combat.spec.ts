@@ -16,7 +16,6 @@ const REQUIRED_HANDLES = [
   '__uclife__.listEnemies',
   '__uclife__.cheatMoney',
   '__uclife__.cheatPiloting',
-  '__uclife__.setShipOwned',
   '__uclife__.boardShip',
   '__uclife__.useScene',
 ]
@@ -32,11 +31,11 @@ test('space combat: engagement loop with victory cleanup', async ({ sim }) => {
     (args) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = (window as any).__uclife__
-      return u.cheatMoney(args.money) && u.cheatPiloting(args.piloting) && u.setShipOwned()
+      return u.cheatMoney(args.money) && u.cheatPiloting(args.piloting)
     },
     { money: STARTUP_MONEY, piloting: STARTUP_PILOTING },
   )
-  expect(setupOk, 'cheat-money/piloting/ownership setup failed').toBeTruthy()
+  expect(setupOk, 'cheat-money/piloting setup failed').toBeTruthy()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.boardShip())

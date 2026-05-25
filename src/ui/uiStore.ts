@@ -38,7 +38,7 @@ interface UIState {
   transitSourceId: string | null
   flightHubId: string | null
   // Service-side dialogs (HR, realtor, AE, clinic, pharmacy, shop,
-  // secretary, recruiter, ship-dealer) all share dialogNPC and render
+  // secretary, recruiter) all share dialogNPC and render
   // as inline conversation panels inside NPCDialog — see the
   // worker-not-workstation rule in Design/social/diegetic-management.md.
   dialogNPC: Entity | null

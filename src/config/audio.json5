@@ -129,8 +129,6 @@
     'ui.clinic.tier-select':       { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.pharmacy.buy':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.factory-manager.accept':   { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
-    'ui.ship-dealer.close':        { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
-    'ui.ship-dealer.buy':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 
     // ── Debug panel ─────────────────────────────────────────────────
     'ui.debug.close':                  { clip: 'audio/ui/dummy.mp3', volume: 1.0 },

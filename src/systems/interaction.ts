@@ -15,7 +15,7 @@ import { useClock } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
 import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
-import { Flags, Ship, IsFlagshipMark } from '../ecs/traits'
+import { Ship, IsFlagshipMark } from '../ecs/traits'
 import { boardShip, boardShipByKey, disembarkShip, migratePlayerToScene } from '../sim/scene'
 import { getShipClass } from '../data/ship-classes'
 import { takeHelm } from '../sim/helm'
@@ -58,6 +58,16 @@ function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): b
     const b = bedEnt.get(Bed)!
     if (b.tier !== 'apartment') continue
     if (bedActiveOccupant(b, nowMs) === player) return true
+  }
+  return false
+}
+
+// Ownership in the fleet system lives on the Ship's Owner trait, not on
+// a per-player boolean. Any Ship with a character owner counts.
+function playerOwnsAnyShip(): boolean {
+  const shipWorld = getWorld('playerShipInterior')
+  for (const e of shipWorld.query(Ship, Owner)) {
+    if (e.get(Owner)!.kind === 'character') return true
   }
   return false
 }
@@ -184,11 +194,6 @@ export function interactionSystem(world: World) {
       continue
     }
     if (nearestKind === 'boardShip') {
-      const flags = player.get(Flags)
-      if (!flags?.flags.shipOwned) {
-        emitSim('toast', { textZh: '你尚未拥有飞船 · 请先到 AE 大厅购买' })
-        continue
-      }
       if (getActiveSceneId() === 'playerShipInterior') continue
       // Gate booths carry a ShipMarker pointing at the bound ship; the
       // legacy airport board kiosk has no marker and boards the current
@@ -202,6 +207,10 @@ export function interactionSystem(world: World) {
           },
         })
       } else {
+        if (!playerOwnsAnyShip()) {
+          emitSim('toast', { textZh: '你尚未拥有任何飞船' })
+          continue
+        }
         runTransition({ midpoint: () => boardShip() })
       }
       continue
