@@ -13,12 +13,16 @@ import {
   spendFleetFuel,
   grantFleetFuel,
   refillFleetFuel,
+  spendFleetSupply,
+  grantFleetSupply,
+  refillFleetSupplies,
+  type FleetPoolView,
 } from '../ecs/fleetPool'
 import { useDebug } from '../debug/store'
 // Phase 6.2.B — re-export for callers that imported projection helpers
 // from sim/ship.ts before the engine boundary forced them to ecs/.
 export { attachShipStatSheet, projectShipSheet } from '../ecs/shipEffects'
-export { recomputeFleetFuelMax } from '../ecs/fleetPool'
+export { recomputeFleetFuelMax, recomputeFleetPool } from '../ecs/fleetPool'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -39,7 +43,7 @@ export function getShipState() {
   return ent?.get(Ship) ?? null
 }
 
-export function getFleetPool(): { fuelCurrent: number; fuelMax: number } {
+export function getFleetPool(): FleetPoolView {
   return _getFleetPool()
 }
 
@@ -52,26 +56,26 @@ export function grantFuel(amount: number): { fuelAfter: number; fuelMax: number 
   return grantFleetFuel(amount)
 }
 
+// Drains supplies from the fleet pool. Returns true on full debit,
+// false when the pool ran short of `amount` (partial debit still
+// applied — the daily upkeep tick wants both the rationing and a
+// "ran dry" signal in one call).
 export function spendSupplies(amount: number): boolean {
-  const ent = getFlagshipEntity()
-  if (!ent) return false
   if (useDebug.getState().infiniteFuelSupply) return true
-  const s = ent.get(Ship)!
-  if (s.suppliesCurrent < amount) return false
-  ent.set(Ship, { ...s, suppliesCurrent: s.suppliesCurrent - amount })
-  return true
+  const applied = spendFleetSupply(amount)
+  return applied >= amount
 }
 
-// Tops off the fleet fuel pool and refills the flagship's supplies.
-// Used by post-combat refits, gate-terminal "refuel/resupply" verbs, and
-// the debug infinite-fuel toggle. Supplies remain per-ship for now
-// (drains are per-ship daily; per-ship UI shows the gauge).
+export function grantSupplies(amount: number): { supplyAfter: number; supplyMax: number } {
+  return grantFleetSupply(amount)
+}
+
+// Tops off the fleet fuel + supply pools. Used by post-combat refits,
+// gate-terminal "refuel/resupply" verbs, and the debug infinite-fuel
+// toggle.
 export function refillFuelAndSupplies(): boolean {
-  const ent = getFlagshipEntity()
-  if (!ent) return false
-  const s = ent.get(Ship)!
-  ent.set(Ship, { ...s, suppliesCurrent: s.suppliesMax })
   refillFleetFuel()
+  refillFleetSupplies()
   return true
 }
 

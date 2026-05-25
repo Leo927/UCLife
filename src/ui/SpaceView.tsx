@@ -8,10 +8,9 @@ import type { Application } from 'pixi.js'
 import { PixiCanvas } from '../render/pixi'
 import { PixiSpaceRenderer } from '../render/space/PixiSpaceRenderer'
 import type { SpaceSnapshot, BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot } from '../render/spaceSnapshot'
-import { getWorld, SCENE_IDS } from '../ecs/world'
+import { getWorld } from '../ecs/world'
 import { IsPlayer, Position, Body, PoiTag, Velocity, Course, EnemyAI, EntityKey } from '../ecs/traits'
 import { dialogueText } from '../data/dialogueText'
-import { aggregateHangarReserves } from '../systems/fleetSupplyDrain'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
@@ -138,21 +137,16 @@ interface FleetSupplyHud {
 }
 
 function readFleetSupply(): FleetSupplyHud {
-  // Supply pool is still hangar-scoped: each hangar has its own
-  // warehouse stockpile drained by daily upkeep. Aggregate across
-  // every scene world that hosts hangar facilities for the HUD
-  // readout.
-  let sc = 0, sm = 0
-  for (const sceneId of SCENE_IDS) {
-    const r = aggregateHangarReserves(getWorld(sceneId))
-    sc += r.supplyCurrent
-    sm += r.supplyMax
-  }
-  // Fuel pool is fleet-level (Starsector-style) and lives on the
-  // FleetPool singleton — capacity is sum of active-fleet ship
-  // fuelStorage; spendFuel debits it during maneuvers.
+  // Starsector-style fleet pool — both fuel + supplies live on the
+  // FleetPool singleton (capacities = sums of active-fleet ship
+  // fuelStorage / supplyStorage). spendFuel debits during maneuvers,
+  // fleetSupplyDrain debits daily for upkeep. Hangar warehouses are a
+  // separate stockpile the player refuels from when docked.
   const pool = getFleetPool()
-  return { supplyCurrent: sc, supplyMax: sm, fuelCurrent: pool.fuelCurrent, fuelMax: pool.fuelMax }
+  return {
+    supplyCurrent: pool.supplyCurrent, supplyMax: pool.supplyMax,
+    fuelCurrent: pool.fuelCurrent, fuelMax: pool.fuelMax,
+  }
 }
 
 // Fuel below this is treated as empty: spaceSim drops thrust as soon as

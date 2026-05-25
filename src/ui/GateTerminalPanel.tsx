@@ -111,9 +111,9 @@ export function GateTerminalPanel() {
 }
 
 function StatusTab({ ship }: { ship: TraitInstance<typeof Ship> }) {
-  // Fleet fuel is a Starsector-style shared pool — surface it here so a
-  // gate-terminal status check shows the same fuel number the helm HUD
-  // does. Per-ship fuel reserves no longer exist out of combat.
+  // Fuel + supplies are Starsector-style shared fleet pools — surface
+  // them here so a gate-terminal status check shows the same numbers
+  // the helm HUD does. Per-ship reserves no longer exist out of combat.
   const fleetPoolEnt = useQueryFirst(FleetPool)
   const fleetPool = useTrait(fleetPoolEnt, FleetPool)
   return (
@@ -128,7 +128,12 @@ function StatusTab({ ship }: { ship: TraitInstance<typeof Ship> }) {
         max={fleetPool?.fuelMax ?? 0}
         color="#60a5fa"
       />
-      <ReadinessBar label="物资"   current={ship.suppliesCurrent} max={ship.suppliesMax} color="#34d399" />
+      <ReadinessBar
+        label="物资"
+        current={fleetPool?.supplyCurrent ?? 0}
+        max={fleetPool?.supplyMax ?? 0}
+        color="#34d399"
+      />
     </section>
   )
 }

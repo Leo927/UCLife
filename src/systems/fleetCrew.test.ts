@@ -45,7 +45,6 @@ function spawnShip(world: ReturnType<typeof createWorld>, key: string, templateI
       hasShield: false, shieldEfficiency: 1,
       topSpeed: 60, accel: 60, decel: 30, angularAccel: 4, maxAngVel: 1.5,
       crCurrent: 100, crMax: 100,
-      suppliesCurrent: 40, suppliesMax: 40,
       dockedAtPoiId: 'vonBraun',
       fleetPos: { x: 0, y: 0 },
       inCombat: false,

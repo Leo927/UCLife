@@ -20,6 +20,7 @@ import { Ship, IsFlagshipMark, IsInActiveFleet, EntityKey } from '../ecs/traits'
 import { getWorld } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
+import { recomputeFleetPool } from '../ecs/fleetPool'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -133,6 +134,7 @@ export function setIsInActiveFleet(
     // Demote: clear marker + drop slot.
     if (ent.has(IsInActiveFleet)) ent.remove(IsInActiveFleet)
     ent.set(Ship, { ...s, formationSlot: -1 })
+    recomputeFleetPool()
     return { ok: true, entityKey: shipKey, formationSlot: -1 }
   }
   // Promote — resolve a slot.
@@ -154,8 +156,13 @@ export function setIsInActiveFleet(
     if (slot === grid.flagshipSlot) return { ok: false, reason: 'slot_occupied' }
     if (occupancy[slot]) return { ok: false, reason: 'slot_occupied' }
   }
-  if (!ent.has(IsInActiveFleet)) ent.add(IsInActiveFleet)
+  const wasActive = ent.has(IsInActiveFleet)
+  if (!wasActive) ent.add(IsInActiveFleet)
   ent.set(Ship, { ...s, formationSlot: slot })
+  // Roster joined the active fleet — top up the freshly-added capacity
+  // so the player doesn't pay for new ships and immediately notice the
+  // pool draw down on next sortie.
+  if (!wasActive) recomputeFleetPool({ topUp: true })
   return { ok: true, entityKey: shipKey, formationSlot: slot }
 }
 

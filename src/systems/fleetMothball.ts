@@ -21,6 +21,7 @@
 
 import type { Entity } from 'koota'
 import { Ship, IsFlagshipMark, IsInActiveFleet } from '../ecs/traits'
+import { recomputeFleetPool } from '../ecs/fleetPool'
 import {
   captainEffectId, findNpcByKey, findShipByKey,
 } from './fleetCrew'
@@ -58,6 +59,7 @@ export function setShipMothballed(
     if (s.assignedCaptainId) {
       removeShipEffect(shipEnt, captainEffectId(s.assignedCaptainId))
     }
+    recomputeFleetPool()
     return { ok: true, shipKey, mothballed: true }
   }
 
@@ -65,6 +67,8 @@ export function setShipMothballed(
   if (s.assignedCaptainId) {
     reapplyCaptainEffectFor(shipEnt, s.assignedCaptainId)
   }
+  // Unmothballed ship doesn't auto-rejoin active fleet — capacity stays
+  // the same until the war-room readds the IsInActiveFleet marker.
   return { ok: true, shipKey, mothballed: false }
 }
 
