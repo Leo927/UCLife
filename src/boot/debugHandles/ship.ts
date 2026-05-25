@@ -10,7 +10,7 @@ import {
   ShipRoom, Building, WeaponMount,
 } from '../../ecs/traits'
 import { boardShip, boardShipByKey, disembarkShip } from '../../sim/scene'
-import { getShipState, refillFuelAndSupplies } from '../../sim/ship'
+import { getShipState, getFleetPool, refillFuelAndSupplies } from '../../sim/ship'
 import { takeHelm } from '../../sim/helm'
 import { spaceSimSystem } from '../../systems/spaceSim'
 import { useDebug } from '../../debug/store'
@@ -23,8 +23,11 @@ registerDebugHandle('getShipState', getShipState)
 registerDebugHandle('shipFuelSupply', () => {
   const s = getShipState()
   if (!s) return null
-  return { fuel: s.fuelCurrent, supplies: s.suppliesCurrent }
+  const pool = getFleetPool()
+  return { fuel: pool.fuelCurrent, supplies: s.suppliesCurrent }
 })
+
+registerDebugHandle('fleetFuelPool', () => getFleetPool())
 
 registerDebugHandle('setCourse', (tx: number, ty: number, destPoiId: string | null = null) => {
   const w = getWorld('spaceCampaign')

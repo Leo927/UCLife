@@ -16,7 +16,7 @@ import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi } from '../data/pois'
 import { spaceConfig } from '../config'
 import { leaveHelm } from '../sim/helm'
-import { getShipState } from '../sim/ship'
+import { getFleetPool } from '../sim/ship'
 import { navigateTo, dockAt } from '../sim/navigation'
 import { emitSim } from '../sim/events'
 import { playUi } from '../audio/player'
@@ -132,39 +132,39 @@ interface ContextMenuState {
   screenY: number
 }
 
-interface FuelHud { current: number; max: number }
-
 interface FleetSupplyHud {
   supplyCurrent: number; supplyMax: number;
   fuelCurrent: number; fuelMax: number;
 }
 
 function readFleetSupply(): FleetSupplyHud {
-  // Aggregate across every scene world that hosts hangar facilities.
-  // Today: vonBraunCity + granadaDrydock; the iteration is safe on
-  // worlds with no hangars (the inner query just yields nothing).
-  let sc = 0, sm = 0, fc = 0, fm = 0
+  // Supply pool is still hangar-scoped: each hangar has its own
+  // warehouse stockpile drained by daily upkeep. Aggregate across
+  // every scene world that hosts hangar facilities for the HUD
+  // readout.
+  let sc = 0, sm = 0
   for (const sceneId of SCENE_IDS) {
     const r = aggregateHangarReserves(getWorld(sceneId))
     sc += r.supplyCurrent
     sm += r.supplyMax
-    fc += r.fuelCurrent
-    fm += r.fuelMax
   }
-  return { supplyCurrent: sc, supplyMax: sm, fuelCurrent: fc, fuelMax: fm }
+  // Fuel pool is fleet-level (Starsector-style) and lives on the
+  // FleetPool singleton — capacity is sum of active-fleet ship
+  // fuelStorage; spendFuel debits it during maneuvers.
+  const pool = getFleetPool()
+  return { supplyCurrent: sc, supplyMax: sm, fuelCurrent: pool.fuelCurrent, fuelMax: pool.fuelMax }
 }
 
 // Fuel below this is treated as empty: spaceSim drops thrust as soon as
-// the per-frame fuel demand exceeds fuelCurrent, which happens long
-// before fuelCurrent reaches strict zero. 0.05 is a few frames of full
-// thrust — effectively unusable for actual maneuver.
+// the per-frame fuel demand exceeds the pool's fuelCurrent, which
+// happens long before strict zero. 0.05 is a few frames of full thrust
+// — effectively unusable for actual maneuver.
 const FUEL_EMPTY_THRESHOLD = 0.05
 
 export function SpaceView() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [fitMode, setFitMode] = useState(false)
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
-  const [fuelHud, setFuelHud] = useState<FuelHud | null>(null)
   const [fleetSupply, setFleetSupply] = useState<FleetSupplyHud | null>(null)
 
   // Latest menu/fitMode in refs so the render loop and key handlers can
@@ -209,8 +209,6 @@ export function SpaceView() {
       last = now
       if (now - lastFuelPoll >= FUEL_POLL_MS) {
         lastFuelPoll = now
-        const s = getShipState()
-        if (s) setFuelHud({ current: s.fuelCurrent, max: s.fuelMax })
         setFleetSupply(readFleetSupply())
       }
       const r = rendererRef.current
@@ -291,12 +289,9 @@ export function SpaceView() {
     const isRight = e.button === 2
 
     // Empty-fuel guard: spaceSim drops thrust whenever a frame's fuel
-    // demand exceeds Ship.fuelCurrent (well before strict zero), which
-    // would silently ignore any course committed below.
-    const fuelEmpty = (() => {
-      const ship = getShipState()
-      return ship && ship.fuelCurrent < FUEL_EMPTY_THRESHOLD
-    })()
+    // demand exceeds the fleet pool's fuelCurrent (well before strict
+    // zero), which would silently ignore any course committed below.
+    const fuelEmpty = getFleetPool().fuelCurrent < FUEL_EMPTY_THRESHOLD
 
     if (isRight) {
       e.preventDefault()
@@ -353,57 +348,40 @@ export function SpaceView() {
       onContextMenu={onContextMenu}
     >
       <PixiCanvas width={size.w} height={size.h} background={0x020617} onReady={onReady} />
-      {fuelHud && (() => {
-        const empty = fuelHud.current < FUEL_EMPTY_THRESHOLD
+      {fleetSupply && (fleetSupply.supplyMax > 0 || fleetSupply.fuelMax > 0) && (() => {
+        const fuelEmpty = fleetSupply.fuelCurrent < FUEL_EMPTY_THRESHOLD
         return (
           <div
+            data-fleet-supply-hud
             style={{
               position: 'absolute', bottom: 12, left: 12,
               background: 'rgba(15, 23, 42, 0.92)',
-              border: `1px solid ${empty ? '#dc2626' : '#475569'}`,
-              color: empty ? '#fca5a5' : '#e2e8f0',
+              border: `1px solid ${fuelEmpty ? '#dc2626' : '#475569'}`,
+              color: '#e2e8f0',
               padding: '8px 14px',
               fontFamily: 'system-ui, sans-serif', fontSize: 13,
-              borderRadius: 4, minWidth: 140,
+              borderRadius: 4, minWidth: 160,
             }}
           >
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>燃料</div>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>
-              {fuelHud.current.toFixed(1)} / {fuelHud.max}
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>
+              {dialogueText.branches.fleetSupplyHud.supplyLabel}
             </div>
-            {empty && (
-              <div style={{ fontSize: 11, marginTop: 4 }}>耗尽 · 无法机动</div>
-            )}
+            <div style={{ fontSize: 16, fontWeight: 600 }} data-fleet-supply>
+              {Math.round(fleetSupply.supplyCurrent)} / {fleetSupply.supplyMax}
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+              {dialogueText.branches.fleetSupplyHud.fuelLabel}
+            </div>
+            <div
+              style={{ fontSize: 14, fontWeight: 500, color: fuelEmpty ? '#fca5a5' : '#e2e8f0' }}
+              data-fleet-fuel
+            >
+              {Math.round(fleetSupply.fuelCurrent)} / {fleetSupply.fuelMax}
+              {fuelEmpty && <span style={{ marginLeft: 6, fontSize: 11 }}>· 耗尽</span>}
+            </div>
           </div>
         )
       })()}
-      {fleetSupply && fleetSupply.supplyMax > 0 && (
-        <div
-          data-fleet-supply-hud
-          style={{
-            position: 'absolute', bottom: 12, left: 168,
-            background: 'rgba(15, 23, 42, 0.92)',
-            border: '1px solid #475569',
-            color: '#e2e8f0',
-            padding: '8px 14px',
-            fontFamily: 'system-ui, sans-serif', fontSize: 13,
-            borderRadius: 4, minWidth: 160,
-          }}
-        >
-          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>
-            {dialogueText.branches.fleetSupplyHud.supplyLabel}
-          </div>
-          <div style={{ fontSize: 16, fontWeight: 600 }} data-fleet-supply>
-            {Math.round(fleetSupply.supplyCurrent)} / {fleetSupply.supplyMax}
-          </div>
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-            {dialogueText.branches.fleetSupplyHud.fuelLabel}
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 500 }} data-fleet-fuel>
-            {Math.round(fleetSupply.fuelCurrent)} / {fleetSupply.fuelMax}
-          </div>
-        </div>
-      )}
       <button
         onClick={() => { playUi('ui.space.leave-helm'); leaveHelm() }}
         style={{

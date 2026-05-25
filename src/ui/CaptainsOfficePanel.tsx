@@ -7,7 +7,7 @@
 // orders, prisoner verbs); today it's a read-only briefing.
 
 import { useTrait, useQueryFirst } from 'koota/react'
-import { Ship, IsFlagshipMark, IsPlayer } from '../ecs/traits'
+import { Ship, IsFlagshipMark, IsPlayer, FleetPool } from '../ecs/traits'
 import { getShipClass } from '../data/ship-classes'
 import { getPoi } from '../data/pois'
 import { useUI } from './uiStore'
@@ -29,6 +29,9 @@ export function CaptainsOfficePanel() {
   // change after we've opened the panel (e.g. autosave + reload).
   const shipEnt = useQueryFirst(Ship, IsFlagshipMark)
   const ship = useTrait(shipEnt, Ship)
+  // Fleet fuel — Starsector-style shared pool, not per-ship.
+  const fleetPoolEnt = useQueryFirst(FleetPool)
+  const fleetPool = useTrait(fleetPoolEnt, FleetPool)
 
   if (!open) return null
   if (activeId !== SHIP_SCENE_ID || !ship) return null
@@ -65,7 +68,12 @@ export function CaptainsOfficePanel() {
         </section>
         <section className="status-section">
           <h3>补给</h3>
-          <ReadinessBar label="燃料" current={ship.fuelCurrent} max={ship.fuelMax} color="#60a5fa" />
+          <ReadinessBar
+            label="燃料"
+            current={fleetPool?.fuelCurrent ?? 0}
+            max={fleetPool?.fuelMax ?? 0}
+            color="#60a5fa"
+          />
           <ReadinessBar label="物资" current={ship.suppliesCurrent} max={ship.suppliesMax} color="#34d399" />
         </section>
         <ManTheRestSection shipEnt={shipEnt} />

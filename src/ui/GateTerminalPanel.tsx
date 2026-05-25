@@ -9,9 +9,9 @@
 // remote-management surface only.
 
 import { useState, useEffect } from 'react'
-import { useTrait } from 'koota/react'
+import { useTrait, useQueryFirst } from 'koota/react'
 import type { TraitInstance } from 'koota'
-import { Ship, Owner, EntityKey } from '../ecs/traits'
+import { Ship, Owner, EntityKey, FleetPool } from '../ecs/traits'
 import { getShipClass } from '../data/ship-classes'
 import { useUI } from './uiStore'
 import { getWorld } from '../ecs/world'
@@ -111,13 +111,23 @@ export function GateTerminalPanel() {
 }
 
 function StatusTab({ ship }: { ship: TraitInstance<typeof Ship> }) {
+  // Fleet fuel is a Starsector-style shared pool — surface it here so a
+  // gate-terminal status check shows the same fuel number the helm HUD
+  // does. Per-ship fuel reserves no longer exist out of combat.
+  const fleetPoolEnt = useQueryFirst(FleetPool)
+  const fleetPool = useTrait(fleetPoolEnt, FleetPool)
   return (
     <section className="status-section">
       <ReadinessBar label="船体"   current={ship.hullCurrent}   max={ship.hullMax}   color="#4ade80" />
       <ReadinessBar label="装甲"   current={ship.armorCurrent}  max={ship.armorMax}  color="#a3a3a3" />
       <ReadinessBar label="电荷"   current={ship.fluxCurrent}   max={ship.fluxMax}   color="#3b82f6" reverse />
       <ReadinessBar label="战备"   current={ship.crCurrent}     max={ship.crMax}     color="#f59e0b" />
-      <ReadinessBar label="燃料"   current={ship.fuelCurrent}   max={ship.fuelMax}   color="#60a5fa" />
+      <ReadinessBar
+        label="燃料"
+        current={fleetPool?.fuelCurrent ?? 0}
+        max={fleetPool?.fuelMax ?? 0}
+        color="#60a5fa"
+      />
       <ReadinessBar label="物资"   current={ship.suppliesCurrent} max={ship.suppliesMax} color="#34d399" />
     </section>
   )

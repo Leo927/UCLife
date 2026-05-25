@@ -68,7 +68,6 @@ function spawnShipAt(
       hasShield: false, shieldEfficiency: 1,
       topSpeed: 0, accel: 0, decel: 0, angularAccel: 1, maxAngVel: 1,
       crCurrent: 100, crMax: 100,
-      fuelCurrent: 0, fuelMax: 16,
       suppliesCurrent: 0, suppliesMax: 40,
       dockedAtPoiId: poiId,
       fleetPos: { x: 0, y: 0 },

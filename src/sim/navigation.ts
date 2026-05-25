@@ -5,7 +5,7 @@
 // through the same takeoff path so a player can never accidentally get
 // into space without paying for the launch.
 
-import { getShipState, spendFuel, clearDocked, setDockedPoi, setFleetPos } from './ship'
+import { getShipState, getFleetPool, spendFuel, clearDocked, setDockedPoi, setFleetPos } from './ship'
 import { getPoi } from '../data/pois'
 import { takeoffFuelCostFor, derivedPoiPos } from './helm'
 import { getWorld } from '../ecs/world'
@@ -40,7 +40,8 @@ function takeoffIfDocked(): { ok: boolean; message?: string } {
 
   const infinite = useDebug.getState().infiniteFuelSupply
   const fuelCost = takeoffFuelCostFor(ship.dockedAtPoiId)
-  if (!infinite && ship.fuelCurrent < fuelCost) {
+  const pool = getFleetPool()
+  if (!infinite && pool.fuelCurrent < fuelCost) {
     return { ok: false, message: `燃料不足 · 起航需 ${fuelCost}` }
   }
   const fromPoi = getPoi(ship.dockedAtPoiId)

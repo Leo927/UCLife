@@ -39,7 +39,7 @@ import { getShipClass } from '../data/ship-classes'
 import { getWeapon, type WeaponDef } from '../data/weapons'
 import { useClock } from '../sim/clock'
 import { simNow } from '../sim/time'
-import { setInCombat, damageHull, drainCR, getFlagshipEntity } from '../sim/ship'
+import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
@@ -691,21 +691,19 @@ export function endCombat(outcome: CombatOutcome): void {
       creditsAfter = m.amount + reward
       player.set(Money, { amount: creditsAfter })
     }
-    // Replenish the flagship's supplies + fuel — capped at max.
+    // Replenish the flagship's supplies (per-ship) + fleet fuel pool.
     const playerShip = getFlagshipEntity()
-    let suppliesAfter = 0, suppliesMax = 0, fuelAfter = 0, fuelMax = 0
+    let suppliesAfter = 0, suppliesMax = 0
     if (playerShip) {
       const s = playerShip.get(Ship)!
       suppliesMax = s.suppliesMax
-      fuelMax = s.fuelMax
       suppliesAfter = Math.min(s.suppliesMax, s.suppliesCurrent + supplyGain)
-      fuelAfter = Math.min(s.fuelMax, s.fuelCurrent + fuelGain)
       playerShip.set(Ship, {
         ...s,
         suppliesCurrent: suppliesAfter,
-        fuelCurrent: fuelAfter,
       })
     }
+    const { fuelAfter, fuelMax } = grantFuel(fuelGain)
     logEvent(`战斗胜利 · 缴获 ¥${reward}`)
     pushCombatLog(`战斗胜利 · 缴获 ¥${reward}`, 'narr')
     // Phase 6.2 — named POWs captured this fight + current brig
