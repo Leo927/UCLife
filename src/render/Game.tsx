@@ -494,11 +494,13 @@ function buildSnapshot(
     const d = ent.get(Door)
     if (!d) continue
     if (!rectInView(d.x, d.y, d.w, d.h)) continue
-    const variant: DoorVariant = d.factionGate !== null
-      ? 'factionGated'
-      : d.bedEntity !== null
-        ? 'bedKeyed'
-        : 'open'
+    const variant: DoorVariant = d.locked
+      ? 'shipLocked'
+      : d.factionGate !== null
+        ? 'factionGated'
+        : d.bedEntity !== null
+          ? 'bedKeyed'
+          : 'open'
     doors.push({
       ent, x: d.x, y: d.y, w: d.w, h: d.h,
       variant,

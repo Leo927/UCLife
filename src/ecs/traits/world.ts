@@ -32,14 +32,18 @@ export const Road = trait({
   kind: 'avenue' as RoadKind,
 })
 
-// Two independent lock predicates: `bedEntity` keys cell doors to a specific
-// bed's active renter; `factionGate` keys faction-internal doors. Both null
-// = always open. Both set = locked unless the requester satisfies *either*.
+// Three independent lock predicates: `bedEntity` keys cell doors to a specific
+// bed's active renter; `factionGate` keys faction-internal doors; `locked`
+// is a hard lock that blocks every requester (used by the boarding-bridge
+// door at a gate whose bound ship the player doesn't own). All null/false
+// = always open. Otherwise: open if requester satisfies bedEntity OR
+// factionGate; `locked=true` blocks unconditionally.
 export const Door = trait({
   x: 0, y: 0, w: 0, h: 0,
   orient: 'h' as 'h' | 'v',
   bedEntity: null as Entity | null,
   factionGate: null as FactionId | null,
+  locked: false,
 })
 
 // 'flop' and 'landlord' aren't here: flop beds use 'sleep' (rent semantics

@@ -148,21 +148,23 @@ function setBlockedFor(world: World, requester: Entity | null): void {
   const passActive = !!pass && pass.bedEntity !== null && pass.expireMs > nowMs
   for (const doorEnt of world.query(Door)) {
     const d = doorEnt.get(Door)!
-    if (!d.bedEntity && !d.factionGate) continue
+    if (!d.bedEntity && !d.factionGate && !d.locked) continue
 
-    if (d.bedEntity) {
-      const bed = d.bedEntity.get(Bed)
-      if (bed) {
-        const tenant = bed.occupant
-        const rentActive = tenant !== null && bed.rentPaidUntilMs > nowMs
-        const requesterIsTenant = rentActive && requester !== null && tenant === requester
-        if (requesterIsTenant) continue
-        if (passActive && pass!.bedEntity === d.bedEntity) continue
+    if (!d.locked) {
+      if (d.bedEntity) {
+        const bed = d.bedEntity.get(Bed)
+        if (bed) {
+          const tenant = bed.occupant
+          const rentActive = tenant !== null && bed.rentPaidUntilMs > nowMs
+          const requesterIsTenant = rentActive && requester !== null && tenant === requester
+          if (requesterIsTenant) continue
+          if (passActive && pass!.bedEntity === d.bedEntity) continue
+        }
       }
-    }
 
-    if (d.factionGate && requester !== null && isAffiliated(requester, d.factionGate)) {
-      continue
+      if (d.factionGate && requester !== null && isAffiliated(requester, d.factionGate)) {
+        continue
+      }
     }
 
     blockRect(g, d.x, d.y, d.w, d.h)

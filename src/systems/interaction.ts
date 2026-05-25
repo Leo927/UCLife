@@ -26,6 +26,7 @@ import { getPoi } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
 import { getOrbitalLift, liftOtherEndpoint, liftFareFrom } from '../data/orbitalLifts'
+import { findBoardingPadPx } from './shipMarkers'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
@@ -232,6 +233,7 @@ export function interactionSystem(world: World) {
     if (nearestKind === 'disembarkShip') {
       if (getActiveSceneId() !== 'playerShipInterior') continue
       const ship = world.queryFirst(Ship, IsFlagshipMark)
+      const shipKey = ship?.get(EntityKey)?.key ?? ''
       const dockedAt = ship?.get(Ship)?.dockedAtPoiId ?? ''
       const poi = dockedAt ? getPoi(dockedAt) : undefined
       const targetSceneId = poi?.sceneId
@@ -239,9 +241,20 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '该坐标不可登陆' })
         continue
       }
-      const hubId = `${targetSceneId}Airport`
-      const placement = getAirportPlacement(hubId)
-      let arrivalPx: { x: number; y: number } | null = placement?.arrivalPx ?? null
+      // Preferred drop point: the far end of the bridge the flagship is
+      // currently bound to (its boarding pad). Drydock disembarks land
+      // the player at the bridge's outer pad — symmetric with boarding
+      // (which transitions when the player walks down the same pad).
+      // Airport / playerSpawnTile fallbacks cover hubs without a wall-
+      // placement gate (surface hangars, future hubs without bridges).
+      let arrivalPx: { x: number; y: number } | null = shipKey
+        ? findBoardingPadPx(targetSceneId, shipKey)
+        : null
+      if (!arrivalPx) {
+        const hubId = `${targetSceneId}Airport`
+        const placement = getAirportPlacement(hubId)
+        arrivalPx = placement?.arrivalPx ?? null
+      }
       if (!arrivalPx) {
         const cfg = getSceneConfig(targetSceneId)
         if (cfg.sceneType === 'micro' && cfg.playerSpawnTile) {

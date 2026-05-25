@@ -90,7 +90,7 @@ export interface WallTemplate extends BaseTemplate {
   kind: 'wall'
 }
 
-export type DoorVariant = 'open' | 'factionGated' | 'bedKeyed'
+export type DoorVariant = 'open' | 'factionGated' | 'bedKeyed' | 'shipLocked'
 export interface DoorTemplate extends BaseTemplate {
   kind: 'door'
   variant: DoorVariant

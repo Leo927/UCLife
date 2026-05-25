@@ -139,10 +139,12 @@
     // layout (drydock hangars) so adjacent gates don't visually overlap.
     'gate-sign-wall-smallcraft':   { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '指示牌', visual: { w: 32, h: 48, fill: 0x111827, stroke: 0x60a5fa } },
     'gate-sign-wall-capital':      { kind: 'interactable', interactableKind: 'gateTerminal', labelZh: '指示牌', visual: { w: 36, h: 56, fill: 0x0b1220, stroke: 0x93c5fd } },
-    'gate-board-smallcraft':       { kind: 'interactable', interactableKind: 'inspectShip',  labelZh: '舰艇',   visual: { w: 40, h: 40, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
-    'gate-board-flagship-smallcraft': { kind: 'interactable', interactableKind: 'boardShip', labelZh: '旗舰',   visual: { w: 40, h: 40, fill: 0x172554, stroke: 0xfbbf24 } },
-    'gate-board-capital':          { kind: 'interactable', interactableKind: 'inspectShip',  labelZh: '战舰',   visual: { w: 56, h: 56, fill: 0x1e3a8a, stroke: 0x93c5fd } },
-    'gate-board-flagship-capital': { kind: 'interactable', interactableKind: 'boardShip',    labelZh: '旗舰',   visual: { w: 56, h: 56, fill: 0x172554, stroke: 0xfbbf24 } },
+    // Boarding pad at the far end of a gate's boarding bridge — the tile
+    // the player walks onto to enter the bound ship's interior. Same kind
+    // (`boardShip` / `inspectShip`) as the legacy in-booth board portal;
+    // visual is a small airlock pad, not a ship-silhouette block.
+    'gate-board-pad':              { kind: 'interactable', interactableKind: 'inspectShip',  labelZh: '舱口',   visual: { w: 28, h: 28, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
+    'gate-board-pad-flagship':     { kind: 'interactable', interactableKind: 'boardShip',    labelZh: '舱口',   visual: { w: 28, h: 28, fill: 0x172554, stroke: 0xfbbf24 } },
     'ship-disembark':      { kind: 'interactable', interactableKind: 'disembarkShip', labelZh: '下舰',     visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x94a3b8 } },
 
     // — Park fixtures —
@@ -163,6 +165,7 @@
     'door-open':         { kind: 'door', variant: 'open',         visual: { fill: 0x1f1f24, stroke: 0x71717a } },
     'door-faction-gated':{ kind: 'door', variant: 'factionGated', visual: { fill: 0x3a2c0a, stroke: 0xc9a047 } },
     'door-bed-keyed':    { kind: 'door', variant: 'bedKeyed',     visual: { fill: 0x3a2206, stroke: 0xfbbf24 } },
+    'door-ship-locked':  { kind: 'door', variant: 'shipLocked',   visual: { fill: 0x3a0a0a, stroke: 0xef4444 } },
     'building-outline':  { kind: 'building_outline',              visual: { fill: 0x32323c, stroke: 0x2f2f3a } },
   },
 }
