@@ -198,6 +198,7 @@ export interface DialogueText {
       mothballStubToast: string
       scrapStubToast: string
       stateMothballed: string
+      stateAboard: string
       mothballFlagshipTooltip: string
       mothballInTransitTooltip: string
       mothballToastDone: string

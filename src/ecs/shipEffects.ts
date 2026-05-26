@@ -74,6 +74,11 @@ export function projectShipSheet(
   if (cls.supplyPerDay !== undefined) {
     sheet = setBase(sheet, 'supplyPerDay', cls.supplyPerDay)
   }
+  // Phase 6.2.5 — internal MS bay capacity. Non-carrier hulls omit this
+  // field (defaults to 0 in the sheet); carriers author an explicit value.
+  if (cls.hangarCapacity !== undefined) {
+    sheet = setBase(sheet, 'hangarCapacity', cls.hangarCapacity)
+  }
   for (const id of Object.keys(extras) as ShipStatId[]) {
     sheet = setBase(sheet, id, extras[id]!)
   }

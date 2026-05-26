@@ -28,6 +28,11 @@ import { partitionActiveFleetEscorts, enqueueShipTransit } from './fleetTransit'
 import { emitSim } from '../sim/events'
 import { getPoi } from '../data/pois'
 import { dialogueText } from '../data/dialogueText'
+import { getShipClass } from '../data/ship-classes'
+import {
+  releaseShipsFromCarrier, findCarrierSlotForShip, assignShipToCarrierBay,
+  hasFreePoiSlotForShip,
+} from './shipDelivery'
 
 const SHIP_SCENE_ID = 'playerShipInterior' as const
 const SPACE_SCENE_ID = 'spaceCampaign' as const
@@ -53,12 +58,22 @@ export function onFlagshipUndock(originPoiId: string, gameDay: number): Flagship
 
   const space = getWorld(SPACE_SCENE_ID)
   const shipWorld = getWorld(SHIP_SCENE_ID)
-  void shipWorld
+
+  // Phase 6.2.5 — release any MS stored inside the flagship's internal bay
+  // before it leaves port. Stored ships keep dockedAtPoiId = originPoiId
+  // and become overflow there.
+  const flagshipEnt = shipWorld.queryFirst(IsFlagshipMark)
+  if (flagshipEnt) {
+    const flagshipKey = flagshipEnt.get(EntityKey)?.key ?? ''
+    if (flagshipKey) releaseShipsFromCarrier(flagshipKey)
+  }
 
   for (const escortEnt of partition.sameAsFlagshipPoi) {
     const s = escortEnt.get(Ship)!
     const shipKey = escortEnt.get(EntityKey)?.key ?? ''
     if (!shipKey) continue
+    // Phase 6.2.5 — release MS stored inside this escort carrier before launch.
+    releaseShipsFromCarrier(shipKey)
     // Clear dock binding — the escort is now in flight.
     escortEnt.set(Ship, { ...s, dockedAtPoiId: '' })
     // Spawn (or reuse) a FleetEscort body in spaceCampaign. The
@@ -122,6 +137,13 @@ export function onFlagshipDock(destPoiId: string): FlagshipDockResult {
     if (shipEnt) {
       const s = shipEnt.get(Ship)!
       shipEnt.set(Ship, { ...s, dockedAtPoiId: destPoiId })
+      // Phase 6.2.5 — cascade: if no POI slot is free for this escort, try
+      // an internal carrier bay. Only ms-class and smaller ships can board.
+      const cls = getShipClass(s.templateId)
+      if (!hasFreePoiSlotForShip(cls.hangarSlotClass, destPoiId)) {
+        const carrier = findCarrierSlotForShip(cls.hangarSlotClass, destPoiId, shipKey)
+        if (carrier) assignShipToCarrierBay(shipEnt, carrier)
+      }
       result.shipsDocked++
     }
     e.destroy()

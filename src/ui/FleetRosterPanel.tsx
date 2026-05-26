@@ -62,6 +62,11 @@ interface RosterRow {
   // Phase 6.2.G — mothball state. Mothball button toggles to "启封" and
   // the row gets a 已封存 tag in place of the in-port/active state.
   mothballed: boolean
+  // Phase 6.2.5 — MS-aboard state. Non-empty = stored inside another
+  // ship's internal bay. The name is resolved from the carrier's Ship.name
+  // for display in the hangar column.
+  storedAboardShipKey: string
+  storedAboardShipName: string
 }
 
 function collectRoster(): RosterRow[] {
@@ -98,6 +103,8 @@ function collectRoster(): RosterRow[] {
       transitDestinationId: s.transitDestinationId,
       transitArrivalDay: s.transitArrivalDay,
       mothballed: s.mothballed,
+      storedAboardShipKey: s.storedAboardShipKey,
+      storedAboardShipName: shipNameByKey(s.storedAboardShipKey),
     })
   }
   return out
@@ -107,6 +114,15 @@ function captainNameOf(npcKey: string): string {
   const hit = findNpcByKey(npcKey)
   if (!hit) return npcKey
   return hit.entity.get(Character)?.name ?? npcKey
+}
+
+function shipNameByKey(shipKey: string): string {
+  if (!shipKey) return ''
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(Ship, EntityKey)) {
+    if (e.get(EntityKey)!.key === shipKey) return e.get(Ship)!.name
+  }
+  return shipKey
 }
 
 function collectHangarLabelByPoi(): Map<string, string> {
@@ -216,7 +232,9 @@ function RosterList({
               <span data-roster-hangar style={{ flex: '1 0 8em' }}>
                 {t.colHangar}: {r.transitDestinationId
                   ? `${dialogueText.branches.warRoom.transitLabel} → ${getPoi(r.transitDestinationId)?.nameZh ?? r.transitDestinationId}`
-                  : (r.hangarLabel || t.captainEmpty)}
+                  : r.storedAboardShipKey
+                    ? t.stateAboard.replace('{ship}', r.storedAboardShipName || r.storedAboardShipKey)
+                    : (r.hangarLabel || t.captainEmpty)}
               </span>
               <span data-roster-captain style={{ flex: '1 0 6em' }}>
                 {t.colCaptain}: {r.captainNameZh || t.captainEmpty}
