@@ -21,7 +21,7 @@ import {
 import { fleetConfig } from '../config'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getShipClass } from '../data/ship-classes'
-import { getPoi } from '../data/pois'
+import { getPoi, poiIdForScene } from '../data/pois'
 import { useUI } from './uiStore'
 import { dialogueText } from '../data/dialogueText'
 import { playUi } from '../audio/player'
@@ -120,12 +120,6 @@ function collectHangarLabelByPoi(): Map<string, string> {
     }
   }
   return out
-}
-
-function poiIdForScene(sceneId: string): string | null {
-  if (sceneId === 'vonBraunCity') return 'vonBraun'
-  if (sceneId === 'granadaDrydock') return 'granada'
-  return null
 }
 
 export function FleetRosterPanel() {

@@ -857,7 +857,7 @@ function spawnSpecialNpcs(sceneId: SceneId): void {
     if (sn.tileX === undefined || sn.tileY === undefined) continue
     // Phase 6.2.C2 — NPCs default to vonBraunCity (initialSceneId) when
     // `sceneId` is omitted, matching every legacy entry. Reps pinned to
-    // other scenes (Granada drydock, etc.) declare an explicit sceneId.
+    // other scenes (Von Braun drydock, etc.) declare an explicit sceneId.
     const targetScene = sn.sceneId ?? initialSceneId
     if (targetScene !== sceneId) continue
     const ent = spawnNPC(world, {
@@ -887,16 +887,17 @@ function spawnSpecialNpcs(sceneId: SceneId): void {
   }
 }
 
-// Phase 6.2.C2 — Granada drydock AE sales desk. Standalone workstation
-// (no Building backing) at the configured concourse tile so the rep's
-// special-NPC entry can pre-claim the seat via specId match. Mirrors
-// the VB desk shape in spawnAirport, but for a scene without an airport.
-function spawnGranadaShipSalesDesk(): void {
-  const deskTile = fleetConfig.shipSalesDeskTileGranada
+// Phase 6.2.C2 — Von Braun orbital drydock AE sales desk. Standalone
+// workstation (no Building backing) at the configured concourse tile so
+// the rep's special-NPC entry can pre-claim the seat via specId match.
+// Mirrors the VB desk shape in spawnAirport, but for a scene without an
+// airport.
+function spawnVonBraunDrydockShipSalesDesk(): void {
+  const deskTile = fleetConfig.shipSalesDeskTileVonBraunDrydock
   world.spawn(
     Position({ x: TILE * deskTile.x, y: TILE * deskTile.y }),
-    Workstation({ specId: 'ae_ship_sales_granada', occupant: null, managerStation: null }),
-    EntityKey({ key: 'ws-ae_ship_sales_granada' }),
+    Workstation({ specId: 'ae_ship_sales_vbd', occupant: null, managerStation: null }),
+    EntityKey({ key: 'ws-ae_ship_sales_vbd' }),
   )
 }
 
@@ -1043,16 +1044,16 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
     spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
   }
 
-  // Phase 6.2.C2 — Granada drydock concourse AE sales desk. Spawned in
-  // its own scene so the granada-bound rep entry in special-npcs.json5
+  // Phase 6.2.C2 — Von Braun drydock concourse AE sales desk. Spawned in
+  // its own scene so the drydock-bound rep entry in special-npcs.json5
   // can pre-claim the seat. Other scenes get nothing.
-  if (scene.id === 'granadaDrydock') {
-    spawnGranadaShipSalesDesk()
+  if (scene.id === 'vonBraunDrydock') {
+    spawnVonBraunDrydockShipSalesDesk()
   }
 
   // Per-scene specials. AE board / managers / reception and the AE
   // workforce only make sense in vonBraunCity (aeComplex host). The
-  // Granada rep is filtered in by sceneId on its row. Founding civilians
+  // drydock rep is filtered in by sceneId on its row. Founding civilians
   // spawn in the initial scene only; other scenes with replenishment seed
   // up to target so their first visit reads as staffed rather than empty.
   spawnSpecialNpcs(scene.id)

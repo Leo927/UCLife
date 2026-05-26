@@ -1,15 +1,15 @@
 // orbital-lift smoke. Verifies:
 //   1. The VB orbital-lift kiosk spawns at the spaceport.
-//   2. The Granada drydock scene spawns its paired lift kiosk.
+//   2. The Von Braun drydock scene spawns its paired lift kiosk.
 //   3. The cross-scene transit runs: charges fare, advances clock, migrates.
 //   4. Opening NPCDialog on the drydock manager surfaces the readout.
 
 import { test, expect, DOM_COMMIT_TIMEOUT_MS, isExpectedTestModePortraitMissing } from './_fixtures'
 
 const FIXTURE = 'player-with-cash-at-vb'
-const LIFT_ID = 'vonBraunGranadaLift'
+const LIFT_ID = 'vonBraunDrydockLift'
 const FROM_SCENE = 'vonBraunCity'
-const TO_SCENE = 'granadaDrydock'
+const TO_SCENE = 'vonBraunDrydock'
 const FARE_UP = 500
 const FARE_DOWN = 0
 const LIFT_DURATION_MIN = 90
@@ -29,7 +29,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.fillJobVacancies',
 ]
 
-test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ sim }) => {
+test('orbital lift: VB → drydock transit, drydock manager dialog', async ({ sim }) => {
   sim.allowConsoleError(isExpectedTestModePortraitMissing)
   await sim.boot({ fixture: FIXTURE, requireHandles: REQUIRED_HANDLES })
 
@@ -61,16 +61,16 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   )
   expect(vbKiosks.length).toBe(1)
   expect(vbKiosks[0].destSceneId).toBe(TO_SCENE)
-  expect(vbKiosks[0].fare, 'VB → Granada (up) leg must charge the up fare').toBe(FARE_UP)
+  expect(vbKiosks[0].fare, 'VB → drydock (up) leg must charge the up fare').toBe(FARE_UP)
 
-  const granadaKiosks = await sim.page.evaluate(
+  const drydockKiosks = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (sceneId) => (window as any).__uclife__.listOrbitalLifts(sceneId),
     TO_SCENE,
   )
-  expect(granadaKiosks.length).toBe(1)
-  expect(granadaKiosks[0].destSceneId).toBe(FROM_SCENE)
-  expect(granadaKiosks[0].fare, 'Granada → VB (down) leg must be free so the player cannot strand').toBe(FARE_DOWN)
+  expect(drydockKiosks.length).toBe(1)
+  expect(drydockKiosks[0].destSceneId).toBe(FROM_SCENE)
+  expect(drydockKiosks[0].fare, 'drydock → VB (down) leg must be free so the player cannot strand').toBe(FARE_DOWN)
 
   // 2. Capture pre-transit state.
   const pre = await sim.page.evaluate(() => {
@@ -105,7 +105,7 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   expect(pre.money - post.money).toBe(FARE_UP)
   expect(post.clockMs - pre.clockMs).toBe(LIFT_DURATION_MIN * MS_PER_MINUTE)
 
-  // 4. listHangars in Granada returns the drydock.
+  // 4. listHangars in the drydock scene returns the drydock.
   const hangars = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.listHangars(),
@@ -113,7 +113,7 @@ test('orbital lift: VB → Granada transit, drydock manager dialog', async ({ si
   expect(hangars.length).toBe(1)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const drydock = hangars.find((h: any) => h.typeId === DRYDOCK_TYPE_ID)
-  expect(drydock, `${DRYDOCK_TYPE_ID} missing from listHangars in Granada`).toBeTruthy()
+  expect(drydock, `${DRYDOCK_TYPE_ID} missing from listHangars in drydock scene`).toBeTruthy()
   expect(drydock.tier).toBe('drydock')
   expect(drydock.slotCapacity.capital).toBe(EXPECTED_CAPITAL_SLOTS)
   expect(drydock.slotCapacity.smallCraft).toBe(EXPECTED_SMALL_CRAFT_SLOTS)

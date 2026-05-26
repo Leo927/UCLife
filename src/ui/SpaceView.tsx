@@ -7,12 +7,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { Application } from 'pixi.js'
 import { PixiCanvas } from '../render/pixi'
 import { PixiSpaceRenderer } from '../render/space/PixiSpaceRenderer'
-import type { SpaceSnapshot, BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot } from '../render/spaceSnapshot'
+import type { SpaceSnapshot, BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot, LiftLineSnapshot } from '../render/spaceSnapshot'
 import { getWorld } from '../ecs/world'
 import { IsPlayer, Position, Body, PoiTag, Velocity, Course, EnemyAI, EntityKey } from '../ecs/traits'
 import { dialogueText } from '../data/dialogueText'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
-import { POIS, type Poi } from '../data/pois'
+import { POIS, type Poi, poiIdForScene } from '../data/pois'
+import { orbitalLifts } from '../data/orbitalLifts'
 import { spaceConfig } from '../config'
 import { leaveHelm } from '../sim/helm'
 import { getFleetPool } from '../sim/ship'
@@ -68,6 +69,33 @@ function readEnemies(): EnemyShipSnapshot[] {
       x: p.x, y: p.y, vx: v.vx, vy: v.vy,
       shipClassId: ai.shipClassId, mode: ai.mode,
     })
+  }
+  return out
+}
+
+// Orbital-elevator visualisation. Each row in orbital-lifts.json5 pairs two
+// scenes; resolving each to its owning POI gives a pair of starmap points
+// to draw a dashed line between. Pre-computed once: lift→{poiA, poiB}.
+// (Scenes without a POI binding — e.g. ship interiors — yield no line.)
+const liftPoiPairs: { liftId: string; poiAId: string; poiBId: string }[] = (() => {
+  const out: { liftId: string; poiAId: string; poiBId: string }[] = []
+  for (const lift of orbitalLifts) {
+    const poiA = poiIdForScene(lift.sceneIdA)
+    const poiB = poiIdForScene(lift.sceneIdB)
+    if (!poiA || !poiB) continue
+    out.push({ liftId: lift.id, poiAId: poiA, poiBId: poiB })
+  }
+  return out
+})()
+
+function readLiftLines(poiById: Map<string, PoiSnapshot>): LiftLineSnapshot[] {
+  if (liftPoiPairs.length === 0) return []
+  const out: LiftLineSnapshot[] = []
+  for (const pair of liftPoiPairs) {
+    const a = poiById.get(pair.poiAId)
+    const b = poiById.get(pair.poiBId)
+    if (!a || !b) continue
+    out.push({ liftId: pair.liftId, x1: a.x, y1: a.y, x2: b.x, y2: b.y })
   }
   return out
 }
@@ -209,6 +237,8 @@ export function SpaceView() {
       if (r) {
         const bodies = readBodies()
         const pois = readPois()
+        const poiById = new Map<string, PoiSnapshot>()
+        for (const ps of pois) poiById.set(ps.poi.id, ps)
         const enemies = readEnemies()
         const ship = readShip()
         lastPoisRef.current = pois
@@ -226,7 +256,7 @@ export function SpaceView() {
           coursePreview = { fromX: ship.x, fromY: ship.y, toX: tx, toY: ty }
         }
         r.update({
-          bodies, pois, enemies, ship,
+          bodies, pois, liftLines: readLiftLines(poiById), enemies, ship,
           dockSnapRadius: spaceConfig.dockSnapRadius,
           fitMode: fitOn,
           fit,

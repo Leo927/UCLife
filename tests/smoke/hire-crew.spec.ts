@@ -45,7 +45,7 @@ test('hire-crew end-to-end: captain Effect, crew move/fire, manRest, save round-
   )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const drydock = hangars.find((h: any) => h.typeId === 'hangarDrydock')
-  expect(drydock, 'Granada drydock missing').toBeTruthy()
+  expect(drydock, 'Von Braun drydock missing').toBeTruthy()
 
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

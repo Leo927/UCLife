@@ -1,5 +1,5 @@
 // Hangar gate-terminal smoke. Fixture seeds a flagship docked at
-// 'granada' and drops the player in the Granada drydock concourse. After
+// 'vonBraunDrydock' and drops the player in the drydock concourse. After
 // the first tick, syncShipMarkers materialises the persistent gate
 // triples and binds the flagship to the lowest-numbered smallCraft gate.
 // The spec asserts:
@@ -34,7 +34,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (window as any).__uclife_test__.step({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      until: () => (window as any).__uclife__.listGates('granadaDrydock').length > 0,
+      until: () => (window as any).__uclife__.listGates('vonBraunDrydock').length > 0,
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
@@ -42,9 +42,9 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
   // 1. Gates exist with the configured prefix scheme.
   const gates = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listGates('granadaDrydock'),
+    () => (window as any).__uclife__.listGates('vonBraunDrydock'),
   )
-  expect(gates.length, 'expected gate triples in granadaDrydock').toBeGreaterThan(0)
+  expect(gates.length, 'expected gate triples in vonBraunDrydock').toBeGreaterThan(0)
   const capitalGates = gates.filter((g: { gateNumber: string }) => g.gateNumber.startsWith('C'))
   const smallCraftGates = gates.filter((g: { gateNumber: string }) => g.gateNumber.startsWith('S'))
   expect(capitalGates.length, 'no capital gates').toBeGreaterThan(0)
@@ -86,7 +86,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       until: () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const g = (window as any).__uclife__.listGates('granadaDrydock')
+        const g = (window as any).__uclife__.listGates('vonBraunDrydock')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return g.some((row: any) => row.boundShipKey && row.shipName === '英雄号')
       },
@@ -96,7 +96,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
 
   const after = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listGates('granadaDrydock'),
+    () => (window as any).__uclife__.listGates('vonBraunDrydock'),
   )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renamed = after.find((g: any) => g.boundShipKey !== '')

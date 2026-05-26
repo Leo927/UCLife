@@ -18,7 +18,11 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getShipClass } from '../data/ship-classes'
 import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
-import { POIS } from '../data/pois'
+import { poiIdForScene } from '../data/pois'
+import {
+  fittingSlotClasses, HANGAR_SLOT_HIERARCHY, type HangarSlotClass,
+} from '../data/facilityTypes'
+import { findHangarAtPoi } from './hangarQuery'
 import { fleetConfig } from '../config'
 
 export interface ShipDeliveryResult {
@@ -53,33 +57,64 @@ export function shipDeliverySystem(gameDay: number): ShipDeliveryResult {
 
 const SHIP_SCENE_ID = 'playerShipInterior' as const
 
-// POI id for a hangar's host scene. Scene → POI is N:1 today (vonBraunCity
-// ↔ vonBraun, granadaDrydock ↔ granada). Returns null if no POI is bound
-// to the scene — caller should refuse delivery in that case.
-export function poiIdForHangarScene(sceneId: string): string | null {
-  for (const poi of POIS) {
-    if (poi.sceneId === sceneId) return poi.id
-  }
-  return null
-}
-
 // Count occupied slots of each `HangarSlotClass` at the hangar's POI.
-// Derived: walk ships in the ship-interior world, bucket by their class's
-// hangarSlotClass when dockedAtPoiId matches. Cheap — fleet entity count
-// stays in the dozens even at full 6.2 scope.
+//
+// Derived per-call: walks docked ships in the ship-interior world and
+// greedy-assigns each to the *smallest fitting* slot class in the hangar's
+// inventory, cascading into larger slots only when the snug fit is full.
+// A smallCraft ship in an ms slot is bookkept as ms occupancy here (not
+// smallCraft) — that's what makes the hierarchy's "wasteful upgrade"
+// consistent with capacity checks at the next placement.
+//
+// Sort order matters: larger ships are placed first so they always get
+// their exact class before cascade pressure could displace them. Within a
+// class, EntityKey gives a stable tiebreaker.
+//
+// Returns the per-class occupancy *after* the greedy walk. Ships that
+// didn't fit anywhere (overflow) don't contribute to any class — they
+// stay docked at the POI un-slotted; the player resolves them through the
+// gate terminal. Cheap — fleet entity count stays in the dozens at 6.2
+// scope.
 export function deriveHangarOccupancy(poiId: string): Record<string, number> {
   const out: Record<string, number> = {}
   if (!poiId) return out
+  const hangar = findHangarAtPoi(poiId)
+  const slotCapacity = hangar?.get(Hangar)?.slotCapacity ?? {}
   const shipWorld = getWorld(SHIP_SCENE_ID)
+  const dockedShips: { shipClass: HangarSlotClass; key: string }[] = []
   for (const ent of shipWorld.query(Ship)) {
     const s = ent.get(Ship)!
     if (s.dockedAtPoiId !== poiId) continue
     const cls = getShipClass(s.templateId)
-    const cls_slot = cls.hangarSlotClass
-    out[cls_slot] = (out[cls_slot] ?? 0) + 1
+    dockedShips.push({
+      shipClass: cls.hangarSlotClass,
+      key: ent.get(EntityKey)?.key ?? '',
+    })
+  }
+  // Sort by class rank ascending (largest-first = index 0); EntityKey
+  // breaks ties so the assignment is deterministic across save/load.
+  const rank = (c: HangarSlotClass): number => HANGAR_SLOT_HIERARCHY.indexOf(c)
+  dockedShips.sort((a, b) => {
+    const dr = rank(a.shipClass) - rank(b.shipClass)
+    if (dr !== 0) return dr
+    return a.key.localeCompare(b.key)
+  })
+  for (const s of dockedShips) {
+    // Snuggest fit first: walk fitting classes from smallest to largest.
+    const fitting = fittingSlotClasses(slotCapacity, s.shipClass).slice().reverse()
+    for (const slotClass of fitting) {
+      const cap = slotCapacity[slotClass] ?? 0
+      const occ = out[slotClass] ?? 0
+      if (occ < cap) {
+        out[slotClass] = occ + 1
+        break
+      }
+    }
+    // No fitting slot: ship is overflow (un-slotted at POI). Don't bump out.
   }
   return out
 }
+
 
 // Spawn a delivered ship entity at the given hangar's POI. Mirrors the
 // flagship's bootstrap shape (Ship + ShipStatSheet + ShipEffectsList +
@@ -155,12 +190,16 @@ export function receiveDelivery(
   const row = h.pendingDeliveries[rowIndex]
   if (!row) return { ok: false, reason: 'no_row' }
   if (row.status !== 'arrived') return { ok: false, reason: 'not_arrived' }
-  const poiId = poiIdForHangarScene(sceneId)
+  const poiId = poiIdForScene(sceneId)
   if (!poiId) return { ok: false, reason: 'no_poi' }
   const cls = getShipClass(row.shipClassId)
-  const cap = h.slotCapacity[cls.hangarSlotClass] ?? 0
-  const occ = deriveHangarOccupancy(poiId)[cls.hangarSlotClass] ?? 0
-  if (occ >= cap) return { ok: false, reason: 'no_slot' }
+  // Slot hierarchy: accept the smallest free slot at or above the ship's
+  // class. Wasteful when the only free slot is larger; that's the player's
+  // choice when they ordered the hull here.
+  const occMap = deriveHangarOccupancy(poiId)
+  const fitting = fittingSlotClasses(h.slotCapacity, cls.hangarSlotClass).slice().reverse()
+  const hasFit = fitting.some((c) => (occMap[c] ?? 0) < (h.slotCapacity[c] ?? 0))
+  if (!hasFit) return { ok: false, reason: 'no_slot' }
   const spawned = spawnDeliveredShip(row.shipClassId, poiId)
   if (!spawned) return { ok: false, reason: 'no_slot' }
   const next = h.pendingDeliveries.filter((_, i) => i !== rowIndex)

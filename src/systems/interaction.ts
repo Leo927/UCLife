@@ -20,7 +20,7 @@ import { boardShip, boardShipByKey, disembarkShip, migratePlayerToScene } from '
 import { getShipClass } from '../data/ship-classes'
 import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
-import { runTransition } from '../sim/transition'
+import { runTransition, useTransition } from '../sim/transition'
 import { getActiveSceneId, getWorld } from '../ecs/world'
 import { getPoi } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
@@ -51,6 +51,35 @@ function findOrbitalLiftArrivalPx(
     return { x: p.x, y: p.y + worldConfig.tilePx }
   }
   return null
+}
+
+// Resolve the disembark arrival tile for a flagship's chosen landing scene.
+// Preferred drop point: the far end of the bridge the flagship is currently
+// bound to (its boarding pad). Drydock disembarks land the player at the
+// bridge's outer pad — symmetric with boarding. Airport / playerSpawnTile
+// fallbacks cover hubs without a wall-placement gate.
+export function resolveDisembarkArrival(
+  targetSceneId: string,
+  shipKey: string,
+): { x: number; y: number } | null {
+  let arrivalPx: { x: number; y: number } | null = shipKey
+    ? findBoardingPadPx(targetSceneId, shipKey)
+    : null
+  if (!arrivalPx) {
+    const hubId = `${targetSceneId}Airport`
+    const placement = getAirportPlacement(hubId)
+    arrivalPx = placement?.arrivalPx ?? null
+  }
+  if (!arrivalPx) {
+    const cfg = getSceneConfig(targetSceneId)
+    if (cfg.sceneType === 'micro' && cfg.playerSpawnTile) {
+      arrivalPx = {
+        x: cfg.playerSpawnTile.x * worldConfig.tilePx,
+        y: cfg.playerSpawnTile.y * worldConfig.tilePx,
+      }
+    }
+  }
+  return arrivalPx
 }
 
 function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): boolean {
@@ -241,43 +270,32 @@ export function interactionSystem(world: World) {
     }
     if (nearestKind === 'disembarkShip') {
       if (getActiveSceneId() !== 'playerShipInterior') continue
+      // The single-scene path below funnels through runTransition, which
+      // ignores re-entry while a fade is in flight; the picker emit needs
+      // its own guard so the modal can't paint over a live transition.
+      if (useTransition.getState().inProgress) continue
       const ship = world.queryFirst(Ship, IsFlagshipMark)
       const shipKey = ship?.get(EntityKey)?.key ?? ''
       const dockedAt = ship?.get(Ship)?.dockedAtPoiId ?? ''
       const poi = dockedAt ? getPoi(dockedAt) : undefined
-      const targetSceneId = poi?.sceneId
-      if (!targetSceneId || !isSceneId(targetSceneId)) {
+      const candidates = (poi?.dockScenes ?? []).filter(isSceneId)
+      if (candidates.length === 0) {
         emitSim('toast', { textZh: '该坐标不可登陆' })
         continue
       }
-      // Preferred drop point: the far end of the bridge the flagship is
-      // currently bound to (its boarding pad). Drydock disembarks land
-      // the player at the bridge's outer pad — symmetric with boarding
-      // (which transitions when the player walks down the same pad).
-      // Airport / playerSpawnTile fallbacks cover hubs without a wall-
-      // placement gate (surface hangars, future hubs without bridges).
-      let arrivalPx: { x: number; y: number } | null = shipKey
-        ? findBoardingPadPx(targetSceneId, shipKey)
-        : null
-      if (!arrivalPx) {
-        const hubId = `${targetSceneId}Airport`
-        const placement = getAirportPlacement(hubId)
-        arrivalPx = placement?.arrivalPx ?? null
+      // Multiple landing scenes for this POI → open the picker; the
+      // player picks one and the picker dispatches the same transition.
+      // Single-scene POIs auto-pick — same behavior as before the picker.
+      if (candidates.length > 1) {
+        emitSim('ui:open-dock-picker', { poiId: dockedAt, shipKey, candidates })
+        continue
       }
-      if (!arrivalPx) {
-        const cfg = getSceneConfig(targetSceneId)
-        if (cfg.sceneType === 'micro' && cfg.playerSpawnTile) {
-          arrivalPx = {
-            x: cfg.playerSpawnTile.x * worldConfig.tilePx,
-            y: cfg.playerSpawnTile.y * worldConfig.tilePx,
-          }
-        }
-      }
-      if (!arrivalPx) {
+      const targetSceneId = candidates[0]
+      const target = resolveDisembarkArrival(targetSceneId, shipKey)
+      if (!target) {
         emitSim('toast', { textZh: '该坐标不可登陆' })
         continue
       }
-      const target = arrivalPx
       runTransition({ midpoint: () => disembarkShip(targetSceneId, target) })
       continue
     }

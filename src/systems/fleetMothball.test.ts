@@ -62,7 +62,7 @@ describe('setShipMothballed', () => {
 
   it('refuses to mothball a ship in cross-POI transit', () => {
     const w = createWorld()
-    const ship = spawnShip(w, 's1', { transitDest: 'granada' })
+    const ship = spawnShip(w, 's1', { transitDest: 'vonBraunDrydock' })
     const r = setShipMothballed(ship, true)
     expect(r).toEqual({ ok: false, reason: 'in_transit' })
     expect(ship.get(Ship)!.mothballed).toBe(false)

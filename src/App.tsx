@@ -25,6 +25,7 @@ import { NPCDialog } from './ui/NPCDialog'
 import { ManageFacilityDialog } from './ui/ManageFacilityDialog'
 import { CaptainsOfficePanel } from './ui/CaptainsOfficePanel'
 import { GateTerminalPanel } from './ui/GateTerminalPanel'
+import { DockPickerModal } from './ui/DockPickerModal'
 import { CommPanelDialog } from './ui/CommPanelDialog'
 import { BrigPanel } from './ui/BrigPanel'
 import { FleetRosterPanel } from './ui/FleetRosterPanel'
@@ -72,6 +73,7 @@ export function App() {
       <ManageFacilityDialog />
       <CaptainsOfficePanel />
       <GateTerminalPanel />
+      <DockPickerModal />
       <CommPanelDialog />
       <BrigPanel />
       <FleetRosterPanel />

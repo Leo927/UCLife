@@ -1,6 +1,6 @@
 // Drydock-boarding smoke. Fixture seeds two player-owned ships: the
-// bootstrap flagship at Von Braun and a Pegasus parked at the Granada
-// drydock. After syncShipMarkers binds the Pegasus to a capital gate,
+// bootstrap flagship at Von Braun and a Pegasus parked at the Von Braun
+// orbital drydock. After syncShipMarkers binds the Pegasus to a capital gate,
 // the test calls boardShipByKey on the Pegasus — the spec asserts:
 //   1. Pegasus is bound to one of the drydock's capital gates and the
 //      booth's board portal reads as player-owned (boardShip kind, gold
@@ -38,7 +38,7 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (window as any).__uclife_test__.step({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      until: () => (window as any).__uclife__.listGates('granadaDrydock').length > 0,
+      until: () => (window as any).__uclife__.listGates('vonBraunDrydock').length > 0,
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
@@ -47,7 +47,7 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
   //    player-owned (boardShip kind), not the faction-only inspectShip.
   const gates = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listGates('granadaDrydock'),
+    () => (window as any).__uclife__.listGates('vonBraunDrydock'),
   )
   const boundCapital = gates.find(
     (g: { slotClass: string; boundShipKey: string }) =>
@@ -58,7 +58,7 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
 
   const portalKinds = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listShipMarkers('granadaDrydock'),
+    () => (window as any).__uclife__.listShipMarkers('vonBraunDrydock'),
   )
   const pegasusPortal = portalKinds.find(
     (m: { shipKey: string }) => m.shipKey === 'pegasus-1',

@@ -1,6 +1,6 @@
-// Player standing in the Granada drydock concourse with the bootstrap
-// flagship redirected to dock at granada (so it materialises a gate in
-// the drydock scene's hangar). Drives the GateTerminalPanel smoke.
+// Player standing in the Von Braun drydock concourse with the bootstrap
+// flagship redirected to dock at the drydock POI (so it materialises a
+// gate in the drydock scene's hangar). Drives the GateTerminalPanel smoke.
 //
 // Player tile (30, 20) sits inside the drydock concourse, just south of
 // the orbital lift and north of the hangar building's north door — safe
@@ -8,11 +8,11 @@
 {
   seed: 'gate-drydock-001',
   startDate: '2026-05-17T08:00:00Z',
-  scene: 'granadaDrydock',
+  scene: 'vonBraunDrydock',
 
   player: {
     money: 50000,
-    location: { scene: 'granadaDrydock', x: 30, y: 20 },
+    location: { scene: 'vonBraunDrydock', x: 30, y: 20 },
   },
 
   ships: [
@@ -21,7 +21,7 @@
       id: 'ship',
       template: 'lightFreighter',
       name: '自由号',
-      dockedAt: 'granada',
+      dockedAt: 'vonBraunDrydock',
     },
   ],
 }

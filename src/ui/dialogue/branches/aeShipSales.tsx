@@ -1,14 +1,15 @@
 // Phase 6.2.C1 — AE Von Braun spaceport ship sales branch.
 // Phase 6.2.C2 — generalized so each AE sales rep sells exactly one hull,
 // per the fleet.json5 salesRepCatalog mapping (specId → shipClassId).
-// VB rep sells the lunarMilitia light hull; Granada drydock rep sells
+// VB rep sells the lunarMilitia light hull; Von Braun drydock rep sells
 // the Pegasus-class capital. The buy gates on (1) money, (2) the chosen
-// hangar having a free slot of the hull's hangarSlotClass; on click an
-// in-transit row is enqueued on the target Hangar and the ship entity
+// hangar having a free slot for the hull's hangarSlotClass (slots at or
+// above the hull's class accept it; capital ⊇ ms ⊇ smallCraft); on click
+// an in-transit row is enqueued on the target Hangar and the ship entity
 // materializes only at receive-delivery time (hangar manager click).
 //
 // "Reachable" at 6.2.C2 = the rep's local hangar (active scene only):
-// VB rep → VB surface hangar (smallCraft slots); Granada rep → Granada
+// VB rep → VB surface hangar (smallCraft slots); drydock rep → Von Braun
 // drydock (capital slots). Cross-hangar transfer is a 6.2.G concern.
 
 import { useState } from 'react'
@@ -25,8 +26,10 @@ import { useUI } from '../../uiStore'
 import { useClock, gameDayNumber } from '../../../sim/clock'
 import { fleetConfig } from '../../../config'
 import {
-  enqueueDelivery, poiIdForHangarScene, deriveHangarOccupancy,
+  enqueueDelivery, deriveHangarOccupancy,
 } from '../../../systems/shipDelivery'
+import { fittingSlotClasses } from '../../../data/facilityTypes'
+import { poiIdForScene } from '../../../data/pois'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 // Per-class delivery lead-time lookup. Civilian/merc hulls slot into
@@ -70,8 +73,9 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
 
   // Subscribe to every Hangar in the active scene so the slot count
   // refreshes after a save/load or after a delivery is received. Each
-  // rep is reached only from within its own scene (VB / Granada drydock),
-  // so the active-scene query is the right local picker for both reps.
+  // rep is reached only from within its own scene (VB / Von Braun
+  // drydock), so the active-scene query is the right local picker for
+  // both reps.
   const activeSceneId = useScene((s) => s.activeId)
   const localHangars = useQuery(Building, Hangar, EntityKey)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -84,22 +88,31 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
   const cls = getShipClass(shipClassId)
   const leadDays = leadTimeForClass(cls.hangarSlotClass)
 
-  // Gather reachable hangars in the active scene whose slot class matches
-  // the hull. The tier (surface vs. drydock) follows from the hull's
-  // hangarSlotClass — civilian/merc hulls slot into smallCraft (either
-  // tier could host them, but at 6.2.C2 only the surface-tier VB hangar
-  // has smallCraft slots reachable from the VB rep's scene); capital
-  // hulls slot into capital (drydock-tier only, reachable from the
-  // Granada rep's scene).
+  // Gather reachable hangars in the active scene whose slot inventory can
+  // accept the hull's class via the hierarchy (capital ⊇ ms ⊇ smallCraft).
+  // Civilian/merc hulls slot into smallCraft (either tier could host them,
+  // but at 6.2.C2 only the surface-tier VB hangar has smallCraft slots
+  // reachable from the VB rep's scene); capital hulls slot into a capital
+  // slot (drydock-tier only, reachable from the drydock rep's scene).
   const options: HangarOption[] = []
   for (const b of localHangars) {
     const h = b.get(Hangar)!
-    const cap = h.slotCapacity[cls.hangarSlotClass] ?? 0
-    if (cap <= 0) continue
-    const poiId = poiIdForHangarScene(activeSceneId)
-    const occ = poiId ? (deriveHangarOccupancy(poiId)[cls.hangarSlotClass] ?? 0) : 0
+    // Hierarchy: enumerate every slot class this hangar advertises that
+    // could host the hull (own class or larger). Sum capacity + occupancy
+    // + in-flight deliveries across all fitting classes so the gate reads
+    // accurately when a capital slot is being used wastefully for an MS.
+    const poiId = poiIdForScene(activeSceneId)
+    const occMap = poiId ? deriveHangarOccupancy(poiId) : {}
+    const fitting = fittingSlotClasses(h.slotCapacity, cls.hangarSlotClass)
+    if (fitting.length === 0) continue
+    let cap = 0
+    let occ = 0
+    for (const sc of fitting) {
+      cap += h.slotCapacity[sc] ?? 0
+      occ += occMap[sc] ?? 0
+    }
     const pending = h.pendingDeliveries.filter(
-      (row) => getShipClass(row.shipClassId).hangarSlotClass === cls.hangarSlotClass,
+      (row) => fitting.includes(getShipClass(row.shipClassId).hangarSlotClass),
     ).length
     const used = occ + pending
     options.push({

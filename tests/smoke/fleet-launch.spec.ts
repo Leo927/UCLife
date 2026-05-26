@@ -50,7 +50,7 @@ test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', 
   expect(initialFleet.length, `expected one starting ship; got ${initialFleet.length}`).toBe(1)
   expect(initialFleet[0].dockedAtPoiId).toBe('vonBraun')
 
-  // 1. Spawn Ship A at VB hangar + Ship B at Granada drydock.
+  // 1. Spawn Ship A at VB hangar + Ship B at Von Braun drydock.
   const hangars = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.listHangarsAllScenes(),
@@ -60,7 +60,7 @@ test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const drydock = hangars.find((h: any) => h.typeId === 'hangarDrydock')
   expect(vbHangar, 'VB surface hangar missing').toBeTruthy()
-  expect(drydock, 'Granada drydock missing').toBeTruthy()
+  expect(drydock, 'Von Braun drydock missing').toBeTruthy()
 
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,7 +101,7 @@ test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shipB = postBuyFleet.find((s: any) => s.entityKey === shipBKey)
   expect(shipA?.dockedAtPoiId).toBe('vonBraun')
-  expect(shipB?.dockedAtPoiId).toBe('granada')
+  expect(shipB?.dockedAtPoiId).toBe('vonBraunDrydock')
 
   // 2. Promote A and B into the active fleet.
   await sim.page.evaluate(
@@ -165,7 +165,7 @@ test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tB = transits.find((t: any) => t.shipKey === shipBKey)
   expect(tB, `Ship B not in transit list: ${JSON.stringify(transits)}`).toBeTruthy()
-  expect(tB.originPoiId).toBe('granada')
+  expect(tB.originPoiId).toBe('vonBraunDrydock')
   expect(tB.destinationPoiId).toBe('vonBraun')
   expect(tB.arrivalDay).toBeGreaterThan(5)
 

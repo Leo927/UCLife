@@ -62,6 +62,14 @@ interface UIState {
   // interactable in the drydock. Carries the gate id and the bound ship's
   // EntityKey so the panel can subscribe to the ship's traits directly.
   gateTerminal: { gateNumber: string; shipKey: string } | null
+  // Disembark dock picker. Fires when the player presses E on the
+  // disembarkShip kiosk inside the flagship and the docked POI advertises
+  // more than one landing scene. Today every POI has a single scene so this
+  // stays dormant; the mechanism is in place for any future POI that grows
+  // multiple scenes (e.g. a city + an industrial annex). The picker hands
+  // the chosen sceneId back to the same disembark transition used when
+  // there's only one option.
+  dockPicker: { poiId: string; shipKey: string; candidates: string[] } | null
   // Phase 6.2.E1 — war-room plot table on the flagship bridge. Opened
   // by walking onto the 'warRoom' interactable. Composition verb
   // surface: drag-and-drop tokens between the active grid + reserve
@@ -93,6 +101,8 @@ interface UIState {
   setBrigPanel: (open: boolean) => void
   setFleetRoster: (open: boolean) => void
   openGateTerminal: (gate: { gateNumber: string; shipKey: string } | null) => void
+  openDockPicker: (payload: { poiId: string; shipKey: string; candidates: string[] }) => void
+  closeDockPicker: () => void
   setWarRoom: (open: boolean) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
@@ -125,6 +135,7 @@ export const useUI = create<UIState>((set) => ({
   brigPanelOpen: false,
   fleetRosterOpen: false,
   gateTerminal: null,
+  dockPicker: null,
   warRoomOpen: false,
   combatTally: null,
   enlargedPortrait: null,
@@ -150,6 +161,8 @@ export const useUI = create<UIState>((set) => ({
   setBrigPanel: (open) => set({ brigPanelOpen: open }),
   setFleetRoster: (open) => set({ fleetRosterOpen: open }),
   openGateTerminal: (gate) => set({ gateTerminal: gate }),
+  openDockPicker: (payload) => set({ dockPicker: payload }),
+  closeDockPicker: () => set({ dockPicker: null }),
   setWarRoom: (open) => set({ warRoomOpen: open }),
   setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),

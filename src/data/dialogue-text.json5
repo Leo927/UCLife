@@ -183,8 +183,8 @@
       // Diegetic completion toast. {name} interpolated.
       toastAccepted: '{name} 接过安家费——"成交。"',
     },
-    // Phase 6.2.C1 + 6.2.C2 — AE ship sales rep (VB spaceport + Granada
-    // drydock). Same panel shape; the SKU is picked by the rep's
+    // Phase 6.2.C1 + 6.2.C2 — AE ship sales rep (VB spaceport + Von Braun
+    // orbital drydock). Same panel shape; the SKU is picked by the rep's
     // workstation specId via fleetConfig.salesRepCatalog.
     aeShipSales: {
       title: 'AE 销售台',

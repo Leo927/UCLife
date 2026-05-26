@@ -31,6 +31,9 @@ export function bindUi(): void {
   onSim('ui:open-gate-terminal', ({ gateNumber, shipKey }) =>
     useUI.getState().openGateTerminal({ gateNumber, shipKey }),
   )
+  onSim('ui:open-dock-picker', (payload) =>
+    useUI.getState().openDockPicker(payload),
+  )
   onSim('ui:open-captains-office', () => useUI.getState().setCaptainsOffice(true))
   onSim('ui:open-comm-panel', () => useUI.getState().setCommPanel(true))
   onSim('ui:open-brig-panel', () => useUI.getState().setBrigPanel(true))

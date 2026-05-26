@@ -197,30 +197,30 @@
       workstation: 'ae_ship_sales_vb',
     },
 
-    // === Phase 6.2.C2 — AE Granada drydock ship sales rep ===
-    // Sits at the AE sales desk inside the Granada drydock concourse.
-    // The desk is spawned programmatically in ecs/spawn.ts when the
-    // granadaDrydock scene bootstraps; tile coords below mirror
-    // fleet.json5's shipSalesDeskTileGranada so the spawn linkage
+    // === Phase 6.2.C2 — AE Von Braun drydock ship sales rep ===
+    // Sits at the AE sales desk inside the Von Braun orbital drydock
+    // concourse. The desk is spawned programmatically in ecs/spawn.ts when
+    // the vonBraunDrydock scene bootstraps; tile coords below mirror
+    // fleet.json5's shipSalesDeskTileVonBraunDrydock so the spawn linkage
     // (Workstation.occupant ↔ Job.workstation) succeeds. Capital-grade
     // catalog (Pegasus only at 6.2.C2; more hulls join here later).
     {
       name: '卡米尔·罗德',
       color: '#1e3a8a',
       title: 'AE 销售代表',
-      sceneId: 'granadaDrydock',
+      sceneId: 'vonBraunDrydock',
       tileX: 30, tileY: 16,
       fatigue: 14,
       money: 12000,
       skills: { mechanics: 2200, computers: 1800 },
       factionRole: { faction: 'anaheim', role: 'staff' },
-      workstation: 'ae_ship_sales_granada',
+      workstation: 'ae_ship_sales_vbd',
     },
 
-    // === Phase 6.2.A.2 expansion — Granada drydock supply depot dealer ===
+    // === Phase 6.2.A.2 expansion — Von Braun drydock supply depot dealer ===
     // Sits at the supplyDepot building's open-floor supervisor desk on the
     // drydock concourse. Reuses specId 'ae_supply_dealer': koota gives each
-    // scene its own world, so this NPC links to the Granada depot's
+    // scene its own world, so this NPC links to the drydock depot's
     // workstation while the VB AE Complex dealer links to its own — the
     // sceneId filter in spawnSpecialNpcs processes each in its own scene.
     // tileX/tileY sit inside the supplyDepot footprint (scene tile 48,11,
@@ -229,7 +229,7 @@
       name: '马科斯·雷耶斯',
       color: '#0d9488',
       title: 'AE 补给商务代表',
-      sceneId: 'granadaDrydock',
+      sceneId: 'vonBraunDrydock',
       tileX: 51, tileY: 13,
       fatigue: 14,
       money: 8000,

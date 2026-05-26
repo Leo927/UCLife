@@ -9,8 +9,9 @@ import { world, getWorld } from '../../../ecs/world'
 import { dialogueText } from '../../../data/dialogueText'
 import { describeHangarRepair } from '../../../systems/hangarRepair'
 import {
-  deriveHangarOccupancy, poiIdForHangarScene, receiveDelivery,
+  deriveHangarOccupancy, receiveDelivery,
 } from '../../../systems/shipDelivery'
+import { poiIdForScene } from '../../../data/pois'
 import {
   enqueueHangarTransfer, listTransferDestinations, listTransferableShipsAtPoi,
   type TransferableShip, type TransferDestination,
@@ -47,7 +48,7 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
   const tierLabel = t.tierLabel[hangarTrait.tier]
   const slotEntries = Object.entries(hangarTrait.slotCapacity) as Array<[HangarSlotClass, number]>
   const sceneId = sceneIdForBuilding(building)
-  const poiId = sceneId ? poiIdForHangarScene(sceneId) : null
+  const poiId = sceneId ? poiIdForScene(sceneId) : null
   const occupancy = poiId ? deriveHangarOccupancy(poiId) : {}
 
   return (

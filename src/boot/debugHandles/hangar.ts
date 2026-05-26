@@ -37,8 +37,9 @@ import {
 } from '../../systems/fleetSupplyDelivery'
 import {
   shipDeliverySystem, enqueueDelivery, receiveDelivery,
-  poiIdForHangarScene, deriveHangarOccupancy,
+  deriveHangarOccupancy,
 } from '../../systems/shipDelivery'
+import { poiIdForScene } from '../../data/pois'
 import { getStat } from '../../stats/sheet'
 import { getShipClass } from '../../data/ship-classes'
 import { spawnNPC } from '../../character/spawn'
@@ -126,7 +127,7 @@ registerDebugHandle('listHangars', (): HangarSnapshot[] => {
 })
 
 // Phase 6.2.C2 — multi-scene variant. Smokes that need to see hangars
-// across every scene world (e.g. Pegasus buy at Granada drydock without
+// across every scene world (e.g. Pegasus buy at Von Braun drydock without
 // first riding the orbital lift) call this one. The legacy listHangars
 // remains active-scene-only so existing smokes (orbital-lift, hangar,
 // fleet-supply) keep their per-scene assertions stable.
@@ -232,7 +233,7 @@ registerDebugHandle('setHangarRepairPriority', (buildingKey: string, shipKey: st
 // ship list, current focus. Lets the smoke read the same numbers the
 // player would see without driving the React tree.
 registerDebugHandle('hangarRepairDescribe', (buildingKey: string) => {
-  for (const sceneId of ['vonBraunCity', 'granadaDrydock', 'zumCity'] as const) {
+  for (const sceneId of ['vonBraunCity', 'vonBraunDrydock', 'zumCity'] as const) {
     const sw = getWorld(sceneId)
     for (const b of sw.query(Building, Hangar, EntityKey)) {
       if (b.get(EntityKey)!.key !== buildingKey) continue
@@ -286,7 +287,7 @@ registerDebugHandle('hangarOccupancy', (buildingKey: string): {
     for (const b of sw.query(Building, Hangar, EntityKey)) {
       if (b.get(EntityKey)!.key !== buildingKey) continue
       const h = b.get(Hangar)!
-      const poiId = poiIdForHangarScene(sceneId)
+      const poiId = poiIdForScene(sceneId)
       return {
         poiId,
         capacity: h.slotCapacity,
