@@ -4,8 +4,6 @@ import { worldConfig, economyConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
-import { flightHubs } from '../data/flights'
-import { getAirportPlacement } from '../sim/airportPlacements'
 import { getTransitTerminal, getTransitDestinationsFor, type TransitTerminal } from '../data/transit'
 import { getTransitPlacement } from '../sim/transitPlacements'
 import { useUI } from './uiStore'
@@ -156,26 +154,7 @@ export function TransitMap() {
   const source = getTransitTerminal(sourceId)
   if (!source) return null
 
-  // Include airports from the runtime registry (same as MapPanel).
-  const airportPlaces: WorldPlace[] = []
-  for (const h of flightHubs) {
-    if (h.sceneId !== activeSceneId) continue
-    const p = getAirportPlacement(h.id)
-    if (!p) continue
-    airportPlaces.push({
-      id: h.id,
-      sceneId: h.sceneId,
-      nameZh: h.nameZh,
-      shortZh: h.shortZh,
-      kind: 'complex',
-      tileX: p.rectTile.x,
-      tileY: p.rectTile.y,
-      tileW: p.rectTile.w,
-      tileH: p.rectTile.h,
-      description: h.description,
-    })
-  }
-  const allPlaces = [...getPlacesInScene(activeSceneId), ...airportPlaces]
+  const allPlaces = getPlacesInScene(activeSceneId)
   const terminals = getTransitDestinationsFor(sourceId)
   const sourcePlacement = getTransitPlacement(sourceId)
   const playerMoney = money?.amount ?? 0

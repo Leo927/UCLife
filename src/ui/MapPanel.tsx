@@ -7,7 +7,6 @@ import { useScene } from '../sim/scene'
 import { getSceneConfig } from '../data/scenes'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
 import { flightHubs } from '../data/flights'
-import { getAirportPlacement } from '../sim/airportPlacements'
 import { getTransitPlacement } from '../sim/transitPlacements'
 import { transitTerminals } from '../data/transit'
 import { useUI } from './uiStore'
@@ -228,27 +227,12 @@ export function MapPanel() {
 
   if (!open) return null
 
-  // Airports are procgen-placed; pull from the runtime registry.
-  const airportPlaces: WorldPlace[] = []
-  for (const h of flightHubs) {
-    if (h.sceneId !== activeSceneId) continue
-    const p = getAirportPlacement(h.id)
-    if (!p) continue
-    airportPlaces.push({
-      id: h.id,
-      sceneId: h.sceneId,
-      nameZh: h.nameZh,
-      shortZh: h.shortZh,
-      kind: 'complex',
-      tileX: p.rectTile.x,
-      tileY: p.rectTile.y,
-      tileW: p.rectTile.w,
-      tileH: p.rectTile.h,
-      description: h.description,
-    })
-  }
-  const allPlaces = [...getPlacesInScene(activeSceneId), ...airportPlaces]
-  const airportIds = new Set(airportPlaces.map((p) => p.id))
+  const allPlaces = getPlacesInScene(activeSceneId)
+  // Airport markers carry a building label of their own at high zoom; suppress
+  // the place-marker label there so it doesn't stack on the building label.
+  const airportIds = new Set(
+    flightHubs.filter((h) => h.sceneId === activeSceneId).map((h) => h.id),
+  )
 
   const maxTier = visibleTierAt(scale)
   const places = allPlaces.filter((p) => placeKindTier(p.kind) <= maxTier)
