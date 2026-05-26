@@ -337,6 +337,8 @@
       scrapStubToast: '拆解功能尚未启用。',
       // Phase 6.2.G — mothball verb on the roster cell.
       stateMothballed: '已封存',
+      // Phase 6.2.5 — MS stored inside a carrier ship's internal bay.
+      stateAboard: '搭载于 {ship}',
       mothballFlagshipTooltip: '旗舰不可封存。',
       mothballInTransitTooltip: '在途舰艇不可封存。',
       mothballToastDone: '{ship} 已封存 · 不再消耗补给与薪资。',

@@ -101,6 +101,9 @@
       // capture loop has somewhere to go in 6.2. A clean civilian
       // variant — when added — would set brigCapacity: 0.
       brigCapacity: 2,
+      // Phase 6.2.5 — internal MS bay. lightFreighter lore: "机库勉强能容下
+      // 一台 MS" (hangar can barely fit one MS). Single internal slot.
+      hangarCapacity: 1,
       // Bridge officer roster. 6.2 wires the adjutant only — comm-panel
       // chatter (launch, dock, threshold, leave-bridge) reads the name
       // from here instead of the 6.1 hardcoded "凯文". 6.2.5 expands the
@@ -297,6 +300,9 @@
       supplyPerDay: 18,
       crewMax: 200,
       brigCapacity: 8,
+      // Phase 6.2.5 — internal MS bay. Pegasus-class hangar bay holds up
+      // to 4 MS internally; aligns with UC canon White Base complement.
+      hangarCapacity: 4,
       officers: {
         adjutant: { name: '布莱特·诺亚', title: '副官' },
       },

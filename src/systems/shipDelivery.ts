@@ -11,7 +11,7 @@
 
 import type { Entity } from 'koota'
 import {
-  Building, Hangar, Ship, EntityKey, Owner,
+  Building, Hangar, Ship, EntityKey, Owner, ShipStatSheet,
 } from '../ecs/traits'
 import type { ShipDeliveryRow } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
@@ -22,6 +22,7 @@ import { poiIdForScene } from '../data/pois'
 import {
   fittingSlotClasses, HANGAR_SLOT_HIERARCHY, type HangarSlotClass,
 } from '../data/facilityTypes'
+import { getStat } from '../stats/sheet'
 import { findHangarAtPoi } from './hangarQuery'
 import { fleetConfig } from '../config'
 
@@ -85,6 +86,9 @@ export function deriveHangarOccupancy(poiId: string): Record<string, number> {
   for (const ent of shipWorld.query(Ship)) {
     const s = ent.get(Ship)!
     if (s.dockedAtPoiId !== poiId) continue
+    // Ships stored inside a carrier's internal bay don't occupy a POI
+    // hangar slot — they're tracked via storedAboardShipKey instead.
+    if (s.storedAboardShipKey) continue
     const cls = getShipClass(s.templateId)
     dockedShips.push({
       shipClass: cls.hangarSlotClass,
@@ -198,13 +202,101 @@ export function receiveDelivery(
   // choice when they ordered the hull here.
   const occMap = deriveHangarOccupancy(poiId)
   const fitting = fittingSlotClasses(h.slotCapacity, cls.hangarSlotClass).slice().reverse()
-  const hasFit = fitting.some((c) => (occMap[c] ?? 0) < (h.slotCapacity[c] ?? 0))
-  if (!hasFit) return { ok: false, reason: 'no_slot' }
+  const hasPoiFit = fitting.some((c) => (occMap[c] ?? 0) < (h.slotCapacity[c] ?? 0))
+  // Phase 6.2.5 — cascade to internal carrier bays if no POI slot is free.
+  const carrierEnt = !hasPoiFit ? findCarrierSlotForShip(cls.hangarSlotClass, poiId) : null
+  if (!hasPoiFit && !carrierEnt) return { ok: false, reason: 'no_slot' }
   const spawned = spawnDeliveredShip(row.shipClassId, poiId)
   if (!spawned) return { ok: false, reason: 'no_slot' }
+  if (!hasPoiFit && carrierEnt) {
+    assignShipToCarrierBay(spawned.entity, carrierEnt)
+  }
   const next = h.pendingDeliveries.filter((_, i) => i !== rowIndex)
   hangarEnt.set(Hangar, { ...h, pendingDeliveries: next })
   return { ok: true, entityKey: spawned.entityKey }
+}
+
+// ── Phase 6.2.5 — MS-aboard carrier helpers ──────────────────────────────
+//
+// Carrier ships expose an internal MS bay via the `hangarCapacity` stat on
+// their ShipStatSheet. Ships of class `ms` or `smallCraft` can be stored
+// there instead of consuming a POI hangar slot. storedAboardShipKey on the
+// stored ship links it to the carrier; deriveHangarOccupancy skips it.
+// Cascade on arrival: POI slot → carrier bay → overflow (un-slotted at POI).
+
+// Count how many ships are currently stored inside the given carrier.
+export function countShipsAboard(carrierKey: string): number {
+  if (!carrierKey) return 0
+  const w = getWorld(SHIP_SCENE_ID)
+  let count = 0
+  for (const ent of w.query(Ship)) {
+    if (ent.get(Ship)!.storedAboardShipKey === carrierKey) count++
+  }
+  return count
+}
+
+// Check whether a POI has a free slot for the given ship class (used by the
+// cascade to decide whether to fall through to carrier bays).
+export function hasFreePoiSlotForShip(shipClass: HangarSlotClass, poiId: string): boolean {
+  const hangar = findHangarAtPoi(poiId)
+  if (!hangar) return false
+  const h = hangar.get(Hangar)
+  if (!h) return false
+  const occMap = deriveHangarOccupancy(poiId)
+  const fitting = fittingSlotClasses(h.slotCapacity, shipClass).slice().reverse()
+  return fitting.some((c) => (occMap[c] ?? 0) < (h.slotCapacity[c] ?? 0))
+}
+
+// Find the first carrier ship at `poiId` whose internal bay has room for
+// a ship of `shipClass`. Carrier bays accept `ms` and `smallCraft` class
+// ships only (mirrors the `ms` POI slot hierarchy: ms ⊇ smallCraft).
+// `excludeShipKey` lets the caller skip itself (e.g. the arriving ship).
+export function findCarrierSlotForShip(
+  shipClass: HangarSlotClass,
+  poiId: string,
+  excludeShipKey = '',
+): Entity | null {
+  // Only ms-class and smaller ships fit in carrier internal bays.
+  const msRank = HANGAR_SLOT_HIERARCHY.indexOf('ms' as HangarSlotClass)
+  const shipRank = HANGAR_SLOT_HIERARCHY.indexOf(shipClass)
+  if (shipRank < msRank) return null
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(Ship, ShipStatSheet, EntityKey)) {
+    const s = ent.get(Ship)!
+    if (s.dockedAtPoiId !== poiId) continue
+    if (s.transitDestinationId) continue
+    const carrierKey = ent.get(EntityKey)!.key
+    if (carrierKey === excludeShipKey) continue
+    const sheet = ent.get(ShipStatSheet)!.sheet
+    const cap = Math.floor(getStat(sheet, 'hangarCapacity'))
+    if (cap <= 0) continue
+    if (countShipsAboard(carrierKey) < cap) return ent
+  }
+  return null
+}
+
+// Store a ship inside a carrier's internal bay. Sets storedAboardShipKey on
+// the stored ship; the carrier's hangar capacity is consumed implicitly via
+// countShipsAboard reads. No-op when either entity is missing Ship.
+export function assignShipToCarrierBay(shipEnt: Entity, carrierEnt: Entity): void {
+  const s = shipEnt.get(Ship)
+  if (!s) return
+  const carrierKey = carrierEnt.get(EntityKey)?.key ?? ''
+  if (!carrierKey) return
+  shipEnt.set(Ship, { ...s, storedAboardShipKey: carrierKey })
+}
+
+// Release all ships stored aboard `carrierKey` back to POI overflow.
+// Each released ship keeps its dockedAtPoiId (the carrier's port) and
+// becomes un-slotted there. Called when a carrier enters transit or undocks.
+export function releaseShipsFromCarrier(carrierKey: string): void {
+  if (!carrierKey) return
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(Ship)) {
+    const s = ent.get(Ship)!
+    if (s.storedAboardShipKey !== carrierKey) continue
+    ent.set(Ship, { ...s, storedAboardShipKey: '' })
+  }
 }
 
 // Buy-ship action: enqueue a delivery row on the target hangar. The

@@ -90,6 +90,12 @@ export interface ShipClassDef {
   // capture-by-named-hostile flow at 6.2 has somewhere to put them.
   // Per-prisoner verbs land at 6.2.5; this phase gates capacity only.
   brigCapacity: number
+  // Phase 6.2.5 — internal MS bay capacity. Non-zero on carriers (e.g.
+  // pegasusClass: 4, lightFreighter: 1). Projected onto ShipStatSheet at
+  // spawn; the MS-aboard mechanic reads it to gate how many ms-class ships
+  // can be stored inside this hull's internal hangar bay (distinct from
+  // POI-level hangar slots). 0 = no internal bay (default for non-carriers).
+  hangarCapacity?: number
   mounts: ShipMountDef[]
   defaultWeapons: string[]
   ai: {
@@ -185,6 +191,11 @@ for (const ship of parsed.ships) {
   if (ship.priceFiat < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" priceFiat must be >= 0`)
   if (typeof ship.brigCapacity !== 'number' || ship.brigCapacity < 0 || !Number.isInteger(ship.brigCapacity)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" brigCapacity must be a non-negative integer`)
+  }
+  if (ship.hangarCapacity !== undefined && (
+    typeof ship.hangarCapacity !== 'number' || ship.hangarCapacity < 0 || !Number.isInteger(ship.hangarCapacity)
+  )) {
+    throw new Error(`ship-classes.json5: ship "${ship.id}" hangarCapacity must be a non-negative integer`)
   }
   if (!ship.officers || typeof ship.officers !== 'object') {
     throw new Error(`ship-classes.json5: ship "${ship.id}" missing officers block`)

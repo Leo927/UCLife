@@ -61,6 +61,12 @@ export const Ship = trait({
   // of the verb so the daily drain tick can iterate without conditional
   // trait checks; the G slice flips the source.
   mothballed: false,
+  // Phase 6.2.5 — MS-aboard mechanic. Non-empty = this ship is stored
+  // inside another ship's internal hangar bay. Value is the carrier
+  // ship's EntityKey. Ships with this set do NOT consume a POI hangar
+  // slot — deriveHangarOccupancy skips them. Cleared when the carrier
+  // enters transit (so stored MS become overflow at the carrier's POI).
+  storedAboardShipKey: '',
   // Phase 6.2.D — captain + crew. EntityKey strings (npc-anon-xxx) so
   // they survive a save/load round-trip; entity refs don't. Empty
   // string = no captain; empty array = no crew. Crew count is

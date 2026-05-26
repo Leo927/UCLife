@@ -35,6 +35,11 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { emitSim } from '../sim/events'
 import { simNow } from '../sim/time'
+import { getShipClass } from '../data/ship-classes'
+import {
+  releaseShipsFromCarrier, findCarrierSlotForShip, assignShipToCarrierBay,
+  hasFreePoiSlotForShip,
+} from './shipDelivery'
 
 const SHIP_SCENE_ID = 'playerShipInterior' as const
 
@@ -91,15 +96,21 @@ export function enqueueShipTransit(
 
   const days = transitDaysForRoute(originPoiId, destPoiId)
   const arrivalDay = gameDay + days
+  const k = shipEnt.get(EntityKey)?.key ?? ''
+  // Phase 6.2.5 — release any MS stored inside this carrier before it
+  // leaves port. Stored ships keep their dockedAtPoiId (origin POI) and
+  // become overflow there. Also clear storedAboardShipKey if this ship
+  // itself was stored aboard a carrier (it's now leaving independently).
+  releaseShipsFromCarrier(k)
   shipEnt.set(Ship, {
     ...s,
     dockedAtPoiId: '',
+    storedAboardShipKey: '',
     transitOriginPoiId: originPoiId,
     transitDestinationId: destPoiId,
     transitDepartureDay: gameDay,
     transitArrivalDay: arrivalDay,
   })
-  const k = shipEnt.get(EntityKey)?.key ?? ''
   return { ok: true, shipKey: k, arrivalDay, days, feePaid: fee }
 }
 
@@ -119,6 +130,7 @@ export function fleetTransitSystem(gameDay: number): FleetTransitTickResult {
     if (!s.transitDestinationId) continue
     if (gameDay < s.transitArrivalDay) { stillInTransit++; continue }
     const destPoiId = s.transitDestinationId
+    const shipKey = e.get(EntityKey)?.key ?? ''
     e.set(Ship, {
       ...s,
       dockedAtPoiId: destPoiId,
@@ -127,9 +139,16 @@ export function fleetTransitSystem(gameDay: number): FleetTransitTickResult {
       transitDepartureDay: 0,
       transitArrivalDay: 0,
     })
+    // Phase 6.2.5 — cascade: if no POI slot is free, assign to a carrier
+    // bay at the destination. Applies only to ms-class and smaller ships.
+    const cls = getShipClass(s.templateId)
+    if (!hasFreePoiSlotForShip(cls.hangarSlotClass, destPoiId)) {
+      const carrier = findCarrierSlotForShip(cls.hangarSlotClass, destPoiId, shipKey)
+      if (carrier) assignShipToCarrierBay(e, carrier)
+    }
     landed++
     emitSim('log', {
-      textZh: `舰艇抵港 · ${e.get(EntityKey)?.key ?? '舰艇'} 已停泊于 ${destPoiId}`,
+      textZh: `舰艇抵港 · ${shipKey || '舰艇'} 已停泊于 ${destPoiId}`,
       atMs: simNow(),
     })
   }

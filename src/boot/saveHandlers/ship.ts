@@ -89,6 +89,10 @@ interface ShipBlock {
   // invariant survives the round-trip.
   name?: string
   ownerKind?: OwnerKind
+  // Phase 6.2.5 — MS-aboard carrier linkage. Non-empty = this ship is
+  // stored inside another ship's internal bay. Optional — pre-6.2.5 saves
+  // load as not-stored-aboard (empty string), matching the trait default.
+  storedAboardShipKey?: string
 }
 
 interface FleetBlock {
@@ -157,6 +161,7 @@ function snapshotFleet(): FleetBlock | undefined {
       transitDepartureDay: s.transitDepartureDay,
       transitArrivalDay: s.transitArrivalDay,
       mothballed: s.mothballed,
+      storedAboardShipKey: s.storedAboardShipKey,
     })
   }
   if (ships.length === 0) return undefined
@@ -272,6 +277,9 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     transitArrivalDay: newBlock.transitArrivalDay ?? 0,
     // Phase 6.2.G — mothball flag. Pre-6.2.G blocks default to operational.
     mothballed: newBlock.mothballed ?? false,
+    // Phase 6.2.5 — aboard-carrier linkage. Pre-6.2.5 blocks default to
+    // not stored aboard (empty string), matching the trait default.
+    storedAboardShipKey: newBlock.storedAboardShipKey ?? '',
   })
 
   // IsInActiveFleet marker presence — round-trip independently from
