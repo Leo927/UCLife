@@ -24,7 +24,7 @@ import {
   Ship, ShipStatSheet, EntityKey,
 } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { POIS } from '../data/pois'
+import { poiIdForScene } from '../data/pois'
 import { getJobSpec } from '../data/jobs'
 import { fleetConfig } from '../config'
 import { getStat } from '../stats/sheet'
@@ -108,13 +108,6 @@ export function hangarRepairSystem(_gameDay: number): HangarRepairResult {
   }
 
   return result
-}
-
-function poiIdForScene(sceneId: string): string | null {
-  for (const poi of POIS) {
-    if (poi.sceneId === sceneId) return poi.id
-  }
-  return null
 }
 
 function findDamagedShipsAtPoi(poiId: string): Entity[] {

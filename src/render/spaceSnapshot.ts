@@ -23,9 +23,21 @@ export interface EnemyShipSnapshot {
   shipClassId: string
   mode: 'patrol' | 'idle' | 'chase' | 'flee'
 }
+/** A diegetic transit line connecting two POIs — used to render the orbital
+ * elevator between a surface POI and its orbital companion. Endpoints are
+ * resolved against the POIs' live positions each frame so they drift with
+ * the orbit. */
+export interface LiftLineSnapshot {
+  liftId: string
+  x1: number; y1: number
+  x2: number; y2: number
+}
 export interface SpaceSnapshot {
   bodies: BodySnapshot[]
   pois: PoiSnapshot[]
+  /** Orbital-elevator visualisations. Empty when no lift's endpoint POIs are
+   *  both on-screen (or when the lift catalog is empty). */
+  liftLines: LiftLineSnapshot[]
   enemies: EnemyShipSnapshot[]
   ship: ShipSnapshot | null
   /** World-space dock-snap radius (POI panel + course-snap target). */

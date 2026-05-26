@@ -3,7 +3,7 @@ import minimalPlayerOnlyRaw from '../../tests/fixtures/minimal-player-only.json5
 import amuroAtRecruitOfficeRaw from '../../tests/fixtures/amuro-at-recruit-office.json5?raw'
 import playerWithCashAtVbRaw from '../../tests/fixtures/player-with-cash-at-vb.json5?raw'
 import gateAtDrydockRaw from '../../tests/fixtures/gate-at-drydock.json5?raw'
-import granadaStationRaw from '../../tests/fixtures/granada-station.json5?raw'
+import vonBraunDrydockStationRaw from '../../tests/fixtures/vonBraunDrydock-station.json5?raw'
 import boardFromDrydockRaw from '../../tests/fixtures/board-from-drydock.json5?raw'
 import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
@@ -86,7 +86,7 @@ const FIXTURES: Record<string, string> = {
   'amuro-at-recruit-office': amuroAtRecruitOfficeRaw,
   'player-with-cash-at-vb': playerWithCashAtVbRaw,
   'gate-at-drydock': gateAtDrydockRaw,
-  'granada-station': granadaStationRaw,
+  'vonBraunDrydock-station': vonBraunDrydockStationRaw,
   'board-from-drydock': boardFromDrydockRaw,
 }
 

@@ -3,7 +3,7 @@
 //      Ship.mothballed=true, drain/salary skip the ship.
 //   2. Try to mothball the flagship → refused with flagship_locked.
 //   3. Un-mothball → drain resumes, salary resumes.
-//   4. Transfer ship VB → Granada via the hangar transfer surface.
+//   4. Transfer ship VB → drydock via the hangar transfer surface.
 //   5. Transfer to a full hangar → refused with dest_no_slot.
 //   6. Transfer a mothballed ship → refused with mothballed.
 //   7. Transfer a ship in transit → refused with in_transit.
@@ -21,7 +21,12 @@ const SALARY_TICK_DAY_RESUMED = 3
 const TRANSFER_ORDER_DAY = 5
 const MOTH_TRANSFER_ORDER_DAY = 10
 const FULL_TRANSFER_ORDER_DAY = 11
-const VB_FILL_CAP = 4
+// VB surface hangar has 4 smallCraft + 4 ms slots. With the slot hierarchy
+// (capital ⊇ ms ⊇ smallCraft) a smallCraft ship can occupy either class —
+// the snug fit is preferred but ms slots accept smallCraft wastefully when
+// the smallCraft inventory is full. To genuinely block a smallCraft
+// transfer the test fills both bays = 8 total ships.
+const VB_FILL_CAP = 8
 const SHIP_B_ORDER_DAY = 11
 const SHIP_B_ARRIVAL_DAY = SHIP_B_ORDER_DAY + SMALL_HULL_LEAD_DAYS
 
@@ -81,7 +86,7 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const drydock = hangars.find((h: any) => h.typeId === 'hangarDrydock')
   expect(vbHangar, 'VB hangar missing').toBeTruthy()
-  expect(drydock, 'Granada drydock missing').toBeTruthy()
+  expect(drydock, 'Von Braun drydock missing').toBeTruthy()
 
   await sim.page.evaluate(
     (arg) =>
@@ -239,16 +244,16 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
     shipAKey,
   )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const granadaDest = destsForA.find((d: any) => d.poiId === 'granada')
-  expect(granadaDest, `granada not in transfer destinations for A`).toBeTruthy()
-  expect(granadaDest.hasOpenSlot, `granada destination reports no open slot pre-transfer`).toBeTruthy()
+  const drydockDest = destsForA.find((d: any) => d.poiId === 'vonBraunDrydock')
+  expect(drydockDest, `vonBraunDrydock not in transfer destinations for A`).toBeTruthy()
+  expect(drydockDest.hasOpenSlot, `drydock destination reports no open slot pre-transfer`).toBeTruthy()
 
   const transferA = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ([k, dest, day]) => (window as any).__uclife__.enqueueHangarTransferViaDebug(k, dest, day),
-    [shipAKey, 'granada', TRANSFER_ORDER_DAY],
+    [shipAKey, 'vonBraunDrydock', TRANSFER_ORDER_DAY],
   )
-  expect(transferA.ok, `transfer A → granada failed: ${JSON.stringify(transferA)}`).toBeTruthy()
+  expect(transferA.ok, `transfer A → drydock failed: ${JSON.stringify(transferA)}`).toBeTruthy()
   expect(transferA.totalCost).toBe(transferA.transferFee + transferA.transitFee)
   expect(transferA.arrivalDay).toBeGreaterThan(TRANSFER_ORDER_DAY)
 
@@ -268,11 +273,11 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
   const tMid = transitsMid.find((t: any) => t.shipKey === shipAKey)
   expect(tMid, `Ship A not in transit list`).toBeTruthy()
   expect(tMid.originPoiId).toBe('vonBraun')
-  expect(tMid.destinationPoiId).toBe('granada')
+  expect(tMid.destinationPoiId).toBe('vonBraunDrydock')
 
   const transferInTransit = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ([k, day]) => (window as any).__uclife__.enqueueHangarTransferViaDebug(k, 'granada', day),
+    ([k, day]) => (window as any).__uclife__.enqueueHangarTransferViaDebug(k, 'vonBraunDrydock', day),
     [shipAKey, TRANSFER_ORDER_DAY],
   )
   expect(transferInTransit.ok, `transfer of in-transit ship should be refused`).toBeFalsy()
@@ -293,7 +298,7 @@ test('mothball + hangar transfer + save round-trip', async ({ sim }) => {
   )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const aPost = fleetPost.find((s: any) => s.entityKey === shipAKey)
-  expect(aPost?.dockedAtPoiId).toBe('granada')
+  expect(aPost?.dockedAtPoiId).toBe('vonBraunDrydock')
 
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

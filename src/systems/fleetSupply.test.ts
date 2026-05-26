@@ -152,7 +152,7 @@ describe('fleetSupplyDrainSystem', () => {
   it('drains regardless of docked POI — fleet pool is global, not per-hangar', () => {
     const world = createWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
-    spawnShipAt(world, 's1', 'granada', 4)  // dockedAtPoiId no longer gates drain
+    spawnShipAt(world, 's1', 'vonBraunDrydock', 4)  // dockedAtPoiId no longer gates drain
 
     const sf = spendFactory(1000)
     const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)

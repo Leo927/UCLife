@@ -1,10 +1,10 @@
 // Pegasus buy + fleet roster smoke.
-//  1. Granada AE sales rep seated at world-init.
+//  1. Drydock AE sales rep seated at world-init.
 //  2. shipSalesRepEntity locates that rep.
 //  3. enqueueShipDelivery accepts pegasusClass + drydock building.
 //  4. enqueueShipDelivery rejects unknown buildingKey.
 //  5. runShipDeliveryTick(arrivalDay) flips the row to 'arrived'.
-//  6. receiveShipDelivery spawns a pegasusClass Ship at granada.
+//  6. receiveShipDelivery spawns a pegasusClass Ship at vonBraunDrydock.
 //  7. fleetRosterSnapshot lists exactly TWO ships.
 //  8. setFleetRosterOpen toggles.
 //  9. Save round-trip preserves state.
@@ -49,11 +49,11 @@ test('pegasus buy: enqueue, arrive, receive, roster, save round-trip, capacity',
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.fillJobVacancies(['hangar_manager']))
 
-  const granadaRep = await sim.page.evaluate(
+  const drydockRep = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.shipSalesRepEntity('ae_ship_sales_granada'),
+    () => (window as any).__uclife__.shipSalesRepEntity('ae_ship_sales_vbd'),
   )
-  expect(granadaRep, 'ae_ship_sales_granada rep missing').toBeTruthy()
+  expect(drydockRep, 'ae_ship_sales_vbd rep missing').toBeTruthy()
 
   const hangars = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,7 +63,7 @@ test('pegasus buy: enqueue, arrive, receive, roster, save round-trip, capacity',
   const drydock = hangars.find((h: any) => h.typeId === 'hangarDrydock')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vbHangar = hangars.find((h: any) => h.typeId === 'hangarSurface')
-  expect(drydock, 'Granada drydock building missing').toBeTruthy()
+  expect(drydock, 'Von Braun drydock building missing').toBeTruthy()
   expect(vbHangar, 'VB state hangar building missing').toBeTruthy()
 
   const bad = await sim.page.evaluate(
@@ -153,7 +153,7 @@ test('pegasus buy: enqueue, arrive, receive, roster, save round-trip, capacity',
   const newShip = fleetAfter.find((s: any) => !fleetBefore.some((b: any) => b.entityKey === s.entityKey))
   expect(newShip, 'could not isolate newly-spawned Pegasus').toBeTruthy()
   expect(newShip.templateId).toBe('pegasusClass')
-  expect(newShip.dockedAtPoiId).toBe('granada')
+  expect(newShip.dockedAtPoiId).toBe('vonBraunDrydock')
   expect(newShip.isFlagship, 'new pegasus spawned with IsFlagshipMark').toBeFalsy()
   expect(newShip.hullCurrent).toBe(newShip.hullMax)
 
@@ -182,7 +182,7 @@ test('pegasus buy: enqueue, arrive, receive, roster, save round-trip, capacity',
   expect(flagshipRow.poiId).toBe('vonBraun')
   expect(flagshipRow.shipName, 'flagship row missing shipName').toBeTruthy()
   expect(pegasusRow, 'roster missing pegasus entry').toBeTruthy()
-  expect(pegasusRow.poiId).toBe('granada')
+  expect(pegasusRow.poiId).toBe('vonBraunDrydock')
   expect(pegasusRow.hangarSlotClass).toBe('capital')
   expect(pegasusRow.isFlagship, 'pegasus marked flagship in roster').toBeFalsy()
 
@@ -227,7 +227,7 @@ test('pegasus buy: enqueue, arrive, receive, roster, save round-trip, capacity',
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const postPegasus = postLoadFleet.find((s: any) => s.templateId === 'pegasusClass')
   expect(postPegasus, 'save round-trip lost the spawned Pegasus').toBeTruthy()
-  expect(postPegasus.dockedAtPoiId).toBe('granada')
+  expect(postPegasus.dockedAtPoiId).toBe('vonBraunDrydock')
 
   const capCap = drydock.slotCapacity.capital ?? 0
   let curCap = ((await sim.page.evaluate(

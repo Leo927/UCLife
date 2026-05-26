@@ -326,7 +326,7 @@
   // orbital-lift interactable → drydock concourse." Same facility-class
   // spine as hangarSurface — only the slot tier + scale differ.
   //
-  // stateLocked: civic infrastructure — the Granada state-rental drydock is
+  // stateLocked: civic infrastructure — the Von Braun state-rental drydock is
   // the early-game escape valve for capital tonnage and cannot be bought.
   // Drydock crew live on-station: capital tonnage berths in orbit, so the
   // hangar bay also hosts a worker cafeteria (snack cabinets + water
@@ -363,7 +363,7 @@
 
   // ── DRYDOCK STATION FACILITIES ──────────────────────────────────────────
 
-  // Phase 6.2.A.2 expansion — service buildings for the Granada drydock
+  // Phase 6.2.A.2 expansion — service buildings for the Von Braun drydock
   // concourse. The drydock scene has no procgen, so its facilities are
   // hand-placed as fixedBuildings — which the scenes.ts validator only
   // accepts for fixed-size { w, h } types. drydockBar / drydockClinic are

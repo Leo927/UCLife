@@ -43,6 +43,12 @@ export interface SimEventPayloads {
   // bound ship's stable EntityKey; the panel resolves it against the
   // playerShipInterior world.
   'ui:open-gate-terminal':     { gateNumber: string; shipKey: string }
+  // Disembark dock picker. Fired by interactionSystem when the player
+  // presses E on the disembarkShip kiosk and the docked POI advertises
+  // more than one landing scene. `candidates` are valid scene ids ordered
+  // as authored in pois.json5; `shipKey` is the flagship's EntityKey for
+  // resolving the boarding-pad arrival on the chosen side.
+  'ui:open-dock-picker':       { poiId: string; shipKey: string; candidates: string[] }
   'ui:open-captains-office':   { reason: string }
   // Phase 6.2 — captain's-office comm-panel kiosk: officer face wall
   // + named-POW intel reveal. Per-prisoner verbs land at 6.2.5; the

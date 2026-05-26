@@ -430,13 +430,13 @@
       employer: 'anaheim',
     },
 
-    // Phase 6.2.C2 — NPC-only role. AE sales rep stationed at the Granada
+    // Phase 6.2.C2 — NPC-only role. AE sales rep stationed at the Von Braun
     // orbital drydock. Sells the Pegasus-class capital hull only — capital
     // tonnage bases in orbit (UC canon) so this rep posts at the drydock
     // concourse, not the lunar surface. Pre-assigned via special-npcs.json5
-    // (workstation: 'ae_ship_sales_granada'). Higher wage than VB rep
+    // (workstation: 'ae_ship_sales_vbd'). Higher wage than VB rep
     // because capital sales reps work the high-margin end of the catalog.
-    ae_ship_sales_granada: {
+    ae_ship_sales_vbd: {
       jobTitle: 'AE 销售',
       wage: 360,
       skillXp: 0,
@@ -445,7 +445,7 @@
       shiftEnd: 20,
       workDays: [0, 1, 2, 3, 4, 5, 6],
       requirements: {},
-      description: 'AE 在格拉纳达船坞派驻的主力舰销售。',
+      description: 'AE 在冯·布劳恩轨道船坞派驻的主力舰销售。',
       playerHireable: false,
       family: 'anaheim_management',
       employer: 'anaheim',

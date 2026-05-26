@@ -52,9 +52,9 @@ describe('applyFixture', () => {
     expect(player!.get(Money)!.amount).toBe(200000)
   })
 
-  it('loads granada-station: player lands in the granadaDrydock concourse with cash', () => {
-    applyFixture('granada-station')
-    const player = getWorld('granadaDrydock').queryFirst(IsPlayer)
+  it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
+    applyFixture('vonBraunDrydock-station')
+    const player = getWorld('vonBraunDrydock').queryFirst(IsPlayer)
     expect(player).not.toBeNull()
     expect(player!.get(Money)!.amount).toBe(50000)
     const pos = player!.get(Position)!

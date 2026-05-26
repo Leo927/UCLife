@@ -14,6 +14,13 @@ export interface SpaceConfig {
   fitSystemPaddingPx: number
   dockSnapRadius: number
   autopilotArriveRadiusPx: number
+  liftLine: {
+    dashWorldPx: number
+    gapWorldPx: number
+    strokeWorldPx: number
+    colorHex: string
+    alpha: number
+  }
 }
 
 export const spaceConfig = json5.parse(raw) as SpaceConfig

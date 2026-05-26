@@ -1,4 +1,4 @@
-// Player standing in the Granada drydock concourse — the mini-station
+// Player standing in the Von Braun drydock concourse — the mini-station
 // expansion smoke (drydockBar / drydockClinic / supplyDepot service
 // buildings + the AE supply-dealer special NPC).
 //
@@ -7,12 +7,12 @@
 // doesn't collide with any spawned building, worker, or kiosk. Noon
 // start so the AE supply dealer (shift 08:00–20:00) is on duty.
 {
-  seed: 'granada-station-001',
+  seed: 'vbd-station-001',
   startDate: '2026-05-17T12:00:00Z',
-  scene: 'granadaDrydock',
+  scene: 'vonBraunDrydock',
 
   player: {
     money: 50000,
-    location: { scene: 'granadaDrydock', x: 30, y: 20 },
+    location: { scene: 'vonBraunDrydock', x: 30, y: 20 },
   },
 }

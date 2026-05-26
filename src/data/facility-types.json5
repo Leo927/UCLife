@@ -10,10 +10,16 @@
 // is authored here so the schema locks in for 6.2.A.2 / 6.2.C2 without
 // a follow-up data churn.
 //
-// Slot classes:
+// Slot classes (largest → smallest):
+//   capital     — cruiser / battleship slip. Drydock tier only.
 //   ms          — mobile-suit-sized bay (20m frames). Surface tier only.
 //   smallCraft  — fighters / mobile workers / shuttles. Both tiers.
-//   capital     — cruiser / battleship slip. Drydock tier only.
+//
+// Hierarchy: a slot of a given class can house ships of its class OR any
+// smaller class (capital ⊇ ms ⊇ smallCraft). Smaller ships in a larger
+// slot are physically wasteful but supported — the player decides when to
+// burn capacity for convenience. Hierarchy is encoded in
+// `data/facilityTypes.ts:HANGAR_SLOT_HIERARCHY`.
 //
 // Capacity-only verbs ship at 6.2.A; ShipStatSheet + persistent damage +
 // repair throughput land at 6.2.B; supply/fuel storage drain + dealer
@@ -31,6 +37,13 @@
 // Pegasus row doesn't churn this file).
 
 {
+  // Hangar-slot class hierarchy, listed largest-first. A slot of class C
+  // accepts ships whose class sits at or below C in this list. Adding a
+  // new class (e.g. 'frigate' between capital and ms) is one edit here
+  // plus a row in HangarSlotClass type. Order matters; consumers walk it
+  // linearly from a ship's own class upward to find a fitting slot.
+  slotHierarchy: ['capital', 'ms', 'smallCraft'],
+
   hangars: {
     hangarSurface: {
       tier: 'surface',

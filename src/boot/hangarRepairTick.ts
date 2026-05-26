@@ -6,7 +6,7 @@
 // research tick already obeys).
 //
 // Multi-scene scope: hangars exist in city scenes (vonBraunCity,
-// granadaDrydock); ships sit in playerShipInterior. The system walks
+// vonBraunDrydock); ships sit in playerShipInterior. The system walks
 // every SCENE_ID once per tick — it doesn't read getActiveSceneId().
 
 import { onSim } from '../sim/events'

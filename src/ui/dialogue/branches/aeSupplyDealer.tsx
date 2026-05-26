@@ -10,7 +10,7 @@
 //
 // Pricing + delivery timing live in src/config/fleet.json5 (no magic
 // numbers in TS). Hangar selection is whatever player-accessible
-// hangars exist across all scenes (today: VB state hangar + Granada
+// hangars exist across all scenes (today: VB state hangar + Von Braun
 // drydock); the dropdown shows the building's label off the host scene.
 
 import { useState } from 'react'

@@ -61,10 +61,11 @@
 
 // Each row also declares `hangarSlotClass: 'ms' | 'smallCraft' | 'capital'`.
 // Drives the hangar capacity gate at 6.2.C1+ purchase + delivery: a hull
-// only fits in a hangar whose slotCapacity[hangarSlotClass] has a free
-// slot. `lightFreighter` is the existing flagship; UC-canon civilian
-// freighters slot into `smallCraft` bays. A future Pegasus-class capital
-// declares `'capital'` so the Granada drydock gates it correctly.
+// only fits in a hangar whose slot hierarchy can accept its class (slots
+// at or above the ship's class accept it; capital ⊇ ms ⊇ smallCraft).
+// `lightFreighter` is the existing flagship; UC-canon civilian freighters
+// slot into `smallCraft` bays. A future Pegasus-class capital declares
+// `'capital'` so the Von Braun drydock gates it correctly.
 {
   ships: [
     {
@@ -262,8 +263,8 @@
     // family (White Base / Pegasus II / Albion) is the Federation's fast
     // capital-grade carrier-cruiser — heavily armored, MS-hangar-equipped,
     // capable of cracking a destroyer or shielding a strike fleet. The
-    // Granada AE drydock sells a refurbished hull through the surface
-    // sales rep; player parks it in the Granada state drydock's `capital`
+    // Von Braun AE drydock sells a refurbished hull through the surface
+    // sales rep; player parks it in the Von Braun state drydock's `capital`
     // slot. Aspirational mid-game content — substantially pricier than the
     // lightFreighter / lunarMilitia (multi-million ¥) so the climb feels
     // earned. Walkable interior is bigger (bridge, captain's office, comm
@@ -276,7 +277,7 @@
     {
       id: 'pegasusClass',
       nameZh: '飞马级强袭母舰',
-      descZh: '联邦"飞马"系列改装舰 · 强装甲快速航母 · 内置 MS 机库与重型武装 · 在 AE 格拉纳达船坞二次出售给民间。',
+      descZh: '联邦"飞马"系列改装舰 · 强装甲快速航母 · 内置 MS 机库与重型武装 · 在 AE 冯·布劳恩轨道船坞二次出售给民间。',
       shipClass: 'capital',
       hangarSlotClass: 'capital',
       hullMax: 6000,

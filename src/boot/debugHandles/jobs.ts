@@ -16,7 +16,7 @@ const WORK_FOREVER = 999_999_999
 
 function ensureWorkerForSpec(specId: string): boolean {
   // Phase 6.2.C2 — workstation lookup checks the active scene first so
-  // smokes that swap scenes (e.g. ride the orbital lift to Granada
+  // smokes that swap scenes (e.g. ride the orbital lift to the Von Braun
   // drydock then fillJobVacancies(['hangar_manager'])) seat the manager
   // in the *current* scene, not whichever scene comes first in
   // SCENE_IDS. Falls back to other scenes when the active scene has no

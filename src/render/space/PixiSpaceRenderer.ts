@@ -31,7 +31,16 @@ import { Application, Container, Graphics, Text, ColorMatrixFilter } from 'pixi.
 import { AdvancedBloomFilter } from 'pixi-filters'
 import type { CelestialKind } from '../../data/celestialBodies'
 import { ParticlePool, emitThrust } from './particles'
-import type { BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot, SpaceSnapshot } from '../spaceSnapshot'
+import type { BodySnapshot, PoiSnapshot, ShipSnapshot, EnemyShipSnapshot, SpaceSnapshot, LiftLineSnapshot } from '../spaceSnapshot'
+import { spaceConfig } from '../../config'
+
+const LIFT_LINE_STYLE = {
+  dashWorldPx: spaceConfig.liftLine.dashWorldPx,
+  gapWorldPx: spaceConfig.liftLine.gapWorldPx,
+  strokeWorldPx: spaceConfig.liftLine.strokeWorldPx,
+  color: parseInt(spaceConfig.liftLine.colorHex, 16),
+  alpha: spaceConfig.liftLine.alpha,
+} as const
 
 const BODY_COLOR: Record<CelestialKind, { fill: number; stroke: number }> = {
   star:     { fill: 0xfde68a, stroke: 0xfef9c3 },
@@ -75,6 +84,7 @@ export class PixiSpaceRenderer {
   private viewport: Container
   private bodyLayer: Container
   private courseLayer: Container
+  private liftLayer: Container
   private poiLayer: Container
   private enemyLayer: Container
   private particleLayer: Container
@@ -82,6 +92,7 @@ export class PixiSpaceRenderer {
   private bodyNodes = new Map<string, BodyNode>()
   private poiNodes = new Map<string, PoiNode>()
   private enemyNodes = new Map<string, EnemyNode>()
+  private liftLines: Graphics
   private shipShape: Graphics
   private courseLine: Graphics
   private particles: ParticlePool
@@ -96,17 +107,20 @@ export class PixiSpaceRenderer {
     this.viewport.label = 'space-viewport'
     app.stage.addChild(this.viewport)
 
-    // Layer order: bodies → course → POIs → enemies → particles (engine trails)
-    // → ship. Enemies sit above POIs so a hostile parked next to a station
-    // remains visible; the player ship still renders on top.
+    // Layer order: bodies → course → lifts → POIs → enemies → particles
+    // → ship. Lifts (orbital elevator lines) sit under POIs so the POI
+    // markers stay readable where the line passes near them; under enemies
+    // so a hostile parked alongside doesn't get hidden behind the line.
     this.bodyLayer = new Container()
     this.courseLayer = new Container()
+    this.liftLayer = new Container()
     this.poiLayer = new Container()
     this.enemyLayer = new Container()
     this.particleLayer = new Container()
     this.shipLayer = new Container()
     this.viewport.addChild(this.bodyLayer)
     this.viewport.addChild(this.courseLayer)
+    this.viewport.addChild(this.liftLayer)
     this.viewport.addChild(this.poiLayer)
     this.viewport.addChild(this.enemyLayer)
     this.viewport.addChild(this.particleLayer)
@@ -114,6 +128,9 @@ export class PixiSpaceRenderer {
 
     this.courseLine = new Graphics()
     this.courseLayer.addChild(this.courseLine)
+
+    this.liftLines = new Graphics()
+    this.liftLayer.addChild(this.liftLines)
 
     this.shipShape = new Graphics()
     this.shipLayer.addChild(this.shipShape)
@@ -184,6 +201,7 @@ export class PixiSpaceRenderer {
     this.viewport.scale.set(scale, scale)
 
     this.syncBodies(snap.bodies, scale)
+    this.syncLiftLines(snap.liftLines, scale)
     this.syncPois(snap.pois, scale, snap.hoveredPoiId, snap.dockSnapRadius)
     this.syncEnemies(snap.enemies, scale)
     this.syncCourse(snap.coursePreview, scale)
@@ -307,6 +325,39 @@ export class PixiSpaceRenderer {
         this.poiNodes.delete(id)
       }
     }
+  }
+
+  // Orbital-elevator dashed lines connecting paired POIs. One Graphics
+  // shared by all lines — redraw per frame is O(L × dashes) at L≈1.
+  // Numerics live in spaceConfig.liftLine; world-px values are divided by
+  // the camera scale here so dashes stay a constant screen-px size.
+  private syncLiftLines(lines: LiftLineSnapshot[], scale: number): void {
+    this.liftLines.clear()
+    if (lines.length === 0) return
+    const cfg = LIFT_LINE_STYLE
+    const dash = cfg.dashWorldPx / scale
+    const gap = cfg.gapWorldPx / scale
+    for (const ln of lines) {
+      const dx = ln.x2 - ln.x1
+      const dy = ln.y2 - ln.y1
+      const len = Math.hypot(dx, dy)
+      if (len <= 0) continue
+      const ux = dx / len
+      const uy = dy / len
+      let t = 0
+      while (t < len) {
+        const t2 = Math.min(t + dash, len)
+        this.liftLines
+          .moveTo(ln.x1 + ux * t,  ln.y1 + uy * t)
+          .lineTo(ln.x1 + ux * t2, ln.y1 + uy * t2)
+        t = t2 + gap
+      }
+    }
+    this.liftLines.stroke({
+      color: cfg.color,
+      alpha: cfg.alpha,
+      width: cfg.strokeWorldPx / scale,
+    })
   }
 
   private syncCourse(preview: SpaceSnapshot['coursePreview'], scale: number): void {

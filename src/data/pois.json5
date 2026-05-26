@@ -31,7 +31,7 @@
       factionControlPre: 'civilian',
       factionControlPost: 'civilian',
       services: ['refuel', 'repair', 'store', 'hire'],
-      sceneId: 'vonBraunCity',
+      dockScenes: ['vonBraunCity'],
       bodyId: 'moon',
       orbitRadius: 180,
       orbitPeriodDays: 0.5,
@@ -41,26 +41,25 @@
       description: '月面最古老的民用穹顶都市；玩家的母港。',
     },
     {
-      id: 'granada',
-      nameZh: '格拉纳达',
-      shortZh: '格拉纳达',
+      id: 'vonBraunDrydock',
+      nameZh: '冯·布劳恩 · 船坞',
+      shortZh: '船坞',
       type: 'shipyard',
       factionControlPre: 'ae',
       factionControlPost: 'ae',
       services: ['refuel', 'repair', 'refit', 'hire'],
-      // Phase 6.2.C2 — bind to the walkable Granada drydock scene so
-      // poiIdForHangarScene('granadaDrydock') resolves to 'granada'. The
-      // C1 ship-delivery + capacity-derivation surfaces both walk POIS
-      // looking for this pairing; without it the drydock hangar can't
-      // receive Pegasus deliveries.
-      sceneId: 'granadaDrydock',
+      // The orbital drydock above Von Braun. Two POIs (vonBraun + vonBraunDrydock)
+      // share the moon as their host body — the surface and orbital ends of the
+      // same shipyard town, connected by the orbital elevator authored in
+      // orbital-lifts.json5. Linked via the visual elevator line in the starmap.
+      dockScenes: ['vonBraunDrydock'],
       bodyId: 'moon',
       orbitRadius: 190,
       orbitPeriodDays: 0.5,
       orbitPhase: 2.1,
       region: 'lunarSphere',
       takeoffFuelCost: 12,
-      description: 'AE 月面船坞群；军舰改装、雇佣与补给中心。',
+      description: 'AE 在冯·布劳恩同步轨道上运营的船坞群；军舰改装、雇佣与补给中心。',
     },
     {
       id: 'lunaII',
@@ -172,7 +171,7 @@
       factionControlPre: 'zeon',
       factionControlPost: 'zeon',
       services: ['refuel', 'store', 'hire'],
-      sceneId: 'zumCity',
+      dockScenes: ['zumCity'],
       bodyId: 'side3',
       orbitRadius: 60,
       orbitPeriodDays: 0.3,

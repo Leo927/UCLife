@@ -41,7 +41,7 @@ test('grantFleet adds Pegasus + lunarMilitia, captains, save round-trip', async 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const militia = after.find((s: any) => s.templateId === 'lunarMilitia')
   expect(pegasus, 'pegasus not in fleet after grant').toBeTruthy()
-  expect(pegasus.dockedAtPoiId).toBe('granada')
+  expect(pegasus.dockedAtPoiId).toBe('vonBraunDrydock')
   expect(militia, 'lunarMilitia not in fleet after grant').toBeTruthy()
   expect(militia.dockedAtPoiId).toBe('vonBraun')
 
@@ -67,7 +67,7 @@ test('grantFleet adds Pegasus + lunarMilitia, captains, save round-trip', async 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const drydock = hangars.find((h: any) => h.typeId === 'hangarDrydock')
   expect(vbHangar, 'VB surface hangar missing').toBeTruthy()
-  expect(drydock, 'Granada drydock missing').toBeTruthy()
+  expect(drydock, 'Von Braun drydock missing').toBeTruthy()
 
   const vbSupply = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -41,7 +41,7 @@ const SHIP_SCENE_ID = 'playerShipInterior' as const
 // Resolve transit days for a route. Falls back to the configured default
 // when the directed pair isn't authored. Symmetric pairs are listed
 // explicitly in fleet.json5; this lookup intentionally does not auto-
-// symmetrize (so VB→Granada can ever diverge from Granada→VB if the
+// symmetrize (so VB→drydock can ever diverge from drydock→VB if the
 // design ever calls for it).
 export function transitDaysForRoute(originPoiId: string, destPoiId: string): number {
   const key = `${originPoiId}->${destPoiId}`

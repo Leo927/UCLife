@@ -1,5 +1,5 @@
-// granadaDrydock mini-station smoke. Verifies the concourse expansion:
-//   1. Boot lands in the granadaDrydock concourse.
+// vonBraunDrydock mini-station smoke. Verifies the concourse expansion:
+//   1. Boot lands in the vonBraunDrydock concourse.
 //   2. The three service buildings (drydockBar, drydockClinic, supplyDepot)
 //      spawn in the scene.
 //   3. The AE supply dealer special NPC is seated at the supply depot and
@@ -7,8 +7,8 @@
 
 import { test, expect, DOM_COMMIT_TIMEOUT_MS, isExpectedTestModePortraitMissing } from './_fixtures'
 
-const FIXTURE = 'granada-station'
-const SCENE = 'granadaDrydock'
+const FIXTURE = 'vonBraunDrydock-station'
+const SCENE = 'vonBraunDrydock'
 const SERVICE_BUILDINGS = ['drydockBar', 'drydockClinic', 'supplyDepot']
 
 const REQUIRED_HANDLES = [
@@ -18,7 +18,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.aeSupplyDealerEntity',
 ]
 
-test('granada mini-station: service buildings spawn, supply dealer on duty', async ({ sim }) => {
+test('drydock mini-station: service buildings spawn, supply dealer on duty', async ({ sim }) => {
   sim.allowConsoleError(isExpectedTestModePortraitMissing)
   await sim.boot({ fixture: FIXTURE, requireHandles: REQUIRED_HANDLES })
 

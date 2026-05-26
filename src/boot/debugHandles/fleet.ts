@@ -56,9 +56,9 @@ import {
 import { defaultShipName } from '../../data/shipNaming'
 import { useUI } from '../../ui/uiStore'
 import { getShipClass } from '../../data/ship-classes'
-import { getPoi } from '../../data/pois'
+import { getPoi, poiIdForScene } from '../../data/pois'
 import {
-  poiIdForHangarScene, enqueueDelivery, receiveDelivery, shipDeliverySystem,
+  enqueueDelivery, receiveDelivery, shipDeliverySystem,
 } from '../../systems/shipDelivery'
 import { fleetConfig } from '../../config'
 import { useClock, gameDayNumber } from '../../sim/clock'
@@ -131,7 +131,7 @@ registerDebugHandle('fleetRosterSnapshot', (): FleetRosterRow[] => {
     const w = getWorld(sceneId)
     for (const b of w.query(Building, Hangar)) {
       const label = b.get(Building)?.label ?? ''
-      const poi = poiIdForHangarScene(sceneId)
+      const poi = poiIdForScene(sceneId)
       if (poi && label) hangarLabelByPoi.set(poi, label)
     }
   }
@@ -174,9 +174,23 @@ registerDebugHandle('setFleetRosterOpen', (open: boolean) => {
   return useUI.getState().fleetRosterOpen
 })
 
+// Open the disembark dock picker with a chosen payload. Smoke uses this
+// to assert that a future multi-scene POI surfaces the picker shell, even
+// when no live POI has multiple scenes yet.
+registerDebugHandle(
+  'openDockPicker',
+  (payload: { poiId: string; shipKey: string; candidates: string[] }) => {
+    useUI.getState().openDockPicker(payload)
+    return useUI.getState().dockPicker
+  },
+)
+
+// Snapshot of the picker state for assertions.
+registerDebugHandle('dockPickerSnapshot', () => useUI.getState().dockPicker)
+
 // Re-point a Ship's dockedAtPoiId. Smoke uses this to occupy capital
-// slots at granada without going through an actual buy/deliver flow,
-// so the no-slot gate path is exercisable end-to-end.
+// slots at the Von Braun drydock without going through an actual buy/
+// deliver flow, so the no-slot gate path is exercisable end-to-end.
 registerDebugHandle('forceShipDocking', (entityKey: string, poiId: string) => {
   const w = getWorld('playerShipInterior')
   for (const e of w.query(Ship, EntityKey)) {

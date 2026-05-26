@@ -1,4 +1,4 @@
-// Player standing in the Granada drydock concourse with two player-owned
+// Player standing in the Von Braun drydock concourse with two player-owned
 // ships in the fleet: the bootstrap flagship (lightFreighter) parked back
 // at Von Braun, and a Pegasus-class capital docked at this drydock. Drives
 // the drydock-boarding smoke — after syncShipMarkers binds the Pegasus to
@@ -11,11 +11,11 @@
 {
   seed: 'board-drydock-001',
   startDate: '2026-05-17T08:00:00Z',
-  scene: 'granadaDrydock',
+  scene: 'vonBraunDrydock',
 
   player: {
     money: 50000,
-    location: { scene: 'granadaDrydock', x: 30, y: 20 },
+    location: { scene: 'vonBraunDrydock', x: 30, y: 20 },
   },
 
   ships: [
@@ -31,7 +31,7 @@
       id: 'pegasus-1',
       template: 'pegasusClass',
       name: '飞马号',
-      dockedAt: 'granada',
+      dockedAt: 'vonBraunDrydock',
     },
   ],
 }

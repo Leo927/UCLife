@@ -54,4 +54,16 @@
   // actual cursor — POI auto-dock courses still snap Position to the live
   // POI on arrival, so this doesn't affect docking accuracy.
   autopilotArriveRadiusPx: 4,
+
+  // Dashed line between elevator-linked POIs on the starmap. Lengths are
+  // in *world* px and the renderer divides by camera scale so the dashes
+  // stay a constant *screen* size at any zoom. Subtle grey + 50% alpha so
+  // the line reads as transit infrastructure, not a navigation course.
+  liftLine: {
+    dashWorldPx: 4,
+    gapWorldPx: 4,
+    strokeWorldPx: 1,
+    colorHex: '0x94a3b8',
+    alpha: 0.5,
+  },
 }

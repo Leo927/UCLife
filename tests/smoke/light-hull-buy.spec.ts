@@ -189,13 +189,20 @@ test('light-hull buy: enqueue, arrive, receive, capacity, save round-trip', asyn
   expect(postLoad[0]?.arrivalDay).toBe(preSave[0]?.arrivalDay)
   expect(postLoad[0]?.status).toBe(preSave[0]?.status)
 
-  const cap = vb.slotCapacity.smallCraft ?? 0
+  // Total capacity that can host a smallCraft hull, given the slot
+  // hierarchy (capital ⊇ ms ⊇ smallCraft). VB surface hangar has both
+  // smallCraft and ms inventories — fill both before the no_slot probe.
+  const cap = (vb.slotCapacity.smallCraft ?? 0)
+    + (vb.slotCapacity.ms ?? 0)
+    + (vb.slotCapacity.capital ?? 0)
   const occupancyAfterReceive = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (k) => (window as any).__uclife__.hangarOccupancy(k),
     vb.buildingKey,
   )
-  const occupiedAfterReceive = occupancyAfterReceive.occupied.smallCraft ?? 0
+  const occupiedAfterReceive = (occupancyAfterReceive.occupied.smallCraft ?? 0)
+    + (occupancyAfterReceive.occupied.ms ?? 0)
+    + (occupancyAfterReceive.occupied.capital ?? 0)
   const needToFillSlots = cap - occupiedAfterReceive
   for (let i = 0; i < needToFillSlots; i++) {
     await sim.page.evaluate(

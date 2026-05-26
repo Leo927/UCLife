@@ -22,7 +22,7 @@ import {
   Wall, Door,
 } from '../ecs/traits'
 import { getWorld } from '../ecs/world'
-import { poiIdForHangarScene } from './shipDelivery'
+import { poiIdForScene } from '../data/pois'
 import { getShipClass } from '../data/ship-classes'
 import type { HangarSlotClass, HangarTier } from '../data/facilityTypes'
 import { worldConfig, fleetConfig } from '../config'
@@ -417,7 +417,7 @@ function applyBoardPortal(
 }
 
 export function syncShipMarkers(world: World, sceneId: string): void {
-  const poiId = poiIdForHangarScene(sceneId)
+  const poiId = poiIdForScene(sceneId)
   if (!poiId) return
   ensureGates(world, sceneId)
 

@@ -53,7 +53,7 @@ export function findShipByKey(shipKey: string): Entity | null {
 // EntityKey of an NPC → live Character entity across every scene
 // world. The NPC may have hopped between scenes between save and load;
 // the lookup stays multi-scene so a crew member assigned at VB still
-// resolves after the player rides the orbital lift to Granada.
+// resolves after the player rides the orbital lift to the drydock.
 export function findNpcByKey(npcKey: string): { entity: Entity; sceneId: string } | null {
   if (!npcKey) return null
   for (const sceneId of SCENE_IDS) {

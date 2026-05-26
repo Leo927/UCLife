@@ -1,8 +1,8 @@
 // Phase 6.2.A.2 — orbital-lift catalog. A "lift" pairs two scenes with a
 // direct, fare-gated, clock-advancing transit. Lifts are the diegetic bridge
 // between a surface POI and its orbital companion (Von Braun spaceport ↔
-// Granada drydock at this slice; Earth-orbit dock complex and Side-colony
-// orbital sectors land in later slices).
+// Von Braun orbital drydock at this slice; Earth-orbit dock complex and
+// Side-colony orbital sectors land in later slices).
 //
 // Unlike the airport `FlightHub` mechanism (which binds 1:1 to an `airport`
 // reservedRect in procgen and picks destinations from a list at the ticket
@@ -30,15 +30,15 @@
 {
   lifts: [
     {
-      id: 'vonBraunGranadaLift',
-      labelZh: '冯·布劳恩—格拉纳达轨道升降梯',
+      id: 'vonBraunDrydockLift',
+      labelZh: '冯·布劳恩 · 轨道升降梯',
       shortZh: '轨道升降梯',
       sceneIdA: 'vonBraunCity',
-      sceneIdB: 'granadaDrydock',
+      sceneIdB: 'vonBraunDrydock',
       durationMin: 90,
       fareUp: 500,
       fareDown: 0,
-      description: 'AE 工业区中的轨道升降梯。乘梯直达格拉纳达船坞群。',
+      description: 'AE 工业区中的轨道升降梯。乘梯直达冯·布劳恩同步轨道船坞群。',
     },
   ],
 }
