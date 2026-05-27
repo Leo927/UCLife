@@ -345,3 +345,14 @@ export const EmployedAsCrew = trait({
   shipKey: '',
   role: 'crew' as 'captain' | 'crew',
 })
+
+// Phase 6.2.5.B — hire-as-pilot. Carried by an NPC after the player
+// hires them as an MS pilot. `msKey` is the assigned Ms entity's
+// EntityKey, or '' when the pilot is idle (hired but unassigned —
+// they sit in the pool waiting on auto-assign or manual placement).
+// Same BT-skip + salary-channel contract as EmployedAsCrew. The pilot
+// roster panel and the MS retrofit panel both read/write this trait
+// to move pilots between MS.
+export const EmployedAsPilot = trait({
+  msKey: '',
+})

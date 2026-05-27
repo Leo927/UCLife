@@ -37,6 +37,10 @@ import './boot/fleetSupplyTick'
 // Phase 6.2.C1 — advance pending ship deliveries on the same event;
 // rows transition in_transit → arrived once arrivalDay is reached.
 import './boot/shipDeliveryTick'
+// Phase 6.2.5.B — parallel queue for MS deliveries from the AE vehicle broker.
+import './boot/msDeliveryTick'
+// Phase 6.2.5.B — in-transit MS lander; same day-rollover, separate effect.
+import './boot/msTransitTick'
 // Unified faction-member daily salary drain. Same event; debits the
 // player's Money for every NPC carrying RecruitedTo({owner: player}),
 // with the captain-role bonus added on top per EmployedAsCrew.role.

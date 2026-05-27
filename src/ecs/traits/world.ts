@@ -274,6 +274,18 @@ export interface ShipDeliveryRow {
   status: 'in_transit' | 'arrived'
 }
 
+// Phase 6.2.5.B — pending MS / vehicle delivery from the AE vehicle
+// broker. Same shape as ShipDeliveryRow but keyed on an MS class id.
+// `msDeliverySystem` flips status to 'arrived' on day-rollover; the
+// hangar manager's receive-MS-delivery verb spawns the Ms entity and
+// pops the row.
+export interface MsDeliveryRow {
+  msClassId: string
+  orderDay: number
+  arrivalDay: number
+  status: 'in_transit' | 'arrived'
+}
+
 // Phase 6.2.F — supply + fuel storage caps and pending-delivery queue.
 // `supplyCurrent` / `supplyMax` (and the fuel pair) track the per-hangar
 // reserve fed by AE supply-dealer orders + secretary bulk-orders. Caps
@@ -304,6 +316,11 @@ export const Hangar = trait(() => ({
   fuelCurrent: 0,
   fuelMax: 0,
   pendingSupplyDeliveries: [] as PendingSupplyDelivery[],
+  // Phase 6.2.5.B — per-hangar pending MS / vehicle deliveries queued
+  // from the AE vehicle broker. Distinct from `pendingDeliveries` (Ship
+  // catalog) so the two queues don't fight; both tick on the same
+  // `day:rollover:settled` event but resolve via separate verbs.
+  pendingMsDeliveries: [] as MsDeliveryRow[],
 }))
 export type { HangarTier, HangarSlotClass }
 

@@ -25,6 +25,7 @@ import {
 } from '../data/objectTemplates'
 import { getHangarFacilityType } from '../data/facilityTypes'
 import { liftsForScene, liftFareFrom } from '../data/orbitalLifts'
+import { poiIdForScene } from '../data/pois'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass, type ShipClassDef } from '../data/ship-classes'
@@ -224,6 +225,7 @@ function spawnBuilding(typeId: string, slot: PlacedSlot, rng: SeededRng, sceneId
       fuelCurrent: hangarFacility.fuelStorage,
       fuelMax: hangarFacility.fuelStorage,
       pendingSupplyDeliveries: [],
+      pendingMsDeliveries: [],
     }))
   }
 
@@ -673,6 +675,17 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
       Position({ x: TILE * deskTile.x, y: TILE * deskTile.y }),
       Workstation({ specId: 'ae_ship_sales_vb', occupant: null, managerStation: null }),
       EntityKey({ key: 'ws-ae_ship_sales_vb' }),
+    )
+
+    // Phase 6.2.5.B — AE vehicle (MS / fighter / MW) broker desk. Same
+    // shape as the ship-sales desk — seated NPC drives the aeVehicleSales
+    // branch. Tile coords come from fleet.json5; the rep's special-NPC
+    // entry must mirror them.
+    const vehDeskTile = fleetConfig.vehicleSalesDeskTileVB
+    world.spawn(
+      Position({ x: TILE * vehDeskTile.x, y: TILE * vehDeskTile.y }),
+      Workstation({ specId: 'ae_vehicle_sales_vb', occupant: null, managerStation: null }),
+      EntityKey({ key: 'ws-ae_vehicle_sales_vb' }),
     )
   }
 }
@@ -1260,6 +1273,83 @@ export function grantStarterMsToFlagship(): void {
       PlayerPartsInventory({ weapons: { ...msConfig.starterParts } }),
       EntityKey({ key: partsKey }),
     )
+  }
+}
+
+// Phase 6.2.5.B — refresh MS sprites + terminals in a depot (non-ship)
+// scene. For every Ms entity with `dockedAtPoiId` matching the scene's
+// POI, spawn a `climbIntoMs` sprite + a `msTerminal` interactable in the
+// depot scene world, positioned at `msConfig.depotBayOffsets` relative
+// to the hangar building's center. Idempotent: destroys all MsRef-tagged
+// entities in the target scene first.
+export function refreshDepotMsLayout(sceneId: SceneId): void {
+  const depotWorld = getWorld(sceneId)
+  const poiId = poiIdForScene(sceneId)
+  if (!poiId) return
+
+  // Wipe stale MsRef entities so a delete / move leaves no orphan sprite.
+  const doomed: Entity[] = []
+  for (const ent of depotWorld.query(MsRef)) doomed.push(ent)
+  for (const ent of doomed) ent.destroy()
+
+  // Find the hangar building in this scene; if there isn't one, nothing
+  // to anchor to.
+  let hangarBuilding: Entity | null = null
+  for (const b of depotWorld.query(Building, Hangar)) { hangarBuilding = b; break }
+  if (!hangarBuilding) return
+  const bld = hangarBuilding.get(Building)!
+  const anchorX = bld.x + bld.w / 2
+  const anchorY = bld.y + bld.h / 2
+
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  const offsets = msConfig.depotBayOffsets
+
+  let bayIdx = 0
+  for (const msEnt of shipWorld.query(Ms, EntityKey)) {
+    const ms = msEnt.get(Ms)!
+    const msKey = msEnt.get(EntityKey)!.key
+    if (ms.dockedAtPoiId !== poiId) continue
+    if (ms.storedOnShipKey) continue
+    if (ms.transitDestinationId) continue
+
+    const bayOff = offsets[bayIdx % offsets.length]
+    const sx = anchorX + bayOff.dx * TILE
+    const sy = anchorY + bayOff.dy * TILE
+
+    depotWorld.spawn(
+      Position({ x: sx, y: sy }),
+      Interactable({ kind: 'climbIntoMs', label: '登舱出击', fee: 0 }),
+      MsRef({ msKey }),
+      EntityKey({ key: `ms-depot-sprite-${sceneId}-${msKey}` }),
+      TemplateRef({ id: 'ship-ms-sprite' }),
+    )
+
+    const tx = sx + msConfig.terminalOffsetDx * TILE
+    const ty = sy + msConfig.terminalOffsetDy * TILE
+    depotWorld.spawn(
+      Position({ x: tx, y: ty }),
+      Interactable({ kind: 'msTerminal', label: 'MS 终端', fee: 0 }),
+      MsRef({ msKey }),
+      EntityKey({ key: `ms-depot-terminal-${sceneId}-${msKey}` }),
+      TemplateRef({ id: 'ship-ms-terminal' }),
+    )
+
+    bayIdx += 1
+  }
+
+  markPathfindingDirty(sceneId)
+}
+
+// Convenience: re-run depot layout in every scene that has a Hangar.
+// Used after a receive-MS-delivery click so the player doesn't have to
+// leave + re-enter the scene to see the new MS.
+export function refreshAllDepotMsLayouts(): void {
+  for (const sceneId of SCENE_IDS) {
+    if (sceneId === SHIP_SCENE_ID) continue
+    const w = getWorld(sceneId)
+    let hasHangar = false
+    for (const _ of w.query(Building, Hangar)) { hasHangar = true; break }
+    if (hasHangar) refreshDepotMsLayout(sceneId)
   }
 }
 

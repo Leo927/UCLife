@@ -29,6 +29,8 @@ export interface DialogueText {
     hangarManager: string
     aeSupplyDealer: string
     aeShipSales: string
+    aeVehicleSales: string
+    hireAsPilot: string
   }
   branches: {
     shop: { title: string; intro: string }
@@ -141,6 +143,22 @@ export interface DialogueText {
       transferRouteTripLabel: string
       transferRouteDaysLabel: string
       transferBack: string
+      // Phase 6.2.5.B — MS pending deliveries + MS transfer between hangars.
+      msDeliveriesHeader: string
+      msDeliveryInTransitFmt: string
+      msDeliveryArrivedFmt: string
+      receiveMsDeliveryButton: string
+      toastMsDeliveryReceived: string
+      toastMsDeliveryFailed: string
+      msTransferHeader: string
+      msTransferIntro: string
+      msTransferEmpty: string
+      msTransferPickShipLabel: string
+      msTransferPickDestLabel: string
+      msTransferConfirmFmt: string
+      msTransferToastQueued: string
+      msTransferToastFailed: string
+      msTransferDestNoCarrier: string
     }
     aeSupplyDealer: {
       titleSuffix: string
@@ -284,6 +302,40 @@ export interface DialogueText {
       pendingHeader: string
       pendingDays: string
       pendingArrived: string
+    }
+    // Phase 6.2.5.B — AE vehicle broker.
+    aeVehicleSales: {
+      title: string
+      moneyLabel: string
+      statHull: string
+      statArmor: string
+      statSpeed: string
+      statSupplyPerDay: string
+      statHardpoints: string
+      deliverHeader: string
+      buyButton: string
+      buyDisabledMoney: string
+      buyDisabledNoSlot: string
+      gateNoHangar: string
+      gateNoSlot: string
+      gateNoMoney: string
+      toastNoHangar: string
+      toastBought: string
+      slotLabel: string
+      slotFull: string
+    }
+    // Phase 6.2.5.B — hire-as-pilot branch (same gating shape as talkHire).
+    hireAsPilot: {
+      gateOpen: string
+      hesitateOpinionFar: string
+      hesitateOpinionMedium: string
+      hesitateOpinionNear: string
+      hesitateFactionFar: string
+      hesitateFactionMedium: string
+      hesitateFactionNear: string
+      acceptLabel: string
+      toastAccepted: string
+      toastNoMoney: string
     }
   }
 }

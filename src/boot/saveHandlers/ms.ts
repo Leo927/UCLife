@@ -1,4 +1,5 @@
-// MS roster save handler — Phase 6.2.5.A.
+// MS roster save handler — Phase 6.2.5.A; extended at Phase 6.2.5.B with
+// depot-storage + pilot-reference + transit fields on Ms entities.
 //
 // Snapshot/restore the Ms entity roster and PlayerPartsInventory in the
 // playerShipInterior world. Pre-6.2.5.A saves (missing 'ms' block) auto-
@@ -8,11 +9,11 @@ import { registerSaveHandler } from '../../save/registry'
 import { getWorld, type SceneId } from '../../ecs/world'
 import { Ms, PlayerPartsInventory, EntityKey, MsStatSheet, MsEffectsList } from '../../ecs/traits'
 import type { MsStatId } from '../../stats/msSchema'
-import { MS_STAT_FORMULAS } from '../../stats/msSchema'
+import { MS_STAT_IDS, MS_STAT_FORMULAS } from '../../stats/msSchema'
 import { attachFormulas, serializeSheet, type SerializedSheet } from '../../stats/sheet'
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { attachMsStatSheet } from '../../ecs/msEffects'
-import { grantStarterMsToFlagship, refreshMsLayout } from '../../ecs/spawn'
+import { grantStarterMsToFlagship, refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -27,6 +28,12 @@ interface MsBlock {
   mountedWeapons: Record<string, string>
   storedOnShipKey: string
   bayIndex: number
+  // Phase 6.2.5.B — depot storage + pilot reference + transit fields.
+  // Optional so pre-6.2.5.B saves round-trip cleanly (default to '').
+  dockedAtPoiId?: string
+  pilotId?: string
+  transitDestinationId?: string
+  transitArrivalDay?: number
   statSheet?: SerializedSheet<MsStatId>
   effects?: Effect<MsStatId>[]
 }
@@ -59,6 +66,10 @@ function snapshotMs(): MsRosterBlock | undefined {
       mountedWeapons: { ...ms.mountedWeapons },
       storedOnShipKey: ms.storedOnShipKey,
       bayIndex: ms.bayIndex,
+      dockedAtPoiId: ms.dockedAtPoiId || undefined,
+      pilotId: ms.pilotId || undefined,
+      transitDestinationId: ms.transitDestinationId || undefined,
+      transitArrivalDay: ms.transitArrivalDay || undefined,
       statSheet: ssRaw ? serializeSheet(ssRaw) : undefined,
       effects: effects ? [...effects] : undefined,
     })
@@ -86,6 +97,7 @@ function restoreMs(saved: unknown): void {
   if (!saved || typeof saved !== 'object') {
     grantStarterMsToFlagship()
     refreshMsLayout()
+    refreshAllDepotMsLayouts()
     return
   }
 
@@ -93,6 +105,7 @@ function restoreMs(saved: unknown): void {
   if (!Array.isArray(block.roster) || block.roster.length === 0) {
     grantStarterMsToFlagship()
     refreshMsLayout()
+    refreshAllDepotMsLayouts()
     return
   }
 
@@ -108,6 +121,10 @@ function restoreMs(saved: unknown): void {
         mountedWeapons: b.mountedWeapons ?? {},
         storedOnShipKey: b.storedOnShipKey ?? '',
         bayIndex: b.bayIndex ?? 0,
+        dockedAtPoiId: b.dockedAtPoiId ?? '',
+        pilotId: b.pilotId ?? '',
+        transitDestinationId: b.transitDestinationId ?? '',
+        transitArrivalDay: b.transitArrivalDay ?? 0,
       }),
       EntityKey({ key: b.entityKey }),
     )
@@ -116,7 +133,7 @@ function restoreMs(saved: unknown): void {
       msEnt.add(MsEffectsList)
       const effects = b.effects ?? []
       msEnt.set(MsEffectsList, { list: effects })
-      const sheet = attachFormulas(MS_STAT_FORMULAS, b.statSheet)
+      const sheet = attachFormulas(MS_STAT_IDS, MS_STAT_FORMULAS, b.statSheet)
       const rebuilt = rebuildSheetFromEffects(sheet, effects)
       msEnt.set(MsStatSheet, { sheet: rebuilt })
     } else {
@@ -140,6 +157,7 @@ function restoreMs(saved: unknown): void {
   }
 
   refreshMsLayout()
+  refreshAllDepotMsLayouts()
 }
 
 function resetMs(): void {
@@ -150,10 +168,11 @@ function resetMs(): void {
   for (const ent of doomed) ent.destroy()
   grantStarterMsToFlagship()
   refreshMsLayout()
+  refreshAllDepotMsLayouts()
 }
 
 registerSaveHandler({
-  key: 'ms',
+  id: 'ms',
   phase: 'post',
   snapshot: snapshotMs,
   restore: restoreMs,

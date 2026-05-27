@@ -22,4 +22,20 @@
   // Terminal spawns this many tiles to the right of the MS sprite.
   terminalOffsetDx: 1.2,
   terminalOffsetDy: 0,
+
+  // Phase 6.2.5.B — depot-bay offsets in tiles. Anchored to the Hangar
+  // building's center inside surface / drydock scenes (where MS sprites
+  // sit alongside parked Ships, not inside a flagship hangarBay room).
+  // Stride keeps the per-MS triple (sprite + terminal) clear of the
+  // ship-marker layout (`hangarMarkerLayout.surface.smallCraft`).
+  depotBayOffsets: [
+    { dx: 0,  dy: 5 },
+    { dx: 3,  dy: 5 },
+    { dx: -3, dy: 5 },
+    { dx: 6,  dy: 5 },
+    { dx: -6, dy: 5 },
+    { dx: 0,  dy: 7 },
+    { dx: 3,  dy: 7 },
+    { dx: -3, dy: 7 },
+  ],
 }

@@ -53,10 +53,10 @@ test('ms-starter: auto-grant + weapon swap at retrofit terminal', async ({ sim }
 
   // 3. Perform weapon swap via debug helper.
   const swapOk = await sim.page.evaluate(
-    (msKey: string, hpId: string, weaponId: string) =>
+    ({ msKey, hpId, weaponId }: { msKey: string; hpId: string; weaponId: string }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__uclife__.swapMsWeapon(msKey, hpId, weaponId),
-    STARTER_MS_KEY, HARDPOINT_ID, SWAP_TARGET_WEAPON,
+    { msKey: STARTER_MS_KEY, hpId: HARDPOINT_ID, weaponId: SWAP_TARGET_WEAPON },
   )
   expect(swapOk, 'swapMsWeapon should return true').toBe(true)
 

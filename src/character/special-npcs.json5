@@ -217,6 +217,23 @@
       workstation: 'ae_ship_sales_vbd',
     },
 
+    // === Phase 6.2.5.B — AE Von Braun spaceport vehicle (fighter/MW) sales rep ===
+    // Sits at the AE vehicle-sales desk in the VB airport, a few tiles
+    // east of the ship-sales desk so both reps share the airport lobby
+    // without colliding. Talk-verb surfaces the aeVehicleSales branch —
+    // purchase enqueues an MS delivery row to a hangar the player picks.
+    {
+      name: '艾米莉亚·黑泽',
+      color: '#9333ea',
+      title: 'AE MS 经销代表',
+      tileX: 128, tileY: 27,
+      fatigue: 12,
+      money: 6000,
+      skills: { mechanics: 1800, computers: 1500 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_vehicle_sales_vb',
+    },
+
     // === Phase 6.2.A.2 expansion — Von Braun drydock supply depot dealer ===
     // Sits at the supplyDepot building's open-floor supervisor desk on the
     // drydock concourse. Reuses specId 'ae_supply_dealer': koota gives each

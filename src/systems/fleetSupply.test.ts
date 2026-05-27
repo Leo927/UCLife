@@ -47,6 +47,7 @@ function spawnHangar(
       fuelCurrent: fuelMax,
       fuelMax,
       pendingSupplyDeliveries: [],
+      pendingMsDeliveries: [],
     }),
     EntityKey({ key: `bld-${sceneId}-hangarSurface-${key}` }),
   )

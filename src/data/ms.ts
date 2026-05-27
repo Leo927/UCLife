@@ -19,6 +19,14 @@ export interface MsClassDef {
   id: string
   nameZh: string
   descZh: string
+  // Phase 6.2.5.B — broker sticker price (¥). Read by the AE vehicle-sales
+  // dialogue branch + the smoke that buys at the broker.
+  priceFiat: number
+  // Phase 6.2.5.B — placeholder daily supply consumption while the MS is
+  // in any hangar. Drain integration with the existing fleet supply system
+  // is a follow-up slice; field is authored now so the drain code can land
+  // additively without re-touching the data file.
+  supplyPerDay: number
   hullMax: number
   armorMax: number
   topSpeed: number
@@ -60,6 +68,12 @@ for (const m of parsed.ms) {
   if (m.decel < 0) throw new Error(`ms-classes.json5: ms "${m.id}" decel must be >= 0`)
   if (m.angularAccel <= 0) throw new Error(`ms-classes.json5: ms "${m.id}" angularAccel must be > 0`)
   if (m.maxAngVel <= 0) throw new Error(`ms-classes.json5: ms "${m.id}" maxAngVel must be > 0`)
+  if (typeof m.priceFiat !== 'number' || m.priceFiat < 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" priceFiat must be >= 0`)
+  }
+  if (typeof m.supplyPerDay !== 'number' || m.supplyPerDay < 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" supplyPerDay must be >= 0`)
+  }
   if (!m.ai) throw new Error(`ms-classes.json5: ms "${m.id}" missing ai block`)
   if (m.ai.aggression < 0 || m.ai.aggression > 1) {
     throw new Error(`ms-classes.json5: ms "${m.id}" ai.aggression must be in [0,1]`)

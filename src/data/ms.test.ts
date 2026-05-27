@@ -24,6 +24,19 @@ describe('ms class loader', () => {
     }
   })
 
+  it('every MS declares broker price + per-day supply (Phase 6.2.5.B)', () => {
+    for (const ms of MS_CLASS_LIST) {
+      expect(ms.priceFiat).toBeGreaterThanOrEqual(0)
+      expect(ms.supplyPerDay).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('ships the civFighter frame (Phase 6.2.5.B AE catalog)', () => {
+    expect(isMsClassId('civFighter')).toBe(true)
+    const ms = getMsClass('civFighter')
+    expect(ms.priceFiat).toBeGreaterThan(0)
+  })
+
   it('defaultMountedWeapons returns one entry per hardpoint', () => {
     const ms = getMsClass('gm_pre')
     const mw = defaultMountedWeapons(ms)

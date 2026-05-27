@@ -20,22 +20,27 @@
 
 import type { Entity, World, TraitInstance } from 'koota'
 import {
-  Character, EmployedAsCrew, IsPlayer, Money, RecruitedTo, Ship, EntityKey,
+  Character, EmployedAsCrew, EmployedAsPilot, IsPlayer, Money, RecruitedTo,
+  Ship, EntityKey,
 } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig, recruitmentConfig } from '../config'
 
 // Daily salary owed to one recruited NPC. Currently a flat base plus a
-// captain bonus; this is the seam where stat-driven wage demands will
-// land — a high-skilled member will demand more than the base, and
-// paying below the demand will leak loyalty.
+// role-specific bonus (captain | pilot); this is the seam where stat-driven
+// wage demands will land — a high-skilled member will demand more than the
+// base, and paying below the demand will leak loyalty.
 function demandedDailyWage(
   _npc: Entity,
   employed: TraitInstance<typeof EmployedAsCrew> | null,
+  asPilot: boolean,
 ): number {
   let wage = recruitmentConfig.factionMemberDailySalary
   if (employed?.role === 'captain') {
     wage += fleetConfig.captainSalaryBonus
+  }
+  if (asPilot) {
+    wage += fleetConfig.pilotSalaryBonus
   }
   return wage
 }
@@ -44,6 +49,8 @@ export interface FactionSalaryResult {
   membersPaid: number
   captainsPaid: number
   crewPaid: number
+  // Phase 6.2.5.B — pilots paid this tick.
+  pilotsPaid: number
   mothballed: number
   totalDebit: number
   shortfall: number
@@ -57,6 +64,7 @@ export function factionSalarySystem(
     membersPaid: 0,
     captainsPaid: 0,
     crewPaid: 0,
+    pilotsPaid: 0,
     mothballed: 0,
     totalDebit: 0,
     shortfall: 0,
@@ -100,13 +108,17 @@ export function factionSalarySystem(
         out.mothballed += 1
         continue
       }
+      const asPilot = npc.has(EmployedAsPilot)
 
-      totalRequested += demandedDailyWage(npc, employed)
+      totalRequested += demandedDailyWage(npc, employed, asPilot)
       out.membersPaid += 1
       if (employed?.role === 'captain') {
         out.captainsPaid += 1
       } else if (employed?.role === 'crew') {
         out.crewPaid += 1
+      }
+      if (asPilot) {
+        out.pilotsPaid += 1
       }
     }
   }

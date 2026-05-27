@@ -30,6 +30,19 @@ export const Ms = trait({
   storedOnShipKey: '',
   // Index into the ship's hangar bay slots (drives sprite position).
   bayIndex: 0,
+  // Phase 6.2.5.B — POI id where this MS is parked when not aboard a ship.
+  // Exactly one of storedOnShipKey / dockedAtPoiId is non-empty for a
+  // stored MS; both empty means in-transit (transitDestinationId set).
+  dockedAtPoiId: '',
+  // Phase 6.2.5.B — EntityKey of the hired NPC piloting this MS. Empty
+  // = unpiloted (player-piloted by default via climbIntoMs, or idle).
+  pilotId: '',
+  // Phase 6.2.5.B — transit destination POI id while the MS is in
+  // transit between hangars. Empty = not in transit.
+  transitDestinationId: '',
+  // Phase 6.2.5.B — game day on which an in-transit MS lands at its
+  // destination. Read by msTransitSystem on day-rollover.
+  transitArrivalDay: 0,
 })
 
 export const MsStatSheet = trait(() => ({

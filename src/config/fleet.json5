@@ -144,6 +144,13 @@
   // linkage succeeds.
   shipSalesDeskTileVB: { x: 124, y: 27 },
 
+  // Phase 6.2.5.B — AE vehicle-sales (fighter / MW) desk tile inside the
+  // Von Braun airport. Sits to the east of the ship-sales desk so both
+  // reps fit in the lobby without colliding. Same linkage contract as
+  // shipSalesDeskTileVB — the rep's special-NPC tileX/tileY must equal
+  // these so the workstation seat-link succeeds.
+  vehicleSalesDeskTileVB: { x: 128, y: 27 },
+
   // Phase 6.2.C2 — AE ship-sales desk tile inside the Von Braun orbital
   // drydock concourse. The drydock building sits at tile (20,24) with size
   // (20,16) and a north-facing door at offsetTiles=9 (top edge tile
@@ -164,6 +171,19 @@
     ae_ship_sales_vbd: { shipClassId: 'pegasusClass' },
   },
 
+  // Phase 6.2.5.B — vehicle (MS / fighter / MW) sales-rep catalog. Same
+  // shape as salesRepCatalog but each entry sells exactly one MS class
+  // from `ms-classes.json5`. Adding a new vehicle rep = one new spec +
+  // one new row here; the aeVehicleSales branch is generic over the entry.
+  vehicleSalesRepCatalog: {
+    ae_vehicle_sales_vb: { msClassId: 'civFighter' },
+  },
+
+  // Phase 6.2.5.B — MS delivery lead time (game days). Vehicle frames
+  // ship from the AE Von Braun staging depot — same 2-day lead time as
+  // the light-hull catalog by default.
+  vehicleDeliveryDays: 2,
+
   // Hire-as-captain / hire-as-crew economics. Each hire deducts a
   // one-shot signing fee on accept; ongoing daily pay is settled by
   // the unified factionSalarySystem on day:rollover:settled (see
@@ -175,6 +195,15 @@
   // the assert without code churn.
   hireCaptainSigningFee: 5000,
   hireCrewSigningFee: 500,
+  // Phase 6.2.5.B — hire-as-pilot signing bonus. Higher than crew (a
+  // pilot's a specialist + the unit they fly is expensive) but lower
+  // than captain (no per-ship StatSheet officer Effect at this slice;
+  // the Effect channel for pilots lands at 6.2.5.C with frame mods).
+  hirePilotSigningFee: 2000,
+  // Pilot salary bonus on top of factionMemberDailySalary. Tuned a
+  // hair under the captain bonus because pilots are deployable head-
+  // count, not officer-tier role-modifiers.
+  pilotSalaryBonus: 50,
   // Captain salary bonus — the role-specific *additive overlay* on top
   // of the faction-member base salary (recruitmentConfig.factionMemberDailySalary).
   // Total captain take-home = factionMemberDailySalary + captainSalaryBonus.
@@ -295,6 +324,24 @@
   transferFees: {
     'vonBraun->vonBraunDrydock': 2500,
     'vonBraunDrydock->vonBraun': 2500,
+  },
+
+  // Phase 6.2.5.B — paid-and-delayed MS transfer between hangars. Same
+  // shape as transferFees but priced lower per directed route because MS
+  // are smaller and ship faster than a hull. Composite charge at confirm
+  // = msTransferFee + transitFee (the per-trip charge that the auto-launch
+  // path also pays); both stack so the player feels the routed cost.
+  msTransferFeeDefault: 800,
+  msTransferFees: {
+    'vonBraun->vonBraunDrydock': 1000,
+    'vonBraunDrydock->vonBraun': 1000,
+  },
+  // Days in transit for MS routes. Falls back to `msTransitDaysDefault`
+  // for missing pairs.
+  msTransitDaysDefault: 2,
+  msTransitDays: {
+    'vonBraun->vonBraunDrydock': 2,
+    'vonBraunDrydock->vonBraun': 2,
   },
 
   // ── Phase 6.2.H — debug "grant fleet" function ──────────────────────

@@ -35,10 +35,19 @@ export interface FleetConfig {
   // to the single hull class that rep sells.
   shipSalesDeskTileVonBraunDrydock: { x: number; y: number }
   salesRepCatalog: Record<string, { shipClassId: string }>
+  // Phase 6.2.5.B — vehicle (MS / fighter / MW) broker desk + catalog +
+  // delivery lead time. The catalog maps each vehicle rep's workstation
+  // specId to the MS class that rep sells.
+  vehicleSalesDeskTileVB: { x: number; y: number }
+  vehicleSalesRepCatalog: Record<string, { msClassId: string }>
+  vehicleDeliveryDays: number
   // Phase 6.2.D — hire economics + captain Effect + auto-man limit.
   hireCaptainSigningFee: number
   hireCrewSigningFee: number
   captainSalaryBonus: number
+  // Phase 6.2.5.B — hire-as-pilot signing bonus + per-day salary bonus.
+  hirePilotSigningFee: number
+  pilotSalaryBonus: number
   captainEffectSkill: string
   captainEffectStat: string
   captainEffectPerLevel: number
@@ -59,6 +68,11 @@ export interface FleetConfig {
   // Phase 6.2.G — paid-and-delayed transfer-to-other-hangar fee table.
   transferFeeDefault: number
   transferFees: Record<string, number>
+  // Phase 6.2.5.B — paid-and-delayed MS transfer between hangars.
+  msTransferFeeDefault: number
+  msTransferFees: Record<string, number>
+  msTransitDaysDefault: number
+  msTransitDays: Record<string, number>
   // Phase 6.2.H — debug "grant fleet" function knobs.
   grantFleet: {
     moneyGrant: number
