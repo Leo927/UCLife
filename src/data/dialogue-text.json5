@@ -67,6 +67,8 @@
     hangarManager: '机库状况',
     aeSupplyDealer: '订补给',
     aeShipSales: '看看机型',
+    aeVehicleSales: '看看 MS / 战机',
+    hireAsPilot: '邀请加入 (机师)',
   },
   branches: {
     shop: { title: '便利店', intro: '今天有这些。' },
@@ -212,6 +214,43 @@
       pendingDays: '还需 {n} 天',
       pendingArrived: '已抵达 · 待领取',
     },
+    // Phase 6.2.5.B — AE vehicle (MS / fighter / MW) broker. Same panel
+    // shape as aeShipSales but the SKU is an MS frame from vehicleSalesRepCatalog.
+    aeVehicleSales: {
+      title: 'AE MS 销售台',
+      moneyLabel: '钱包',
+      statHull: '机体耐久',
+      statArmor: '装甲',
+      statSpeed: '速度',
+      statSupplyPerDay: '日均补给',
+      statHardpoints: '挂点',
+      deliverHeader: '交付目的地',
+      buyButton: '下单',
+      buyDisabledMoney: '金钱不足',
+      buyDisabledNoSlot: '本机库无 MS 泊位',
+      gateNoHangar: '本地没有可交付的机库 —— 先在邻近的国营机库租一个泊位再回来。',
+      gateNoSlot: '本机库没有 MS 泊位 — 去邻近的能容纳 MS 的机库。',
+      gateNoMoney: '现金不足 · 单价 ¥{price}。',
+      toastNoHangar: '找不到目标机库 —— 先在邻近的国营机库租一个泊位。',
+      toastBought: '已下单：{ms} → {hangar}。{days} 个工作日后由机库主管交付。',
+      slotLabel: 'MS 泊位',
+      slotFull: '已满',
+    },
+    // Phase 6.2.5.B — hire-as-pilot dialogue branch. Same gating shape
+    // as talkHire (faction-rep OR opinion gate); the panel just voices a
+    // pilot-specific signing line.
+    hireAsPilot: {
+      gateOpen: '"我会开 MS。签约费 ¥{bonus} 一次，日薪 ¥{salary}。我跟着走。"',
+      hesitateOpinionFar: '"机师的活我不缺 —— 你还不到我会考虑跟谁的程度。"',
+      hesitateOpinionMedium: '"想拉我上舰？我跟你还不熟。"',
+      hesitateOpinionNear: '"差一点 —— 再多打几次照面我或许会考虑。"',
+      hesitateFactionFar: '"亚纳海姆那边的人嘛 …… 你跟他们没什么关系，我兴趣不大。"',
+      hesitateFactionMedium: '"再有点亚纳海姆的资历，我可能愿意听。"',
+      hesitateFactionNear: '"差一点儿 —— 你跟亚纳海姆再混混就行。"',
+      acceptLabel: '"成 —— 把签约费给我。"',
+      toastAccepted: '{name} 加入了你的机师团。',
+      toastNoMoney: '现金不足，签不下这位机师。',
+    },
     hangarManager: {
       titleSuffix: ' · 机库主管',
       // Tier labels for the capacity readout. Surface tier hosts MS +
@@ -263,6 +302,22 @@
       transferRouteTripLabel: '通行费',
       transferRouteDaysLabel: '天数',
       transferBack: '返回机库列表',
+      // Phase 6.2.5.B — MS pending deliveries + MS transfer between hangars.
+      msDeliveriesHeader: '待交付 MS',
+      msDeliveryInTransitFmt: '还需 {n} 天 (订单日 {orderDay} · 抵达日 {arrivalDay})',
+      msDeliveryArrivedFmt: '已抵达 · 等待领取',
+      receiveMsDeliveryButton: '领取 MS',
+      toastMsDeliveryReceived: '已领取 {ms} · 停泊于 {hangar}。',
+      toastMsDeliveryFailed: '无法领取：{reason}',
+      msTransferHeader: 'MS 调度',
+      msTransferIntro: '将本机库内的 MS 调往其他机库。运费 ¥{fee} + 通行费 ¥{trip}，{days} 天后抵达。',
+      msTransferEmpty: '当前机库内没有可调度的 MS。',
+      msTransferPickShipLabel: '选择 MS',
+      msTransferPickDestLabel: '选择目的地',
+      msTransferConfirmFmt: '送往 {dest} · ¥{cost} · {days} 天后到达',
+      msTransferToastQueued: '{ms} 已从 {from} 启运 · 目的地 {to} · {days} 天后抵达 (合计 ¥{cost})。',
+      msTransferToastFailed: '调度失败：{reason}',
+      msTransferDestNoCarrier: '目的地无 MS 泊位',
     },
     // Phase 6.2.F — AE supply dealer dialog. The "title" line is the
     // greeting; the two action verbs (orderSupply / orderFuel) live on

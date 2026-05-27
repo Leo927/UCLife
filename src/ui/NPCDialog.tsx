@@ -85,6 +85,10 @@ export function NPCDialog() {
     // it sells; the role flag fires for any rep in the catalog so the
     // branch surface generalises to "this rep sells one ship class."
     isAEShipSalesOnDuty: specId in fleetConfig.salesRepCatalog && onShift,
+    // Phase 6.2.5.B — AE vehicle (MS / fighter / MW) brokers. Same
+    // shape as the ship-sales role flag — the vehicleSalesRepCatalog
+    // names which spec sells which MS frame.
+    isAEVehicleSalesOnDuty: specId in fleetConfig.vehicleSalesRepCatalog && onShift,
     // A recruiting manager is any NPC whose workstation is referenced as
     // managerStation by ≥1 worker station.
     isRecruitingManagerOnDuty: !!ws && onShift && allStations.some(

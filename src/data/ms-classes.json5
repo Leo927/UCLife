@@ -1,13 +1,19 @@
-// Mobile Suit class blueprints — Phase 6.2.5.A.
+// Mobile Suit class blueprints — Phase 6.2.5.A + Phase 6.2.5.B.
 //
-// Renamed from ms.json5; adds `hardpoints[]` schema per the fleet.md
-// MS-template shape. Each hardpoint describes a mounting point that the
-// player can equip MS-specific weapons into at the hangar terminal.
+// Phase 6.2.5.B adds `priceFiat` (broker sticker price) and `supplyPerDay`
+// (daily supply consumption while stored at any hangar — placeholder zero
+// at this slice; the existing fleet supply drain consumes it once the
+// drain system is extended). Fighter + MW frames are the first public
+// catalog entries; a proper MS broker is faction/research-gated and lands
+// at a later slice (Design/fleet.md "AE MS broker proper").
 //
 // Schema:
 //   id            — stable key
 //   nameZh        — zh-CN frame name
 //   descZh        — zh-CN one-liner
+//   priceFiat     — sticker price at the AE vehicle broker (¥)
+//   supplyPerDay  — daily supply consumption while in any hangar (drain
+//                   layer wired at a follow-up slice; 0 = exempt for now)
 //   hullMax       — total hull integrity (HP). 0 = ejection.
 //   armorMax      — armor before hull damage
 //   topSpeed      — tactical-arena units/sec at full thrust
@@ -29,6 +35,8 @@
       id: 'gm_pre',
       nameZh: '原型 GM',
       descZh: 'AE 早期评估机型；机库刚塞下一台。装甲薄但敏捷。',
+      priceFiat: 380000,
+      supplyPerDay: 0,
       hullMax: 320,
       armorMax: 80,
       topSpeed: 180,
@@ -49,6 +57,38 @@
         aggression: 0.7,
         retreatThresholdPct: 0.15,
         maintainRange: 130,
+      },
+    },
+    {
+      // Phase 6.2.5.B — first public AE catalog entry. Civilian-grade
+      // fighter frame; weaker hull than a GM but cheap and broker-available
+      // in 0077. Same single-hardpoint shape so the existing weapon-swap
+      // verb covers it without UI changes.
+      id: 'civFighter',
+      nameZh: '通用战斗机',
+      descZh: 'AE 早期民用-军用混编战斗机。装甲单薄，但适合护航与巡逻任务。',
+      priceFiat: 240000,
+      supplyPerDay: 0,
+      hullMax: 200,
+      armorMax: 40,
+      topSpeed: 220,
+      accel: 260,
+      decel: 130,
+      angularAccel: 14,
+      maxAngVel: 5.0,
+      hardpoints: [
+        {
+          id: 'hp-0',
+          type: 'small-arms',
+          firingArcDeg: 50,
+          facingDeg: 0,
+          defaultWeaponId: 'ms-beamRifle',
+        },
+      ],
+      ai: {
+        aggression: 0.65,
+        retreatThresholdPct: 0.2,
+        maintainRange: 160,
       },
     },
   ],

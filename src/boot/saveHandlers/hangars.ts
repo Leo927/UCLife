@@ -14,7 +14,7 @@
 import { registerSaveHandler } from '../../save/registry'
 import { SCENE_IDS, getWorld } from '../../ecs/world'
 import { Building, Hangar, EntityKey } from '../../ecs/traits'
-import type { PendingSupplyDelivery, ShipDeliveryRow } from '../../ecs/traits'
+import type { PendingSupplyDelivery, ShipDeliveryRow, MsDeliveryRow } from '../../ecs/traits'
 
 interface HangarBlock {
   buildingKey: string
@@ -25,6 +25,8 @@ interface HangarBlock {
   supplyCurrent?: number
   fuelCurrent?: number
   pendingSupplyDeliveries?: PendingSupplyDelivery[]
+  // Phase 6.2.5.B — pending MS deliveries from the AE vehicle broker.
+  pendingMsDeliveries?: MsDeliveryRow[]
 }
 
 interface HangarsBlock {
@@ -39,14 +41,15 @@ function snapshot(): HangarsBlock | undefined {
       const h = e.get(Hangar)!
       const hasPriority = !!h.repairPriorityShipKey
       const hasDeliveries = h.pendingDeliveries.length > 0
+      const hasMsDeliveries = h.pendingMsDeliveries.length > 0
       // Skip cleanly-default rows so a fresh save stays compact.
       // A row is "default" iff repair-priority is unset AND supply /
       // fuel are still at max AND no pending ship deliveries AND no
-      // pending supply deliveries.
+      // pending supply deliveries AND no pending MS deliveries.
       const fullSupply = h.supplyCurrent === h.supplyMax
       const fullFuel = h.fuelCurrent === h.fuelMax
       const noSupplyPending = h.pendingSupplyDeliveries.length === 0
-      if (!hasPriority && !hasDeliveries && fullSupply && fullFuel && noSupplyPending) continue
+      if (!hasPriority && !hasDeliveries && !hasMsDeliveries && fullSupply && fullFuel && noSupplyPending) continue
       out.push({
         buildingKey: e.get(EntityKey)!.key,
         repairPriorityShipKey: h.repairPriorityShipKey,
@@ -56,6 +59,9 @@ function snapshot(): HangarsBlock | undefined {
         supplyCurrent: h.supplyCurrent,
         fuelCurrent: h.fuelCurrent,
         pendingSupplyDeliveries: h.pendingSupplyDeliveries.map((d) => ({ ...d })),
+        pendingMsDeliveries: hasMsDeliveries
+          ? h.pendingMsDeliveries.map((row) => ({ ...row }))
+          : undefined,
       })
     }
   }
@@ -89,6 +95,7 @@ function restore(blob: HangarsBlock): void {
         pendingSupplyDeliveries: row.pendingSupplyDeliveries
           ? row.pendingSupplyDeliveries.map((d) => ({ ...d }))
           : cur.pendingSupplyDeliveries,
+        pendingMsDeliveries: (row.pendingMsDeliveries ?? []).map((d) => ({ ...d })),
       })
     }
   }

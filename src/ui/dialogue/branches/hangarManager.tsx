@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTrait } from 'koota/react'
 import type { Entity } from 'koota'
 import {
-  Building, Character, Hangar, Job, Position, Workstation, EntityKey, Ship,
+  Building, Character, Hangar, Job, Position, Workstation, EntityKey, Ship, Ms,
 } from '../../../ecs/traits'
 import type { HangarSlotClass } from '../../../ecs/traits'
 import { world, getWorld } from '../../../ecs/world'
@@ -11,12 +11,20 @@ import { describeHangarRepair } from '../../../systems/hangarRepair'
 import {
   deriveHangarOccupancy, receiveDelivery,
 } from '../../../systems/shipDelivery'
+import { receiveMsDelivery } from '../../../systems/msDelivery'
+import { autoAssignPilotForMs } from '../../../systems/msPilotAssign'
+import { refreshAllDepotMsLayouts } from '../../../ecs/spawn'
 import { poiIdForScene } from '../../../data/pois'
 import {
   enqueueHangarTransfer, listTransferDestinations, listTransferableShipsAtPoi,
   type TransferableShip, type TransferDestination,
 } from '../../../systems/fleetTransfer'
+import {
+  enqueueMsTransfer, listMsTransferableAtPoi, listMsTransferDestinations,
+  type MsTransferableMs, type MsTransferDestination,
+} from '../../../systems/msTransfer'
 import { getShipClass } from '../../../data/ship-classes'
+import { getMsClass } from '../../../data/ms'
 import { getPoi } from '../../../data/pois'
 import { useUI } from '../../uiStore'
 import { useClock, gameDayNumber } from '../../../sim/clock'
@@ -69,8 +77,10 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
       )}
       <SupplyReservesPanel hangar={building} />
       {sceneId && <PendingDeliveriesPanel hangar={building} sceneId={sceneId} />}
+      {sceneId && <PendingMsDeliveriesPanel hangar={building} sceneId={sceneId} />}
       {sceneId && <RepairPriorityPanel hangar={building} sceneId={sceneId} />}
       {poiId && <TransferPanel poiId={poiId} />}
+      {poiId && <MsTransferPanel poiId={poiId} />}
     </>
   )
 }
@@ -443,3 +453,203 @@ function shipDisplayName(templateId: string): string {
     return templateId
   }
 }
+
+// ─── Phase 6.2.5.B — Pending MS deliveries + MS transfer ───────────────
+
+function PendingMsDeliveriesPanel({ hangar, sceneId }: { hangar: Entity; sceneId: string }) {
+  const h = useTrait(hangar, Hangar)
+  // Live re-render for day-rollover countdowns.
+  void useTrait(hangar, Building)
+  const today = gameDayNumber(useClock((s) => s.gameDate))
+  const t = dialogueText.branches.hangarManager
+  if (!h) return null
+  if (h.pendingMsDeliveries.length === 0) return null
+
+  const onReceive = (idx: number) => {
+    const row = h.pendingMsDeliveries[idx]
+    const res = receiveMsDelivery(hangar, sceneId, idx)
+    if (!res.ok) {
+      useUI.getState().showToast(t.toastMsDeliveryFailed.replace('{reason}', res.reason))
+      return
+    }
+    // Auto-assign best idle pilot if any; ignored when no pilots exist yet.
+    autoAssignPilotForMs(res.entityKey)
+    // Render the new MS sprite + terminal in the current depot scene.
+    refreshAllDepotMsLayouts()
+    const cls = getMsClass(row.msClassId)
+    const hangarLabel = hangar.get(Building)?.label ?? ''
+    useUI.getState().showToast(
+      t.toastMsDeliveryReceived.replace('{ms}', cls.nameZh).replace('{hangar}', hangarLabel),
+    )
+  }
+
+  return (
+    <section style={{ marginTop: 12 }} data-ms-deliveries>
+      <h3>{t.msDeliveriesHeader}</h3>
+      <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+        {h.pendingMsDeliveries.map((row, idx) => {
+          const cls = getMsClass(row.msClassId)
+          const remaining = Math.max(0, row.arrivalDay - today)
+          const status = row.status === 'arrived'
+            ? t.msDeliveryArrivedFmt
+            : t.msDeliveryInTransitFmt
+                .replace('{n}', String(remaining))
+                .replace('{orderDay}', String(row.orderDay))
+                .replace('{arrivalDay}', String(row.arrivalDay))
+          const arrived = row.status === 'arrived'
+          return (
+            <li key={idx} className="dev-row" data-ms-delivery-row={idx}>
+              <span className="dev-key">{cls.nameZh}</span>
+              <span>{status}</span>
+              <button
+                className="dialog-option"
+                data-receive-ms-delivery={idx}
+                onClick={() => onReceive(idx)}
+                disabled={!arrived}
+                style={{ marginLeft: 8 }}
+              >
+                {t.receiveMsDeliveryButton}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+function MsTransferPanel({ poiId }: { poiId: string }) {
+  const t = dialogueText.branches.hangarManager
+  const showToast = useUI((s) => s.showToast)
+  const today = gameDayNumber(useClock((s) => s.gameDate))
+  const [, bump] = useState(0)
+  const transferable = listMsTransferableAtPoi(poiId)
+  const [pickedMsKey, setPickedMsKey] = useState<string | null>(null)
+  const pickedMs = pickedMsKey
+    ? transferable.find((m) => m.msKey === pickedMsKey) ?? null
+    : null
+  const destinations: MsTransferDestination[] = pickedMsKey
+    ? destinationsForMs(pickedMsKey)
+    : []
+  const firstFee = destinations[0]
+  const introFee = firstFee?.transferFee ?? 0
+  const introTrip = firstFee?.transitFee ?? 0
+  const introDays = firstFee?.days ?? 0
+
+  const onConfirm = (dest: MsTransferDestination) => {
+    if (!pickedMsKey) return
+    const r = enqueueMsTransfer(pickedMsKey, dest.poiId, today)
+    if (!r.ok) {
+      showToast(t.msTransferToastFailed.replace('{reason}', r.reason))
+      return
+    }
+    refreshAllDepotMsLayouts()
+    showToast(
+      t.msTransferToastQueued
+        .replace('{ms}', pickedMs?.msName ?? pickedMsKey)
+        .replace('{from}', shortPoiName(r.originPoiId))
+        .replace('{to}', dest.poiNameZh)
+        .replace('{days}', String(r.days))
+        .replace('{cost}', String(r.totalCost)),
+    )
+    setPickedMsKey(null)
+    bump((n) => n + 1)
+  }
+
+  return (
+    <section style={{ marginTop: 12 }} data-ms-transfer>
+      <h3>{t.msTransferHeader}</h3>
+      <div className="hr-intro">
+        {t.msTransferIntro
+          .replace('{fee}', String(introFee))
+          .replace('{trip}', String(introTrip))
+          .replace('{days}', String(introDays))}
+      </div>
+      {transferable.length === 0 ? (
+        <p className="hr-intro" data-ms-transfer-empty>{t.msTransferEmpty}</p>
+      ) : pickedMsKey === null ? (
+        <MsPicker mss={transferable} onPick={(k) => setPickedMsKey(k)} />
+      ) : (
+        <MsDestinationPicker
+          ms={pickedMs!}
+          destinations={destinations}
+          onConfirm={onConfirm}
+          onBack={() => setPickedMsKey(null)}
+        />
+      )}
+    </section>
+  )
+}
+
+function MsPicker({ mss, onPick }: { mss: MsTransferableMs[]; onPick: (msKey: string) => void }) {
+  const t = dialogueText.branches.hangarManager
+  return (
+    <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+      <li className="dev-row"><span className="dev-key">{t.msTransferPickShipLabel}</span></li>
+      {mss.map((m) => (
+        <li key={m.msKey} className="dev-row" data-ms-transfer-ms={m.msKey}>
+          <span className="dev-key">{m.msName}</span>
+          <button
+            className="dialog-option"
+            data-ms-transfer-pick={m.msKey}
+            onClick={() => onPick(m.msKey)}
+          >
+            {t.msTransferPickDestLabel}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function MsDestinationPicker({
+  ms, destinations, onConfirm, onBack,
+}: {
+  ms: MsTransferableMs
+  destinations: MsTransferDestination[]
+  onConfirm: (dest: MsTransferDestination) => void
+  onBack: () => void
+}) {
+  const t = dialogueText.branches.hangarManager
+  return (
+    <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+      <li className="dev-row">
+        <span className="dev-key">{ms.msName}</span>
+        <button className="dialog-option" data-ms-transfer-back="1" onClick={onBack}>{t.transferBack}</button>
+      </li>
+      {destinations.map((d) => {
+        const disabled = !d.canAccept
+        return (
+          <li key={d.poiId} className="dev-row" data-ms-transfer-dest={d.poiId}>
+            <span className="dev-key">{d.poiNameZh}</span>
+            <span data-ms-transfer-fee>
+              {t.transferRouteFeeLabel} ¥{d.transferFee} · {t.transferRouteTripLabel} ¥{d.transitFee} · {t.transferRouteDaysLabel} {d.days}
+            </span>
+            <button
+              className="dialog-option"
+              data-ms-transfer-confirm={d.poiId}
+              data-ms-transfer-disabled={disabled ? '1' : '0'}
+              disabled={disabled}
+              onClick={() => onConfirm(d)}
+            >
+              {disabled
+                ? t.msTransferDestNoCarrier
+                : t.msTransferConfirmFmt
+                    .replace('{dest}', d.poiNameZh)
+                    .replace('{cost}', String(d.transferFee + d.transitFee))
+                    .replace('{days}', String(d.days))}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function destinationsForMs(msKey: string): MsTransferDestination[] {
+  return listMsTransferDestinations(msKey)
+}
+
+// Silence unused-import lint for the Ms trait we reference indirectly
+// via msTransfer helpers (re-exported through ecs/traits index).
+void Ms

@@ -430,6 +430,25 @@
       employer: 'anaheim',
     },
 
+    // Phase 6.2.5.B — NPC-only role. AE vehicle (MS / fighter / MW) broker
+    // stationed at the Von Braun spaceport airport. Pre-assigned via
+    // special-npcs.json5 (workstation: 'ae_vehicle_sales_vb'). Manning
+    // this seat surfaces the aeVehicleSales dialog branch on talk.
+    ae_vehicle_sales_vb: {
+      jobTitle: 'AE MS 销售',
+      wage: 280,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 8,
+      shiftEnd: 20,
+      workDays: [0, 1, 2, 3, 4, 5, 6],
+      requirements: {},
+      description: 'AE 在冯·布劳恩航天港派驻的 MS / 战斗机销售。',
+      playerHireable: false,
+      family: 'anaheim_management',
+      employer: 'anaheim',
+    },
+
     // Phase 6.2.C2 — NPC-only role. AE sales rep stationed at the Von Braun
     // orbital drydock. Sells the Pegasus-class capital hull only — capital
     // tonnage bases in orbit (UC canon) so this rep posts at the drydock
