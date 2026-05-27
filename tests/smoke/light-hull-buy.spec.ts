@@ -248,8 +248,46 @@ test('light-hull buy: enqueue, arrive, receive, capacity, save round-trip', asyn
     (k) => (window as any).__uclife__.receiveShipDelivery(k, 0),
     vb.buildingKey,
   )
-  expect(
-    slotBlocked.ok === false && slotBlocked.reason === 'no_slot',
-    `expected no_slot at capacity, got: ${JSON.stringify(slotBlocked)}`,
-  ).toBeTruthy()
+  // Phase 6.2.5 — receive-delivery cascades to carrier internal bays when
+  // the POI hangar slots are full. The lightFreighter flagship docked at
+  // VB advertises `hangarCapacity` > 0, so the 9th smallCraft receive
+  // lands on the flagship instead of failing. The test still verifies
+  // that the *combined* capacity is exhausted: walk the carrier bays
+  // until everything is full, then assert the final probe fails. The
+  // test's safety bound is `cap + 4` so a runaway loop is bounded.
+  if (slotBlocked.ok) {
+    // Drained one bay; check if any spare bay remains before declaring
+    // capacity exhausted. We probe iteratively until receive fails.
+    let probeSafety = 0
+    let probe = slotBlocked
+    while (probe.ok && probeSafety < 16) {
+      probeSafety += 1
+      // Enqueue + tick + receive another.
+      await sim.page.evaluate(
+        (arg) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__uclife__.enqueueShipDelivery(arg.k, 'lunarMilitia', arg.orderDay, 0),
+        { k: vb.buildingKey, orderDay: ORDER_DAY_FOR_NO_SLOT_PROBE },
+      )
+      await sim.page.evaluate(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (d) => (window as any).__uclife__.runShipDeliveryTick(d),
+        NO_SLOT_FINAL_DAY,
+      )
+      probe = await sim.page.evaluate(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (k) => (window as any).__uclife__.receiveShipDelivery(k, 0),
+        vb.buildingKey,
+      )
+    }
+    expect(
+      probe.ok === false && probe.reason === 'no_slot',
+      `expected no_slot after cascade exhausted, got: ${JSON.stringify(probe)}`,
+    ).toBeTruthy()
+  } else {
+    expect(
+      slotBlocked.reason === 'no_slot',
+      `expected no_slot at capacity, got: ${JSON.stringify(slotBlocked)}`,
+    ).toBeTruthy()
+  }
 })

@@ -14,11 +14,12 @@ import {
   EmployedAsPilot, RecruitedTo, IsPlayer, Money,
 } from '../../ecs/traits'
 import { useUI } from '../../ui/uiStore'
-import { enqueueMsDelivery, receiveMsDelivery } from '../../systems/msDelivery'
-import { enqueueMsTransfer } from '../../systems/msTransfer'
+import { enqueueMsDelivery, receiveMsDelivery, msDeliverySystem } from '../../systems/msDelivery'
+import { enqueueMsTransfer, msTransitSystem } from '../../systems/msTransfer'
 import { autoAssignPilotForMs } from '../../systems/msPilotAssign'
 import { refreshAllDepotMsLayouts } from '../../ecs/spawn'
 import { fleetConfig } from '../../config'
+import { useClock, gameDayNumber } from '../../sim/clock'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -33,6 +34,11 @@ interface MsSnapshot {
   mountedWeapons: Record<string, string>
   storedOnShipKey: string
   bayIndex: number
+  // Phase 6.2.5.B fields.
+  dockedAtPoiId: string
+  pilotId: string
+  transitDestinationId: string
+  transitArrivalDay: number
 }
 
 registerDebugHandle('getMsRoster', (): MsSnapshot[] => {
@@ -52,6 +58,10 @@ registerDebugHandle('getMsRoster', (): MsSnapshot[] => {
       mountedWeapons: { ...ms.mountedWeapons },
       storedOnShipKey: ms.storedOnShipKey,
       bayIndex: ms.bayIndex,
+      dockedAtPoiId: ms.dockedAtPoiId,
+      pilotId: ms.pilotId,
+      transitDestinationId: ms.transitDestinationId,
+      transitArrivalDay: ms.transitArrivalDay,
     })
   }
   return result
@@ -81,6 +91,10 @@ registerDebugHandle('getMs', (msKey: string): MsSnapshot | null => {
         mountedWeapons: { ...ms.mountedWeapons },
         storedOnShipKey: ms.storedOnShipKey,
         bayIndex: ms.bayIndex,
+        dockedAtPoiId: ms.dockedAtPoiId,
+        pilotId: ms.pilotId,
+        transitDestinationId: ms.transitDestinationId,
+        transitArrivalDay: ms.transitArrivalDay,
       }
     }
   }
@@ -92,6 +106,48 @@ registerDebugHandle('openMsRetrofit', (msKey: string) => {
 })
 
 // ─── Phase 6.2.5.B debug handles ─────────────────────────────────────────
+
+// Phase 6.2.5.B helper for smoke timing: current sim game-day number.
+registerDebugHandle('getGameDay', (): number => {
+  return gameDayNumber(useClock.getState().gameDate)
+})
+
+// List every Hangar entity across all scenes with its scene id + POI id,
+// so the smoke can pick a destination without hard-coding building keys.
+// Distinct from `listHangars` (boot/debugHandles/hangar.ts) which returns
+// a richer per-hangar snapshot used by other Ship-flavored smokes.
+registerDebugHandle('listHangarsForMs', (): Array<{
+  buildingKey: string
+  sceneId: string
+  poiId: string | null
+  slotCapacity: Record<string, number>
+}> => {
+  const out: Array<{
+    buildingKey: string
+    sceneId: string
+    poiId: string | null
+    slotCapacity: Record<string, number>
+  }> = []
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const b of w.query(Building, Hangar, EntityKey)) {
+      const h = b.get(Hangar)!
+      out.push({
+        buildingKey: b.get(EntityKey)!.key,
+        sceneId,
+        // poiIdForScene is in src/data/pois; rather than re-import it here
+        // we reconstruct the POI by buildingKey convention: `bld-<sceneId>-...`
+        poiId: sceneId === 'vonBraunCity'
+          ? 'vonBraun'
+          : sceneId === 'vonBraunDrydock'
+            ? 'vonBraunDrydock'
+            : null,
+        slotCapacity: { ...h.slotCapacity } as Record<string, number>,
+      })
+    }
+  }
+  return out
+})
 
 registerDebugHandle('getPendingMsDeliveries', (): Array<{
   buildingKey: string
@@ -230,6 +286,16 @@ registerDebugHandle('transferMsViaDebug', (
   const r = enqueueMsTransfer(msKey, destPoiId, gameDay)
   if (!r.ok) return { ok: false, reason: r.reason }
   return { ok: true, arrivalDay: r.arrivalDay }
+})
+
+// Direct system-tick handles — let the smoke advance the broker queue
+// and the transit lander without stepping sim minutes. Same shape as the
+// runShipDeliveryTick / runFleetTransitTick handles other 6.2 smokes use.
+registerDebugHandle('runMsDeliveryTick', (gameDay = 0) => {
+  return msDeliverySystem(gameDay)
+})
+registerDebugHandle('runMsTransitTick', (gameDay = 0) => {
+  return msTransitSystem(gameDay)
 })
 
 registerDebugHandle('swapMsWeapon', (msKey: string, hardpointId: string, newWeaponId: string): boolean => {

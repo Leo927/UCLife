@@ -6,6 +6,7 @@ import gateAtDrydockRaw from '../../tests/fixtures/gate-at-drydock.json5?raw'
 import vonBraunDrydockStationRaw from '../../tests/fixtures/vonBraunDrydock-station.json5?raw'
 import boardFromDrydockRaw from '../../tests/fixtures/board-from-drydock.json5?raw'
 import msStarterRaw from '../../tests/fixtures/ms-starter.json5?raw'
+import msRosterRaw from '../../tests/fixtures/ms-roster.json5?raw'
 import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { applyBackground } from '../character/backgrounds'
@@ -90,6 +91,7 @@ const FIXTURES: Record<string, string> = {
   'vonBraunDrydock-station': vonBraunDrydockStationRaw,
   'board-from-drydock': boardFromDrydockRaw,
   'ms-starter': msStarterRaw,
+  'ms-roster': msRosterRaw,
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {

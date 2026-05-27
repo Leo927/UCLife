@@ -1,0 +1,50 @@
+// Phase 6.2.5.B fixture — exercises the multi-MS roster loop end-to-end.
+//
+// Player aboard VB city with:
+//   - ¥1,000,000 cash (covers MS price + pilot signing fee + transfer +
+//     transit fees with plenty of head-room)
+//   - Two ships: lightFreighter flagship docked at vonBraun, pegasusClass
+//     docked at vonBraunDrydock (gives a carrier with hangarCapacity at
+//     the destination POI for the transfer-onto-Pegasus step)
+//   - One pilot-hireable NPC at VB
+{
+  seed: 'ms-roster-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+    skills: { piloting: 5 },
+  },
+
+  ships: [
+    // Flagship — the bootstrap-spawned 'ship' entity is rewritten in place.
+    {
+      id: 'ship',
+      template: 'lightFreighter',
+      name: '自由号',
+      dockedAt: 'vonBraun',
+    },
+    // Pegasus at the orbital drydock. Provides hangarCapacity at the
+    // destination POI so the transfer step has somewhere to land the MS.
+    {
+      id: 'ship-pegasus-1',
+      template: 'pegasusClass',
+      name: '白色基地',
+      dockedAt: 'vonBraunDrydock',
+    },
+  ],
+
+  // Single named NPC at VB the smoke will hire as a pilot. piloting=2000
+  // makes the auto-assign pass pick this NPC first (no other employed
+  // pilots exist yet, so this is the lone candidate either way).
+  npcs: [
+    {
+      id: 'npc-pilot-candidate',
+      name: '霞·拉尔',
+      at: { scene: 'vonBraunCity', x: 22, y: 18 },
+      skills: { piloting: 2000 },
+    },
+  ],
+}
