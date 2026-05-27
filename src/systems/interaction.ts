@@ -3,7 +3,7 @@ import type { Entity } from 'koota'
 import {
   Position, MoveTarget, Action, Interactable, IsPlayer, QueuedInteract, Vitals, Job,
   Money, Character, Bed, BarSeat, Workstation, RoughUse, RoughSpot, Transit,
-  FlightHub, ManageCell, Owner, OrbitalLift, ShipMarker, EntityKey, GateSlot,
+  FlightHub, ManageCell, Owner, OrbitalLift, ShipMarker, EntityKey, GateSlot, MsRef,
   type InteractableKind,
 } from '../ecs/traits'
 import type { BedTier } from '../ecs/traits'
@@ -323,8 +323,22 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '尚未进入战斗 · 无需出击' })
         continue
       }
-      const r = launchMs()
+      const msKey = nearestEnt?.get(MsRef)?.msKey ?? ''
+      const r = launchMs(msKey || undefined)
       if (!r.ok && r.reasonZh) emitSim('toast', { textZh: r.reasonZh })
+      continue
+    }
+    if (nearestKind === 'msTerminal') {
+      if (getActiveSceneId() !== 'playerShipInterior') {
+        emitSim('toast', { textZh: 'MS 终端仅在机库内可用' })
+        continue
+      }
+      const msKey = nearestEnt?.get(MsRef)?.msKey ?? ''
+      if (!msKey) {
+        emitSim('toast', { textZh: 'MS 终端数据异常' })
+        continue
+      }
+      emitSim('ui:open-ms-retrofit', { msKey })
       continue
     }
     if (nearestKind === 'captainsDesk') {

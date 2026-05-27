@@ -75,6 +75,9 @@ interface UIState {
   // surface: drag-and-drop tokens between the active grid + reserve
   // tray, per-ship aggression doctrine slider.
   warRoomOpen: boolean
+  // Phase 6.2.5.A — MS retrofit panel opened from the hangar terminal.
+  // null while closed; holds the targeted MS entity key while open.
+  msRetrofitKey: string | null
   // Phase 6.0 post-combat tally — null while no engagement has just
   // resolved with a payout. Set when 'ui:open-combat-tally' fires.
   combatTally: CombatTallyPayload | null
@@ -104,6 +107,7 @@ interface UIState {
   openDockPicker: (payload: { poiId: string; shipKey: string; candidates: string[] }) => void
   closeDockPicker: () => void
   setWarRoom: (open: boolean) => void
+  setMsRetrofit: (msKey: string | null) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
@@ -137,6 +141,7 @@ export const useUI = create<UIState>((set) => ({
   gateTerminal: null,
   dockPicker: null,
   warRoomOpen: false,
+  msRetrofitKey: null,
   combatTally: null,
   enlargedPortrait: null,
   toasts: [],
@@ -164,6 +169,7 @@ export const useUI = create<UIState>((set) => ({
   openDockPicker: (payload) => set({ dockPicker: payload }),
   closeDockPicker: () => set({ dockPicker: null }),
   setWarRoom: (open) => set({ warRoomOpen: open }),
+  setMsRetrofit: (msKey) => set({ msRetrofitKey: msKey }),
   setCombatTally: (t) => set({ combatTally: t }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {

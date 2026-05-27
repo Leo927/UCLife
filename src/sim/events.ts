@@ -57,6 +57,9 @@ export interface SimEventPayloads {
   // Phase 6.2 — brig walk-up kiosk: occupant list, capacity gauge.
   // Per-prisoner verbs land at 6.2.5.
   'ui:open-brig-panel':        { reason: string }
+  // Phase 6.2.5.A — MS hangar terminal walk-up opens the retrofit panel
+  // for the targeted MS entity.
+  'ui:open-ms-retrofit':       { msKey: string }
   // Phase 6.2.E1 — war-room plot table on the flagship bridge. Renders
   // the fleet roster as drag-and-drop tokens against a formation grid;
   // sets per-ship IsInActiveFleet + formationSlot + aggression.

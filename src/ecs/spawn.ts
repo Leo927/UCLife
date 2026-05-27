@@ -13,7 +13,11 @@ import {
   Ship, ShipRoom, WeaponMount, IsFlagshipMark, IsInActiveFleet,
   Hangar, OrbitalLift, TemplateRef,
   type InteractableKind,
+  Ms, PlayerPartsInventory, MsRef,
 } from './traits'
+import { getMsClass, defaultMountedWeapons } from '../data/ms'
+import { attachMsStatSheet } from './msEffects'
+import { msConfig } from '../config/ms'
 import {
   getObjectTemplate,
   type ObjectTemplateId, type WorkstationTemplate, type BedTemplate,
@@ -1127,6 +1131,10 @@ function bootstrapShipScene(scene: ShipSceneConfig): void {
   // ready-to-fly tank. recomputeFleetFuelMax derives capacity from
   // active-fleet ship statesheets (flagship is the sole member at boot).
   recomputeFleetFuelMax({ topUp: true })
+
+  // Phase 6.2.5.A — grant starter MS and place sprite + terminal in hangar.
+  grantStarterMsToFlagship()
+  refreshMsLayout()
 }
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
@@ -1212,7 +1220,101 @@ export function tearDownShipSceneLayout(targetWorld: World): void {
     const k = ent.get(EntityKey)!.key
     if (k.startsWith('ship-kiosk-')) doomed.push(ent)
   }
+  // Destroy dynamically-spawned MS sprites + terminals.
+  for (const ent of targetWorld.query(MsRef)) doomed.push(ent)
   for (const ent of doomed) ent.destroy()
+}
+
+// Grant the starter MS to the flagship's hangar bay. Idempotent — no-op
+// if an Ms entity with starterMsEntityKey already exists.
+export function grantStarterMsToFlagship(): void {
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  for (const ent of shipWorld.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key === msConfig.starterMsEntityKey) return
+  }
+  const cls = getMsClass(msConfig.starterMsTemplateId)
+  const msEnt = shipWorld.spawn(
+    Ms({
+      templateId: cls.id,
+      name: cls.nameZh,
+      hullCurrent: cls.hullMax,
+      hullMax: cls.hullMax,
+      armorCurrent: cls.armorMax,
+      armorMax: cls.armorMax,
+      mountedWeapons: defaultMountedWeapons(cls),
+      storedOnShipKey: 'ship',
+      bayIndex: 0,
+    }),
+    EntityKey({ key: msConfig.starterMsEntityKey }),
+  )
+  attachMsStatSheet(msEnt)
+
+  // Parts inventory singleton — spawn if missing.
+  const partsKey = 'player-parts-inv'
+  let partsEnt: Entity | null = null
+  for (const ent of shipWorld.query(PlayerPartsInventory, EntityKey)) {
+    if (ent.get(EntityKey)!.key === partsKey) { partsEnt = ent; break }
+  }
+  if (!partsEnt) {
+    shipWorld.spawn(
+      PlayerPartsInventory({ weapons: { ...msConfig.starterParts } }),
+      EntityKey({ key: partsKey }),
+    )
+  }
+}
+
+// Destroy all MsRef entities in the ship world and respawn one sprite +
+// one terminal per Ms entity stored aboard the flagship.
+export function refreshMsLayout(): void {
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  const doomed: Entity[] = []
+  for (const ent of shipWorld.query(MsRef)) doomed.push(ent)
+  for (const ent of doomed) ent.destroy()
+
+  const flagship = shipWorld.queryFirst(Ship, IsFlagshipMark)
+  if (!flagship) return
+  const flagshipKey = flagship.get(EntityKey)?.key ?? ''
+
+  const cls = getShipClass(flagship.get(Ship)!.templateId)
+  const hangarRoom = cls.rooms.find((r) => r.id === 'hangarBay')
+  if (!hangarRoom) return
+
+  const cx = (hangarRoom.bounds.x + hangarRoom.bounds.w / 2) * TILE
+  const cy = (hangarRoom.bounds.y + hangarRoom.bounds.h / 2) * TILE
+
+  const offsets = msConfig.bayOffsets
+
+  for (const msEnt of shipWorld.query(Ms, EntityKey)) {
+    const ms = msEnt.get(Ms)!
+    const msKey = msEnt.get(EntityKey)!.key
+    if (ms.storedOnShipKey !== flagshipKey) continue
+
+    const bayOff = offsets[ms.bayIndex] ?? offsets[0]
+    const sx = cx + (bayOff.dx ?? 0) * TILE
+    const sy = cy + (bayOff.dy ?? 0) * TILE
+
+    // MS sprite — climb-in interactable
+    shipWorld.spawn(
+      Position({ x: sx, y: sy }),
+      Interactable({ kind: 'climbIntoMs', label: '登舱出击', fee: 0 }),
+      MsRef({ msKey }),
+      EntityKey({ key: `ms-sprite-${msKey}` }),
+      TemplateRef({ id: 'ship-ms-sprite' }),
+    )
+
+    // Adjacent terminal — retrofit interactable
+    const tx = sx + msConfig.terminalOffsetDx * TILE
+    const ty = sy + msConfig.terminalOffsetDy * TILE
+    shipWorld.spawn(
+      Position({ x: tx, y: ty }),
+      Interactable({ kind: 'msTerminal', label: 'MS 终端', fee: 0 }),
+      MsRef({ msKey }),
+      EntityKey({ key: `ms-terminal-${msKey}` }),
+      TemplateRef({ id: 'ship-ms-terminal' }),
+    )
+  }
+
+  markPathfindingDirty(SHIP_SCENE_ID)
 }
 
 // Ship-room interactable kinds and their authored object-templates.

@@ -30,6 +30,7 @@ import { CommPanelDialog } from './ui/CommPanelDialog'
 import { BrigPanel } from './ui/BrigPanel'
 import { FleetRosterPanel } from './ui/FleetRosterPanel'
 import { WarRoomPanel } from './ui/WarRoomPanel'
+import { MsRetrofitPanel } from './ui/MsRetrofitPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
 import { PortraitModal } from './ui/PortraitModal'
 // PortraitTester lives inside the GPL-licensed FC pregmod subtree. Lazy-load
@@ -78,6 +79,7 @@ export function App() {
       <BrigPanel />
       <FleetRosterPanel />
       <WarRoomPanel />
+      <MsRetrofitPanel />
       <CombatTallyPanel />
       <PortraitModal />
       <DeathModal />

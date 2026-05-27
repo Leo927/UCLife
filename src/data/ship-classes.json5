@@ -160,10 +160,8 @@
           id: 'hangarBay', nameZh: '机库', bounds: { x: 4, y: 4, w: 2, h: 2 },
           interactables: [
             { kind: 'disembarkShip', label: '下船', offset: { dx: 0, dy: -0.5 } },
-            // Phase 6.1 — climb into the on-ship MS. Visible at all
-            // times; the interaction handler gates the actual launch
-            // on combat being engaged. Pre-combat clicks just toast.
-            { kind: 'climbIntoMs', label: '登舱出击', offset: { dx: 0.5, dy: 0.5 } },
+            // Phase 6.2.5.A — climbIntoMs kiosk removed; the MS sprite
+            // entity is the climb-in walk-up (spawned by refreshMsLayout).
           ],
         },
         // Phase 6.2 — brig as ship-class room. Capacity is gated by
@@ -360,7 +358,8 @@
           id: 'hangarBay', nameZh: '机库', bounds: { x: 0, y: 6, w: 8, h: 2 },
           interactables: [
             { kind: 'disembarkShip', label: '下船', offset: { dx: -2, dy: -0.5 } },
-            { kind: 'climbIntoMs',   label: '登舱出击', offset: { dx: 2, dy: -0.5 } },
+            // Phase 6.2.5.A — climbIntoMs kiosk removed; the MS sprite
+            // entity is the climb-in walk-up (spawned by refreshMsLayout).
           ],
         },
       ],

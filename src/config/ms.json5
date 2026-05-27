@@ -1,0 +1,25 @@
+// MS system configuration — Phase 6.2.5.A.
+{
+  starterMsTemplateId: 'gm_pre',
+  starterMsEntityKey: 'ms-player-0',
+
+  // Weapons the player starts with in their parts inventory.
+  // Keys are ms-weapons.json5 ids, values are counts.
+  starterParts: {
+    'ms-ballisticGun': 1,
+    'ms-missileRack': 1,
+  },
+
+  // Tile offset from the hangar room centre for each MS sprite (bayIndex).
+  // bayIndex 0 = first slot, 1 = second, etc. Negative y = toward top of screen.
+  bayOffsets: [
+    { dx: 0, dy: 0.3 },
+    { dx: 2, dy: 0.3 },
+    { dx: -2, dy: 0.3 },
+    { dx: 0, dy: -0.8 },
+  ],
+
+  // Terminal spawns this many tiles to the right of the MS sprite.
+  terminalOffsetDx: 1.2,
+  terminalOffsetDy: 0,
+}

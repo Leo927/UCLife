@@ -36,6 +36,7 @@ export type InteractableKind =
   | 'brig'
   | 'warRoom'
   | 'climbIntoMs'
+  | 'msTerminal'
   | 'gateTerminal'
 
 export type ActionKind =

@@ -121,6 +121,8 @@
     'ship-brig':           { kind: 'interactable', interactableKind: 'brig',          labelZh: '禁闭室',   visual: { w: 28, h: 28, fill: 0x3a1212, stroke: 0xf87171 } },
     'ship-war-room':       { kind: 'interactable', interactableKind: 'warRoom',       labelZh: '作战室',   visual: { w: 28, h: 28, fill: 0x1e1b4b, stroke: 0x818cf8 } },
     'ship-climb-into-ms':  { kind: 'interactable', interactableKind: 'climbIntoMs',   labelZh: '登舱',     visual: { w: 28, h: 28, fill: 0x172554, stroke: 0x60a5fa } },
+    'ship-ms-sprite':      { kind: 'interactable', interactableKind: 'climbIntoMs',   labelZh: '登舱出击', visual: { w: 36, h: 36, fill: 0x1e3a5f, stroke: 0x60a5fa } },
+    'ship-ms-terminal':    { kind: 'interactable', interactableKind: 'msTerminal',    labelZh: 'MS 终端',  visual: { w: 22, h: 22, fill: 0x0f2a4a, stroke: 0x38bdf8 } },
     'ship-board':          { kind: 'interactable', interactableKind: 'boardShip',     labelZh: '登舰',     visual: { w: 28, h: 28, fill: 0x0c4a6e, stroke: 0x38bdf8 } },
     // Airport-style gate triple. Each laid-out hangar slot materialises
     // as a persistent gate: kiosk (Interactable gateTerminal — press E to

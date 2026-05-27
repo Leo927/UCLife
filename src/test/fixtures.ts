@@ -5,6 +5,7 @@ import playerWithCashAtVbRaw from '../../tests/fixtures/player-with-cash-at-vb.j
 import gateAtDrydockRaw from '../../tests/fixtures/gate-at-drydock.json5?raw'
 import vonBraunDrydockStationRaw from '../../tests/fixtures/vonBraunDrydock-station.json5?raw'
 import boardFromDrydockRaw from '../../tests/fixtures/board-from-drydock.json5?raw'
+import msStarterRaw from '../../tests/fixtures/ms-starter.json5?raw'
 import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { applyBackground } from '../character/backgrounds'
@@ -88,6 +89,7 @@ const FIXTURES: Record<string, string> = {
   'gate-at-drydock': gateAtDrydockRaw,
   'vonBraunDrydock-station': vonBraunDrydockStationRaw,
   'board-from-drydock': boardFromDrydockRaw,
+  'ms-starter': msStarterRaw,
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {
