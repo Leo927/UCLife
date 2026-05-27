@@ -73,3 +73,5 @@ export type { ArtConfig, ArtAssetSpec, ArtId } from './art'
 
 
 export type { BedTier, RoadKind, InteractableKind, ActionKind, RoughKind } from './kinds'
+
+export { msConfig } from './ms'

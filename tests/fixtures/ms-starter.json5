@@ -1,0 +1,23 @@
+// Phase 6.2.5.A — player aboard the flagship (playerShipInterior) with
+// auto-granted starter MS in the hangar. Drives the ms-starter-retrofit
+// smoke: assert Ms entity grant, walk to terminal, swap weapon.
+{
+  seed: 'ms-starter-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 10000,
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
+    skills: { piloting: 5 },
+  },
+
+  ships: [
+    {
+      id: 'ship',
+      template: 'lightFreighter',
+      name: '自由号',
+      dockedAt: 'vonBraun',
+    },
+  ],
+}

@@ -28,10 +28,10 @@ import { create } from 'zustand'
 import type { Entity } from 'koota'
 import { getWorld, getActiveSceneId } from '../ecs/world'
 import {
-  CombatShipState, EntityKey, IsPlayer, Position, MoveTarget, Action,
+  CombatShipState, EntityKey, IsPlayer, Position, MoveTarget, Action, Ms,
 } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
-import { getWeapon } from '../data/weapons'
+import { getMsWeapon } from '../data/ms-weapons'
 import { cockpitConfig, worldConfig } from '../config'
 import { useScene, migratePlayerToScene } from './scene'
 import { useClock } from './clock'
@@ -43,7 +43,6 @@ import { Ship, IsFlagshipMark } from '../ecs/traits'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 export const PLAYER_MS_KEY = 'player-ms-1'
-const PLAYER_MS_CLASS_ID = 'gm_pre'
 
 interface CockpitState {
   // Which player-side unit the WASD axis + shift+mouse aim are bound to,
@@ -117,14 +116,38 @@ function clearPilotedFlags(): void {
   }
 }
 
+// Find the Ms entity by key, falling back to the first stored Ms entity.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function resolvePlayerMsEntity(msKey?: string) {
+  const w = shipWorld()
+  let msEnt: Entity | null = null
+  if (msKey) {
+    for (const e of w.query(Ms, EntityKey)) {
+      if (e.get(EntityKey)!.key === msKey) { msEnt = e; break }
+    }
+  }
+  if (!msEnt) {
+    for (const e of w.query(Ms)) { msEnt = e; break }
+  }
+  if (!msEnt) return null
+  const msInst = msEnt.get(Ms)!
+  const cls = getMsClass(msInst.templateId)
+  return { msEnt, ms: cls, msInst }
+}
+
 // Spawn the MS at flagship.pos + cockpitConfig.launchOffset, rotated by
 // the flagship's heading. Returns the new entity, or null if there's no
-// flagship combat row (combat not open).
-function spawnPlayerMs(): Entity | null {
+// flagship combat row (combat not open). Reads weapons from the Ms
+// entity's mountedWeapons (per-instance retrofit) rather than hardcoded
+// class defaults.
+function spawnPlayerMs(msKey?: string): Entity | null {
   const flagshipEnt = findFlagshipCombat()
   if (!flagshipEnt) return null
   const fcs = flagshipEnt.get(CombatShipState)!
-  const ms = getMsClass(PLAYER_MS_CLASS_ID)
+  const resolved = resolvePlayerMsEntity(msKey)
+  if (!resolved) return null
+  const { ms, msInst } = resolved
+
   const cosH = Math.cos(fcs.heading)
   const sinH = Math.sin(fcs.heading)
   const off = cockpitConfig.launchOffset
@@ -138,6 +161,21 @@ function spawnPlayerMs(): Entity | null {
     y: lv.x * sinH + lv.y * cosH,
   }
   const w = shipWorld()
+
+  // Build weapons list from hardpoints + mountedWeapons (per-instance retrofit).
+  const weapons = ms.hardpoints.map((hp) => {
+    const weaponId = msInst.mountedWeapons[hp.id] ?? hp.defaultWeaponId
+    getMsWeapon(weaponId)
+    return {
+      weaponId,
+      size: 'small' as const,
+      firingArcRad: (hp.firingArcDeg * Math.PI) / 180,
+      facingRad: (hp.facingDeg * Math.PI) / 180,
+      chargeSec: 0,
+      ready: false,
+    }
+  })
+
   const ent = w.spawn(
     CombatShipState({
       shipClassId: ms.id,
@@ -152,9 +190,8 @@ function spawnPlayerMs(): Entity | null {
       vel,
       heading: fcs.heading,
       angVel: 0,
-      hullCurrent: ms.hullMax, hullMax: ms.hullMax,
-      armorCurrent: ms.armorMax, armorMax: ms.armorMax,
-      // No flux / shield on the MS in 6.1 — hull-only combat.
+      hullCurrent: msInst.hullCurrent, hullMax: msInst.hullMax,
+      armorCurrent: msInst.armorCurrent, armorMax: msInst.armorMax,
       fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
       hasShield: false,
       shieldEfficiency: 1,
@@ -164,20 +201,7 @@ function spawnPlayerMs(): Entity | null {
       decel: ms.decel,
       angularAccel: ms.angularAccel,
       maxAngVel: ms.maxAngVel,
-      weapons: ms.weapons.map((wpn) => {
-        // Reference getWeapon for boot-time validation parity with ships
-        // (and so an unknown weapon id surfaces a clear error here, not
-        // mid-combat).
-        getWeapon(wpn.weaponId)
-        return {
-          weaponId: wpn.weaponId,
-          size: wpn.size,
-          firingArcRad: (wpn.firingArcDeg * Math.PI) / 180,
-          facingRad: (wpn.facingDeg * Math.PI) / 180,
-          chargeSec: 0,
-          ready: false,
-        }
-      }),
+      weapons,
       ai: {
         aggression: ms.ai.aggression,
         retreatThreshold: ms.ai.retreatThresholdPct,
@@ -223,7 +247,7 @@ function logEvent(textZh: string): void {
 // Launch the player into an MS sortie. Requires combat to be engaged
 // (flagship CombatShipState present) and no MS currently active. Routes
 // player input to the new MS and opens the tactical view.
-export function launchMs(): { ok: boolean; reasonZh?: string } {
+export function launchMs(msKey?: string): { ok: boolean; reasonZh?: string } {
   if (!findFlagshipCombat()) return { ok: false, reasonZh: '尚未进入战斗 · 无法出击' }
   if (getPlayerMs()) return { ok: false, reasonZh: '已经有一台 MS 在外 · 先回收' }
 
@@ -232,16 +256,19 @@ export function launchMs(): { ok: boolean; reasonZh?: string } {
   const fcs = flagship.get(CombatShipState)!
   flagship.set(CombatShipState, { ...fcs, pilotedByPlayer: false })
 
-  const ent = spawnPlayerMs()
+  const ent = spawnPlayerMs(msKey)
   if (!ent) return { ok: false, reasonZh: '出击失败 · 旗舰状态异常' }
+
+  const resolved = resolvePlayerMsEntity(msKey)
+  const nameZh = resolved ? resolved.ms.nameZh : 'MS'
 
   useCockpit.getState().setPiloting('ms')
   useCockpit.getState().bumpMs()
   ensureTacticalOpen(true)
 
   adjutantSay('机库门已开 · 出击 · 一路顺风', 'narr')
-  pushCombatLog(`${getMsClass(PLAYER_MS_CLASS_ID).nameZh} · 出击`, 'info')
-  logEvent(`登舱出击 · ${getMsClass(PLAYER_MS_CLASS_ID).nameZh}`)
+  pushCombatLog(`${nameZh} · 出击`, 'info')
+  logEvent(`登舱出击 · ${nameZh}`)
   return { ok: true }
 }
 
@@ -296,8 +323,10 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
   ensureTacticalOpen(false)
 
   adjutantSay('MS 已入舱 · 欢迎回来', 'narr')
-  pushCombatLog(`${getMsClass(PLAYER_MS_CLASS_ID).nameZh} · 回收`, 'info')
-  logEvent(`回收 MS · ${getMsClass(PLAYER_MS_CLASS_ID).nameZh}`)
+  const dockResolved = resolvePlayerMsEntity()
+  const dockName = dockResolved ? dockResolved.ms.nameZh : 'MS'
+  pushCombatLog(`${dockName} · 回收`, 'info')
+  logEvent(`回收 MS · ${dockName}`)
   return { ok: true }
 }
 

@@ -1,0 +1,55 @@
+// Mobile Suit class blueprints — Phase 6.2.5.A.
+//
+// Renamed from ms.json5; adds `hardpoints[]` schema per the fleet.md
+// MS-template shape. Each hardpoint describes a mounting point that the
+// player can equip MS-specific weapons into at the hangar terminal.
+//
+// Schema:
+//   id            — stable key
+//   nameZh        — zh-CN frame name
+//   descZh        — zh-CN one-liner
+//   hullMax       — total hull integrity (HP). 0 = ejection.
+//   armorMax      — armor before hull damage
+//   topSpeed      — tactical-arena units/sec at full thrust
+//   accel         — linear thrust acceleration (units/sec²)
+//   decel         — passive deceleration when no thrust input
+//   angularAccel  — radians/sec² of steering torque
+//   maxAngVel     — radians/sec hard cap on angular velocity
+//   hardpoints[]  — mounting points the player can equip weapons into
+//     id            — stable key used in mountedWeapons Record
+//     type          — 'small-arms' | 'medium-beam' | 'missile-rack'
+//     firingArcDeg  — arc in degrees
+//     facingDeg     — default facing angle in degrees (0 = forward)
+//     defaultWeaponId — weapon id from ms-weapons.json5 mounted at boot
+//   ai            — NPC pilot directive
+
+{
+  ms: [
+    {
+      id: 'gm_pre',
+      nameZh: '原型 GM',
+      descZh: 'AE 早期评估机型；机库刚塞下一台。装甲薄但敏捷。',
+      hullMax: 320,
+      armorMax: 80,
+      topSpeed: 180,
+      accel: 220,
+      decel: 110,
+      angularAccel: 12,
+      maxAngVel: 4.5,
+      hardpoints: [
+        {
+          id: 'hp-0',
+          type: 'small-arms',
+          firingArcDeg: 60,
+          facingDeg: 0,
+          defaultWeaponId: 'ms-beamRifle',
+        },
+      ],
+      ai: {
+        aggression: 0.7,
+        retreatThresholdPct: 0.15,
+        maintainRange: 130,
+      },
+    },
+  ],
+}

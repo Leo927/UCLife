@@ -1,0 +1,50 @@
+// MS-specific weapons — Phase 6.2.5.A.
+//
+// Distinct from ship weapons (src/data/weapons.json5). MS weapons
+// mount on MS hardpoints (type-matched by mountType). The player
+// equips these via the hangar terminal's weapon-swap verb.
+//
+// Schema:
+//   id            — stable key
+//   nameZh        — zh-CN name
+//   descZh        — zh-CN one-liner
+//   mountType     — 'small-arms' | 'medium-beam' | 'missile-rack'
+//   damage        — per-shot damage
+//   range         — max effective range in tactical-arena units
+//   chargeSec     — seconds between shots
+//   tier          — 1..3 tech tier
+
+{
+  msWeapons: [
+    {
+      id: 'ms-beamRifle',
+      nameZh: 'MS 光束步枪',
+      descZh: '标准型 MS 光束步枪；精度高，射速适中。',
+      mountType: 'small-arms',
+      damage: 40,
+      range: 230,
+      chargeSec: 1.0,
+      tier: 1,
+    },
+    {
+      id: 'ms-ballisticGun',
+      nameZh: 'MS 实弹步枪',
+      descZh: '高初速穿甲弹；对装甲伤害更高。',
+      mountType: 'small-arms',
+      damage: 65,
+      range: 180,
+      chargeSec: 1.6,
+      tier: 1,
+    },
+    {
+      id: 'ms-missileRack',
+      nameZh: 'MS 导弹架',
+      descZh: '追踪导弹；对盾牌效果不佳，对无护盾目标威力强。',
+      mountType: 'small-arms',
+      damage: 55,
+      range: 300,
+      chargeSec: 2.2,
+      tier: 1,
+    },
+  ],
+}

@@ -27,3 +27,4 @@ import './orbitalLift' // Phase 6.2.A.2 — orbital-lift transit between scenes
 import './fleet'      // Phase 6.2.C2 — fleet roster + sales-rep lookup
 import './assets'     // Phase 3 — awaitAssetsReady barrier for smoke tests
 import './test'       // Phase 5 — getGameState() facade + applyFixture loader
+import './ms'         // Phase 6.2.5.A — MS roster + parts inventory + retrofit

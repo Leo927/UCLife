@@ -38,5 +38,6 @@ export function bindUi(): void {
   onSim('ui:open-comm-panel', () => useUI.getState().setCommPanel(true))
   onSim('ui:open-brig-panel', () => useUI.getState().setBrigPanel(true))
   onSim('ui:open-war-room', () => useUI.getState().setWarRoom(true))
+  onSim('ui:open-ms-retrofit', ({ msKey }) => useUI.getState().setMsRetrofit(msKey))
   onSim('ui:open-combat-tally', (t) => useUI.getState().setCombatTally(t))
 }
