@@ -1,0 +1,84 @@
+// MS frame-mod catalog — Phase 6.2.5.C.
+//
+// Bolt-on items the player installs at the depot retrofit panel.
+// Each row authors a slot cost + a list of Effect modifiers that layer
+// into the per-MS StatSheet via MsEffectsList (source `eff:framemod:<id>`).
+//
+// Per Design/fleet.md "Refit / OP budget":
+//   - Frame slots are integer-counted ("either it fits or it doesn't").
+//   - No OP / flux budget. Sum(slotCount) ≤ Ms.template.frameSlots.
+//
+// Schema:
+//   id          — stable key, referenced from Ms.frameMods[] + parts inv
+//   nameZh      — zh-CN name shown in retrofit UI
+//   descZh      — zh-CN flavor / mechanical effect summary
+//   slotCount   — integer frame slots consumed when installed
+//   effects[]   — list of stat modifiers; mapped 1:1 onto MsEffect on
+//                 install, removed on uninstall via removeBySource.
+//     statId    — one of MS_STAT_IDS (msSchema.ts)
+//     type      — 'flat' | 'percentAdd' | 'percentMult' | 'floor' | 'cap'
+//     value     — modifier value
+//
+// Authoring discipline:
+//   - Use percentMult for "+30% propellant tank" reads (multiplicative
+//     channel — stacks geometrically with other percent mods).
+//   - Use flat for "+50 armor" reads.
+//   - Source string is fixed at apply time as `eff:framemod:<id>` so
+//     removeBySource() cleanly unwinds one mod without scanning siblings.
+
+{
+  frameMods: [
+    {
+      id: 'extPropellantTank',
+      nameZh: '扩展燃料舱',
+      descZh: '机体腹甲下加挂一组副油箱；推进剂上限 +30%。占 1 槽。',
+      slotCount: 1,
+      effects: [
+        { statId: 'propellantStorage', type: 'percentMult', value: 0.30 },
+      ],
+    },
+    {
+      id: 'autoloader',
+      nameZh: '自动装弹机',
+      descZh: '机库 + 弹仓内置液压辅助装弹；回港后再补给速度 +25%。占 1 槽。',
+      slotCount: 1,
+      effects: [
+        // Affects the per-MS resupply multiplier — added into the
+        // formula's `resourceBoostMul` denominator at the per-MS bay.
+        // 1.25 reduces the formula's resupply time by 20%.
+        { statId: 'sortieResupplyMul', type: 'percentMult', value: 0.25 },
+      ],
+    },
+    {
+      id: 'lifeSupportPod',
+      nameZh: '驾驶舱救生荚',
+      descZh: '驾驶舱外加挂的应急生命维持模块；维生分钟数 +50%。占 1 槽。',
+      slotCount: 1,
+      effects: [
+        { statId: 'lifeSupportMinutes', type: 'percentMult', value: 0.50 },
+      ],
+    },
+    {
+      id: 'armorPlating',
+      nameZh: '附加装甲板',
+      descZh: '机体关节、肩部、胸甲加挂一层均质陶瓷板；装甲 +60。占 2 槽。',
+      slotCount: 2,
+      effects: [
+        { statId: 'armorPoints', type: 'flat', value: 60 },
+      ],
+    },
+    {
+      id: 'subThruster',
+      nameZh: '副推进器组',
+      descZh: '小腿外侧加装一对副推进器；最高速度 +10%，但推进剂上限 -10%。占 1 槽。',
+      slotCount: 1,
+      effects: [
+        { statId: 'topSpeed', type: 'percentMult', value: 0.10 },
+        // Sub-thruster pulls from the same tank; net propellant capacity
+        // shrinks by 10%. Authored as a tradeoff so the mod isn't an
+        // obvious-install.
+        { statId: 'propellantStorage', type: 'percentMult', value: -0.10 },
+      ],
+    },
+  ],
+}

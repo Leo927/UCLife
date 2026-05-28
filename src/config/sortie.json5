@@ -1,0 +1,73 @@
+// Phase 6.2.5.C — tactical-time sortie tunables. Read by the resupply +
+// drain + door + recovery-tug systems and the cockpit launch/dock path.
+//
+// Replaces the 6.1 single-placeholder-door fields on `cockpit.json5`
+// (`launchOffset` / `launchVelocity` — deleted) once per-ship-class
+// `hangarDoors[]` authoring is wired through. `dockApproachRadiusPx`
+// / `dockApproachMaxRelVel` move here too because docking is a sortie
+// concept, not a cockpit-loop concept.
+{
+  // ── Mid-combat resupply formula (Design/sortie.md) ────────────────────
+  // resupplyTime = baseResupplySec
+  //                  / hangarBoss.workPerformance
+  //                  / (1 + Σ mechanicCrewEfficiency at this bay)
+  //                  / resourceBoostMul
+  baseResupplySec: 15,
+  // Per-crew additive efficiency contribution. 2 on-duty mechanic-crew
+  // slots × 0.5 = +1.0, so baseline two-crew bay halves the resupply
+  // window relative to a zero-crew bay (which still completes at the
+  // boss-modified rate because the formula's `1 +` baseline guarantees
+  // it). Tunable as one knob.
+  mechanicCrewEfficiencyPerSlot: 0.5,
+  // Placeholder when no hangar boss is assigned — pre-Phase-6.2.5.D the
+  // ship's hangar-boss slot isn't authored, so resupply uses 1.0 to keep
+  // the math sensible until the captain's-office crew-roster lands.
+  defaultHangarBossPerformance: 1,
+  // Placeholder when no on-duty mechanic crew is authored on the ship
+  // yet. Pre-Phase-6.2.5.D the comm panel doesn't surface mechanic-crew
+  // assignment, so the formula uses this count.
+  defaultMechanicCrewCount: 0,
+
+  // ── Door cycle timings (Design/sortie.md §Hangar door / launch pos) ──
+  // A door cycles `idle → launching → idle → docking → idle` and locks
+  // for these many tactical-seconds per operation. ~2s in design.
+  launchDoorLockSec: 2,
+  dockDoorLockSec: 2,
+
+  // ── Dock approach (re-homed from cockpit.json5) ───────────────────────
+  // To dock back, the MS must be within this radius of the chosen door
+  // and moving slower than dockApproachMaxRelVel relative to the parent
+  // ship.
+  dockApproachRadiusPx: 80,
+  dockApproachMaxRelVel: 60,
+
+  // ── Per-sortie resource drain rates ───────────────────────────────────
+  // Propellant drained per tactical-second of full thrust input. Thrust
+  // magnitude scales the drain linearly (so partial input drains less).
+  // Authored so a fresh starter MS at template cap can sustain ~30s of
+  // full thrust before going dry; a full sortie cycle with two dock-
+  // resupply rounds easily fits inside a typical engagement.
+  propellantDrainPerThrustSec: 6,
+  // Life-support depletion rate (per tactical-second). Authored so a
+  // full lifeSupportMinutes pool covers ~10× a typical sortie window —
+  // only `eject + drift` events touch the floor in normal play.
+  lifeSupportDrainPerSec: 1,
+
+  // ── Stranded-MS recovery tug (Design/sortie.md) ───────────────────────
+  // Speed of the recovery tug in tactical-arena units per second.
+  // Faster than a stranded MS but slower than an MS at full thrust so
+  // the round-trip reads as a deliberate hauling pass.
+  tugSpeedUnitsPerSec: 160,
+  // computers + mechanics threshold (XP) on the dispatching crew member
+  // needed to qualify the tug operation. Threshold pulled below the
+  // floor of an AE technician (1800 + 600 = 2400) so the comm-panel
+  // verb is unlocked once the captain has even moderate crew aboard.
+  tugSkillThreshold: 1800,
+  // Radius (arena units) within which the tug "grapples" the stranded
+  // MS — once inside this radius the tug switches to its returning leg
+  // with the MS attached.
+  tugGrappleRadiusPx: 24,
+  // Radius at which the returning tug hands off to the dock door — the
+  // MS enters the door cycle from here.
+  tugHandoffRadiusPx: 32,
+}

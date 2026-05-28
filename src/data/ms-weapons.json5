@@ -13,6 +13,9 @@
 //   range         — max effective range in tactical-arena units
 //   chargeSec     — seconds between shots
 //   tier          — 1..3 tech tier
+//   ammoCapacity  — Phase 6.2.5.C. Per-sortie shots before the weapon
+//                   disables for the rest of the sortie until resupply.
+//                   Energy weapons declare `Infinity` and never deplete.
 
 {
   msWeapons: [
@@ -25,6 +28,9 @@
       range: 230,
       chargeSec: 1.0,
       tier: 1,
+      // Energy weapon: drawn off ship power via E-cap. No per-sortie
+      // ammo limit; flux/power constraints handled elsewhere.
+      ammoCapacity: Infinity,
     },
     {
       id: 'ms-ballisticGun',
@@ -35,6 +41,10 @@
       range: 180,
       chargeSec: 1.6,
       tier: 1,
+      // Ballistic: drum magazine. 30 rounds reads as a realistic mag
+      // for a per-MS handheld autocannon analogue; depletion forces a
+      // dock-and-resupply or a swap to the beam rifle mid-sortie.
+      ammoCapacity: 30,
     },
     {
       id: 'ms-missileRack',
@@ -45,6 +55,9 @@
       range: 300,
       chargeSec: 2.2,
       tier: 1,
+      // Missile rack: 8-shot pod. Per-sortie scarcity reads canonically
+      // for missile loadouts.
+      ammoCapacity: 8,
     },
   ],
 }

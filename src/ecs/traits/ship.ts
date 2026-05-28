@@ -321,6 +321,11 @@ export const CombatShipState = trait(() => ({
     facingRad: number
     chargeSec: number
     ready: boolean
+    // Phase 6.2.5.C — for MS weapon rows only, the source MS hardpoint
+    // id so the per-hardpoint ammo decrement in sortieDrain.ts can find
+    // its slot. Empty string for ship-side and enemy rows (their weapons
+    // don't carry per-sortie ammo).
+    hardpointId: string
   }[],
   ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 160 },
 }))

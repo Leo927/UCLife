@@ -34,6 +34,10 @@ export interface MsClassDef {
   decel: number
   angularAccel: number
   maxAngVel: number
+  // Phase 6.2.5.C — sortie resource caps + frame mod budget. See header.
+  propellantStorage: number
+  lifeSupportMinutes: number
+  frameSlots: number
   hardpoints: MsHardpointDef[]
   ai: {
     aggression: number
@@ -73,6 +77,15 @@ for (const m of parsed.ms) {
   }
   if (typeof m.supplyPerDay !== 'number' || m.supplyPerDay < 0) {
     throw new Error(`ms-classes.json5: ms "${m.id}" supplyPerDay must be >= 0`)
+  }
+  if (typeof m.propellantStorage !== 'number' || m.propellantStorage <= 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" propellantStorage must be > 0`)
+  }
+  if (typeof m.lifeSupportMinutes !== 'number' || m.lifeSupportMinutes <= 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" lifeSupportMinutes must be > 0`)
+  }
+  if (!Number.isInteger(m.frameSlots) || m.frameSlots < 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" frameSlots must be a non-negative integer`)
   }
   if (!m.ai) throw new Error(`ms-classes.json5: ms "${m.id}" missing ai block`)
   if (m.ai.aggression < 0 || m.ai.aggression > 1) {

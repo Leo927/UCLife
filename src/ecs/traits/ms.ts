@@ -43,6 +43,24 @@ export const Ms = trait({
   // Phase 6.2.5.B — game day on which an in-transit MS lands at its
   // destination. Read by msTransitSystem on day-rollover.
   transitArrivalDay: 0,
+  // Phase 6.2.5.C — per-sortie resources. Capped by the corresponding
+  // stat on MsStatSheet (which projects from template + frame mod effects).
+  //   currentPropellant     — drains under thrust; 0 = stranded (drift).
+  //   currentAmmoByWeapon   — per-hardpoint shot count; 0 = weapon disabled.
+  //                           Energy weapons (ammoCapacity = Infinity) are
+  //                           initialized to Infinity and the drain loop
+  //                           never decrements them.
+  //   currentLifeSupport    — pilot oxygen minutes; only `eject + drift`
+  //                           events test the floor.
+  // All three reset to their caps on dock-resupply complete.
+  currentPropellant: 0,
+  currentAmmoByWeapon: {} as Record<string, number>,
+  currentLifeSupport: 0,
+  // Phase 6.2.5.C — installed frame mod ids. Sum of slotCount over the
+  // installed mods must be ≤ MsStatSheet getStat('frameSlots'). Each
+  // installed mod also seeds an Effect on MsEffectsList with source
+  // `eff:framemod:<id>` (see ecs/msEffects.ts).
+  frameMods: [] as string[],
 })
 
 export const MsStatSheet = trait(() => ({
@@ -55,9 +73,12 @@ export const MsEffectsList = trait(() => ({
 }))
 
 // Singleton. Spawned once on a dedicated entity keyed 'player-parts-inv'.
-// Maps msWeaponId → count of parts in the player's stockpile.
+// Maps msWeaponId → count of parts in the player's stockpile. Frame mod
+// inventory is on the same singleton (separate map) since both come from
+// the same conceptual depot parts stash. Phase 6.2.5.C added frameMods.
 export const PlayerPartsInventory = trait(() => ({
   weapons: {} as Record<string, number>,
+  frameMods: {} as Record<string, number>,
 }))
 
 // On the hangar-bay sprite and terminal entities. Binds them back to

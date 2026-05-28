@@ -10,6 +10,17 @@
     'ms-missileRack': 1,
   },
 
+  // Phase 6.2.5.C — frame mod parts the player starts with. One of each
+  // demo mod so the retrofit panel has something to install on day one
+  // without forcing a broker run. Keys are ms-frame-mods.json5 ids.
+  starterFrameModParts: {
+    'extPropellantTank': 1,
+    'autoloader': 1,
+    'lifeSupportPod': 1,
+    'armorPlating': 1,
+    'subThruster': 1,
+  },
+
   // Tile offset from the hangar room centre for each MS sprite (bayIndex).
   // bayIndex 0 = first slot, 1 = second, etc. Negative y = toward top of screen.
   bayOffsets: [

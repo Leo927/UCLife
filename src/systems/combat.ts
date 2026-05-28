@@ -47,8 +47,14 @@ import { getAirportPlacement } from '../sim/airportPlacements'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
 import { combatConfig, cockpitConfig, fleetConfig } from '../config'
 import {
-  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
+  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
 } from '../sim/cockpit'
+import {
+  tickDoorsFrame, type DoorCycleCompletion,
+} from '../sim/hangarDoors'
+import { tickResupply, routeDockedMsToResupply } from '../sim/sortieResupply'
+import { drainPilotedMs, isMsStranded, tryConsumeAmmo } from '../sim/sortieDrain'
+import { tickTugs } from '../sim/recoveryTug'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
 import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
@@ -318,6 +324,7 @@ function spawnEnemyShip(
         facingRad: (blueprint.mounts[i].facingDeg * Math.PI) / 180,
         chargeSec: 0,
         ready: false,
+        hardpointId: '',
       })),
       ai: {
         aggression: blueprint.ai.aggression,
@@ -396,6 +403,7 @@ function spawnActiveFleetEscorts(w: World): void {
         facingRad: (cls.mounts[i].facingDeg * Math.PI) / 180,
         chargeSec: 0,
         ready: false,
+        hardpointId: '',
       })),
       ai: {
         aggression: aiAggression,
@@ -1172,12 +1180,27 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
 
     if (cs.pilotedByPlayer) {
-      // WASD overrides AI thrust whenever any axis is held.
+      // WASD overrides AI thrust whenever any axis is held. Phase
+      // 6.2.5.C: gate on currentPropellant — a stranded MS (propellant
+      // = 0) zeros input even if WASD is held; the AI directive still
+      // applies because the MS still has thrust authority for *AI*
+      // until ejection. Per Design/sortie.md "drift, no thrust
+      // authority"; the cleanest interpretation gates the WASD path.
       const axis = store.inputAxis
       const inputLen = Math.hypot(axis.forward, axis.strafe)
-      if (inputLen > 0) {
-        const fwd = axis.forward / Math.max(1, inputLen)
-        const stf = axis.strafe / Math.max(1, inputLen)
+      let effectiveAxisLen = inputLen
+      if (cs.isMs) {
+        if (isMsStranded(PLAYER_MS_KEY)) {
+          effectiveAxisLen = 0
+        }
+        // Drain propellant + life support proportional to input. AI-
+        // piloted MS don't drain here (drain is only for the
+        // player-cockpit's MS; per the 6.2.5.C smoke and design).
+        drainPilotedMs(PLAYER_MS_KEY, effectiveAxisLen, dtSec)
+      }
+      if (effectiveAxisLen > 0) {
+        const fwd = axis.forward / Math.max(1, effectiveAxisLen)
+        const stf = axis.strafe / Math.max(1, effectiveAxisLen)
         const cosH = Math.cos(cs.heading)
         const sinH = Math.sin(cs.heading)
         // Forward unit = (cosH, sinH); starboard unit = (-sinH, cosH).
@@ -1185,6 +1208,10 @@ export function combatSystem(_world: World, dtMs: number): void {
           x: fwd * cosH + stf * -sinH,
           y: fwd * sinH + stf *  cosH,
         }
+      } else if (cs.isMs) {
+        // Stranded MS drifts — kill the AI thrust too so the unit
+        // doesn't sneak around the gate by riding its AI directive.
+        thrustWorld = { x: 0, y: 0 }
       }
       // Shift+mouse aim overrides AI aim. Without aim input the AI's
       // "face nearest hostile" directive remains in effect — the helm
@@ -1357,6 +1384,17 @@ export function combatSystem(_world: World, dtMs: number): void {
         const mountFacing = msHeading + wpn.facingRad
         const angToTarget = angleBetween(msPos, target.pos)
         if (inArc(angToTarget, mountFacing, wpn.firingArcRad)) {
+          // Phase 6.2.5.C — per-MS hardpoint ammo gate. Energy weapons
+          // (ammoCapacity = Infinity) pass through unconditionally;
+          // ballistic / missile weapons consume one round per shot and
+          // refuse to fire on empty. Held-ready (charge clamped at
+          // def.chargeSec) so the weapon resumes firing instantly on
+          // resupply rather than ramping back up.
+          const isPlayerMs = psState.isMs && wpn.hardpointId
+          if (isPlayerMs && !tryConsumeAmmo(PLAYER_MS_KEY, wpn.hardpointId)) {
+            // No ammo — hold ready (charge stays clamped) but skip fire.
+            return { ...wpn, chargeSec: charge, ready: false }
+          }
           fireWeapon('player', def, msPos, target.pos, target.ent)
           charge = 0
           ready = false
@@ -1376,6 +1414,19 @@ export function combatSystem(_world: World, dtMs: number): void {
       beamFlashes.splice(i, 1)
     }
   }
+
+  // -- 5b. Phase 6.2.5.C sortie loop: door cycles, resupply, tug ------------
+  // Door cycle ticks; on a dock-cycle completion the MS routes into the
+  // resupply queue (which restores propellant + ammo to caps over
+  // baseResupplySec / boss / crew / mods).
+  const doorCompletions: DoorCycleCompletion[] = tickDoorsFrame(dtSec)
+  for (const c of doorCompletions) {
+    if (c.previousState === 'docking' && c.finishedMsKey) {
+      routeDockedMsToResupply(c.finishedMsKey, c.shipKey, c.doorId)
+    }
+  }
+  tickResupply(dtSec)
+  tickTugs(dtSec)
 
   // -- 6. Flagship hull threshold auto-pause (narrowed set, Phase 6.0) ----
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.

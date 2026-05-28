@@ -12,6 +12,11 @@ export interface MsWeaponClassDef {
   range: number
   chargeSec: number
   tier: number
+  // Phase 6.2.5.C — per-sortie shot count cap. Energy weapons declare
+  // `Infinity` and are exempt from the ammo-depletion gate; ballistic /
+  // missile weapons declare a finite int and disable once depleted
+  // until resupply at dock restores them.
+  ammoCapacity: number
 }
 
 interface MsWeaponsFile {
@@ -39,6 +44,15 @@ for (const w of parsed.msWeapons) {
   if (w.damage <= 0) throw new Error(`ms-weapons.json5: weapon "${w.id}" damage must be > 0`)
   if (w.range <= 0) throw new Error(`ms-weapons.json5: weapon "${w.id}" range must be > 0`)
   if (w.chargeSec <= 0) throw new Error(`ms-weapons.json5: weapon "${w.id}" chargeSec must be > 0`)
+  // Phase 6.2.5.C — ammoCapacity is either a positive integer (finite
+  // magazines) or Infinity (energy weapons). Reject zero, negatives,
+  // and NaN; permit Infinity through the integer-check sieve.
+  if (typeof w.ammoCapacity !== 'number' || w.ammoCapacity <= 0 || Number.isNaN(w.ammoCapacity)) {
+    throw new Error(`ms-weapons.json5: weapon "${w.id}" ammoCapacity must be > 0 or Infinity`)
+  }
+  if (Number.isFinite(w.ammoCapacity) && !Number.isInteger(w.ammoCapacity)) {
+    throw new Error(`ms-weapons.json5: weapon "${w.id}" ammoCapacity must be an integer or Infinity`)
+  }
 }
 
 const byId: Record<string, MsWeaponClassDef> = Object.fromEntries(
