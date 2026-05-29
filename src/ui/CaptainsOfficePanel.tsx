@@ -94,6 +94,16 @@ export function CaptainsOfficePanel() {
             >
               {dialogueText.branches.fleetRoster.openButton}
             </button>
+            <button
+              className="dialog-option"
+              data-pilot-roster-open
+              onClick={() => {
+                playUi('ui.npc.open')
+                useUI.getState().setPilotRoster(true)
+              }}
+            >
+              {dialogueText.branches.pilotRoster.openButton}
+            </button>
             <button className="dialog-option" onClick={onClose}>关闭</button>
           </div>
         </section>

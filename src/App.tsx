@@ -29,6 +29,7 @@ import { DockPickerModal } from './ui/DockPickerModal'
 import { CommPanelDialog } from './ui/CommPanelDialog'
 import { BrigPanel } from './ui/BrigPanel'
 import { FleetRosterPanel } from './ui/FleetRosterPanel'
+import { PilotRosterPanel } from './ui/PilotRosterPanel'
 import { WarRoomPanel } from './ui/WarRoomPanel'
 import { MsRetrofitPanel } from './ui/MsRetrofitPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
@@ -78,6 +79,7 @@ export function App() {
       <CommPanelDialog />
       <BrigPanel />
       <FleetRosterPanel />
+      <PilotRosterPanel />
       <WarRoomPanel />
       <MsRetrofitPanel />
       <CombatTallyPanel />

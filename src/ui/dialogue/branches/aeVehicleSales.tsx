@@ -27,12 +27,12 @@ export function aeVehicleSalesBranch(ctx: DialogueCtx): DialogueNode | null {
   const wsEnt = ctx.npc.get(Job)?.workstation ?? null
   const specId = wsEnt?.get(Workstation)?.specId ?? ''
   const entry = fleetConfig.vehicleSalesRepCatalog[specId]
-  if (!entry) return null
+  if (!entry || entry.msClassIds.length === 0) return null
   return {
     id: 'aeVehicleSales',
     label: dialogueText.buttons.aeVehicleSales,
     info: dialogueText.branches.aeVehicleSales.title,
-    specialUI: () => <AEVehicleSalesPanel msClassId={entry.msClassId} />,
+    specialUI: () => <AEVehicleSalesPanel msClassIds={entry.msClassIds} />,
   }
 }
 
@@ -43,7 +43,7 @@ interface HangarOption {
   hasMsSlot: boolean
 }
 
-function AEVehicleSalesPanel({ msClassId }: { msClassId: string }) {
+function AEVehicleSalesPanel({ msClassIds }: { msClassIds: string[] }) {
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
   const t = dialogueText.branches.aeVehicleSales
@@ -54,11 +54,13 @@ function AEVehicleSalesPanel({ msClassId }: { msClassId: string }) {
   useScene((s) => s.activeId)
   const localHangars = useQuery(Building, Hangar, EntityKey)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  // Issue #65 — the catalog is a list; the player picks one frame to buy.
+  const [selectedMsClassId, setSelectedMsClassId] = useState<string>(msClassIds[0] ?? '')
 
   if (!player) return null
 
   const playerMoney = money?.amount ?? 0
-  const cls = getMsClass(msClassId)
+  const cls = getMsClass(msClassIds.includes(selectedMsClassId) ? selectedMsClassId : msClassIds[0])
   const leadDays = fleetConfig.vehicleDeliveryDays
 
   // A hangar can host an MS iff its slotCapacity advertises at least one
@@ -127,6 +129,32 @@ function AEVehicleSalesPanel({ msClassId }: { msClassId: string }) {
     <>
       <h3>{t.title}</h3>
       <div className="shop-money">{t.moneyLabel}: <span className="shop-money-amount">¥{playerMoney.toLocaleString()}</span></div>
+
+      {msClassIds.length > 1 && (
+        <>
+          <h4 style={{ marginTop: 8 }}>{t.vehiclePickHeader}</h4>
+          <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+            {msClassIds.map((id) => {
+              const rowCls = getMsClass(id)
+              return (
+                <li key={id} className="dev-row" data-ae-vehicle-row={id}>
+                  <label className="dev-key" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="ae-vb-vehicle-class"
+                      checked={cls.id === id}
+                      onChange={() => setSelectedMsClassId(id)}
+                    />
+                    {' '}{rowCls.nameZh}
+                  </label>
+                  <span>¥{rowCls.priceFiat.toLocaleString()}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
+
       <h3 style={{ marginTop: 8 }}>{cls.nameZh}</h3>
       <p className="map-place-desc">{cls.descZh}</p>
       <div className="ship-dealer-stats">

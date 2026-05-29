@@ -39,7 +39,7 @@ export interface FleetConfig {
   // delivery lead time. The catalog maps each vehicle rep's workstation
   // specId to the MS class that rep sells.
   vehicleSalesDeskTileVB: { x: number; y: number }
-  vehicleSalesRepCatalog: Record<string, { msClassId: string }>
+  vehicleSalesRepCatalog: Record<string, { msClassIds: string[] }>
   vehicleDeliveryDays: number
   // Phase 6.2.D — hire economics + captain Effect + auto-man limit.
   hireCaptainSigningFee: number

@@ -171,12 +171,14 @@
     ae_ship_sales_vbd: { shipClassId: 'pegasusClass' },
   },
 
-  // Phase 6.2.5.B — vehicle (MS / fighter / MW) sales-rep catalog. Same
-  // shape as salesRepCatalog but each entry sells exactly one MS class
-  // from `ms-classes.json5`. Adding a new vehicle rep = one new spec +
-  // one new row here; the aeVehicleSales branch is generic over the entry.
+  // Phase 6.2.5.B — vehicle (MS / fighter / MW) sales-rep catalog. Each
+  // entry maps a rep's workstation specId to the list of MS classes that
+  // rep sells (from `ms-classes.json5`); the aeVehicleSales branch renders
+  // one selectable row per class. Issue #65 grew the VB rep to a two-row
+  // catalog (civFighter + civilian mobileWorker). Adding a new vehicle rep
+  // = one new spec + one new row here.
   vehicleSalesRepCatalog: {
-    ae_vehicle_sales_vb: { msClassId: 'civFighter' },
+    ae_vehicle_sales_vb: { msClassIds: ['civFighter', 'mobileWorker'] },
   },
 
   // Phase 6.2.5.B — MS delivery lead time (game days). Vehicle frames

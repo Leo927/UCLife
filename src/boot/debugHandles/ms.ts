@@ -17,7 +17,7 @@ import {
 import { useUI } from '../../ui/uiStore'
 import { enqueueMsDelivery, receiveMsDelivery, msDeliverySystem } from '../../systems/msDelivery'
 import { enqueueMsTransfer, msTransitSystem } from '../../systems/msTransfer'
-import { autoAssignPilotForMs } from '../../systems/msPilotAssign'
+import { autoAssignPilotForMs, assignPilotToMs } from '../../systems/msPilotAssign'
 import { refreshAllDepotMsLayouts } from '../../ecs/spawn'
 import { fleetConfig } from '../../config'
 import { useClock, gameDayNumber } from '../../sim/clock'
@@ -282,6 +282,28 @@ registerDebugHandle('hirePilotViaDebug', (npcKey: string): boolean => {
     }
   }
   return false
+})
+
+// Issue #65 — the AE vehicle broker's configured catalog rows. Smoke
+// reads this to assert the two-row catalog (civFighter + mobileWorker)
+// without driving the broker dialog DOM.
+registerDebugHandle('getVehicleCatalogRows', (): string[] => {
+  const out: string[] = []
+  for (const entry of Object.values(fleetConfig.vehicleSalesRepCatalog)) {
+    for (const id of entry.msClassIds) out.push(id)
+  }
+  return out
+})
+
+// Issue #65 — manual pilot reassign through the canonical assignment path
+// (same write the pilot roster panel's reassign button calls).
+registerDebugHandle('assignPilotViaDebug', (npcKey: string, msKey: string): boolean => {
+  return assignPilotToMs(npcKey, msKey)
+})
+
+// Issue #65 — open the pilot roster panel (mirrors openMsRetrofit).
+registerDebugHandle('openPilotRoster', () => {
+  useUI.getState().setPilotRoster(true)
 })
 
 registerDebugHandle('getPilotRoster', (): Array<{

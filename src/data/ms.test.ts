@@ -43,6 +43,13 @@ describe('ms class loader', () => {
     expect(ms.priceFiat).toBeGreaterThan(0)
   })
 
+  it('ships the mobileWorker frame (Issue #65 AE catalog)', () => {
+    expect(isMsClassId('mobileWorker')).toBe(true)
+    const ms = getMsClass('mobileWorker')
+    expect(ms.priceFiat).toBeGreaterThan(0)
+    expect(ms.hardpoints.length).toBeGreaterThan(0)
+  })
+
   it('defaultMountedWeapons returns one entry per hardpoint', () => {
     const ms = getMsClass('gm_pre')
     const mw = defaultMountedWeapons(ms)
