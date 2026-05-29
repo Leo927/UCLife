@@ -1,0 +1,53 @@
+// Phase 6.2.5.C smoke fixture — in-tactical sortie loop.
+//
+// Player aboard the flagship at Von Braun, with cash + piloting skill so
+// the boardShip + takeHelm + startCombat cheats unlock. The smoke drives
+// the player into combat via startCombatCheat, then:
+//   1. Sets the MS into a near-depleted state via setMsSortieResources.
+//   2. Lets one weapon-fire tick consume the last round (ammo → 0).
+//   3. Verifies stranded / depleted gates.
+//   4. Dispatches the recovery tug.
+//   5. Watches the resupply timer tick down (deterministic — fixture
+//      pins workPerformance + crew defaults to known values in
+//      sortie.json5; no skill effects layered).
+//   6. Asserts caps restored + no auto-pause + log line present.
+//
+// Same baseline shape as ms-starter (single ship at VB) — the smoke
+// adds the cheat-flow to get into combat instead of pinning a
+// pre-launched MS in the fixture (the deterministic test substrate
+// doesn't have a "pre-launch into a particular combat encounter"
+// primitive at this slice).
+{
+  seed: 'ms-sortie-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 100000,
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
+    skills: { piloting: 5000 },
+  },
+
+  ships: [
+    {
+      id: 'ship',
+      template: 'lightFreighter',
+      name: '自由号',
+      dockedAt: 'vonBraun',
+    },
+  ],
+
+  // NPC captain authored so the recovery-tug skill gate
+  // (computers + mechanics ≥ sortieConfig.tugSkillThreshold, currently
+  // 1800) has someone to query. Spawned at VB so hireCaptainViaDebug
+  // can resolve them; the test hires them onto 'ship' before
+  // dispatchRecoveryTug.
+  npcs: [
+    {
+      id: 'capt-1',
+      name: '舰长 · 凯文',
+      at: { scene: 'vonBraunCity', x: 32, y: 18 },
+      skills: { computers: 1000, mechanics: 1000 },
+    },
+  ],
+}

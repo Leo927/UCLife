@@ -10,6 +10,8 @@ interface MsConfig {
   starterMsTemplateId: string
   starterMsEntityKey: string
   starterParts: Record<string, number>
+  // Phase 6.2.5.C — starter frame-mod parts inventory.
+  starterFrameModParts: Record<string, number>
   bayOffsets: BayOffset[]
   terminalOffsetDx: number
   terminalOffsetDy: number

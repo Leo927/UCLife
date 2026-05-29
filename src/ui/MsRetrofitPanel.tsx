@@ -4,12 +4,15 @@
 // writes mountedWeapons[hardpointId] and adjusts inventory count.
 
 import { useQueryFirst, useTrait } from 'koota/react'
-import { Ms, PlayerPartsInventory, EntityKey } from '../ecs/traits'
+import { Ms, MsStatSheet, PlayerPartsInventory, EntityKey } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
 import { getMsWeapon, getMsWeaponsForType } from '../data/ms-weapons'
+import { MS_FRAME_MOD_LIST, getMsFrameMod } from '../data/ms-frame-mods'
 import { useUI } from './uiStore'
 import { getWorld } from '../ecs/world'
 import { playUi } from '../audio/player'
+import { installFrameModEffect, uninstallFrameModEffect } from '../ecs/msEffects'
+import { getStat } from '../stats/sheet'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -40,6 +43,55 @@ export function MsRetrofitPanel() {
     setMsRetrofit(null)
   }
 
+  // Phase 6.2.5.C — frame mod install / uninstall is gated on the MS
+  // being at a depot POI (per the user-confirmed plan; on-ship modding
+  // unlocks later via a perk). dockedAtPoiId is the field set when an
+  // MS is in a depot hangar; storedOnShipKey wins for aboard-ship MS.
+  const atDepot = msData.dockedAtPoiId !== '' && msData.storedOnShipKey === ''
+  const sheet = msEnt?.get(MsStatSheet)?.sheet
+  const frameSlotsCap = sheet ? Math.round(getStat(sheet, 'frameSlots')) : cls.frameSlots
+  const usedSlots = msData.frameMods.reduce(
+    (sum, id) => sum + getMsFrameMod(id).slotCount, 0,
+  )
+  const remainingSlots = frameSlotsCap - usedSlots
+
+  function onInstallMod(modId: string) {
+    if (!atDepot) return
+    const msE = findMsEntity(msRetrofitKey!)
+    if (!msE) return
+    const def = getMsFrameMod(modId)
+    if (def.slotCount > remainingSlots) return
+    const partsE = partsEnt
+    if (!partsE) return
+    const curParts = partsE.get(PlayerPartsInventory)!
+    const stock = curParts.frameMods[modId] ?? 0
+    if (stock <= 0) return
+    if (!installFrameModEffect(msE, modId)) return
+    const nextParts = { ...curParts.frameMods }
+    if (stock - 1 <= 0) delete nextParts[modId]
+    else nextParts[modId] = stock - 1
+    partsE.set(PlayerPartsInventory, { ...curParts, frameMods: nextParts })
+    playUi('ui.hr.accept')
+  }
+
+  function onUninstallMod(modId: string) {
+    if (!atDepot) return
+    const msE = findMsEntity(msRetrofitKey!)
+    if (!msE) return
+    const partsE = partsEnt
+    if (!partsE) return
+    if (!uninstallFrameModEffect(msE, modId)) return
+    const curParts = partsE.get(PlayerPartsInventory)!
+    partsE.set(PlayerPartsInventory, {
+      ...curParts,
+      frameMods: {
+        ...curParts.frameMods,
+        [modId]: (curParts.frameMods[modId] ?? 0) + 1,
+      },
+    })
+    playUi('ui.hr.accept')
+  }
+
   function onSwap(hardpointId: string, newWeaponId: string) {
     const msE = findMsEntity(msRetrofitKey!)
     if (!msE) return
@@ -68,7 +120,7 @@ export function MsRetrofitPanel() {
       ...cur,
       mountedWeapons: { ...cur.mountedWeapons, [hardpointId]: newWeaponId },
     })
-    partsE.set(PlayerPartsInventory, { weapons: updatedWeapons })
+    partsE.set(PlayerPartsInventory, { ...curParts, weapons: updatedWeapons })
 
     playUi('ui.hr.accept')
   }
@@ -94,6 +146,61 @@ export function MsRetrofitPanel() {
             <span className="combat-tally-row-label">装甲</span>
             <span className="combat-tally-row-value">{msData.armorCurrent} / {msData.armorMax}</span>
           </div>
+        </section>
+
+        <section className="status-section">
+          <h3 className="status-section-title">机体改装 · 框架</h3>
+          <div className="combat-tally-row">
+            <span className="combat-tally-row-label">框架槽</span>
+            <span className="combat-tally-row-value">{usedSlots} / {frameSlotsCap}</span>
+          </div>
+          {!atDepot && (
+            <div className="status-meta">仅可在地面 / 船坞机库改装框架。当前 MS 在舰内，需先转运到机库。</div>
+          )}
+          {msData.frameMods.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: '0.8em', opacity: 0.7 }}>已装：</span>
+              {msData.frameMods.map((id) => {
+                const def = getMsFrameMod(id)
+                return (
+                  <div key={id} style={{ paddingLeft: 12, marginTop: 4 }}>
+                    <span style={{ fontSize: '0.85em' }}>{def.nameZh} · {def.slotCount} 槽</span>
+                    {atDepot && (
+                      <button
+                        className="status-close"
+                        style={{ marginLeft: 8, fontSize: '0.8em', padding: '2px 8px' }}
+                        onClick={() => onUninstallMod(id)}
+                      >拆除</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {atDepot && partsData.frameMods && (
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: '0.8em', opacity: 0.7 }}>仓库可用：</span>
+              {MS_FRAME_MOD_LIST.map((def) => {
+                const stock = partsData.frameMods?.[def.id] ?? 0
+                if (stock <= 0) return null
+                if (msData.frameMods.includes(def.id)) return null
+                const tooBig = def.slotCount > remainingSlots
+                return (
+                  <div key={def.id} style={{ paddingLeft: 12, marginTop: 4 }}>
+                    <span style={{ fontSize: '0.85em' }}>
+                      {def.nameZh} · {def.slotCount} 槽 · ×{stock}
+                    </span>
+                    <button
+                      className="status-close"
+                      disabled={tooBig}
+                      style={{ marginLeft: 8, fontSize: '0.8em', padding: '2px 8px' }}
+                      onClick={() => onInstallMod(def.id)}
+                    >{tooBig ? '槽位不足' : '安装'}</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </section>
 
         <section className="status-section">

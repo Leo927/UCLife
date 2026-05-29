@@ -10,8 +10,9 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, SCENE_IDS } from '../../ecs/world'
 import {
-  Ms, PlayerPartsInventory, EntityKey, Building, Hangar, Character,
-  EmployedAsPilot, RecruitedTo, IsPlayer, Money,
+  Ms, MsStatSheet, PlayerPartsInventory, EntityKey, Building, Hangar, Character,
+  EmployedAsPilot, RecruitedTo, IsPlayer, Money, ResupplyState,
+  CombatShipState,
 } from '../../ecs/traits'
 import { useUI } from '../../ui/uiStore'
 import { enqueueMsDelivery, receiveMsDelivery, msDeliverySystem } from '../../systems/msDelivery'
@@ -20,6 +21,12 @@ import { autoAssignPilotForMs } from '../../systems/msPilotAssign'
 import { refreshAllDepotMsLayouts } from '../../ecs/spawn'
 import { fleetConfig } from '../../config'
 import { useClock, gameDayNumber } from '../../sim/clock'
+import {
+  installFrameModEffect, uninstallFrameModEffect,
+} from '../../ecs/msEffects'
+import { dispatchRecoveryTug, getRecoveryTugs } from '../../sim/recoveryTug'
+import { getDoorSnapshot, sortieStats } from '../../sim/hangarDoors'
+import { getStat } from '../../stats/sheet'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -39,31 +46,67 @@ interface MsSnapshot {
   pilotId: string
   transitDestinationId: string
   transitArrivalDay: number
+  // Phase 6.2.5.C — sortie resources + frame mods. Infinity ammo serializes
+  // to the sentinel string 'Inf' so the JSON round-trip stays clean.
+  currentPropellant: number
+  currentAmmoByWeapon: Record<string, number | 'Inf'>
+  currentLifeSupport: number
+  frameMods: string[]
+  propellantStorageCap: number
+  lifeSupportMinutesCap: number
+  frameSlotsCap: number
+  // Resupply state (if currently being resupplied).
+  resupplyShipKey: string
+  resupplyDoorId: string
+  resupplySecRemaining: number
+  resupplySecTotal: number
+}
+
+function snapshotOneMs(ent: import('koota').Entity): MsSnapshot {
+  const ms = ent.get(Ms)!
+  const key = ent.get(EntityKey)!.key
+  const sheet = ent.get(MsStatSheet)?.sheet
+  const propCap = sheet ? getStat(sheet, 'propellantStorage') : 0
+  const lsCap = sheet ? getStat(sheet, 'lifeSupportMinutes') : 0
+  const slotsCap = sheet ? getStat(sheet, 'frameSlots') : 0
+  const ammoOut: Record<string, number | 'Inf'> = {}
+  for (const [hpId, count] of Object.entries(ms.currentAmmoByWeapon)) {
+    ammoOut[hpId] = Number.isFinite(count) ? count : 'Inf'
+  }
+  const rs = ent.get(ResupplyState)
+  return {
+    key,
+    templateId: ms.templateId,
+    name: ms.name,
+    hullCurrent: ms.hullCurrent,
+    hullMax: ms.hullMax,
+    armorCurrent: ms.armorCurrent,
+    armorMax: ms.armorMax,
+    mountedWeapons: { ...ms.mountedWeapons },
+    storedOnShipKey: ms.storedOnShipKey,
+    bayIndex: ms.bayIndex,
+    dockedAtPoiId: ms.dockedAtPoiId,
+    pilotId: ms.pilotId,
+    transitDestinationId: ms.transitDestinationId,
+    transitArrivalDay: ms.transitArrivalDay,
+    currentPropellant: ms.currentPropellant,
+    currentAmmoByWeapon: ammoOut,
+    currentLifeSupport: ms.currentLifeSupport,
+    frameMods: [...ms.frameMods],
+    propellantStorageCap: propCap,
+    lifeSupportMinutesCap: lsCap,
+    frameSlotsCap: slotsCap,
+    resupplyShipKey: rs?.shipKey ?? '',
+    resupplyDoorId: rs?.bayDoorId ?? '',
+    resupplySecRemaining: rs?.secRemaining ?? 0,
+    resupplySecTotal: rs?.secTotal ?? 0,
+  }
 }
 
 registerDebugHandle('getMsRoster', (): MsSnapshot[] => {
   const w = getWorld(SHIP_SCENE_ID)
   const result: MsSnapshot[] = []
-  for (const ent of w.query(Ms, EntityKey)) {
-    const ms = ent.get(Ms)!
-    const key = ent.get(EntityKey)!.key
-    result.push({
-      key,
-      templateId: ms.templateId,
-      name: ms.name,
-      hullCurrent: ms.hullCurrent,
-      hullMax: ms.hullMax,
-      armorCurrent: ms.armorCurrent,
-      armorMax: ms.armorMax,
-      mountedWeapons: { ...ms.mountedWeapons },
-      storedOnShipKey: ms.storedOnShipKey,
-      bayIndex: ms.bayIndex,
-      dockedAtPoiId: ms.dockedAtPoiId,
-      pilotId: ms.pilotId,
-      transitDestinationId: ms.transitDestinationId,
-      transitArrivalDay: ms.transitArrivalDay,
-    })
-  }
+  for (const ent of w.query(Ms, EntityKey)) result.push(snapshotOneMs(ent))
   return result
 })
 
@@ -78,25 +121,7 @@ registerDebugHandle('getMsWeaponCounts', (): Record<string, number> => {
 registerDebugHandle('getMs', (msKey: string): MsSnapshot | null => {
   const w = getWorld(SHIP_SCENE_ID)
   for (const ent of w.query(Ms, EntityKey)) {
-    if (ent.get(EntityKey)!.key === msKey) {
-      const ms = ent.get(Ms)!
-      return {
-        key: msKey,
-        templateId: ms.templateId,
-        name: ms.name,
-        hullCurrent: ms.hullCurrent,
-        hullMax: ms.hullMax,
-        armorCurrent: ms.armorCurrent,
-        armorMax: ms.armorMax,
-        mountedWeapons: { ...ms.mountedWeapons },
-        storedOnShipKey: ms.storedOnShipKey,
-        bayIndex: ms.bayIndex,
-        dockedAtPoiId: ms.dockedAtPoiId,
-        pilotId: ms.pilotId,
-        transitDestinationId: ms.transitDestinationId,
-        transitArrivalDay: ms.transitArrivalDay,
-      }
-    }
+    if (ent.get(EntityKey)!.key === msKey) return snapshotOneMs(ent)
   }
   return null
 })
@@ -298,6 +323,175 @@ registerDebugHandle('runMsTransitTick', (gameDay = 0) => {
   return msTransitSystem(gameDay)
 })
 
+// ─── Phase 6.2.5.C debug handles ─────────────────────────────────────────
+
+// Stranded MS list — drives the smoke's "dispatch tug" step. Returns the
+// keys of MS entities whose currentPropellant has hit zero.
+registerDebugHandle('getStrandedMs', (): Array<{ key: string; name: string }> => {
+  const w = getWorld(SHIP_SCENE_ID)
+  const out: Array<{ key: string; name: string }> = []
+  for (const ent of w.query(Ms, EntityKey)) {
+    const m = ent.get(Ms)!
+    if (m.currentPropellant <= 0) {
+      out.push({ key: ent.get(EntityKey)!.key, name: m.name })
+    }
+  }
+  return out
+})
+
+registerDebugHandle('dispatchRecoveryTug', (
+  strandedMsKey: string,
+): { ok: boolean; tugKey?: string; reason?: string } => {
+  const r = dispatchRecoveryTug(strandedMsKey)
+  return r.ok ? { ok: true, tugKey: r.tugKey } : { ok: false, reason: r.reasonZh }
+})
+
+registerDebugHandle('getRecoveryTugs', () => {
+  return getRecoveryTugs()
+})
+
+registerDebugHandle('getHangarDoors', (shipKey: string) => {
+  return getDoorSnapshot(shipKey)
+})
+
+// Frame mod install / uninstall via debug — used by the smoke to assert
+// effect-engine wiring without driving the UI panel directly. Returns
+// whether the operation succeeded (same gating rules as the UI verb).
+registerDebugHandle('installFrameMod', (msKey: string, modId: string): boolean => {
+  const w = getWorld(SHIP_SCENE_ID)
+  let msEnt = null
+  for (const ent of w.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key === msKey) { msEnt = ent; break }
+  }
+  if (!msEnt) return false
+  let partsEnt = null
+  for (const ent of w.query(PlayerPartsInventory)) { partsEnt = ent; break }
+  if (!partsEnt) return false
+  const curParts = partsEnt.get(PlayerPartsInventory)!
+  const stock = curParts.frameMods[modId] ?? 0
+  if (stock <= 0) return false
+  if (!installFrameModEffect(msEnt, modId)) return false
+  const nextParts = { ...curParts.frameMods }
+  if (stock - 1 <= 0) delete nextParts[modId]
+  else nextParts[modId] = stock - 1
+  partsEnt.set(PlayerPartsInventory, { ...curParts, frameMods: nextParts })
+  return true
+})
+
+registerDebugHandle('uninstallFrameMod', (msKey: string, modId: string): boolean => {
+  const w = getWorld(SHIP_SCENE_ID)
+  let msEnt = null
+  for (const ent of w.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key === msKey) { msEnt = ent; break }
+  }
+  if (!msEnt) return false
+  let partsEnt = null
+  for (const ent of w.query(PlayerPartsInventory)) { partsEnt = ent; break }
+  if (!partsEnt) return false
+  if (!uninstallFrameModEffect(msEnt, modId)) return false
+  const curParts = partsEnt.get(PlayerPartsInventory)!
+  partsEnt.set(PlayerPartsInventory, {
+    ...curParts,
+    frameMods: {
+      ...curParts.frameMods,
+      [modId]: (curParts.frameMods[modId] ?? 0) + 1,
+    },
+  })
+  return true
+})
+
+// Move an MS into / out of a depot POI — used by the smoke to set up
+// scenarios that depend on the depot-gate frame-mod install rule.
+registerDebugHandle('parkMsAtPoi', (msKey: string, poiId: string): boolean => {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key !== msKey) continue
+    const m = ent.get(Ms)!
+    ent.set(Ms, { ...m, storedOnShipKey: '', dockedAtPoiId: poiId, bayIndex: 0 })
+    return true
+  }
+  return false
+})
+
+// Test handle: directly set sortie resources on a saved MS for fixture
+// drive without flying actual physics. The smoke uses this to set up the
+// "low propellant, 1 round of ammo" baseline so the per-tick drain math
+// completes in seconds of sim time. Read by the smoke; not the UI path.
+registerDebugHandle('setMsSortieResources', (
+  msKey: string,
+  fields: Partial<{
+    currentPropellant: number
+    currentLifeSupport: number
+    currentAmmoByWeapon: Record<string, number | 'Inf'>
+  }>,
+): boolean => {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key !== msKey) continue
+    const m = ent.get(Ms)!
+    const next = { ...m }
+    if (fields.currentPropellant !== undefined) next.currentPropellant = fields.currentPropellant
+    if (fields.currentLifeSupport !== undefined) next.currentLifeSupport = fields.currentLifeSupport
+    if (fields.currentAmmoByWeapon !== undefined) {
+      const ammo: Record<string, number> = {}
+      for (const [hpId, count] of Object.entries(fields.currentAmmoByWeapon)) {
+        ammo[hpId] = count === 'Inf' ? Infinity : (count as number)
+      }
+      next.currentAmmoByWeapon = ammo
+    }
+    ent.set(Ms, next)
+    return true
+  }
+  return false
+})
+
+// Snapshot the profile counters — used by the smoke + manual perf runs.
+registerDebugHandle('getSortieStats', () => ({ ...sortieStats }))
+
+// Snapshot the player's piloted MS state (CombatShipState row) for the
+// smoke's relaunch-position assertion. Returns null if no MS launched.
+const PLAYER_MS_KEY = 'player-ms-1'
+registerDebugHandle('getPilotedMsState', (): {
+  pos: { x: number; y: number }
+  vel: { x: number; y: number }
+  heading: number
+  weapons: Array<{ weaponId: string; hardpointId: string; ready: boolean; chargeSec: number }>
+} | null => {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(CombatShipState, EntityKey)) {
+    if (ent.get(EntityKey)!.key !== PLAYER_MS_KEY) continue
+    const cs = ent.get(CombatShipState)!
+    return {
+      pos: { ...cs.pos },
+      vel: { ...cs.vel },
+      heading: cs.heading,
+      weapons: cs.weapons.map((w0) => ({
+        weaponId: w0.weaponId,
+        hardpointId: w0.hardpointId,
+        ready: w0.ready,
+        chargeSec: w0.chargeSec,
+      })),
+    }
+  }
+  return null
+})
+
+// Snapshot the flagship's tactical pos / heading for the smoke's
+// spawn-at-door geometry assertion.
+registerDebugHandle('getFlagshipCombatPose', (): {
+  pos: { x: number; y: number }
+  heading: number
+} | null => {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(CombatShipState)) {
+    const cs = ent.get(CombatShipState)!
+    if (cs.isFlagship || cs.isPlayer) {
+      return { pos: { ...cs.pos }, heading: cs.heading }
+    }
+  }
+  return null
+})
+
 registerDebugHandle('swapMsWeapon', (msKey: string, hardpointId: string, newWeaponId: string): boolean => {
   const w = getWorld(SHIP_SCENE_ID)
   let msEnt = null
@@ -331,6 +525,6 @@ registerDebugHandle('swapMsWeapon', (msKey: string, hardpointId: string, newWeap
     ...curMs,
     mountedWeapons: { ...curMs.mountedWeapons, [hardpointId]: newWeaponId },
   })
-  partsEnt.set(PlayerPartsInventory, { weapons: updatedWeapons })
+  partsEnt.set(PlayerPartsInventory, { ...curParts, weapons: updatedWeapons })
   return true
 })

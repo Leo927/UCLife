@@ -43,6 +43,20 @@ export interface ShipMountDef {
   facingDeg: number       // mount center direction in degrees (0 = forward, +90 = starboard)
 }
 
+// Phase 6.2.5.C — physical hangar launch/recovery door, per Design/sortie.md.
+// `position` is hull-local in arena units (rotated by ship.heading at spawn
+// to derive world-space launch position); `facing` is the launch direction
+// in degrees relative to the ship's heading; `bayId` keys back to one of
+// the ship's authored hangar bay slots (which the resupply / docking
+// systems treat as the per-bay queue). Door count may be < hangarCapacity
+// (multiple bays share a door, MS queue FIFO).
+export interface ShipHangarDoorDef {
+  id: string
+  position: { x: number; y: number }
+  facing: number
+  bayId: string
+}
+
 // Per-ship-class officer roster authoring. Phase 6.2 wires the adjutant
 // only — the comm-panel face wall in 6.2.5 expands this to chief mechanic,
 // chief medical, etc. The adjutant is the voice that narrates combat-log
@@ -96,6 +110,10 @@ export interface ShipClassDef {
   // can be stored inside this hull's internal hangar bay (distinct from
   // POI-level hangar slots). 0 = no internal bay (default for non-carriers).
   hangarCapacity?: number
+  // Phase 6.2.5.C — per-ship-class authored launch doors. Optional so a
+  // hull with no internal MS bay (e.g. lunarMilitia) omits it cleanly.
+  // Length may be less than hangarCapacity → MS share doors and queue.
+  hangarDoors?: ShipHangarDoorDef[]
   mounts: ShipMountDef[]
   defaultWeapons: string[]
   ai: {
@@ -196,6 +214,34 @@ for (const ship of parsed.ships) {
     typeof ship.hangarCapacity !== 'number' || ship.hangarCapacity < 0 || !Number.isInteger(ship.hangarCapacity)
   )) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" hangarCapacity must be a non-negative integer`)
+  }
+  if (ship.hangarDoors !== undefined) {
+    if (!Array.isArray(ship.hangarDoors)) {
+      throw new Error(`ship-classes.json5: ship "${ship.id}" hangarDoors must be an array`)
+    }
+    const doorIdSeen = new Set<string>()
+    for (const d of ship.hangarDoors) {
+      if (!d.id || typeof d.id !== 'string') {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" hangarDoor missing id`)
+      }
+      if (doorIdSeen.has(d.id)) {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" duplicate hangarDoor id "${d.id}"`)
+      }
+      doorIdSeen.add(d.id)
+      if (typeof d.position?.x !== 'number' || typeof d.position?.y !== 'number') {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" hangarDoor "${d.id}" position must be {x,y} numbers`)
+      }
+      if (typeof d.facing !== 'number') {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" hangarDoor "${d.id}" facing must be a number (degrees)`)
+      }
+      if (!d.bayId || typeof d.bayId !== 'string') {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" hangarDoor "${d.id}" bayId must be a non-empty string`)
+      }
+    }
+    // A hull with hangarDoors but no internal hangar bay is suspicious.
+    if (ship.hangarDoors.length > 0 && (ship.hangarCapacity ?? 0) === 0) {
+      throw new Error(`ship-classes.json5: ship "${ship.id}" declares hangarDoors but hangarCapacity is 0`)
+    }
   }
   if (!ship.officers || typeof ship.officers !== 'object') {
     throw new Error(`ship-classes.json5: ship "${ship.id}" missing officers block`)

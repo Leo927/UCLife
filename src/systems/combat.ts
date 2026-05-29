@@ -36,7 +36,8 @@ import {
 import { formationOffsetForSlot } from './fleetFormation'
 import { getEnemyShip } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
-import { getWeapon, type WeaponDef } from '../data/weapons'
+import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
+import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
 import { useClock } from '../sim/clock'
 import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel, grantSupplies } from '../sim/ship'
@@ -47,8 +48,14 @@ import { getAirportPlacement } from '../sim/airportPlacements'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
 import { combatConfig, cockpitConfig, fleetConfig } from '../config'
 import {
-  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
+  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
 } from '../sim/cockpit'
+import {
+  tickDoorsFrame, type DoorCycleCompletion,
+} from '../sim/hangarDoors'
+import { tickResupply, routeDockedMsToResupply } from '../sim/sortieResupply'
+import { drainPilotedMs, isMsStranded, tryConsumeAmmo } from '../sim/sortieDrain'
+import { tickTugs } from '../sim/recoveryTug'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
 import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
@@ -99,6 +106,49 @@ let nextBeamId = 1
 
 export function getBeamFlashes(): BeamFlash[] {
   return beamFlashes.slice()
+}
+
+// MS weapons (ms-weapons.json5) carry a narrower shape than ship
+// weapons — no projectileSpeed / fluxPerShot / shieldDamage /
+// armorDamage / tracking. The combat tick treats every entry in
+// `CombatShipState.weapons[]` as a ship WeaponDef though, so MS rows
+// would crash on `getWeapon(wpn.weaponId)`. This adapter resolves an
+// MS-side weapon into a WeaponDef-shaped record with sensible defaults
+// derived from `mountType`. Used only for the MS player-side iteration.
+function msWeaponMountTypeToDef(mt: MsWeaponClassDef['mountType']): {
+  type: WeaponDef['type']; projectileSpeed: number
+} {
+  if (mt === 'medium-beam') return { type: 'beam', projectileSpeed: 0 }
+  if (mt === 'missile-rack') return { type: 'missile', projectileSpeed: 200 }
+  return { type: 'ballistic', projectileSpeed: 400 }
+}
+
+function msWeaponAsCombatDef(weaponId: string): WeaponDef {
+  const w = getMsWeapon(weaponId)
+  const m = msWeaponMountTypeToDef(w.mountType)
+  return {
+    id: w.id,
+    nameZh: w.nameZh,
+    descZh: w.descZh,
+    type: m.type,
+    size: 'small',
+    damage: w.damage,
+    range: w.range,
+    chargeSec: w.chargeSec,
+    fluxPerShot: 0,
+    shieldDamage: w.damage,
+    armorDamage: w.damage,
+    projectileSpeed: m.projectileSpeed,
+    tracking: 1,
+    tier: w.tier === 1 || w.tier === 2 || w.tier === 3 ? w.tier : 1,
+    cost: 0,
+  }
+}
+
+function resolveCombatWeaponDef(weaponId: string): WeaponDef {
+  if (isWeaponId(weaponId)) return getWeapon(weaponId)
+  if (isMsWeaponId(weaponId)) return msWeaponAsCombatDef(weaponId)
+  return getWeapon(weaponId)
 }
 
 // per-active-scene only: combat runs exclusively in the playerShipInterior
@@ -318,6 +368,7 @@ function spawnEnemyShip(
         facingRad: (blueprint.mounts[i].facingDeg * Math.PI) / 180,
         chargeSec: 0,
         ready: false,
+        hardpointId: '',
       })),
       ai: {
         aggression: blueprint.ai.aggression,
@@ -396,6 +447,7 @@ function spawnActiveFleetEscorts(w: World): void {
         facingRad: (cls.mounts[i].facingDeg * Math.PI) / 180,
         chargeSec: 0,
         ready: false,
+        hardpointId: '',
       })),
       ai: {
         aggression: aiAggression,
@@ -1060,7 +1112,7 @@ function tickProjectiles(dtSec: number): void {
         if (dist(p, s.pos) < 12) { hit = e; break }
       }
       if (hit) {
-        const weapon = getWeapon(p.weaponId)
+        const weapon = resolveCombatWeaponDef(p.weaponId)
         const enemyName = hit.get(CombatShipState)?.nameZh ?? '敌舰'
         const r = applyDamageToEnemy(hit, weapon)
         useCombatStore.getState().flash(
@@ -1089,7 +1141,7 @@ function tickProjectiles(dtSec: number): void {
         if (dist(p, s.pos) < 12) { hit = e; break }
       }
       if (hit) {
-        const weapon = getWeapon(p.weaponId)
+        const weapon = resolveCombatWeaponDef(p.weaponId)
         const hitCs = hit.get(CombatShipState)!
         const r = applyDamageToPlayerSide(hit, weapon)
         const tgtNameZh = hitCs.isMs ? hitCs.nameZh : '旗舰'
@@ -1172,12 +1224,27 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
 
     if (cs.pilotedByPlayer) {
-      // WASD overrides AI thrust whenever any axis is held.
+      // WASD overrides AI thrust whenever any axis is held. Phase
+      // 6.2.5.C: gate on currentPropellant — a stranded MS (propellant
+      // = 0) zeros input even if WASD is held; the AI directive still
+      // applies because the MS still has thrust authority for *AI*
+      // until ejection. Per Design/sortie.md "drift, no thrust
+      // authority"; the cleanest interpretation gates the WASD path.
       const axis = store.inputAxis
       const inputLen = Math.hypot(axis.forward, axis.strafe)
-      if (inputLen > 0) {
-        const fwd = axis.forward / Math.max(1, inputLen)
-        const stf = axis.strafe / Math.max(1, inputLen)
+      let effectiveAxisLen = inputLen
+      if (cs.isMs) {
+        if (isMsStranded(PLAYER_MS_KEY)) {
+          effectiveAxisLen = 0
+        }
+        // Drain propellant + life support proportional to input. AI-
+        // piloted MS don't drain here (drain is only for the
+        // player-cockpit's MS; per the 6.2.5.C smoke and design).
+        drainPilotedMs(PLAYER_MS_KEY, effectiveAxisLen, dtSec)
+      }
+      if (effectiveAxisLen > 0) {
+        const fwd = axis.forward / Math.max(1, effectiveAxisLen)
+        const stf = axis.strafe / Math.max(1, effectiveAxisLen)
         const cosH = Math.cos(cs.heading)
         const sinH = Math.sin(cs.heading)
         // Forward unit = (cosH, sinH); starboard unit = (-sinH, cosH).
@@ -1185,6 +1252,10 @@ export function combatSystem(_world: World, dtMs: number): void {
           x: fwd * cosH + stf * -sinH,
           y: fwd * sinH + stf *  cosH,
         }
+      } else if (cs.isMs) {
+        // Stranded MS drifts — kill the AI thrust too so the unit
+        // doesn't sneak around the gate by riding its AI directive.
+        thrustWorld = { x: 0, y: 0 }
       }
       // Shift+mouse aim overrides AI aim. Without aim input the AI's
       // "face nearest hostile" directive remains in effect — the helm
@@ -1350,13 +1421,24 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
 
     const updatedWeapons = psState.weapons.map((wpn) => {
-      const def = getWeapon(wpn.weaponId)
+      const def = resolveCombatWeaponDef(wpn.weaponId)
       let charge = Math.min(def.chargeSec, wpn.chargeSec + dtSec)
       let ready = charge >= def.chargeSec
       if (ready && target && bestRange <= def.range) {
         const mountFacing = msHeading + wpn.facingRad
         const angToTarget = angleBetween(msPos, target.pos)
         if (inArc(angToTarget, mountFacing, wpn.firingArcRad)) {
+          // Phase 6.2.5.C — per-MS hardpoint ammo gate. Energy weapons
+          // (ammoCapacity = Infinity) pass through unconditionally;
+          // ballistic / missile weapons consume one round per shot and
+          // refuse to fire on empty. Held-ready (charge clamped at
+          // def.chargeSec) so the weapon resumes firing instantly on
+          // resupply rather than ramping back up.
+          const isPlayerMs = psState.isMs && wpn.hardpointId
+          if (isPlayerMs && !tryConsumeAmmo(PLAYER_MS_KEY, wpn.hardpointId)) {
+            // No ammo — hold ready (charge stays clamped) but skip fire.
+            return { ...wpn, chargeSec: charge, ready: false }
+          }
           fireWeapon('player', def, msPos, target.pos, target.ent)
           charge = 0
           ready = false
@@ -1376,6 +1458,19 @@ export function combatSystem(_world: World, dtMs: number): void {
       beamFlashes.splice(i, 1)
     }
   }
+
+  // -- 5b. Phase 6.2.5.C sortie loop: door cycles, resupply, tug ------------
+  // Door cycle ticks; on a dock-cycle completion the MS routes into the
+  // resupply queue (which restores propellant + ammo to caps over
+  // baseResupplySec / boss / crew / mods).
+  const doorCompletions: DoorCycleCompletion[] = tickDoorsFrame(dtSec)
+  for (const c of doorCompletions) {
+    if (c.previousState === 'docking' && c.finishedMsKey) {
+      routeDockedMsToResupply(c.finishedMsKey, c.shipKey, c.doorId)
+    }
+  }
+  tickResupply(dtSec)
+  tickTugs(dtSec)
 
   // -- 6. Flagship hull threshold auto-pause (narrowed set, Phase 6.0) ----
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.

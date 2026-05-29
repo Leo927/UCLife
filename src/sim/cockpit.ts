@@ -32,7 +32,11 @@ import {
 } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
 import { getMsWeapon } from '../data/ms-weapons'
-import { cockpitConfig, worldConfig } from '../config'
+import { cockpitConfig, worldConfig, sortieConfig } from '../config'
+import {
+  pickDoorForLaunch, requestLaunch, requestDock, launchPointAndVelocity,
+  findHostShipKeyForMs,
+} from './hangarDoors'
 import { useScene, migratePlayerToScene } from './scene'
 import { useClock } from './clock'
 import { emitSim } from './events'
@@ -148,21 +152,46 @@ function spawnPlayerMs(msKey?: string): Entity | null {
   if (!resolved) return null
   const { ms, msInst } = resolved
 
-  const cosH = Math.cos(fcs.heading)
-  const sinH = Math.sin(fcs.heading)
-  const off = cockpitConfig.launchOffset
-  const pos = {
-    x: fcs.pos.x + off.x * cosH - off.y * sinH,
-    y: fcs.pos.y + off.x * sinH + off.y * cosH,
+  // Phase 6.2.5.C — pick a free authored door from the hosting ship's
+  // hangarDoors[]. Spawn pos = ship.pos + door.position rotated by
+  // ship.heading. Initial velocity = (door.facing + ship.heading) × ~80
+  // (the legacy launch kick magnitude is preserved by reading the same
+  // value via Math.hypot of the old launchVelocity).
+  const hostShipKey = msInst.storedOnShipKey || 'ship'
+  const pick = pickDoorForLaunch(hostShipKey)
+  let pos: { x: number; y: number }
+  let vel: { x: number; y: number }
+  let pickedDoorId = ''
+  if (pick) {
+    const lv = cockpitConfig.launchVelocity
+    const speed = Math.hypot(lv.x, lv.y)
+    const launch = launchPointAndVelocity(pick.door, fcs.pos, fcs.heading, speed)
+    pos = launch.pos
+    vel = launch.vel
+    pickedDoorId = pick.doorId
+  } else {
+    // Defensive fallback — a ship class with no authored hangarDoors[]
+    // (lunarMilitia) still needs the cockpit kiosk to function so the
+    // legacy single-placeholder geometry stays as a fallback.
+    const cosH = Math.cos(fcs.heading)
+    const sinH = Math.sin(fcs.heading)
+    const off = cockpitConfig.launchOffset
+    pos = { x: fcs.pos.x + off.x * cosH - off.y * sinH, y: fcs.pos.y + off.x * sinH + off.y * cosH }
+    const lv = cockpitConfig.launchVelocity
+    vel = { x: lv.x * cosH - lv.y * sinH, y: lv.x * sinH + lv.y * cosH }
   }
-  const lv = cockpitConfig.launchVelocity
-  const vel = {
-    x: lv.x * cosH - lv.y * sinH,
-    y: lv.x * sinH + lv.y * cosH,
+  if (pickedDoorId) {
+    // Fire (or enqueue) the door cycle. Even if the cycle would queue,
+    // we still spawn the MS so the launch flow can proceed visually;
+    // the lock just gates the next cycle on this door.
+    requestLaunch(hostShipKey, PLAYER_MS_KEY, pickedDoorId)
   }
+  void sortieConfig
   const w = shipWorld()
 
   // Build weapons list from hardpoints + mountedWeapons (per-instance retrofit).
+  // Phase 6.2.5.C — `hardpointId` is threaded through so the per-MS ammo
+  // pool can be located by hardpoint when the weapon fires.
   const weapons = ms.hardpoints.map((hp) => {
     const weaponId = msInst.mountedWeapons[hp.id] ?? hp.defaultWeaponId
     getMsWeapon(weaponId)
@@ -173,6 +202,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       facingRad: (hp.facingDeg * Math.PI) / 180,
       chargeSec: 0,
       ready: false,
+      hardpointId: hp.id,
     }
   })
 
@@ -274,8 +304,8 @@ export function launchMs(msKey?: string): { ok: boolean; reasonZh?: string } {
 
 // Dock the active MS back into the hangar bay. Requires the MS to be
 // within `dockApproachRadiusPx` of the flagship, moving slower than
-// `dockApproachMaxRelVel` relative to it. (Hard dock authoring lands at
-// 6.2.5 — for 6.1 a single placeholder door per ship.)
+// `dockApproachMaxRelVel` relative to it. Phase 6.2.5.C routes through
+// the door state machine + resupply queue.
 export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?: string } {
   const ms = getPlayerMs()
   if (!ms) return { ok: false, reasonZh: '无在外 MS · 无法回收' }
@@ -288,16 +318,22 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
     const dx = mcs.pos.x - fcs.pos.x
     const dy = mcs.pos.y - fcs.pos.y
     const range = Math.hypot(dx, dy)
-    if (range > cockpitConfig.dockApproachRadiusPx) {
-      return { ok: false, reasonZh: `距离旗舰过远 · ${Math.round(range)} > ${cockpitConfig.dockApproachRadiusPx}` }
+    if (range > sortieConfig.dockApproachRadiusPx) {
+      return { ok: false, reasonZh: `距离旗舰过远 · ${Math.round(range)} > ${sortieConfig.dockApproachRadiusPx}` }
     }
     const relVx = mcs.vel.x - fcs.vel.x
     const relVy = mcs.vel.y - fcs.vel.y
     const relSpeed = Math.hypot(relVx, relVy)
-    if (relSpeed > cockpitConfig.dockApproachMaxRelVel) {
-      return { ok: false, reasonZh: `相对速度过快 · ${Math.round(relSpeed)} > ${cockpitConfig.dockApproachMaxRelVel}` }
+    if (relSpeed > sortieConfig.dockApproachMaxRelVel) {
+      return { ok: false, reasonZh: `相对速度过快 · ${Math.round(relSpeed)} > ${sortieConfig.dockApproachMaxRelVel}` }
     }
   }
+  // Pick a door + fire/queue the dock cycle. Even if the door is busy,
+  // we still fade the cockpit immediately — the resupply timer starts
+  // when the cycle completes, not when the player releases controls.
+  const hostShipKey = findHostShipKeyForMs(PLAYER_MS_KEY) || 'ship'
+  const pick = pickDoorForLaunch(hostShipKey)  // same picker; queue logic identical
+  if (pick) requestDock(hostShipKey, PLAYER_MS_KEY, pick.doorId)
 
   despawnPlayerMs()
   useCockpit.getState().setPiloting(null)

@@ -21,6 +21,17 @@
 //   decel         — passive deceleration when no thrust input
 //   angularAccel  — radians/sec² of steering torque
 //   maxAngVel     — radians/sec hard cap on angular velocity
+//   propellantStorage — Phase 6.2.5.C; per-sortie propellant cap. Drains
+//                   under thrust during cockpit play; hitting zero strands
+//                   the MS (drift, can still fire). Resupply at dock
+//                   restores to cap.
+//   lifeSupportMinutes — Phase 6.2.5.C; pilot life-support pool in
+//                   tactical-minutes. Long enough that no normal sortie
+//                   touches the floor — only `eject + drift` events test
+//                   it. Authored generously per Design/sortie.md.
+//   frameSlots    — Phase 6.2.5.C; integer slot budget for bolt-on frame
+//                   mods (extended tank, autoloader, …). Either a mod
+//                   fits or it doesn't — no OP/flux math.
 //   hardpoints[]  — mounting points the player can equip weapons into
 //     id            — stable key used in mountedWeapons Record
 //     type          — 'small-arms' | 'medium-beam' | 'missile-rack'
@@ -44,6 +55,16 @@
       decel: 110,
       angularAccel: 12,
       maxAngVel: 4.5,
+      // Phase 6.2.5.C — sortie resources + frame mod budget. 240 fuel /
+      // 6 propellantDrainPerThrustSec ≈ 40s sustained full thrust before
+      // drift, comfortably more than one engagement's typical thruster
+      // budget. Life-support generous (15 in-tactical minutes = ~10×
+      // a routine sortie). Three slots so the player can experiment
+      // with mod combinations without a clean GM being a pile of empty
+      // racks.
+      propellantStorage: 240,
+      lifeSupportMinutes: 15,
+      frameSlots: 3,
       hardpoints: [
         {
           id: 'hp-0',
@@ -76,6 +97,13 @@
       decel: 130,
       angularAccel: 14,
       maxAngVel: 5.0,
+      // Phase 6.2.5.C — fighter frame: smaller propellant tank (150 vs
+      // 240 on the GM, so a fighter's longer-thrust profile bites
+      // sooner), shorter life-support (cockpit assemblies bias to
+      // cheaper, less padded), tighter frame budget (2 slots).
+      propellantStorage: 150,
+      lifeSupportMinutes: 10,
+      frameSlots: 2,
       hardpoints: [
         {
           id: 'hp-0',

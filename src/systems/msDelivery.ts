@@ -77,6 +77,11 @@ function spawnDeliveredMs(msClassId: string, poiId: string): { entity: Entity; e
       pilotId: '',
       transitDestinationId: '',
       transitArrivalDay: 0,
+      // Phase 6.2.5.C — attachMsStatSheet seeds caps when these are 0.
+      currentPropellant: 0,
+      currentAmmoByWeapon: {},
+      currentLifeSupport: 0,
+      frameMods: [],
     }),
     EntityKey({ key }),
   )

@@ -1246,6 +1246,10 @@ export function grantStarterMsToFlagship(): void {
     if (ent.get(EntityKey)!.key === msConfig.starterMsEntityKey) return
   }
   const cls = getMsClass(msConfig.starterMsTemplateId)
+  // Phase 6.2.5.C — sortie resources seed via attachMsStatSheet (which
+  // reads template caps when the Ms trait's currentPropellant /
+  // currentLifeSupport are 0). We pass 0/{} here and let the helper do
+  // it so a future template-base change stays in one place.
   const msEnt = shipWorld.spawn(
     Ms({
       templateId: cls.id,
@@ -1257,6 +1261,16 @@ export function grantStarterMsToFlagship(): void {
       mountedWeapons: defaultMountedWeapons(cls),
       storedOnShipKey: 'ship',
       bayIndex: 0,
+      // 6.2.5.B fields default the same way.
+      dockedAtPoiId: '',
+      pilotId: '',
+      transitDestinationId: '',
+      transitArrivalDay: 0,
+      // 6.2.5.C fields. Zero = "attachMsStatSheet please seed me".
+      currentPropellant: 0,
+      currentAmmoByWeapon: {},
+      currentLifeSupport: 0,
+      frameMods: [],
     }),
     EntityKey({ key: msConfig.starterMsEntityKey }),
   )
@@ -1270,7 +1284,10 @@ export function grantStarterMsToFlagship(): void {
   }
   if (!partsEnt) {
     shipWorld.spawn(
-      PlayerPartsInventory({ weapons: { ...msConfig.starterParts } }),
+      PlayerPartsInventory({
+        weapons: { ...msConfig.starterParts },
+        frameMods: { ...msConfig.starterFrameModParts },
+      }),
       EntityKey({ key: partsKey }),
     )
   }

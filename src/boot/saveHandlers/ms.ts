@@ -12,7 +12,8 @@ import type { MsStatId } from '../../stats/msSchema'
 import { MS_STAT_IDS, MS_STAT_FORMULAS } from '../../stats/msSchema'
 import { attachFormulas, serializeSheet, type SerializedSheet } from '../../stats/sheet'
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
-import { attachMsStatSheet } from '../../ecs/msEffects'
+import { attachMsStatSheet, ammoCapsForMs } from '../../ecs/msEffects'
+import { getMsClass } from '../../data/ms'
 import { grantStarterMsToFlagship, refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
@@ -36,10 +37,26 @@ interface MsBlock {
   transitArrivalDay?: number
   statSheet?: SerializedSheet<MsStatId>
   effects?: Effect<MsStatId>[]
+  // Phase 6.2.5.C — per-sortie resources + frame mods. Optional so pre-
+  // 6.2.5.C saves load cleanly (resource fields default to caps on
+  // restore, frameMods to []). Note: transient combat-time state
+  // (HangarDoorStates, ResupplyState, RecoveryTugState) is intentionally
+  // NOT persisted — Design/sortie.md § Save / load makes tactical state
+  // session-bound. Only the durable Ms-side resource fields persist.
+  currentPropellant?: number
+  // currentAmmoByWeapon stores Infinity for energy weapons; JSON can't
+  // round-trip Infinity directly, so we save the sentinel string 'Inf'
+  // for those entries and convert back on restore.
+  currentAmmoByWeapon?: Record<string, number | 'Inf'>
+  currentLifeSupport?: number
+  frameMods?: string[]
 }
 
 interface PartsBlock {
   weapons: Record<string, number>
+  // Phase 6.2.5.C — frame mod parts inventory. Optional so pre-6.2.5.C
+  // saves round-trip cleanly (defaults to {} on restore).
+  frameMods?: Record<string, number>
 }
 
 interface MsRosterBlock {
@@ -55,6 +72,10 @@ function snapshotMs(): MsRosterBlock | undefined {
     const key = ent.get(EntityKey)!.key
     const ssRaw = ent.get(MsStatSheet)?.sheet
     const effects = ent.get(MsEffectsList)?.list
+    const ammoSerialized: Record<string, number | 'Inf'> = {}
+    for (const [hpId, count] of Object.entries(ms.currentAmmoByWeapon)) {
+      ammoSerialized[hpId] = Number.isFinite(count) ? count : 'Inf'
+    }
     roster.push({
       entityKey: key,
       templateId: ms.templateId,
@@ -72,13 +93,21 @@ function snapshotMs(): MsRosterBlock | undefined {
       transitArrivalDay: ms.transitArrivalDay || undefined,
       statSheet: ssRaw ? serializeSheet(ssRaw) : undefined,
       effects: effects ? [...effects] : undefined,
+      currentPropellant: ms.currentPropellant,
+      currentAmmoByWeapon: ammoSerialized,
+      currentLifeSupport: ms.currentLifeSupport,
+      frameMods: ms.frameMods.length > 0 ? [...ms.frameMods] : undefined,
     })
   }
   if (roster.length === 0) return undefined
 
   let partsBlock: PartsBlock | undefined
   for (const ent of w.query(PlayerPartsInventory)) {
-    partsBlock = { weapons: { ...ent.get(PlayerPartsInventory)!.weapons } }
+    const inv = ent.get(PlayerPartsInventory)!
+    partsBlock = {
+      weapons: { ...inv.weapons },
+      frameMods: Object.keys(inv.frameMods).length > 0 ? { ...inv.frameMods } : undefined,
+    }
     break
   }
 
@@ -110,6 +139,15 @@ function restoreMs(saved: unknown): void {
   }
 
   for (const b of block.roster) {
+    // Convert ammo 'Inf' sentinels back to Infinity. Missing / empty
+    // means pre-6.2.5.C save — initialize from template caps via
+    // attachMsStatSheet's zero-detect branch below.
+    let ammoRestored: Record<string, number> = {}
+    if (b.currentAmmoByWeapon) {
+      for (const [hpId, count] of Object.entries(b.currentAmmoByWeapon)) {
+        ammoRestored[hpId] = count === 'Inf' ? Infinity : (count as number)
+      }
+    }
     const msEnt = w.spawn(
       Ms({
         templateId: b.templateId,
@@ -125,6 +163,13 @@ function restoreMs(saved: unknown): void {
         pilotId: b.pilotId ?? '',
         transitDestinationId: b.transitDestinationId ?? '',
         transitArrivalDay: b.transitArrivalDay ?? 0,
+        // Phase 6.2.5.C — sortie resources. Zero on restore triggers the
+        // attachMsStatSheet seeding branch (template caps). A finite
+        // saved value passes through as-is.
+        currentPropellant: b.currentPropellant ?? 0,
+        currentAmmoByWeapon: ammoRestored,
+        currentLifeSupport: b.currentLifeSupport ?? 0,
+        frameMods: b.frameMods ?? [],
       }),
       EntityKey({ key: b.entityKey }),
     )
@@ -136,6 +181,20 @@ function restoreMs(saved: unknown): void {
       const sheet = attachFormulas(MS_STAT_IDS, MS_STAT_FORMULAS, b.statSheet)
       const rebuilt = rebuildSheetFromEffects(sheet, effects)
       msEnt.set(MsStatSheet, { sheet: rebuilt })
+      // Pre-6.2.5.C save: no resource fields persisted. Re-seed from
+      // the MS template's caps; for ammo, project from the current
+      // mountedWeapons map. ammoCapacity is a per-weapon template stat,
+      // not a per-MS stat, so frame mod effects don't touch ammo caps.
+      const cur = msEnt.get(Ms)!
+      if (cur.currentPropellant === 0 && cur.currentLifeSupport === 0) {
+        const cls = getMsClass(cur.templateId)
+        msEnt.set(Ms, {
+          ...cur,
+          currentPropellant: cls.propellantStorage,
+          currentLifeSupport: cls.lifeSupportMinutes,
+          currentAmmoByWeapon: ammoCapsForMs(cls, cur.mountedWeapons),
+        })
+      }
     } else {
       attachMsStatSheet(msEnt)
     }
@@ -145,13 +204,16 @@ function restoreMs(saved: unknown): void {
   const partsKey = 'player-parts-inv'
   if (block.parts) {
     w.spawn(
-      PlayerPartsInventory({ weapons: { ...block.parts.weapons } }),
+      PlayerPartsInventory({
+        weapons: { ...block.parts.weapons },
+        frameMods: { ...(block.parts.frameMods ?? {}) },
+      }),
       EntityKey({ key: partsKey }),
     )
   } else {
     // Pre-parts-inventory save — start with empty inventory.
     w.spawn(
-      PlayerPartsInventory({ weapons: {} }),
+      PlayerPartsInventory({ weapons: {}, frameMods: {} }),
       EntityKey({ key: partsKey }),
     )
   }
