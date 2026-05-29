@@ -123,5 +123,47 @@
         maintainRange: 160,
       },
     },
+    {
+      // Issue #65 — second public AE catalog entry. Civilian mobile
+      // worker: a pre-MS labor/construction frame pressed into a light
+      // escort role. Sturdier in the chassis than a fighter but barely
+      // armored, slow, and weakly armed — the cheap entry-tier hull a
+      // 0077 civilian operator can actually buy. Single small-arms
+      // hardpoint (ballistic, not beam) keeps it consistent with the
+      // utility role and reuses the existing weapon-swap verb unchanged.
+      id: 'mobileWorker',
+      nameZh: '通用机动工兵',
+      descZh: 'AE 民用机动工兵；本是矿建劳作机，临时挂上实弹枪充当护卫。装甲薄、速度慢，但便宜耐用。',
+      priceFiat: 120000,
+      supplyPerDay: 0.25,
+      supplyPerRepairDay: 0.8,
+      hullMax: 160,
+      armorMax: 20,
+      topSpeed: 120,
+      accel: 140,
+      decel: 90,
+      angularAccel: 10,
+      maxAngVel: 3.5,
+      // Civilian frame: small propellant tank, generous-enough life
+      // support (labor cockpits are pressurized for long shifts), tight
+      // 2-slot frame budget.
+      propellantStorage: 120,
+      lifeSupportMinutes: 12,
+      frameSlots: 2,
+      hardpoints: [
+        {
+          id: 'hp-0',
+          type: 'small-arms',
+          firingArcDeg: 45,
+          facingDeg: 0,
+          defaultWeaponId: 'ms-ballisticGun',
+        },
+      ],
+      ai: {
+        aggression: 0.3,
+        retreatThresholdPct: 0.4,
+        maintainRange: 200,
+      },
+    },
   ],
 }

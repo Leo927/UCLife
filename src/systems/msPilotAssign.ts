@@ -65,6 +65,47 @@ export function autoAssignPilotForMs(msKey: string): string | null {
   return pick.npcKey
 }
 
+// Manual reassign (Issue #65 — pilot roster panel). Moves a specific
+// pilot onto a specific MS, releasing both sides through
+// `clearPilotAssignment` first so the trait stays single-source-of-truth
+// (the same Ms.pilotId + EmployedAsPilot.msKey pair auto-assign writes).
+// Returns false if the MS or pilot can't be found.
+export function assignPilotToMs(npcKey: string, msKey: string): boolean {
+  if (!npcKey || !msKey) return false
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  let msEnt: Entity | null = null
+  for (const e of shipWorld.query(Ms, EntityKey)) {
+    if (e.get(EntityKey)!.key === msKey) { msEnt = e; break }
+  }
+  if (!msEnt) return false
+
+  // Release the seat the target MS currently holds (if any other pilot).
+  const ms = msEnt.get(Ms)!
+  if (ms.pilotId && ms.pilotId !== npcKey) clearPilotAssignment(msKey)
+
+  // Locate the pilot NPC across every scene (pilots can idle in any city).
+  let pilot: Entity | null = null
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const npc of w.query(Character, EmployedAsPilot, EntityKey)) {
+      if (npc.get(EntityKey)!.key === npcKey) { pilot = npc; break }
+    }
+    if (pilot) break
+  }
+  if (!pilot) return false
+
+  // Release the MS the pilot was flying (if a different one).
+  const employed = pilot.get(EmployedAsPilot)!
+  if (employed.msKey && employed.msKey !== msKey) clearPilotAssignment(employed.msKey)
+
+  // Re-read the MS (clearPilotAssignment above may have rewritten it) and
+  // stamp the new pair.
+  const msNow = msEnt.get(Ms)!
+  msEnt.set(Ms, { ...msNow, pilotId: npcKey })
+  pilot.set(EmployedAsPilot, { msKey })
+  return true
+}
+
 // Reverse: clear the assignment when a pilot is moved off an MS.
 // Reassign-from-terminal calls this before stamping the new msKey, so the
 // trait reads as consistent at every step.

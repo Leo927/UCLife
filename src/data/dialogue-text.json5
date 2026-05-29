@@ -235,6 +235,7 @@
       toastBought: '已下单：{ms} → {hangar}。{days} 个工作日后由机库主管交付。',
       slotLabel: 'MS 泊位',
       slotFull: '已满',
+      vehiclePickHeader: '可选机型',
     },
     // Phase 6.2.5.B — hire-as-pilot dialogue branch. Same gating shape
     // as talkHire (faction-rep OR opinion gate); the panel just voices a
@@ -369,6 +370,18 @@
     // captain's office "船长简报" panel. Read-mostly list of every owned
     // ship + state + captain. Mothball / scrap buttons are stubs at
     // 6.2.C2 (real verbs land at 6.2.G); a click shows a toast.
+    // Issue #65 — pilot roster notebook opened from the captain's office.
+    pilotRoster: {
+      title: '驾驶员名册',
+      openButton: '驾驶员名册',
+      empty: '尚未雇佣任何驾驶员。',
+      colPiloting: '驾驶 Lv',
+      colAssignment: '机体',
+      stateIdle: '待命',
+      stateAssigned: '已配机',
+      stateDamaged: '维修中',
+      reassignButton: '改派',
+    },
     fleetRoster: {
       title: '舰队名册',
       openButton: '舰队名册',

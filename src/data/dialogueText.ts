@@ -323,6 +323,19 @@ export interface DialogueText {
       toastBought: string
       slotLabel: string
       slotFull: string
+      vehiclePickHeader: string
+    }
+    // Issue #65 — pilot roster notebook.
+    pilotRoster: {
+      title: string
+      openButton: string
+      empty: string
+      colPiloting: string
+      colAssignment: string
+      stateIdle: string
+      stateAssigned: string
+      stateDamaged: string
+      reassignButton: string
     }
     // Phase 6.2.5.B — hire-as-pilot branch (same gating shape as talkHire).
     hireAsPilot: {
