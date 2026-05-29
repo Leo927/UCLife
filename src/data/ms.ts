@@ -22,11 +22,12 @@ export interface MsClassDef {
   // Phase 6.2.5.B — broker sticker price (¥). Read by the AE vehicle-sales
   // dialogue branch + the smoke that buys at the broker.
   priceFiat: number
-  // Phase 6.2.5.B — placeholder daily supply consumption while the MS is
-  // in any hangar. Drain integration with the existing fleet supply system
-  // is a follow-up slice; field is authored now so the drain code can land
-  // additively without re-touching the data file.
+  // Phase 6.2.5.B — daily supply consumption while the MS is in any
+  // non-mothballed hangar. Folded into the fleet-supply drain at Issue #63.
   supplyPerDay: number
+  // Issue #63 — additional daily supply consumption while this MS is
+  // in-repair (damaged hull/armor being restored at a hangar).
+  supplyPerRepairDay: number
   hullMax: number
   armorMax: number
   topSpeed: number
@@ -77,6 +78,9 @@ for (const m of parsed.ms) {
   }
   if (typeof m.supplyPerDay !== 'number' || m.supplyPerDay < 0) {
     throw new Error(`ms-classes.json5: ms "${m.id}" supplyPerDay must be >= 0`)
+  }
+  if (typeof m.supplyPerRepairDay !== 'number' || m.supplyPerRepairDay < 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" supplyPerRepairDay must be >= 0`)
   }
   if (typeof m.propellantStorage !== 'number' || m.propellantStorage <= 0) {
     throw new Error(`ms-classes.json5: ms "${m.id}" propellantStorage must be > 0`)

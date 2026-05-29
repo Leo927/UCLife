@@ -194,6 +194,8 @@ fleetSupplyPerDay =
 
 This is the number the campaign HUD reads. (`starmap.md`'s continuous fuel/supply economy section is aligned to this formula — supply storage and drain are per-ship, not rolled up onto the flagship.)
 
+> **In-repair, in code.** The MS runtime instance has no `damageState` field yet; `fleetSupplyDrainSystem` treats an MS as in-repair when it carries hull or armor damage (`hullCurrent < hullMax || armorCurrent < armorMax`), mirroring the ship-side `repairDeficit`. When an explicit MS repair lifecycle lands, swap this derivation for the `damageState === 'in-repair'` check.
+
 Supply is **stored across the fleet** in each ship's `currentSupply`, capped by the ship's class `supplyStorage`. Auto-pooled at a friendly station / when reorganizing, but during a deployment you can run out on one ship while another has slack. Same goes for fuel and cargo.
 
 ### Command points
@@ -499,7 +501,7 @@ The previous 6.2.5 fat-bullet bundled three orthogonal player-facing loops that 
 
 These were intentionally scoped *out* of 6.2.5.B's PR to keep the slice end-to-end-exercisable in one review pass. Each is small, additive, and can ship as its own PR without disturbing the 6.2.5.B surface:
 
-- **Per-MS supply drain integration.** The `supplyPerDay` field is already authored on `ms-classes.json5` and round-trips through the save handler; only the fleet-supply walk in `systems/fleetSupply.ts` needs to fold MS rows into the daily drain.
+- **Per-MS supply drain integration.** ✅ (Issue #63) `fleetSupplyDrainSystem` now folds the per-MS `supplyPerDay` term plus the `supplyPerRepairDay` term for in-repair MS into the single daily fleet-pool debit, gated so MS aboard a mothballed ship contribute nothing. Both fields are `MsStatSheet` stats (Effect-modifiable) with template fallbacks; the drain runs once per `day:rollover:settled` over all ships + MS in `playerShipInterior`.
 - **AE MS-parts broker NPC** (`ae_parts_dealer_vb`) + `aePartsSales` branch — parallel to the ship/vehicle pattern, lets the player buy MS weapons + frame parts at scale instead of relying on hand-granted starter inventory + combat loot.
 - **MS-parts combat loot.** Per-enemy-class salvage table on `space-entities.json5`; post-combat tally routes drops to `PlayerPartsInventory`.
 - **`mobileWorker` frame** — second public catalog entry (civilian MW), so the broker has a two-row catalog rather than the single `civFighter`.

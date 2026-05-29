@@ -3,11 +3,11 @@
 // one Ship (or multiple), then drives the drain + delivery ticks
 // directly and asserts the resulting state.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
 import { createWorld, type World } from 'koota'
 import {
   Building, Owner, Facility, Hangar, EntityKey,
-  Ship, ShipStatSheet, IsFlagshipMark,
+  Ship, ShipStatSheet, IsFlagshipMark, Ms, MsStatSheet,
 } from '../ecs/traits'
 import { fleetSupplyDrainSystem } from './fleetSupplyDrain'
 import {
@@ -15,7 +15,21 @@ import {
 } from './fleetSupplyDelivery'
 import { fleetConfig } from '../config'
 import { createShipSheet } from '../stats/shipSchema'
+import { createMsSheet } from '../stats/msSchema'
 import { setBase } from '../stats/sheet'
+
+// koota caps live worlds at 16 per module; release each test's world so
+// the suite doesn't exhaust the id pool as cases accumulate.
+const createdWorlds: World[] = []
+function freshWorld(): World {
+  const w = createWorld()
+  createdWorlds.push(w)
+  return w
+}
+afterEach(() => {
+  for (const w of createdWorlds) w.destroy()
+  createdWorlds.length = 0
+})
 
 // EntityKey format must match spawn.ts: `bld-<sceneId>-<typeId>-<n>`.
 // The drain system reads `dockedAtPoiId` off each ship, then walks every
@@ -82,6 +96,47 @@ function spawnShipAt(
   return ent
 }
 
+// Spawn an MS aboard a given ship (by the ship's EntityKey). `inRepair`
+// damages the hull so isMsInRepair() trips, exercising the supplyPerRepairDay
+// term. The MsStatSheet carries the supply stats the drain reads via getStat.
+function spawnMsAboard(
+  world: World,
+  key: string,
+  storedOnShipKey: string,
+  supplyPerDay: number,
+  supplyPerRepairDay: number,
+  opts: { inRepair?: boolean } = {},
+) {
+  const hullMax = 320
+  const armorMax = 80
+  const ent = world.spawn(
+    Ms({
+      templateId: 'gm_pre',
+      name: 'GM',
+      hullCurrent: opts.inRepair ? hullMax - 50 : hullMax,
+      hullMax,
+      armorCurrent: armorMax,
+      armorMax,
+      mountedWeapons: {},
+      storedOnShipKey,
+      bayIndex: 0,
+      dockedAtPoiId: '',
+      pilotId: '',
+      transitDestinationId: '',
+      transitArrivalDay: 0,
+      currentPropellant: 0,
+      currentAmmoByWeapon: {},
+      currentLifeSupport: 0,
+      frameMods: [],
+    }),
+    EntityKey({ key }),
+  )
+  let sheet = setBase(createMsSheet(), 'supplyPerDay', supplyPerDay)
+  sheet = setBase(sheet, 'supplyPerRepairDay', supplyPerRepairDay)
+  ent.add(MsStatSheet({ sheet }))
+  return ent
+}
+
 describe('fleetSupplyDrainSystem', () => {
   // Tests inject a fake "spend" so they don't depend on the global
   // FleetPool singleton (lives in playerShipInterior world). The fake
@@ -100,7 +155,7 @@ describe('fleetSupplyDrainSystem', () => {
   }
 
   it('drains the fleet pool by the docked ship supplyPerDay', () => {
-    const world = createWorld()
+    const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 'ship', 'vonBraun', 4)
 
@@ -113,7 +168,7 @@ describe('fleetSupplyDrainSystem', () => {
   })
 
   it('skips mothballed ships', () => {
-    const world = createWorld()
+    const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 'ship', 'vonBraun', 4, { mothballed: true })
 
@@ -125,7 +180,7 @@ describe('fleetSupplyDrainSystem', () => {
   })
 
   it('caps drain at zero — never negative supplyCurrent', () => {
-    const world = createWorld()
+    const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 3, 0)
     spawnShipAt(world, 'ship', 'vonBraun', 10)
 
@@ -138,7 +193,7 @@ describe('fleetSupplyDrainSystem', () => {
   })
 
   it('aggregates drain across multiple ships (fleet pool is global)', () => {
-    const world = createWorld()
+    const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 's1', 'vonBraun', 4)
     spawnShipAt(world, 's2', 'vonBraun', 6)
@@ -151,7 +206,7 @@ describe('fleetSupplyDrainSystem', () => {
   })
 
   it('drains regardless of docked POI — fleet pool is global, not per-hangar', () => {
-    const world = createWorld()
+    const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 's1', 'vonBraunDrydock', 4)  // dockedAtPoiId no longer gates drain
 
@@ -160,11 +215,86 @@ describe('fleetSupplyDrainSystem', () => {
     expect(r.totalDrainSupply).toBe(4)
     expect(sf.available).toBe(996)
   })
+
+  // Issue #63 — per-MS supply drain folded into the daily walk.
+  it('adds per-MS supplyPerDay for MS aboard a non-mothballed ship', () => {
+    const world = freshWorld()
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnShipAt(world, 'ship', 'vonBraun', 4)
+    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5)
+    spawnMsAboard(world, 'ms2', 'ship', 0.5, 1.5)
+
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    // ship 4 + 2 × MS 0.5 = 5; neither MS is in-repair so no repair term.
+    expect(r.totalDrainSupply).toBe(5)
+    expect(r.shipsDraining).toBe(1)
+    expect(r.msDraining).toBe(2)
+    expect(sf.available).toBe(995)
+  })
+
+  it('adds supplyPerRepairDay for an in-repair MS', () => {
+    const world = freshWorld()
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnShipAt(world, 'ship', 'vonBraun', 4)
+    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5, { inRepair: true })
+    spawnMsAboard(world, 'ms2', 'ship', 0.5, 1.5)
+
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    // ship 4 + ms1 (0.5 + 1.5 in-repair) + ms2 (0.5) = 6.5
+    expect(r.totalDrainSupply).toBe(6.5)
+    expect(r.msDraining).toBe(2)
+    expect(sf.available).toBe(993.5)
+  })
+
+  it('skips MS aboard a mothballed ship — both ship and MS terms drop to 0', () => {
+    const world = freshWorld()
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnShipAt(world, 'ship', 'vonBraun', 4, { mothballed: true })
+    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5, { inRepair: true })
+    spawnMsAboard(world, 'ms2', 'ship', 0.5, 1.5)
+
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    expect(r.totalDrainSupply).toBe(0)
+    expect(r.shipsDraining).toBe(0)
+    expect(r.msDraining).toBe(0)
+    expect(sf.available).toBe(1000)
+  })
+
+  it('debits the fleet pool exactly once per day — not per entity', () => {
+    const world = freshWorld()
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnShipAt(world, 'ship', 'vonBraun', 4)
+    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5, { inRepair: true })
+    spawnMsAboard(world, 'ms2', 'ship', 0.5, 1.5)
+
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    // ship 4 + ms1 (0.5 + 1.5) + ms2 (0.5) = 6.5, in a single debit.
+    expect(sf.log.length).toBe(1)
+    expect(sf.log[0]).toBe(6.5)
+    expect(r.totalDrainSupply).toBe(6.5)
+  })
+
+  it('counts MS parked at a POI hangar (no parent ship) — never mothballed', () => {
+    const world = freshWorld()
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    // No ship; MS parked at the depot (storedOnShipKey empty).
+    spawnMsAboard(world, 'ms1', '', 0.5, 1.5)
+
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    expect(r.totalDrainSupply).toBe(0.5)
+    expect(r.msDraining).toBe(1)
+    expect(sf.available).toBe(999.5)
+  })
 })
 
 describe('fleetSupplyDeliverySystem', () => {
   it('lands a 2-day supply delivery on day 2', () => {
-    const world = createWorld()
+    const world = freshWorld()
     const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     // Pre-drain so the cap headroom is real.
     hangar.set(Hangar, { ...hangar.get(Hangar)!, supplyCurrent: 500 })
@@ -184,7 +314,7 @@ describe('fleetSupplyDeliverySystem', () => {
   })
 
   it('caps delivery at supplyMax — never overflows', () => {
-    const world = createWorld()
+    const world = freshWorld()
     const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     hangar.set(Hangar, { ...hangar.get(Hangar)!, supplyCurrent: 950 })
     enqueueSupplyDelivery(hangar, 'supply', 200, 1)
@@ -194,7 +324,7 @@ describe('fleetSupplyDeliverySystem', () => {
   })
 
   it('lands fuel deliveries on the fuel reserve', () => {
-    const world = createWorld()
+    const world = freshWorld()
     const hangar = spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     hangar.set(Hangar, { ...hangar.get(Hangar)!, fuelCurrent: 100 })
     enqueueSupplyDelivery(hangar, 'fuel', 50, 1)

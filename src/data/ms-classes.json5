@@ -1,19 +1,21 @@
 // Mobile Suit class blueprints — Phase 6.2.5.A + Phase 6.2.5.B.
 //
 // Phase 6.2.5.B adds `priceFiat` (broker sticker price) and `supplyPerDay`
-// (daily supply consumption while stored at any hangar — placeholder zero
-// at this slice; the existing fleet supply drain consumes it once the
-// drain system is extended). Fighter + MW frames are the first public
-// catalog entries; a proper MS broker is faction/research-gated and lands
-// at a later slice (Design/fleet.md "AE MS broker proper").
+// (daily supply consumption while stored at any hangar). Issue #63 adds
+// `supplyPerRepairDay` and folds both into the daily fleet-supply drain.
+// Fighter + MW frames are the first public catalog entries; a proper MS
+// broker is faction/research-gated and lands at a later slice
+// (Design/fleet.md "AE MS broker proper").
 //
 // Schema:
 //   id            — stable key
 //   nameZh        — zh-CN frame name
 //   descZh        — zh-CN one-liner
 //   priceFiat     — sticker price at the AE vehicle broker (¥)
-//   supplyPerDay  — daily supply consumption while in any hangar (drain
-//                   layer wired at a follow-up slice; 0 = exempt for now)
+//   supplyPerDay  — daily fleet-supply drain while in any non-mothballed
+//                   hangar (Issue #63)
+//   supplyPerRepairDay — additional daily fleet-supply drain while this MS
+//                   is in-repair (damaged hull/armor restoring; Issue #63)
 //   hullMax       — total hull integrity (HP). 0 = ejection.
 //   armorMax      — armor before hull damage
 //   topSpeed      — tactical-arena units/sec at full thrust
@@ -47,7 +49,8 @@
       nameZh: '原型 GM',
       descZh: 'AE 早期评估机型；机库刚塞下一台。装甲薄但敏捷。',
       priceFiat: 380000,
-      supplyPerDay: 0,
+      supplyPerDay: 0.4,
+      supplyPerRepairDay: 1.5,
       hullMax: 320,
       armorMax: 80,
       topSpeed: 180,
@@ -89,7 +92,8 @@
       nameZh: '通用战斗机',
       descZh: 'AE 早期民用-军用混编战斗机。装甲单薄，但适合护航与巡逻任务。',
       priceFiat: 240000,
-      supplyPerDay: 0,
+      supplyPerDay: 0.3,
+      supplyPerRepairDay: 1,
       hullMax: 200,
       armorMax: 40,
       topSpeed: 220,

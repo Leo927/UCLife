@@ -513,9 +513,9 @@ registerDebugHandle('runFleetSupplyTick', (gameDay: number = 0) => {
     out.unitsAppliedSupply += dr.unitsAppliedSupply
     out.unitsAppliedFuel += dr.unitsAppliedFuel
   }
-  // Fleet pool drain is global — run exactly once with any scene's world.
-  const drainScene = SCENE_IDS[0]
-  const dn = fleetSupplyDrainSystem(getWorld(drainScene), shipWorld, gameDay)
+  // Fleet pool drain is global — run exactly once. Ships and MS both live
+  // in playerShipInterior (Issue #63).
+  const dn = fleetSupplyDrainSystem(shipWorld, shipWorld, gameDay)
   out.drainSupply = dn.totalDrainSupply
   out.ranDry = dn.ranDry
   return out

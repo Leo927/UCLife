@@ -20,6 +20,11 @@ const VB_HANGAR_TYPE = 'hangarSurface'
 const EXPECTED_SUPPLY_MAX = 1000
 const EXPECTED_FUEL_MAX = 400
 const FLAGSHIP_SUPPLY_PER_DAY = 4
+// Issue #63 — the bootstrap grants a starter gm_pre MS aboard the flagship
+// (supplyPerDay 0.4, full hull so no in-repair term). The daily drain now
+// folds its supplyPerDay into the fleet-pool debit alongside the ship term.
+const STARTER_MS_SUPPLY_PER_DAY = 0.4
+const EXPECTED_DAILY_DRAIN = FLAGSHIP_SUPPLY_PER_DAY + STARTER_MS_SUPPLY_PER_DAY
 const SUPPLY_ORDER_QTY = 100
 const SUPPLY_PRICE_PER_UNIT = 5
 const SUPPLY_DELIVERY_DAYS = 2
@@ -104,7 +109,9 @@ test('fleet supply: drain, dealer order, secretary bulk, save round-trip', async
     () => (window as any).__uclife__.fleetSupplyTotals(),
   )
   const drained = poolBefore.supplyCurrent - poolAfter1.supplyCurrent
-  expect(drained).toBe(FLAGSHIP_SUPPLY_PER_DAY)
+  // Float-tolerant: the MS term is fractional (0.4) so the pool subtraction
+  // can carry binary-float residue.
+  expect(drained).toBeCloseTo(EXPECTED_DAILY_DRAIN, 5)
   // Hangar warehouse stays untouched by daily upkeep.
   const hangarSnap1 = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -120,7 +127,7 @@ test('fleet supply: drain, dealer order, secretary bulk, save round-trip', async
   // bottom out.
   // Force-drain the pool: run enough ticks to exhaust it.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ticksToDry = Math.ceil(poolAfter1.supplyCurrent / FLAGSHIP_SUPPLY_PER_DAY)
+  const ticksToDry = Math.ceil(poolAfter1.supplyCurrent / EXPECTED_DAILY_DRAIN)
   for (let i = 0; i < ticksToDry; i += 1) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await sim.page.evaluate((d) => (window as any).__uclife__.runFleetSupplyTick(d), 2 + i)

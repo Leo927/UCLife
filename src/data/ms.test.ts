@@ -31,6 +31,12 @@ describe('ms class loader', () => {
     }
   })
 
+  it('every MS declares a non-negative supplyPerRepairDay (Issue #63)', () => {
+    for (const ms of MS_CLASS_LIST) {
+      expect(ms.supplyPerRepairDay).toBeGreaterThanOrEqual(0)
+    }
+  })
+
   it('ships the civFighter frame (Phase 6.2.5.B AE catalog)', () => {
     expect(isMsClassId('civFighter')).toBe(true)
     const ms = getMsClass('civFighter')
