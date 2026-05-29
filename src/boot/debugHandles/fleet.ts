@@ -556,11 +556,10 @@ registerDebugHandle('runFactionSalaryTick', (gameDay: number = 0) => {
 // Drive the supply drain daily tick directly. Smoke uses this to
 // assert mothballing skips drain and unmothballing resumes it.
 registerDebugHandle('runFleetSupplyDrainTick', (gameDay: number = 0) => {
-  return fleetSupplyDrainSystem(
-    getWorld('vonBraunCity'),
-    getWorld('playerShipInterior'),
-    gameDay,
-  )
+  // Ships and MS both live in playerShipInterior; pass it as both the ship
+  // world and the MS world (Issue #63).
+  const w = getWorld('playerShipInterior')
+  return fleetSupplyDrainSystem(w, w, gameDay)
 })
 
 // Force-occupy a destination hangar's slot of the given class so the

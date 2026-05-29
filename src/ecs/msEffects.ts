@@ -55,6 +55,10 @@ export function projectMsSheet(cls: MsClassDef): ReturnType<typeof createMsSheet
   // sortieResupplyMul base 1 = no-op; frame mods + research stack into it
   // multiplicatively (or additively via percentMult on the engine).
   sheet = setBase(sheet, 'sortieResupplyMul', 1)
+  // Issue #63 — per-MS supply drain bases. The daily fleet-supply walk
+  // reads these via getStat so frame mod / logistics Effects fold over them.
+  sheet = setBase(sheet, 'supplyPerDay', cls.supplyPerDay)
+  sheet = setBase(sheet, 'supplyPerRepairDay', cls.supplyPerRepairDay)
   return sheet
 }
 

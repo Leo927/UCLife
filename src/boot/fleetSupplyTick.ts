@@ -15,13 +15,15 @@ import { fleetSupplyDrainSystem } from '../systems/fleetSupplyDrain'
 import { fleetSupplyDeliverySystem } from '../systems/fleetSupplyDelivery'
 
 onSim('day:rollover:settled', ({ gameDay }) => {
-  // Hangars live in city / drydock scenes. Walk each one's world for
-  // deliveries + drain. Ships live in playerShipInterior — drain reads
-  // off whichever scene's hangar matches each ship's dockedAtPoiId.
-  const shipWorld = getWorld('playerShipInterior')
+  // Deliveries land per-hangar, so walk every scene's world for them.
   for (const sceneId of SCENE_IDS) {
-    const w = getWorld(sceneId)
-    fleetSupplyDeliverySystem(w, gameDay)
-    fleetSupplyDrainSystem(w, shipWorld, gameDay)
+    fleetSupplyDeliverySystem(getWorld(sceneId), gameDay)
   }
+  // Drain debits the global fleet pool exactly once per day. Ships and MS
+  // both live in playerShipInterior; pass both worlds explicitly so the
+  // system stays decoupled from getWorld(). Running it inside the per-scene
+  // loop would multi-debit the pool by the scene count.
+  const shipWorld = getWorld('playerShipInterior')
+  const msWorld = getWorld('playerShipInterior')
+  fleetSupplyDrainSystem(shipWorld, msWorld, gameDay)
 })

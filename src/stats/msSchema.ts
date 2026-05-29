@@ -26,6 +26,13 @@ export const MS_STAT_IDS = [
   // as `/ resourceBoostMul`. Base seeds to 1 at spawn so the formula is
   // a no-op without contributors.
   'sortieResupplyMul',
+  // Issue #63 — per-MS daily fleet-supply drain (`supplyPerDay`) plus the
+  // additional cost while the MS is in-repair (`supplyPerRepairDay`).
+  // Promoted to stats so frame mods / logistics research can emit Effects
+  // against them; the drain walk reads them via getStat. Bases seed from
+  // the MS class template at spawn.
+  'supplyPerDay',
+  'supplyPerRepairDay',
 ] as const
 
 export type MsStatId = typeof MS_STAT_IDS[number]
