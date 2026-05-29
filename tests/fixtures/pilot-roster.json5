@@ -1,11 +1,12 @@
 // Issue #65 fixture — pilot roster panel end-to-end.
 //
-// Player aboard VB city with:
+// Player aboard the flagship interior (so the captain's-office desk surface
+// renders and the smoke can drive the real pilot-roster button), with:
 //   - ¥1,000,000 cash (covers two pilot signing fees with head-room;
 //     MS purchases route through the debug broker handle which doesn't
 //     debit, same as the ms-roster smoke)
 //   - A lightFreighter flagship docked at vonBraun (gives the VB surface
-//     hangar a home POI to deliver MS into)
+//     hangar a home POI to deliver MS into; also the captain's-office host)
 //   - Two pilot-hireable NPCs at VB with distinct piloting skill, so the
 //     roster's best-first ordering is deterministic
 //
@@ -15,11 +16,11 @@
 {
   seed: 'pilot-roster-001',
   startDate: '2026-05-27T08:00:00Z',
-  scene: 'vonBraunCity',
+  scene: 'playerShipInterior',
 
   player: {
     money: 1000000,
-    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
     skills: { piloting: 5 },
   },
 

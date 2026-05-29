@@ -34,7 +34,6 @@ const REQUIRED_HANDLES = [
   '__uclife__.getPilotRoster',
   '__uclife__.listHangarsForMs',
   '__uclife__.getGameDay',
-  '__uclife__.openPilotRoster',
 ]
 
 const PILOT_A = 'npc-pilot-a'
@@ -159,11 +158,13 @@ test('pilot-roster: two-row catalog → buy MW → roster lists pilots → one-c
   )
   expect(hiredB, 'hire pilot B').toBe(true)
 
-  // ── Step 6: open the pilot roster, assert both pilots + states ───────
+  // ── Step 6: open the captain's office (desk interaction), then drive
+  // the real pilot-roster button inside it ────────────────────────────
   await sim.page.evaluate(() =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__uclife__.openPilotRoster(),
+    (window as any).uclifeUI.getState().setCaptainsOffice(true),
   )
+  await sim.page.click('[data-pilot-roster-open]')
   await sim.page.waitForSelector('[data-pilot-roster]')
   await sim.page.waitForSelector(`[data-pilot-row="${PILOT_A}"]`)
   await sim.page.waitForSelector(`[data-pilot-row="${PILOT_B}"]`)
