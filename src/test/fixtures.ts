@@ -8,7 +8,8 @@ import boardFromDrydockRaw from '../../tests/fixtures/board-from-drydock.json5?r
 import msStarterRaw from '../../tests/fixtures/ms-starter.json5?raw'
 import msRosterRaw from '../../tests/fixtures/ms-roster.json5?raw'
 import msSortieRaw from '../../tests/fixtures/ms-sortie.json5?raw'
-import { getWorld, setActiveSceneId, SCENE_IDS } from '../ecs/world'
+import { getWorld, SCENE_IDS } from '../ecs/world'
+import { useScene } from '../sim/scene'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { applyBackground } from '../character/backgrounds'
 import { setSkillXp, type SkillId } from '../character/skills'
@@ -432,5 +433,11 @@ export function applyFixture(name: string): void {
   applyFactions(name, fx)
   applyShips(name, fx)
   applyNpcs(name, fx)
-  if (fx.scene !== undefined) setActiveSceneId(fx.scene)
+  // Route through useScene so the zustand store stays in sync with
+  // ecs/world.ts's activeId — ScopedRoot subscribes to useScene to pick
+  // the koota world for the React tree, and smoke tests read
+  // useScene.getState().activeId. Calling setActiveSceneId() directly
+  // leaves the store at its initial value and React mounts the wrong
+  // world.
+  if (fx.scene !== undefined) useScene.getState().setActive(fx.scene)
 }

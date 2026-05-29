@@ -36,4 +36,18 @@
       dockedAt: 'vonBraun',
     },
   ],
+
+  // NPC captain authored so the recovery-tug skill gate
+  // (computers + mechanics ≥ sortieConfig.tugSkillThreshold, currently
+  // 1800) has someone to query. Spawned at VB so hireCaptainViaDebug
+  // can resolve them; the test hires them onto 'ship' before
+  // dispatchRecoveryTug.
+  npcs: [
+    {
+      id: 'capt-1',
+      name: '舰长 · 凯文',
+      at: { scene: 'vonBraunCity', x: 32, y: 18 },
+      skills: { computers: 1000, mechanics: 1000 },
+    },
+  ],
 }

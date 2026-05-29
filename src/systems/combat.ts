@@ -36,7 +36,8 @@ import {
 import { formationOffsetForSlot } from './fleetFormation'
 import { getEnemyShip } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
-import { getWeapon, type WeaponDef } from '../data/weapons'
+import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
+import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
 import { useClock } from '../sim/clock'
 import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel, grantSupplies } from '../sim/ship'
@@ -105,6 +106,49 @@ let nextBeamId = 1
 
 export function getBeamFlashes(): BeamFlash[] {
   return beamFlashes.slice()
+}
+
+// MS weapons (ms-weapons.json5) carry a narrower shape than ship
+// weapons — no projectileSpeed / fluxPerShot / shieldDamage /
+// armorDamage / tracking. The combat tick treats every entry in
+// `CombatShipState.weapons[]` as a ship WeaponDef though, so MS rows
+// would crash on `getWeapon(wpn.weaponId)`. This adapter resolves an
+// MS-side weapon into a WeaponDef-shaped record with sensible defaults
+// derived from `mountType`. Used only for the MS player-side iteration.
+function msWeaponMountTypeToDef(mt: MsWeaponClassDef['mountType']): {
+  type: WeaponDef['type']; projectileSpeed: number
+} {
+  if (mt === 'medium-beam') return { type: 'beam', projectileSpeed: 0 }
+  if (mt === 'missile-rack') return { type: 'missile', projectileSpeed: 200 }
+  return { type: 'ballistic', projectileSpeed: 400 }
+}
+
+function msWeaponAsCombatDef(weaponId: string): WeaponDef {
+  const w = getMsWeapon(weaponId)
+  const m = msWeaponMountTypeToDef(w.mountType)
+  return {
+    id: w.id,
+    nameZh: w.nameZh,
+    descZh: w.descZh,
+    type: m.type,
+    size: 'small',
+    damage: w.damage,
+    range: w.range,
+    chargeSec: w.chargeSec,
+    fluxPerShot: 0,
+    shieldDamage: w.damage,
+    armorDamage: w.damage,
+    projectileSpeed: m.projectileSpeed,
+    tracking: 1,
+    tier: w.tier === 1 || w.tier === 2 || w.tier === 3 ? w.tier : 1,
+    cost: 0,
+  }
+}
+
+function resolveCombatWeaponDef(weaponId: string): WeaponDef {
+  if (isWeaponId(weaponId)) return getWeapon(weaponId)
+  if (isMsWeaponId(weaponId)) return msWeaponAsCombatDef(weaponId)
+  return getWeapon(weaponId)
 }
 
 // per-active-scene only: combat runs exclusively in the playerShipInterior
@@ -1068,7 +1112,7 @@ function tickProjectiles(dtSec: number): void {
         if (dist(p, s.pos) < 12) { hit = e; break }
       }
       if (hit) {
-        const weapon = getWeapon(p.weaponId)
+        const weapon = resolveCombatWeaponDef(p.weaponId)
         const enemyName = hit.get(CombatShipState)?.nameZh ?? '敌舰'
         const r = applyDamageToEnemy(hit, weapon)
         useCombatStore.getState().flash(
@@ -1097,7 +1141,7 @@ function tickProjectiles(dtSec: number): void {
         if (dist(p, s.pos) < 12) { hit = e; break }
       }
       if (hit) {
-        const weapon = getWeapon(p.weaponId)
+        const weapon = resolveCombatWeaponDef(p.weaponId)
         const hitCs = hit.get(CombatShipState)!
         const r = applyDamageToPlayerSide(hit, weapon)
         const tgtNameZh = hitCs.isMs ? hitCs.nameZh : '旗舰'
@@ -1377,7 +1421,7 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
 
     const updatedWeapons = psState.weapons.map((wpn) => {
-      const def = getWeapon(wpn.weaponId)
+      const def = resolveCombatWeaponDef(wpn.weaponId)
       let charge = Math.min(def.chargeSec, wpn.chargeSec + dtSec)
       let ready = charge >= def.chargeSec
       if (ready && target && bestRange <= def.range) {

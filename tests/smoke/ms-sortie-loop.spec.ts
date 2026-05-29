@@ -44,6 +44,8 @@ const REQUIRED_HANDLES = [
   '__uclife__.cheatMoney',
   '__uclife__.cheatPiloting',
   '__uclife__.listEnemies',
+  '__uclife__.hireCaptainViaDebug',
+  '__uclife__.swapMsWeapon',
 ]
 
 const STEP_BUDGET_MIN = 60
@@ -62,6 +64,16 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
     return u.cheatMoney(80000) && u.cheatPiloting(10)
   })
   expect(setupOk, 'cheatMoney+cheatPiloting setup').toBeTruthy()
+
+  // Hire the fixture-authored captain so dispatchRecoveryTug's
+  // computers+mechanics skill gate has a crew member to query. Done
+  // before boardShip so the player entity (charged the signing fee)
+  // is still resolvable in vonBraunCity.
+  const hireRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.hireCaptainViaDebug('capt-1', 'ship'),
+  )
+  expect(hireRes?.ok, `hireCaptainViaDebug: ${JSON.stringify(hireRes)}`).toBe(true)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
@@ -99,6 +111,16 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
+
+  // Combat opens auto-paused on first contact (combatConfig.flagshipPauseHullPcts
+  // + first-contact entry). The door-cycle tick is gated by the combat
+  // tick, so leave combat paused = leave doors frozen. Unpause once so
+  // the sortie systems can advance for the rest of the scenario.
+  await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cs = (window as any).__uclife__.useCombatStore.getState()
+    if (cs.paused) cs.togglePause()
+  })
 
   // ── 2. Verify the starter MS is in the roster with caps seeded ─────────
   const beforeLaunch = await sim.page.evaluate(
@@ -213,6 +235,26 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
   ).toContain(PLAYER_MS_KEY)
 
   // ── 6. Dispatch the recovery tug ──────────────────────────────────────
+  // First let the launch-cycle door lock expire (launchDoorLockSec
+  // tactical-seconds). The tug picks a door via `pickDoorForLaunch`
+  // which prefers idle+unoccupied doors; the lightFreighter authors a
+  // single port-cradle door, so the dispatch is otherwise blocked.
+  await sim.page.evaluate(async (mins) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).__uclife_test__.step({
+      until: () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const doors = (window as any).__uclife__.getHangarDoors('ship') as Array<{
+          state: string; occupiedByMsKey: string
+        }>
+        return doors.length > 0 && doors.every(
+          (d) => d.state === 'idle' && d.occupiedByMsKey === '',
+        )
+      },
+      maxGameMinutes: mins,
+    })
+  }, STEP_BUDGET_MIN)
+
   // Dispatch against the persistent Ms entity key (`ms-player-0`). The
   // verb resolves the deployed CombatShipState row by the
   // `pilotedByPlayer && isMs` discriminator and stores both keys on
