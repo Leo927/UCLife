@@ -4,6 +4,7 @@ import { isWeaponId, getWeapon } from './weapons'
 import type { MountSize } from './weapons'
 import { isMsWeaponId } from './ms-weapons'
 import { isMsFrameModId } from './ms-frame-mods'
+import { isShipClassId } from './ship-classes'
 
 // Issue #64 — per-enemy-class MS-parts salvage drop entry.
 export type SalvageKind = 'weapon' | 'frameMod'
@@ -48,6 +49,11 @@ export interface EnemyShipBlueprint {
   }
   // Issue #64 — optional MS-parts salvage table. Absent = no parts drop.
   salvage?: SalvageEntry[]
+  // Issue #71 — recoverables. The ship-classes.json5 template id a Recover'd
+  // hull joins the fleet as (pre-authored hostile-eligible class), and the
+  // crew complement that sizes the prize-crew gate. Required on every class.
+  recoverTemplateId: string
+  crewRequired: number
 }
 
 interface EnemyShipsFile {
@@ -140,6 +146,13 @@ for (const ship of parsed.ships) {
   }
   if (ship.ai.maintainRange <= 0) {
     throw new Error(`enemyShips.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
+  }
+
+  if (!ship.recoverTemplateId || !isShipClassId(ship.recoverTemplateId)) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" recoverTemplateId must reference a ship-classes id`)
+  }
+  if (!Number.isInteger(ship.crewRequired) || ship.crewRequired <= 0) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" crewRequired must be a positive integer`)
   }
 
   if (ship.salvage !== undefined) {

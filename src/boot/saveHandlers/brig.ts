@@ -1,6 +1,9 @@
-// Phase 6.2 — flagship brig POW roster. Long-arc state (POWs ride with
-// the ship between encounters until 6.2.5+ verbs resolve them); shape is
-// trivial enough to ride as a single block.
+// Phase 6.2 / Issue #70 — flagship brig POW roster. Round-trips the
+// PrisonerRecord list (id / name / faction / capturedAt / entityKey /
+// provision). The prisoner's backing Character entity (which carries the
+// brig-condition Conditions the physiology pipeline ticks) is persisted by
+// the `npc` save handler, linked back here via PrisonerRecord.entityKey;
+// hydrate() backfills the entityKey / provision fields for legacy blobs.
 
 import { registerSaveHandler } from '../../save/registry'
 import { useBrig, type SerializedBrig } from '../../sim/brig'

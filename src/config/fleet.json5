@@ -422,4 +422,37 @@
   // north to south down the west wall.
   gatePrefixCapital: 'C',
   gatePrefixSmallCraft: 'S',
+
+  // ── Issue #71 — recoverables (post-combat hull / pod recovery) ───────
+  //
+  // After the last hostile is disabled, the recoverables dialogue lets the
+  // player Recover / Salvage / Scuttle each survivor hull and Recover /
+  // Leave each ejected pod. Recovering a hull joins it to the fleet as a
+  // salvaged in-flight instance (homeHangarId = null, halved bunkers);
+  // recovering a pod drops the occupant into the brig via the #70 module.
+  recoverables: {
+    // Supply cost (drawn from the fleet supply pool) per recovered hull,
+    // keyed by the hull's `hangarSlotClass` tier. Recovering a capital
+    // hull costs more supply (rigging a prize crew + securing the hull).
+    salvageRecoverSupplyCost: {
+      smallCraft: 4,
+      ms: 6,
+      capital: 20,
+    },
+
+    // Prize-crew gate: a recovered hull needs idle flagship crew sized to
+    // `ceil(crewRequired / prizeCrewDivisor)`. Short of that, Recover is
+    // gated with a plain reason.
+    prizeCrewDivisor: 4,
+
+    // Salvage (break-down) yields by hull tier. Credited to the player on
+    // Salvage (no crew cost). The MS-parts portion still routes via the
+    // Issue #64 per-class salvage table at combat resolution; these are
+    // the hull-tier supplies / fuel / credits yields folded in here.
+    salvageYield: {
+      smallCraft: { supplies: 6, fuel: 2, credits: 1500 },
+      ms:         { supplies: 8, fuel: 3, credits: 2500 },
+      capital:    { supplies: 30, fuel: 12, credits: 12000 },
+    },
+  },
 }

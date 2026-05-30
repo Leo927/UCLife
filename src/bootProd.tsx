@@ -49,6 +49,10 @@ import './boot/factionSalaryTick'
 // in-transit non-flagship active ships at their destination POI when
 // arrivalDay rolls over.
 import './boot/fleetTransitTick'
+// Issue #70 — in-flight brig-condition upkeep. Same event; decays
+// prisoner provisioning, onsets the brig_neglect condition through the
+// shared physiology pipeline, and resolves neglect deaths / escapes.
+import './boot/brigConditionTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

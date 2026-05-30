@@ -56,6 +56,12 @@
       salvage: [
         { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.4, qty: 1 },
       ],
+      // Issue #71 — recoverables. recoverTemplateId is the ship-classes.json5
+      // template a Recover'd hull joins the fleet as (the pre-authored
+      // hostile-eligible class). crewRequired sizes the prize-crew gate:
+      // Recover needs idle flagship crew ≥ ceil(crewRequired / prizeCrewDivisor).
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 8,
     },
 
     // Patrol-grade skirmisher — the standard pirate presence in the lunar shoal
@@ -91,6 +97,8 @@
         { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.5, qty: 1 },
         { partId: 'subThruster', kind: 'frameMod', chance: 0.3, qty: 1 },
       ],
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 8,
     },
 
     // Heavy raider — anchors the outer-belt pirate groups and the sturdier
@@ -131,6 +139,11 @@
         { partId: 'ms-ballisticGun', kind: 'weapon', chance: 1.0, qty: 1 },
         { partId: 'armorPlating', kind: 'frameMod', chance: 0.5, qty: 1 },
       ],
+      // The raider is capital-grade for recovery purposes (heavier hull,
+      // bigger prize crew); it still maps to the lunarMilitia template
+      // until a dedicated heavy hull is authored.
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 16,
     },
   ],
 }

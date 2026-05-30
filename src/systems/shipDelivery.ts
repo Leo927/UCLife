@@ -11,7 +11,7 @@
 
 import type { Entity } from 'koota'
 import {
-  Building, Hangar, Ship, EntityKey, Owner, ShipStatSheet,
+  Building, Hangar, Ship, EntityKey, Owner, ShipStatSheet, WasCaptured,
 } from '../ecs/traits'
 import type { ShipDeliveryRow } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
@@ -297,6 +297,31 @@ export function releaseShipsFromCarrier(carrierKey: string): void {
     if (s.storedAboardShipKey !== carrierKey) continue
     ent.set(Ship, { ...s, storedAboardShipKey: '' })
   }
+}
+
+// Issue #71 — on the flagship's next dock, route every captured in-flight
+// hull (WasCaptured + homeHangarId empty) to a delivery queue at the
+// docked POI, exactly like a fresh purchase. The in-flight Ship entity is
+// despawned and replaced by a delivery row (lead time 0 — it's already
+// here, just needs a slot); the player receives it via the hangar manager
+// like any bought hull. No hangar / capacity at the POI → the hull stays
+// in-flight (the broker-side "find a slot" prompt is the player's problem,
+// same as a purchase with no slot). Returns the count queued.
+export function routeCapturedHullsToDelivery(destPoiId: string, gameDay: number): number {
+  if (!destPoiId) return 0
+  const hangar = findHangarAtPoi(destPoiId)
+  if (!hangar) return 0
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  let queued = 0
+  for (const ent of [...shipWorld.query(Ship, WasCaptured)]) {
+    const s = ent.get(Ship)!
+    if (s.homeHangarId) continue   // already housed; not in the in-flight state
+    const enq = enqueueDelivery(hangar, s.templateId, gameDay, 0)
+    if (!enq) continue
+    ent.destroy()
+    queued += 1
+  }
+  return queued
 }
 
 // Buy-ship action: enqueue a delivery row on the target hangar. The

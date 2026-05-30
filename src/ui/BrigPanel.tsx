@@ -1,7 +1,8 @@
-// Phase 6.2 brig walk-up — occupant list + capacity gauge. The room
-// itself is authored in ship-classes.json5 per-class; this kiosk is the
-// verb surface the brig 'brig' interactable opens. Per-prisoner verbs
-// land at 6.2.5.
+// Phase 6.2 / Issue #70 — brig walk-up: occupant list + capacity gauge +
+// per-prisoner verb wall. The room itself is authored in
+// ship-classes.json5 per-class; this kiosk is the verb surface the 'brig'
+// interactable opens. The verb wall (PrisonerVerbRow) is shared with the
+// captain's-office comm panel so both surfaces drive ONE implementation.
 
 import { useTrait, useQueryFirst } from 'koota/react'
 import { Ship, IsFlagshipMark } from '../ecs/traits'
@@ -10,6 +11,7 @@ import { useUI } from './uiStore'
 import { useScene } from '../sim/scene'
 import { useBrig } from '../sim/brig'
 import { playUi } from '../audio/player'
+import { PrisonerVerbRow } from './PrisonerVerbs'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -55,20 +57,20 @@ export function BrigPanel() {
             <div className="status-meta">禁闭室无人。</div>
           ) : (
             prisoners.map((p) => (
-              <div key={p.id} className="combat-tally-row">
-                <span className="combat-tally-row-label">
-                  {p.nameZh}
-                  {p.titleZh ? <span className="status-meta"> · {p.titleZh}</span> : null}
-                </span>
-                <span className="combat-tally-row-value">
-                  {p.contextZh}
-                </span>
+              <div key={p.id} className="combat-tally-prisoner" data-prisoner-id={p.id}>
+                <div className="combat-tally-row">
+                  <span className="combat-tally-row-label">
+                    {p.nameZh}
+                    {p.titleZh ? <span className="status-meta"> · {p.titleZh}</span> : null}
+                  </span>
+                  <span className="combat-tally-row-value">
+                    {p.contextZh} · 给养 {Math.round(p.provision)}
+                  </span>
+                </div>
+                <PrisonerVerbRow prisoner={p} />
               </div>
             ))
           )}
-          <div className="status-meta">
-            审讯 · 索赎 · 招募 · 处决 · 移交 · 释放等指令将在 6.2.5 启用。
-          </div>
         </section>
         <section className="status-section">
           <div className="dialog-options">

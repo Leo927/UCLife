@@ -28,10 +28,22 @@
 // for a once-per-day O(M) walk, so no *_PROF gate.
 
 import type { Entity, World } from 'koota'
-import { Building, Hangar, Ms, MsStatSheet, Ship, ShipStatSheet, EntityKey } from '../ecs/traits'
+import {
+  Building, Hangar, Ms, MsStatSheet, Ship, ShipStatSheet, EntityKey, WasCaptured,
+} from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { getMsClass } from '../data/ms'
 import { spendFleetSupply } from '../ecs/fleetPool'
+
+// Issue #71 — a captured hull that has not yet reached a home hangar
+// (WasCaptured + homeHangarId empty) is in the in-flight pattern: it draws
+// from its OWN currentSupply / currentFuel (halved at capture), not from
+// the shared fleet pool. Returns true while the ship is in that state.
+function isInFlightCaptured(ship: Entity): boolean {
+  if (!ship.has(WasCaptured)) return false
+  const s = ship.get(Ship)
+  return !!s && s.homeHangarId === ''
+}
 
 export interface FleetSupplyDrainResult {
   shipsDraining: number
@@ -76,6 +88,12 @@ export function fleetSupplyDrainSystem(
     }
     const perDay = supplyPerDayOf(ship)
     if (perDay <= 0) continue
+    // Issue #71 — captured in-flight hulls draw their OWN bunkers, not the
+    // fleet pool. Debit in-place and skip the pooled request.
+    if (isInFlightCaptured(ship)) {
+      ship.set(Ship, { ...s, currentSupply: Math.max(0, s.currentSupply - perDay) })
+      continue
+    }
     result.shipsDraining += 1
     requested += perDay
   }

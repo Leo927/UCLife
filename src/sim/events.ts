@@ -79,40 +79,43 @@ export interface SimEventPayloads {
   // Phase 6.0 (left-panel loot) + Phase 6.2 (right-panel captures).
   // Fires when tactical resolves in the player's favor; the combat
   // tally panel listens.
-  'ui:open-combat-tally':      {
-    creditsDelta: number
-    creditsAfter: number
-    suppliesDelta: number
-    suppliesAfter: number
-    suppliesMax: number
-    fuelDelta: number
-    fuelAfter: number
-    fuelMax: number
-    // Phase 6.2 — named POWs captured this engagement. Empty when no
-    // named hostile died with brig capacity. Anonymous crew captures
-    // are out-of-scope at 6.2 (no recoverables dialogue yet); the
-    // captured panel hides when this is empty.
-    capturedPows: {
-      id: string
-      nameZh: string
-      titleZh?: string
-      contextZh: string
-    }[]
-    // Brig occupancy line shown beneath the captured list. Always set
-    // so the panel can render "Brig: N / M" even with zero captures
-    // (the player may have prior POWs aboard).
-    brigOccupied: number
-    brigCapacity: number
-    // Issue #64 — MS-parts salvaged from broken-down hulls this engagement.
-    // Already credited to PlayerPartsInventory; the panel just lists them.
-    // Empty when nothing dropped.
-    salvagedParts: {
-      partId: string
-      kind: 'weapon' | 'frameMod'
-      nameZh: string
-      qty: number
-    }[]
-  }
+  'ui:open-combat-tally': CombatTallyEventPayload
+  // Issue #71 — recoverables dialogue. Fires at combat resolution BEFORE
+  // the tally when there are survivor hulls / ejected pods to resolve.
+  // The panel reads the full list via the __uclife__ / recoverables
+  // surface; this event just signals "open" + a count for the smoke gate.
+  'ui:open-recoverables': { hulls: number; pods: number }
+}
+
+// Exported so systems/recoverables.ts can stash + re-emit this payload
+// without an upward import from ui/. The post-combat tally panel binding
+// (boot/uiBindings.ts) maps it onto the UI store.
+export interface CombatTallyEventPayload {
+  creditsDelta: number
+  creditsAfter: number
+  suppliesDelta: number
+  suppliesAfter: number
+  suppliesMax: number
+  fuelDelta: number
+  fuelAfter: number
+  fuelMax: number
+  // Phase 6.2 — named POWs captured this engagement.
+  capturedPows: {
+    id: string
+    nameZh: string
+    titleZh?: string
+    contextZh: string
+  }[]
+  // Brig occupancy line shown beneath the captured list.
+  brigOccupied: number
+  brigCapacity: number
+  // Issue #64 — MS-parts salvaged from broken-down hulls this engagement.
+  salvagedParts: {
+    partId: string
+    kind: 'weapon' | 'frameMod'
+    nameZh: string
+    qty: number
+  }[]
 }
 
 export type SimEventName = keyof SimEventPayloads

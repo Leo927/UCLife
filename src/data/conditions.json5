@@ -824,5 +824,65 @@
         },
       ],
     },
+
+    // Issue #70 — brig neglect. Onset by the brig-condition tick on a
+    // prisoner whose food / water / medical access has fallen below the
+    // configured floor. Spawned only by the brig system (no standard
+    // onset path), it climbs straight to a fatal peak with no peak
+    // reduction (peakSeverityFloor = peakSeverity) and requires clinic-
+    // tier care that a neglected brig cannot provide — so it stalls at
+    // 100 and the shared physiology death gate flags the prisoner dead.
+    // Reuses the same lifecycle + death machinery as every other
+    // condition; the brig system adds no second decay engine.
+    {
+      id: 'brig_neglect',
+      displayName: '羁押衰竭',
+      family: 'acute',
+      bodyPartScope: 'systemic',
+      recoveryMode: 'treatment',
+      onsetPaths: [],
+
+      incubationDays: [0, 0],
+      riseDays: [2, 2],
+      peakSeverity: [100, 100],
+      peakDays: [1, 1],
+      peakSeverityFloor: 100,
+      baseRecoveryRate: 20,
+
+      requiredTreatmentTier: 2,
+
+      scarThreshold: 999,
+      scarConditionId: null,
+      scarTalentPenalty: null,
+
+      symptomBlurbs: {
+        mild:     '囚犯日渐虚弱。',
+        moderate: '囚犯严重脱水、营养不良。',
+        severe:   '囚犯已濒临死亡。',
+      },
+
+      eventLogTemplates: {
+        onset:         '禁闭室里的囚犯开始衰竭。',
+        diagnosis:     null,
+        recoveryClean: '囚犯的状况稳定了下来。',
+        recoveryScar:  null,
+        complication:  null,
+        stalled:       null,
+      },
+
+      glyphRef: 'illness_respiratory',
+
+      effects: [
+        {
+          severityRange: [1, 100],
+          nameZh:    '羁押衰竭',
+          flavorZh:  '囚犯日渐虚弱。',
+          glyphRef:  'illness_respiratory',
+          modifiers: [
+            { statId: 'endurance', type: 'cap', value: 30 },
+          ],
+        },
+      ],
+    },
   ],
 }
