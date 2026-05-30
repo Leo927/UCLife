@@ -103,6 +103,15 @@ export interface SimEventPayloads {
     // (the player may have prior POWs aboard).
     brigOccupied: number
     brigCapacity: number
+    // Issue #64 — MS-parts salvaged from broken-down hulls this engagement.
+    // Already credited to PlayerPartsInventory; the panel just lists them.
+    // Empty when nothing dropped.
+    salvagedParts: {
+      partId: string
+      kind: 'weapon' | 'frameMod'
+      nameZh: string
+      qty: number
+    }[]
   }
 }
 

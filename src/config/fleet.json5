@@ -186,6 +186,41 @@
   // the light-hull catalog by default.
   vehicleDeliveryDays: 2,
 
+  // ── Issue #64 — AE MS-parts broker ──────────────────────────────────
+  //
+  // The parts dealer sells MS weapons + frame mods as crates: unlike the
+  // ship / vehicle brokers there is no delivery queue or hangar slot — a
+  // purchase credits PlayerPartsInventory immediately and debits Money.
+  //
+  // Desk tile inside the Von Braun airport lobby (rect 108,10..138,60),
+  // a few tiles east of the vehicle-sales desk so the three AE reps share
+  // the lobby without colliding. The rep's special-NPC tileX/tileY MUST
+  // equal these so the spawn loop's Workstation.occupant ↔ Job.workstation
+  // seat-linkage succeeds.
+  partsSalesDeskTileVB: { x: 132, y: 27 },
+
+  // Maps each parts-dealer workstation specId to the weapon + frame-mod
+  // ids it sells. Public 0077 catalog = fighter/MW-era (tier-1) parts
+  // only; proper AE MS parts stay faction/research-gated for a later
+  // phase. Adding a dealer = one new spec + one row here.
+  partsSalesCatalog: {
+    ae_parts_dealer_vb: {
+      weapons: ['ms-beamRifle', 'ms-ballisticGun', 'ms-missileRack'],
+      frameMods: ['extPropellantTank', 'autoloader', 'lifeSupportPod', 'armorPlating', 'subThruster'],
+    },
+  },
+
+  // Price derivation for catalog parts (kept here so no price literal
+  // lives in TS). Weapon unit price = base + perDamage × weapon.damage;
+  // frame-mod unit price = base + perSlot × mod.slotCount. Linear so a
+  // hotter weapon / bulkier mod costs more without a bespoke per-id table.
+  partsPricing: {
+    weaponBasePrice: 3000,
+    weaponPricePerDamage: 500,
+    frameModBasePrice: 4000,
+    frameModPricePerSlot: 8000,
+  },
+
   // Hire-as-captain / hire-as-crew economics. Each hire deducts a
   // one-shot signing fee on accept; ongoing daily pay is settled by
   // the unified factionSalarySystem on day:rollover:settled (see

@@ -18,6 +18,7 @@ import { useUI } from '../../ui/uiStore'
 import { enqueueMsDelivery, receiveMsDelivery, msDeliverySystem } from '../../systems/msDelivery'
 import { enqueueMsTransfer, msTransitSystem } from '../../systems/msTransfer'
 import { autoAssignPilotForMs, assignPilotToMs } from '../../systems/msPilotAssign'
+import { buyPart } from '../../systems/partsSales'
 import { refreshAllDepotMsLayouts } from '../../ecs/spawn'
 import { fleetConfig } from '../../config'
 import { useClock, gameDayNumber } from '../../sim/clock'
@@ -117,6 +118,25 @@ registerDebugHandle('getMsWeaponCounts', (): Record<string, number> => {
   }
   return {}
 })
+
+// Issue #64 — frame-mod stockpile snapshot (sibling of getMsWeaponCounts);
+// the parts-acquisition smoke asserts frame-mod buys + salvage drops here.
+registerDebugHandle('getMsFrameModCounts', (): Record<string, number> => {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(PlayerPartsInventory)) {
+    return { ...ent.get(PlayerPartsInventory)!.frameMods }
+  }
+  return {}
+})
+
+// Issue #64 — drive the AE parts-broker purchase (debit Money + credit
+// PlayerPartsInventory) without DOM hunting. Mirrors the aePartsSales
+// branch's buy click. Defaults the dealer to the VB parts broker.
+registerDebugHandle('buyPartCheat', (
+  kind: 'weapon' | 'frameMod',
+  partId: string,
+  specId: string = 'ae_parts_dealer_vb',
+) => buyPart(specId, kind, partId))
 
 registerDebugHandle('getMs', (msKey: string): MsSnapshot | null => {
   const w = getWorld(SHIP_SCENE_ID)

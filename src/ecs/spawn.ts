@@ -687,6 +687,16 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
       Workstation({ specId: 'ae_vehicle_sales_vb', occupant: null, managerStation: null }),
       EntityKey({ key: 'ws-ae_vehicle_sales_vb' }),
     )
+
+    // Issue #64 — AE MS-parts broker desk. Same scenery-workstation shape;
+    // the seated NPC's talk-verb drives the aePartsSales branch. Tile from
+    // fleet.json5; the rep's special-NPC entry mirrors it.
+    const partsDeskTile = fleetConfig.partsSalesDeskTileVB
+    world.spawn(
+      Position({ x: TILE * partsDeskTile.x, y: TILE * partsDeskTile.y }),
+      Workstation({ specId: 'ae_parts_dealer_vb', occupant: null, managerStation: null }),
+      EntityKey({ key: 'ws-ae_parts_dealer_vb' }),
+    )
   }
 }
 

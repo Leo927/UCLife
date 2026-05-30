@@ -65,6 +65,10 @@ export function PixiCanvas(props: Props): JSX.Element {
         resolution: window.devicePixelRatio || 1,
       })
       if (cancelled) {
+        // Halt the auto-render ticker before destroy so no queued frame
+        // renders the half-torn-down Application (renderer goes null →
+        // `_resolution` read on the next auto-render tick).
+        a.stop()
         a.destroy(true, { children: true, texture: true })
         return
       }
@@ -90,6 +94,11 @@ export function PixiCanvas(props: Props): JSX.Element {
       cancelled = true
       const a = appRef.current
       if (a) {
+        // Stop the auto-render ticker first: a scene swap / page teardown
+        // can leave one render frame queued, which would fire after destroy
+        // nulls the renderer and throw `Cannot read properties of null
+        // (reading '_resolution')`. Halting the loop closes that window.
+        a.stop()
         a.destroy({ removeView: true }, { children: true, texture: true })
         appRef.current = null
       }

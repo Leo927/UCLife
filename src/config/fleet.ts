@@ -41,6 +41,17 @@ export interface FleetConfig {
   vehicleSalesDeskTileVB: { x: number; y: number }
   vehicleSalesRepCatalog: Record<string, { msClassIds: string[] }>
   vehicleDeliveryDays: number
+  // Issue #64 — AE MS-parts broker. Desk tile + per-dealer catalog of
+  // weapon / frame-mod ids + linear price-derivation constants. Parts buy
+  // immediately into PlayerPartsInventory (no delivery queue / hangar slot).
+  partsSalesDeskTileVB: { x: number; y: number }
+  partsSalesCatalog: Record<string, { weapons: string[]; frameMods: string[] }>
+  partsPricing: {
+    weaponBasePrice: number
+    weaponPricePerDamage: number
+    frameModBasePrice: number
+    frameModPricePerSlot: number
+  }
   // Phase 6.2.D — hire economics + captain Effect + auto-man limit.
   hireCaptainSigningFee: number
   hireCrewSigningFee: number

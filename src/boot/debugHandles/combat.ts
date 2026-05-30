@@ -9,7 +9,8 @@ import {
   Position, CombatShipState, EnemyAI, EntityKey,
 } from '../../ecs/traits'
 import {
-  useCombatStore, startCombat, combatSystem, endCombat, type CombatOutcome,
+  useCombatStore, startCombat, combatSystem, endCombat,
+  breakDownEnemiesForVictory, type CombatOutcome,
 } from '../../systems/combat'
 import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
@@ -67,6 +68,16 @@ registerDebugHandle('tickCombatSystem', (dtMs: number) => {
 // tactical loop frame-by-frame.
 registerDebugHandle('endCombatCheat', (outcome: CombatOutcome) => {
   endCombat(outcome)
+  return true
+})
+
+// Issue #64 — break down every hostile through the canonical
+// onEnemyDestroyed → destroy → endCombat('victory') path, so the
+// salvage roll + tally routing fire deterministically without driving
+// weapon-charge timing. Distinct from fastWinCombat (which only zeroes
+// hull and leaves the kill to the tactical loop's auto-fire).
+registerDebugHandle('breakDownEnemiesCheat', () => {
+  breakDownEnemiesForVictory()
   return true
 })
 

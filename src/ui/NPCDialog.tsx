@@ -89,6 +89,9 @@ export function NPCDialog() {
     // shape as the ship-sales role flag — the vehicleSalesRepCatalog
     // names which spec sells which MS frame.
     isAEVehicleSalesOnDuty: specId in fleetConfig.vehicleSalesRepCatalog && onShift,
+    // Issue #64 — AE MS-parts broker. Same catalog-membership shape; the
+    // partsSalesCatalog names which weapon + frame-mod ids the rep sells.
+    isAEPartsDealerOnDuty: specId in fleetConfig.partsSalesCatalog && onShift,
     // A recruiting manager is any NPC whose workstation is referenced as
     // managerStation by ≥1 worker station.
     isRecruitingManagerOnDuty: !!ws && onShift && allStations.some(

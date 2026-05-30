@@ -234,6 +234,25 @@
       workstation: 'ae_vehicle_sales_vb',
     },
 
+    // === Issue #64 — AE Von Braun spaceport MS-parts broker ===
+    // Sits at the parts-sales desk a few tiles east of the vehicle-sales
+    // rep in the VB airport lobby. Talk-verb surfaces the aePartsSales
+    // branch — weapons + frame mods buy immediately into the player's
+    // parts stockpile. Tile coords mirror fleet.json5 partsSalesDeskTileVB
+    // so the spawn loop's Workstation.occupant ↔ Job.workstation seat-link
+    // succeeds.
+    {
+      name: '诺亚·韦伯',
+      color: '#16a34a',
+      title: 'AE 部件经销代表',
+      tileX: 132, tileY: 27,
+      fatigue: 12,
+      money: 6000,
+      skills: { mechanics: 2000, computers: 1400 },
+      factionRole: { faction: 'anaheim', role: 'staff' },
+      workstation: 'ae_parts_dealer_vb',
+    },
+
     // === Phase 6.2.A.2 expansion — Von Braun drydock supply depot dealer ===
     // Sits at the supplyDepot building's open-floor supervisor desk on the
     // drydock concourse. Reuses specId 'ae_supply_dealer': koota gives each

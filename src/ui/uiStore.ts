@@ -15,6 +15,13 @@ export interface CombatTallyCapturedRow {
   titleZh?: string
   contextZh: string
 }
+// Issue #64 — one salvaged MS-part row in the post-combat tally.
+export interface CombatTallySalvageRow {
+  partId: string
+  kind: 'weapon' | 'frameMod'
+  nameZh: string
+  qty: number
+}
 export interface CombatTallyPayload {
   creditsDelta: number
   creditsAfter: number
@@ -27,6 +34,7 @@ export interface CombatTallyPayload {
   capturedPows: CombatTallyCapturedRow[]
   brigOccupied: number
   brigCapacity: number
+  salvagedParts: CombatTallySalvageRow[]
 }
 
 interface UIState {
