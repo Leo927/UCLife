@@ -562,6 +562,13 @@ function insertTempNode(c: Cluster, cellIdx: number, blocked: Uint8Array, _isSta
   // wired. teardownTempNodes skips it (temp=false).
   let n = c.nodes.get(cellIdx)
   if (n) return n
+  // Reuse a temp node already inserted at this cell this query (start/dest and
+  // a portal endpoint can land on the same cell). Without this, a second
+  // insert would create a duplicate node and any edge wired onto it (e.g. a
+  // portal edge) would be invisible to abstract A* starting from the first.
+  for (const tn of c.tempNodes) {
+    if (tn.cellIdx === cellIdx) return tn
+  }
   n = {
     cluster: c, cellIdx, edges: [],
     temp: true, gScore: 0, came: null, closed: false, inOpen: false, gen: -1,
