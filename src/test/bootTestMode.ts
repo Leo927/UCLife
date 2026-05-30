@@ -42,6 +42,7 @@ import '../boot/msDeliveryTick'
 import '../boot/msTransitTick'
 import '../boot/factionSalaryTick'
 import '../boot/fleetTransitTick'
+import '../boot/commandPointsTick'
 import '../render/portrait/__debug__/findClerk'
 import '../render/portrait/__debug__/portraitFixtures'
 

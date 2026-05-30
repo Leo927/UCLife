@@ -49,6 +49,8 @@ import './boot/factionSalaryTick'
 // in-transit non-flagship active ships at their destination POI when
 // arrivalDay rolls over.
 import './boot/fleetTransitTick'
+// Issue #69 — per-day Command-Point partial refill on day rollover.
+import './boot/commandPointsTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'
