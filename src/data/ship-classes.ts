@@ -98,6 +98,10 @@ export interface ShipClassDef {
   // template omits it (the validator below accepts undefined to keep
   // legacy authoring loadable; new templates author explicitly).
   supplyPerDay?: number
+  // Issue #69 — Deployment Points cost. Seeded onto ShipStatSheet at spawn
+  // so the war-room DP commit reads it via getStat. Optional — hulls that
+  // haven't authored it yet yield a 0 dpCost (treated as free to field).
+  dpCost?: number
   crewMax: number
   // Brig POW slots authored per-class. 0 for civilian-spec hulls per
   // Design/fleet.md; lightFreighter ships a small 2-cell brig so the
@@ -206,6 +210,9 @@ for (const ship of parsed.ships) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" supplyPerDay must be a non-negative number`)
   }
   if (ship.crewMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crewMax must be > 0`)
+  if (ship.dpCost !== undefined && (typeof ship.dpCost !== 'number' || ship.dpCost < 0)) {
+    throw new Error(`ship-classes.json5: ship "${ship.id}" dpCost must be a non-negative number`)
+  }
   if (ship.priceFiat < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" priceFiat must be >= 0`)
   if (typeof ship.brigCapacity !== 'number' || ship.brigCapacity < 0 || !Number.isInteger(ship.brigCapacity)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" brigCapacity must be a non-negative integer`)

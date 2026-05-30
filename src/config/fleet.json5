@@ -292,14 +292,53 @@
   // Aggression doctrine — three-position slider on every active ship.
   // Authored as a list so smoke + UI iterate the same source. The
   // default applied at spawn is the first entry's id ('steady'), with
-  // the other two flanking it on the UI. Real combat-AI reads land at
-  // 6.2.E2 + 6.2.7 (DP / CP layer); 6.2.E1 ships only the data channel.
+  // the other two flanking it on the UI. Issue #69 makes the slider
+  // fully active in tactical AI:
+  //   aiAggression       — weapon-charge multiplier (close-in pressure).
+  //   maintainRangeMul   — multiplier on the ship class's `maintainRange`
+  //                        standoff distance. `cautious` holds at a wider
+  //                        range (1.4×) and so disengages early; `aggressive`
+  //                        closes to a tighter range (0.6×) and presses;
+  //                        `steady` keeps the authored class range (1.0×).
+  //   retreatThresholdMul — multiplier on the class retreatThresholdPct so
+  //                        `cautious` flees sooner and `aggressive` later.
   aggressionLevels: [
-    { id: 'cautious',  labelZh: '谨慎', aiAggression: 0.3 },
-    { id: 'steady',    labelZh: '稳健', aiAggression: 0.5 },
-    { id: 'aggressive', labelZh: '激进', aiAggression: 0.8 },
+    { id: 'cautious',  labelZh: '谨慎', aiAggression: 0.3, maintainRangeMul: 1.4, retreatThresholdMul: 1.6 },
+    { id: 'steady',    labelZh: '稳健', aiAggression: 0.5, maintainRangeMul: 1.0, retreatThresholdMul: 1.0 },
+    { id: 'aggressive', labelZh: '激进', aiAggression: 0.8, maintainRangeMul: 0.6, retreatThresholdMul: 0.5 },
   ],
   aggressionDefault: 'steady',
+
+  // ── Issue #69 — Command Points (in-engagement comm bandwidth) ─────────
+  commandPoints: {
+    base: 4,
+    playerCommandSkill: 'piloting',
+    shipCommandDivisor: 25,
+    playerTacticsSkill: 'piloting',
+    tacticsDivisor: 30,
+    commOfficerSkill: 'engineering',
+    commOfficerDivisor: 30,
+    maxPoolCap: 24,
+    regenPerSec: 0.15,
+    dailyRefillFraction: 0.5,
+    orderCosts: {
+      rally: 1,
+      focusFire: 1,
+      retreat: 2,
+      formationChange: 1,
+      msLaunchAuth: 2,
+    },
+  },
+
+  // ── Issue #69 — Deployment Points (pre-engagement budget) ─────────────
+  deploymentPoints: {
+    base: 6,
+    playerCommandSkill: 'piloting',
+    shipCommandPerDp: 20,
+    commOfficerSkill: 'engineering',
+    commOfficerPerDp: 25,
+    maxCapCap: 40,
+  },
 
   // ── Phase 6.2.E2 — auto-launch + cross-POI transit + formation flying ──
   //

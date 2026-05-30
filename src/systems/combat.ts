@@ -47,7 +47,7 @@ import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
-import { combatConfig, cockpitConfig, fleetConfig } from '../config'
+import { combatConfig, cockpitConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
 } from '../sim/cockpit'
@@ -60,6 +60,10 @@ import { tickTugs } from '../sim/recoveryTug'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
 import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
+import {
+  initCommandPoolForEngagement, clearDeploymentCommit, regenCommandPoints,
+  doctrineForAggression,
+} from './fleetCommandPoints'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -412,8 +416,14 @@ function spawnActiveFleetEscorts(w: World): void {
     const pos = offset
       ? { x: PLAYER_SPAWN.x + offset.dx, y: PLAYER_SPAWN.y + offset.dy }
       : { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y }
-    const aggLvl = fleetConfig.aggressionLevels.find((a) => a.id === s.aggression)
-    const aiAggression = aggLvl?.aiAggression ?? cls.ai.aggression
+    // Issue #69 — the war-room aggression slider reads fully through here:
+    // doctrine sets both weapon-charge pressure (aiAggression) and the
+    // standoff range (maintainRange × maintainRangeMul). cautious holds at a
+    // wider range / disengages early; aggressive closes and presses.
+    const doctrine = doctrineForAggression(s.aggression)
+    const aiAggression = doctrine.aiAggression
+    const maintainRange = cls.ai.maintainRange * doctrine.maintainRangeMul
+    const retreatThreshold = cls.ai.retreatThresholdPct * doctrine.retreatThresholdMul
     // Attach CombatShipState to the existing Ship entity (matches the
     // flagship pattern) so the long-arc fleet entity stays alive at
     // endCombat — we then just remove the trait, not destroy the entity.
@@ -452,8 +462,8 @@ function spawnActiveFleetEscorts(w: World): void {
       })),
       ai: {
         aggression: aiAggression,
-        retreatThreshold: cls.ai.retreatThresholdPct,
-        maintainRange: cls.ai.maintainRange,
+        retreatThreshold,
+        maintainRange,
       },
     }))
   }
@@ -527,11 +537,17 @@ export function startCombat(
       angularAccel: cls.angularAccel,
       maxAngVel: cls.maxAngVel,
       weapons: [],
-      ai: {
-        aggression: cls.ai.aggression,
-        retreatThreshold: cls.ai.retreatThresholdPct,
-        maintainRange: cls.ai.maintainRange,
-      },
+      // Issue #69 — the flagship's own aggression slider sets its standing
+      // doctrine (the AI directive that drives the helm when the player
+      // isn't holding WASD). Same doctrine mapping the escorts use.
+      ai: (() => {
+        const d = doctrineForAggression(s.aggression)
+        return {
+          aggression: d.aiAggression,
+          retreatThreshold: cls.ai.retreatThresholdPct * d.retreatThresholdMul,
+          maintainRange: cls.ai.maintainRange * d.maintainRangeMul,
+        }
+      })(),
     }))
   }
 
@@ -563,6 +579,11 @@ export function startCombat(
   // tally only lists POWs taken this fight (not cumulative across a
   // multi-engagement session).
   clearBrigPendingTally()
+  // Issue #69 — seed the Command-Point pool full for this engagement and
+  // surface the starting bandwidth in the log. The pre-engagement DP commit
+  // set carries into this fight (the war room set it before launch); the
+  // pool is in-engagement bandwidth, fresh each fight.
+  initCommandPoolForEngagement()
   const leadName = getEnemyShip(leadShipId).nameZh
   const fleetNote = fleet.length > 1 ? ` · 队伍 ${fleet.length} 艘` : ''
   logEvent(`战斗开始 · 对手: ${leadName}${fleetNote}`)
@@ -785,6 +806,11 @@ export function endCombat(outcome: CombatOutcome): void {
   }
   projectiles.length = 0
   beamFlashes.length = 0
+
+  // Issue #69 — clear the per-engagement DP commit so a stale set doesn't
+  // carry into the next fight. CP pool state is re-seeded at the next
+  // startCombat; leave it as-is here (the war room may read post-fight CP).
+  clearDeploymentCommit()
 
   // Reset player weapon charge so a follow-up encounter starts cold.
   for (const e of w.query(WeaponMount)) {
@@ -1550,6 +1576,11 @@ export function combatSystem(_world: World, dtMs: number): void {
       beamFlashes.splice(i, 1)
     }
   }
+
+  // -- 5c. Issue #69 — Command-Point regen ---------------------------------
+  // O(1) pool increment (no per-unit work); a `CP regen` info log fires on
+  // each whole-point gain. Profile behind CPDP_PROF=1.
+  regenCommandPoints(dtSec)
 
   // -- 5b. Phase 6.2.5.C sortie loop: door cycles, resupply, tug ------------
   // Door cycle ticks; on a dock-cycle completion the MS routes into the
