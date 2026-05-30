@@ -139,7 +139,11 @@ export function capturePrisoner(spec: {
   contextZh: string
   factionId: string
 }): boolean {
-  const entityKey = spawnPrisonerEntity(spec)
+  // Spawn only if the backing entity doesn't already exist, so a refused
+  // add (duplicate id) never destroys a prior prisoner's live entity.
+  const entityKey = `pow-${spec.id}`
+  const preExisting = findPrisonerEntity(entityKey) !== undefined
+  spawnPrisonerEntity(spec)
   const ok = useBrig.getState().add({
     id: spec.id,
     nameZh: spec.nameZh,
@@ -150,8 +154,9 @@ export function capturePrisoner(spec: {
     entityKey,
     provision: prisonersConfig.provisionStart,
   })
-  // Brig refused (full / duplicate) — drop the orphaned entity.
-  if (!ok) destroyPrisonerEntity(entityKey)
+  // Brig refused (full / duplicate). Drop the entity only if WE just
+  // spawned it — never an entity that pre-dated this call.
+  if (!ok && !preExisting) destroyPrisonerEntity(entityKey)
   return ok
 }
 
@@ -325,8 +330,10 @@ export function brigConditionTick(dayNumber: number): void {
       }
     }
 
-    // 3. Over-capacity escape risk (less-secure quarters).
-    if (idx >= cap && rng.next() < cfg.escapeAttemptChancePerDay) {
+    // 3. Over-capacity escape risk (less-secure quarters). Only when a
+    // real brig exists (cap > 0) — a cap of 0 means the flagship hasn't
+    // bootstrapped yet, not that every prisoner is in open quarters.
+    if (cap > 0 && idx >= cap && rng.next() < cfg.escapeAttemptChancePerDay) {
       useBrig.getState().removeById(p.id)
       destroyPrisonerEntity(p.entityKey)
       emitSim('log', { textZh: `${p.nameZh}从临时关押处逃脱。`, atMs: simNow() })

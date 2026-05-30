@@ -221,7 +221,9 @@ export function recoverHull(hullId: string): RecoverHullResult {
   const captain = prizeCrew[0] ?? ''
 
   const shipWorld = getWorld(SHIP_SCENE_ID)
-  const key = `ship-captured-${hull.shipClassId}-${hullCounter}-${podCounter}`
+  // Key off the hull's unique accumulator id so two recovered hulls of the
+  // same class in one engagement don't collide on EntityKey.
+  const key = `ship-captured-${hull.id}`
   const ent = shipWorld.spawn(
     Ship({
       templateId: cls.id,
