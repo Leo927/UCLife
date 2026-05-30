@@ -157,6 +157,12 @@ test('ms-parts: buy at dealer, salvage from combat, install on MS', async ({ sim
     })
   }, STEP_BUDGET_MIN)
 
+  // Issue #71 — the recoverables dialogue fires before the tally now.
+  // Resolve it with defaults so the tally (with the salvaged-parts rows)
+  // emits. The MS-parts salvage is already credited at endCombat,
+  // independent of the tally being shown.
+  await sim.page.evaluate(() => (window as any).__uclife__.finishRecoverables())
+
   // ── 4. Tally lists the salvaged part + inventory reflects the drop ─────
   const tally = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

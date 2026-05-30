@@ -8,7 +8,7 @@ import { getWorld, SCENE_IDS } from '../../ecs/world'
 import type { Entity } from 'koota'
 import {
   Position, CombatShipState, EnemyAI, EntityKey, IsPlayer, IsInActiveFleet,
-  Ship, WasCaptured,
+  Ship, WasCaptured, IsFlagshipMark,
 } from '../../ecs/traits'
 import {
   useCombatStore, startCombat, combatSystem, endCombat,
@@ -204,6 +204,16 @@ registerDebugHandle('leavePod', (id: string) => leavePod(id))
 registerDebugHandle('finishRecoverables', () => { finishRecoverables(); return true })
 // Dock the flagship at a POI (drives the captured-hull → delivery routing).
 registerDebugHandle('flagshipDockCheat', (poiId: string) => onFlagshipDock(poiId))
+// Seed the flagship's crew pool to a known count so the prize-crew gate
+// (idle flagship crew ≥ ceil(crewRequired / divisor)) is deterministic.
+registerDebugHandle('setFlagshipCrewCount', (n: number) => {
+  const fs = getWorld('playerShipInterior').queryFirst(Ship, IsFlagshipMark)
+  if (!fs) return false
+  const s = fs.get(Ship)!
+  const crewIds = Array.from({ length: Math.max(0, n) }, (_, i) => `prize-crew-${i}`)
+  fs.set(Ship, { ...s, crewIds })
+  return true
+})
 // Inspect captured ships in playerShipInterior — the in-flight state the
 // recoverables smoke asserts (WasCaptured / homeHangarId / half bunkers).
 registerDebugHandle('capturedShips', () => {
