@@ -49,8 +49,9 @@ import './boot/factionSalaryTick'
 // in-transit non-flagship active ships at their destination POI when
 // arrivalDay rolls over.
 import './boot/fleetTransitTick'
-// Refill a fraction of the CP pool on each daily rollover so a long campaign
-// leg slowly tops the bandwidth back up between engagements.
+// Issue #69 — per-day Command-Point partial refill on day rollover: refill a
+// fraction of the CP pool on each daily rollover so a long campaign leg slowly
+// tops the bandwidth back up between engagements.
 import './boot/commandPointsTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.

@@ -51,6 +51,10 @@
       priceFiat: 380000,
       supplyPerDay: 0.4,
       supplyPerRepairDay: 1.5,
+      // Issue #69 — tactical deployment-points cost. A single MS is cheap
+      // to field relative to a hull; a DP-capped engagement fields a
+      // mix of ships + MS.
+      dpCost: 1,
       hullMax: 320,
       armorMax: 80,
       topSpeed: 180,
@@ -94,6 +98,8 @@
       priceFiat: 240000,
       supplyPerDay: 0.3,
       supplyPerRepairDay: 1,
+      // Issue #69 — tactical deployment-points cost.
+      dpCost: 1,
       hullMax: 200,
       armorMax: 40,
       topSpeed: 220,
@@ -137,6 +143,8 @@
       priceFiat: 120000,
       supplyPerDay: 0.25,
       supplyPerRepairDay: 0.8,
+      // Issue #69 — tactical deployment-points cost.
+      dpCost: 1,
       hullMax: 160,
       armorMax: 20,
       topSpeed: 120,

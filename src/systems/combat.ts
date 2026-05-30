@@ -62,7 +62,7 @@ import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
 import {
   initCommandPoolForEngagement, clearDeploymentCommit, regenCommandPoints,
-  doctrineForAggression,
+  doctrineForAggression, commandPoolDescribe, useCpDp,
 } from './fleetCommandPoints'
 
 function logEvent(textZh: string): void {
@@ -404,6 +404,14 @@ function spawnEnemyShip(
 //     branch added in this slice — see below.)
 //   - position at flagship's PLAYER_SPAWN + formation slot offset.
 function spawnActiveFleetEscorts(w: World): void {
+  // Issue #69 — DP commit gate. When the player has explicitly committed a
+  // subset via the war-room DP-commit surface, only those ships deploy (the
+  // rest of the active fleet holds station). When the commit set is empty
+  // (the common path — no explicit commit before this fight), fall back to
+  // deploying the whole active fleet so the prior auto-launch behavior is
+  // preserved.
+  const committed = useCpDp.getState().committedShipKeys
+  const gateByCommit = committed.length > 0
   for (const e of w.query(Ship, IsInActiveFleet, EntityKey)) {
     if (e.has(IsFlagshipMark)) continue
     if (e.has(CombatShipState)) continue
@@ -411,6 +419,7 @@ function spawnActiveFleetEscorts(w: World): void {
     // Skip ships currently in cross-POI transit — they're not at the
     // engagement site.
     if (s.transitDestinationId) continue
+    if (gateByCommit && !committed.includes(e.get(EntityKey)!.key)) continue
     const cls = getShipClass(s.templateId)
     const offset = formationOffsetForSlot(s.formationSlot)
     const pos = offset
@@ -584,6 +593,8 @@ export function startCombat(
   // set carries into this fight (the war room set it before launch); the
   // pool is in-engagement bandwidth, fresh each fight.
   initCommandPoolForEngagement()
+  const cp = commandPoolDescribe()
+  pushCombatLog(`指挥点就绪 · ${cp.current}/${cp.max}`, 'info')
   const leadName = getEnemyShip(leadShipId).nameZh
   const fleetNote = fleet.length > 1 ? ` · 队伍 ${fleet.length} 艘` : ''
   logEvent(`战斗开始 · 对手: ${leadName}${fleetNote}`)
@@ -806,7 +817,6 @@ export function endCombat(outcome: CombatOutcome): void {
   }
   projectiles.length = 0
   beamFlashes.length = 0
-
   // Issue #69 — clear the per-engagement DP commit so a stale set doesn't
   // carry into the next fight. CP pool state is re-seeded at the next
   // startCombat; leave it as-is here (the war room may read post-fight CP).

@@ -98,9 +98,11 @@ export interface ShipClassDef {
   // template omits it (the validator below accepts undefined to keep
   // legacy authoring loadable; new templates author explicitly).
   supplyPerDay?: number
-  // Issue #69 — Deployment Points cost. Seeded onto ShipStatSheet at spawn
-  // so the war-room DP commit reads it via getStat. Optional — hulls that
-  // haven't authored it yet yield a 0 dpCost (treated as free to field).
+  // Issue #69 — tactical deployment-points cost. The DP cap gates how much
+  // of the active fleet the player can commit to one engagement. Seeded onto
+  // ShipStatSheet at spawn so the war-room DP commit reads it via getStat.
+  // Optional so legacy authoring stays loadable (folds to 0 → free to field);
+  // new templates author explicitly.
   dpCost?: number
   crewMax: number
   // Brig POW slots authored per-class. 0 for civilian-spec hulls per
@@ -209,10 +211,10 @@ for (const ship of parsed.ships) {
   if (ship.supplyPerDay !== undefined && (typeof ship.supplyPerDay !== 'number' || ship.supplyPerDay < 0)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" supplyPerDay must be a non-negative number`)
   }
-  if (ship.crewMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crewMax must be > 0`)
   if (ship.dpCost !== undefined && (typeof ship.dpCost !== 'number' || ship.dpCost < 0)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" dpCost must be a non-negative number`)
   }
+  if (ship.crewMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crewMax must be > 0`)
   if (ship.priceFiat < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" priceFiat must be >= 0`)
   if (typeof ship.brigCapacity !== 'number' || ship.brigCapacity < 0 || !Number.isInteger(ship.brigCapacity)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" brigCapacity must be a non-negative integer`)

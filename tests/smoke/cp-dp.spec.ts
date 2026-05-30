@@ -197,7 +197,10 @@ test('CP/DP wired into tactical + doctrine sliders active', async ({ sim }) => {
   expect(escA, 'escort-a should have deployed (DP commit cleared post-flee)').toBeTruthy()
   expect(escB, 'escort-b should have deployed (DP commit cleared post-flee)').toBeTruthy()
 
-  // Doctrine reads through to the resolved standoff distance.
+  // Doctrine reads through to the resolved standoff distance. Verify the
+  // exact multiplier was applied per escort — isolating doctrine from the
+  // hull-class base range. Bases: lunarMilitia.maintainRange=220,
+  // pegasusClass.maintainRange=320; muls: aggressive=0.6, cautious=1.4.
   const doctrineAgg = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.doctrineForAggression('aggressive'),
@@ -215,7 +218,9 @@ test('CP/DP wired into tactical + doctrine sliders active', async ({ sim }) => {
     'aggressive escort presses harder (higher weapon-charge multiplier)',
   ).toBe(true)
 
-  // Flip-check: re-set escort-a to cautious and re-enter.
+  // Flip-check: re-set escort-a to cautious and re-enter; its standoff must
+  // widen (doctrine is a live read, not a spawn-time constant). Proves the
+  // slider is the variable, holding the hull class fixed.
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.endCombatCheat('flee'),
