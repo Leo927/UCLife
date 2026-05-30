@@ -4,19 +4,21 @@
 // (y*COLS+x) stays constant.
 
 import type { Entity, World } from 'koota'
-import { Wall, Door, Bed, PendingEviction } from '../ecs/traits'
+import { Wall, Door, Bed, PendingEviction, IsPlayer, type Waypoint } from '../ecs/traits'
 import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
 import { maxSceneTilesX, maxSceneTilesY } from '../data/scenes'
 import { getActiveSceneId, type SceneId } from '../ecs/world'
 import { isAffiliated } from './factionAccess'
-import { hpaFind, markHpaDirty } from './hpa'
+import { hpaFind, markHpaDirty, consumePortalDestCells } from './hpa'
+import { markTransitNavDirty } from './transitNav'
 
 const TILE = worldConfig.tilePx
 const SUB = 2 // 2 sub-cells per tile = 16px cells
 const COLS = maxSceneTilesX * SUB
 const ROWS = maxSceneTilesY * SUB
 const CELL = TILE / SUB
+const SNAP_MAX_RING = worldConfig.transitNav.snapMaxRing
 
 export const PF_COLS = COLS
 export const PF_ROWS = ROWS
@@ -51,13 +53,15 @@ function getSceneCache(id: SceneId): SceneCache {
 let blocked: Uint8Array | null = null
 let _blockedScratch: Uint8Array | null = null
 
-// Also flags HPA dirty since its cluster graph reads the same wall layer.
+// Also flags HPA + transit-nav dirty since both read the same wall layer /
+// kiosk placements, which churn on every procgen pass and scene rebuild.
 export function markPathfindingDirty(sceneId?: SceneId) {
   const id = sceneId ?? getActiveSceneId()
   const sc = getSceneCache(id)
   sc.wallsDirty = true
   sc.componentsDirty = true
   markHpaDirty(id)
+  markTransitNavDirty(id)
 }
 
 function blockRect(g: Uint8Array, x: number, y: number, w: number, h: number) {
@@ -177,6 +181,24 @@ function isBlocked(x: number, y: number): boolean {
   return blocked![y * COLS + x] === 1
 }
 
+// Nearest walkable cell to (cx, cy) on the given grid via expanding-ring
+// search, or null within SNAP_MAX_RING. transitNav uses it to snap a kiosk
+// that sits on a wall cell to the stand-tile an NPC walks to.
+export function nearestFreeCellIdx(grid: Uint8Array, cx: number, cy: number): number | null {
+  for (let r = 1; r <= SNAP_MAX_RING; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue
+        const nx = cx + dx, ny = cy + dy
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue
+        const idx = ny * COLS + nx
+        if (grid[idx] === 0) return idx
+      }
+    }
+  }
+  return null
+}
+
 // HPA wants the wall-only layer (no per-requester door overlay).
 export function getWallGrid(world: World): Uint8Array {
   const sc = getSceneCache(getActiveSceneId())
@@ -196,7 +218,7 @@ function snapToFree(px: number, py: number): { x: number; y: number } {
   const cx = Math.max(0, Math.min(COLS - 1, Math.floor(px / CELL)))
   const cy = Math.max(0, Math.min(ROWS - 1, Math.floor(py / CELL)))
   if (!isBlocked(cx, cy)) return { x: cx, y: cy }
-  for (let r = 1; r <= 6; r++) {
+  for (let r = 1; r <= SNAP_MAX_RING; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue
@@ -374,37 +396,74 @@ function smooth(path: { x: number; y: number }[]): { x: number; y: number }[] {
 }
 
 // Returns pixel-space waypoints excluding the start. Pass `requester=null`
-// for raw geometric pathing in tests (skips locked-door checks).
+// for raw geometric pathing in tests (skips locked-door checks). NPC
+// requesters (anything that isn't the player) may route through NPC-only
+// transit portals; the player never does, so click-to-move can't bypass the
+// fare gate.
 export function findPath(
   world: World,
   requester: Entity | null,
   from: { x: number; y: number },
   to: { x: number; y: number },
-): { x: number; y: number }[] {
+): Waypoint[] {
   setBlockedFor(world, requester)
+  const allowTransit = requester !== null && !requester.has(IsPlayer)
   if (los(from.x, from.y, to.x, to.y)) return [{ x: to.x, y: to.y }]
   const s = snapToFree(from.x, from.y)
   const t = snapToFree(to.x, to.y)
-  const idxPath = hpaFind(world, s.y * COLS + s.x, t.y * COLS + t.x)
+  const idxPath = hpaFind(world, s.y * COLS + s.x, t.y * COLS + t.x, allowTransit)
   if (!idxPath || idxPath.length === 0) return []
-  const grid: { x: number; y: number }[] = new Array(idxPath.length)
-  for (let i = 0; i < idxPath.length; i++) {
-    grid[i] = cellCenter(idxPath[i] % COLS, Math.floor(idxPath[i] / COLS))
+
+  // Split the cell path at transit-portal hops. Each hop's destination cell
+  // (recorded by hpaFind) starts a new run; the run's first waypoint carries
+  // portal:true so movement teleports onto it instead of walking the straight
+  // line between the two kiosks. Smoothing runs per-segment so it never
+  // dissolves a portal jump into a wall-crossing straight line.
+  const portalDest = allowTransit ? consumePortalDestCells() : null
+  const out: Waypoint[] = []
+  let runStart = 0
+  const flushRun = (endExclusive: number, portalAtStart: boolean): void => {
+    const grid: { x: number; y: number }[] = []
+    for (let i = runStart; i < endExclusive; i++) {
+      grid.push(cellCenter(idxPath[i] % COLS, Math.floor(idxPath[i] / COLS)))
+    }
+    const smoothed = smooth(grid)
+    for (let i = 0; i < smoothed.length; i++) {
+      out.push(i === 0 && portalAtStart ? { ...smoothed[i], portal: true } : smoothed[i])
+    }
   }
-  const smoothed = smooth(grid)
+  let prevRunHadPortal = false
+  for (let i = 1; i < idxPath.length; i++) {
+    if (portalDest && portalDest.has(idxPath[i]) && !areAdjacent(idxPath[i - 1], idxPath[i])) {
+      flushRun(i, prevRunHadPortal)
+      runStart = i
+      prevRunHadPortal = true
+    }
+  }
+  flushRun(idxPath.length, prevRunHadPortal)
+
   const tCellX = Math.floor(to.x / CELL)
   const tCellY = Math.floor(to.y / CELL)
   // Snap the last waypoint to the actual target pixel only when the path
   // actually reached the target cell. hpaFind can return a partial path
   // (e.g. when a locked door blocks the only route) — in that case the
   // last cell is the cluster-boundary stop point, not the target, and
-  // snapping it to `to` would draw a straight line through the wall.
+  // snapping it to `to` would draw a straight line through the wall. Never
+  // overwrite a portal-flagged final waypoint (its position is the kiosk).
   const lastIdx = idxPath[idxPath.length - 1]
   const lastCellX = lastIdx % COLS
   const lastCellY = Math.floor(lastIdx / COLS)
-  if (lastCellX === tCellX && lastCellY === tCellY && !isBlocked(tCellX, tCellY)) {
-    smoothed[smoothed.length - 1] = { x: to.x, y: to.y }
+  const lastOut = out[out.length - 1]
+  if (lastOut && !lastOut.portal
+      && lastCellX === tCellX && lastCellY === tCellY && !isBlocked(tCellX, tCellY)) {
+    out[out.length - 1] = { x: to.x, y: to.y }
   }
   // Drop first cell (≈ current position).
-  return smoothed.slice(1)
+  return out.slice(1)
+}
+
+function areAdjacent(aIdx: number, bIdx: number): boolean {
+  const ax = aIdx % COLS, ay = (aIdx / COLS) | 0
+  const bx = bIdx % COLS, by = (bIdx / COLS) | 0
+  return Math.abs(ax - bx) <= 1 && Math.abs(ay - by) <= 1
 }

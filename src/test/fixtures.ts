@@ -10,6 +10,7 @@ import msRosterRaw from '../../tests/fixtures/ms-roster.json5?raw'
 import msSortieRaw from '../../tests/fixtures/ms-sortie.json5?raw'
 import pilotRosterRaw from '../../tests/fixtures/pilot-roster.json5?raw'
 import msPartsRaw from '../../tests/fixtures/ms-parts.json5?raw'
+import npcTransitRaw from '../../tests/fixtures/npc-transit.json5?raw'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
@@ -99,6 +100,7 @@ const FIXTURES: Record<string, string> = {
   'ms-sortie': msSortieRaw,
   'pilot-roster': pilotRosterRaw,
   'ms-parts': msPartsRaw,
+  'npc-transit': npcTransitRaw,
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {

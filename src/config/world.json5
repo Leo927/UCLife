@@ -70,6 +70,28 @@
     colorCss: '#ffaa00',
   },
 
+  // NPC-only transit navigation (Design/phasing.md § NPC transit navigation).
+  // Transit-terminal pairs and orbital-lift kiosk pairs become low-cost
+  // navigation edges over the HPA* abstract graph — but only for NPC
+  // pathfinds. The player never auto-routes through one (the fare gate would
+  // be bypassed); they ride transit via the fare-gated kiosk interaction.
+  transitNav: {
+    // Edge weight in HPA octile-cost units (10 = one ortho cell step). Kept
+    // low so an NPC prefers transit for long hauls and *requires* it to reach
+    // a disconnected walkable region (the orbital drydock). One ortho step's
+    // worth of cost makes the portal cheaper than any multi-cluster walk.
+    edgeCostUnits: 10,
+    // How close (pixels) an NPC must be to the boarding kiosk before the
+    // diegetic traverse fires (walk to kiosk A → hop → continue from B).
+    boardDistPx: 20,
+    // Expanding-ring radius (in half-tile cells) the kiosk-cell snapper
+    // searches when a kiosk sits on a wall cell, to find the walkable
+    // stand-tile an NPC routes to. Matches the foot-pathfinder's endpoint
+    // snap radius so a portal endpoint is always reachable if any free cell
+    // is within reach.
+    snapMaxRing: 6,
+  },
+
   // Active-zone optimization. NPCs whose Position lies within the player's
   // active half-extents are "Active": rendered, BT at full cadence, vitals
   // at full per-tick rate. Outside, they're "Inactive": no graphics, BT at

@@ -29,8 +29,9 @@ import { maxSceneTilesX, maxSceneTilesY } from '../data/scenes'
 import { getActiveSceneId, type SceneId } from '../ecs/world'
 import {
   getWallGrid, getDoorBlockedGrid,
-  aStarOnIdx, getComponentOf,
+  aStarOnIdx, getComponentOf, nearestFreeCellIdx,
 } from './pathfinding'
+import { getTransitPortals, TRANSIT_EDGE_COST, type TransitPortal } from './transitNav'
 
 // pathfinding.ts imports this module too — TDZ blows up on const re-imports
 // during the cycle, so we only import its functions (declaration-hoisted).
@@ -71,6 +72,10 @@ interface AbstractEdge {
   path: number[] | null
   isInter: boolean
   temp: boolean
+  // PORTAL: an NPC-only transit edge (transit terminal / orbital lift). The
+  // refined path emits a [from, to] cell jump that movement teleports across
+  // rather than walking. Excluded from the player's pathfind entirely.
+  isPortal?: boolean
 }
 
 interface AbstractNode {
@@ -343,9 +348,23 @@ function pathCost(path: number[]): number {
 // module scope is safe.
 let queryGen = 0
 
+// Cells that are the destination of a transit-portal hop in the path most
+// recently returned by hpaFind. Cleared at the start of every hpaFind call;
+// findPath reads it immediately after to flag the matching waypoint as a
+// teleport. Safe at module scope — one findPath runs at a time (synchronous
+// from a system tick).
+const _portalDestCells = new Set<number>()
+
+export function consumePortalDestCells(): ReadonlySet<number> {
+  return _portalDestCells
+}
+
 // pathfinding.ts findPath calls setBlockedFor first so the door overlay is
-// current for `requester`.
-export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | null {
+// current for `requester`. `allowTransit` is set only for NPC pathfinds — the
+// player never auto-routes through a transit portal (the fare gate would be
+// bypassed; the player rides transit via the fare-gated kiosk interaction).
+export function hpaFind(world: World, sIdx: number, tIdx: number, allowTransit = false): number[] | null {
+  _portalDestCells.clear()
   if (sIdx === tIdx) return [sIdx]
   const blocked = getDoorBlockedGrid()
   // Door overlay may block endpoints already snapped against the wall grid.
@@ -354,11 +373,24 @@ export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | nu
   const PROF = hpaStats.enabled
   if (PROF) hpaStats.queries++
 
+  // Transit portals are inserted only for NPC pathfinds. When they exist the
+  // wall-component fast-fail can no longer prove unreachability (a portal may
+  // bridge two components — that's the whole point for the disconnected
+  // drydock), so it is relaxed to a same-component check below.
+  const portals = allowTransit ? getTransitPortals(world) : []
+
   // Wall-component fast-fail: door overlays only add blocks, so different
-  // component ids ⇒ no path for any requester.
+  // component ids ⇒ no path for any requester. With portals present, two
+  // different components can still be bridged, so skip the cross-component
+  // bailout and let abstract A* try the portal route (it fails gracefully if
+  // no portal connects them).
   const cs = getComponentOf(world, sIdx)
   const ct = getComponentOf(world, tIdx)
-  if (cs === 0 || ct === 0 || cs !== ct) {
+  if (cs === 0 || ct === 0) {
+    if (PROF) hpaStats.componentFastFail++
+    return null
+  }
+  if (cs !== ct && portals.length === 0) {
     if (PROF) hpaStats.componentFastFail++
     return null
   }
@@ -391,11 +423,23 @@ export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | nu
     tNode = insertTempNode(tCluster, tIdx, blocked, false)
   }
 
+  // Wire transit portals into the abstract graph (NPC pathfinds only). Each
+  // endpoint is inserted as a temp node connected to its cluster's entrances
+  // (same machinery as s/t), then the two endpoints are joined by a low-cost
+  // bidirectional portal edge. teardownTempNodes on the affected clusters
+  // (collected here) removes them after the query.
+  const portalState = portals.length > 0
+    ? insertPortalNodes(portals, world, h, blocked, sCluster, tCluster)
+    : null
+
   try {
     // Fresh temp with zero edges = endpoint isolated in its cluster under
     // the door overlay. (Reused entrance nodes always have ≥1 edge from
-    // pairEntrance, so .temp distinguishes the fresh case cleanly.)
-    if ((sNode.temp && sNode.edges.length === 0) || (tNode.temp && tNode.edges.length === 0)) {
+    // pairEntrance, so .temp distinguishes the fresh case cleanly.) Skip this
+    // bailout when portals are present — the start may reach the world only
+    // through a portal, so zero *walking* edges isn't isolation.
+    if (portals.length === 0
+        && ((sNode.temp && sNode.edges.length === 0) || (tNode.temp && tNode.edges.length === 0))) {
       if (PROF) hpaStats.componentFastFail++
       return null
     }
@@ -440,7 +484,77 @@ export function hpaFind(world: World, sIdx: number, tIdx: number): number[] | nu
   } finally {
     teardownTempNodes(sCluster)
     if (tCluster !== sCluster) teardownTempNodes(tCluster)
+    if (portalState) {
+      for (const c of portalState.clusters) {
+        if (c !== sCluster && c !== tCluster) teardownTempNodes(c)
+      }
+      // Portal edges attached to *permanent* entrance nodes (when a kiosk
+      // cell coincides with a cluster entrance) aren't owned by any temp
+      // node, so teardownTempNodes leaves them. Splice them out explicitly.
+      for (const { node, edge } of portalState.edges) {
+        const i = node.edges.indexOf(edge)
+        if (i >= 0) node.edges.splice(i, 1)
+      }
+    }
   }
+}
+
+interface PortalInsertState {
+  clusters: Set<Cluster>
+  // Portal edges that must be spliced out in teardown — only those attached
+  // to a permanent (non-temp) node; temp-node edges are cleaned by
+  // teardownTempNodes.
+  edges: { node: AbstractNode; edge: AbstractEdge }[]
+}
+
+// Snap a kiosk pixel position to the half-tile stand-cell an NPC routes to.
+// The kiosk often sits against an interior wall, so its own cell can be
+// blocked; nearestFreeCellIdx walks outward on the wall-only grid. Returns
+// null if no walkable cell is within the snap radius.
+function kioskCellIdx(world: World, px: number, py: number): number | null {
+  const cx = Math.max(0, Math.min(COLS - 1, Math.floor(px / CELL_PX)))
+  const cy = Math.max(0, Math.min(ROWS - 1, Math.floor(py / CELL_PX)))
+  const wall = getWallGrid(world)
+  const idx = cy * COLS + cx
+  if (wall[idx] === 0) return idx
+  return nearestFreeCellIdx(wall, cx, cy)
+}
+
+// Insert each portal endpoint as a temp node wired to its cluster's entrances
+// (reusing insertTempNode), then join the two endpoints with a bidirectional
+// portal edge. Returns the clusters that received a fresh temp node (for
+// teardown) plus any portal edges pinned to permanent entrance nodes.
+function insertPortalNodes(
+  portals: readonly TransitPortal[],
+  world: World,
+  h: SceneHpa,
+  blocked: Uint8Array,
+  sCluster: Cluster,
+  tCluster: Cluster,
+): PortalInsertState {
+  const clusters = new Set<Cluster>()
+  const edges: { node: AbstractNode; edge: AbstractEdge }[] = []
+  const collect = (c: Cluster): void => {
+    if (c !== sCluster && c !== tCluster) clusters.add(c)
+  }
+  for (const portal of portals) {
+    const aIdx = kioskCellIdx(world, portal.ax, portal.ay)
+    const bIdx = kioskCellIdx(world, portal.bx, portal.by)
+    if (aIdx === null || bIdx === null) continue
+    const ca = h.clusters[clusterIdOfCell(aIdx)]
+    const cb = h.clusters[clusterIdOfCell(bIdx)]
+    const na = insertTempNode(ca, aIdx, blocked, false)
+    const nb = insertTempNode(cb, bIdx, blocked, false)
+    const fwd: AbstractEdge = { from: na, to: nb, weight: TRANSIT_EDGE_COST, path: [aIdx, bIdx], isInter: false, temp: true, isPortal: true }
+    const back: AbstractEdge = { from: nb, to: na, weight: TRANSIT_EDGE_COST, path: [bIdx, aIdx], isInter: false, temp: true, isPortal: true }
+    na.edges.push(fwd)
+    nb.edges.push(back)
+    if (!na.temp) edges.push({ node: na, edge: fwd })
+    if (!nb.temp) edges.push({ node: nb, edge: back })
+    collect(ca)
+    collect(cb)
+  }
+  return { clusters, edges }
 }
 
 function insertTempNode(c: Cluster, cellIdx: number, blocked: Uint8Array, _isStart: boolean): AbstractNode {
@@ -618,7 +732,13 @@ function refineAbstractPath(dest: AbstractNode, blocked: Uint8Array): number[] {
   for (let i = 0; i < edgeSeq.length; i++) {
     const e = edgeSeq[i]
     let segment: number[] | null
-    if (e.isInter) {
+    if (e.isPortal) {
+      // NPC-only transit hop: the edge is the [from, to] kiosk jump. Record
+      // the destination cell so findPath can flag the waypoint for movement
+      // to teleport across rather than walk the straight line through walls.
+      segment = e.path
+      _portalDestCells.add(e.to.cellIdx)
+    } else if (e.isInter) {
       segment = [e.from.cellIdx, e.to.cellIdx]
     } else if (e.temp) {
       // Temp INTRA already built against door-aware grid.

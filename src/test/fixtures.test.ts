@@ -52,6 +52,17 @@ describe('applyFixture', () => {
     expect(player!.get(Money)!.amount).toBe(200000)
   })
 
+  it('loads npc-transit: player + commuter NPC both land in vonBraunCity', () => {
+    applyFixture('npc-transit')
+    const w = getWorld('vonBraunCity')
+    expect(w.queryFirst(IsPlayer)).not.toBeNull()
+    let commuterFound = false
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === 'commuter') commuterFound = true
+    }
+    expect(commuterFound).toBe(true)
+  })
+
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
     applyFixture('vonBraunDrydock-station')
     const player = getWorld('vonBraunDrydock').queryFirst(IsPlayer)
