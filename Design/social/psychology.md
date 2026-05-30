@@ -1,78 +1,65 @@
-# Character psychology — temperament & cause-sympathies
+# Character psychology — temperament & causes
 
-*What differentiates one NPC from another beneath the relationship layer. The mechanics that read this — opinion shifts, propagation, the lazy reveal — live in [relationships.md](relationships.md).*
+NPCs were undifferentiated, so the relationship machinery in [relationships.md](relationships.md) had nothing to bite on. Psychology gives every character two **independent** axes. Keeping them separate is the whole point: a self-interested Zeon sympathizer and a selfless one are both real and interesting, and collapsing them into one list throws that away.
 
-Psychology is **two orthogonal axes**, deliberately not one list. Collapsing them throws away the most interesting characters — a selfish Zeon sympathizer and a selfless one are both real and read very differently.
-
-| Axis | Question | Word |
+| Axis | Question | Kind |
 |---|---|---|
 | **Temperament** | *How* does this character decide and react? | personality |
-| **Sympathies toward causes** | *What* does this character want for the world? | ideology |
+| **Sympathies toward causes** | *What* do they want for the world? | ideology |
 
 ## Temperament
 
-A character's disposition: self-interested, loyal, idealistic, pragmatic, proud, timid, and so on (Crusader Kings "traits"). Temperament does not pick a side; it scales *how hard* a character reacts to anything and *how* they carry themselves.
+A small set of personality leanings — e.g. self-interested, loyal, idealistic, pragmatic, proud, timid. (Catalog TBD; keep it **small** — these are CK "traits," not a stat tree.)
 
-- **Always revealed, through dialogue tone.** Temperament colours every line the NPC speaks — it is the cheapest, richest reveal in the game, so it is never gated. A proud character and a timid one deliver the same grievance differently.
-- **Scales reactions.** Temperament is the multiplier on opinion shifts: a zealous character swings hard on a stance they care about; a phlegmatic one barely moves.
+- **Representation.** `Effect`s on the character `StatSheet` (single-channel rule — no second engine). Source-namespaced (`temperament:proud`).
+- **Function.** Temperament scales *how* a character reacts. A proud character takes a slight harder; a pragmatic one forgives a profitable betrayal. It weights the magnitude of opinion deltas and the threshold of drive responses ([../npc-ai.md](../npc-ai.md)).
+- **Reveal.** Always-on, through dialogue *tone*. Every line a character speaks is phrased by temperament — free, no gate. The player infers "she's prickly" without ever seeing a tag.
 
-## Sympathies toward causes
+## Causes
 
-A **cause** is a named ideological position in the UC world:
+Named ideological positions in the UC setting. Each character carries a **sympathy weight per cause, `-1..+1`** (most people are lukewarm on most causes):
 
-- **Zeonism / colonial autonomy** — the spacenoid independence movement
-- **Federation order** — Earth-led central authority
-- **AE corporate pragmatism** — profit and neutrality above allegiance
-- **Pacifism** — opposition to militarization at all
+- Zeonism / colonial autonomy
+- Federation order
+- AE corporate pragmatism (neutral profit)
+- Pacifism
+- (extensible; authored)
 
-Each character holds a weighted **sympathy** toward each cause, `-1..+1` (strongly opposed → strongly for; most people sit near zero on most causes). Sympathies are stored as `Effect`s on the character's `StatSheet` ([../characters/effects.md](../characters/effects.md)) — the single-channel stat engine, reused; there is no second psychology store.
+- **Shared vocabulary.** Cause tags are the *same* tags used by news entries ([newsfeed.md](newsfeed.md)) and faction alignment. One Zeon-autonomy headline makes a proud Zeonist exult and a Federation loyalist bristle — for free, off content that already exists.
+- **Representation.** Sympathies are `Effect`s on the `StatSheet`; cause tags are enums shared with news + factions.
 
-### The reaction formula
+### Reaction formula
 
-Every action, policy, news event, or movement is **tagged** with the causes it advances or antagonizes (the same tag vocabulary `news.json5` already uses). A character's reaction to it is:
+A stance, policy, action, or news event is tagged with the causes it advances or antagonizes. A character's reaction:
 
 ```
 reaction = dot(event.causeTags, character.sympathies) × temperamentScale
 ```
 
-A spacenoid-favoring policy (tagged `+colonial-autonomy`) warms a Zeon sympathizer toward whoever backed it and cools a Federation loyalist. This one formula drives news-mood, policy reactions, and the character-to-character political shifts in [relationships.md](relationships.md#politics--character-to-character-deferred-career). It does not run as a global sweep — a character only reacts to a stance once they are **aware** of it (gossip / news / co-location; see [newsfeed.md](newsfeed.md)), which keeps it event-paced and cheap.
+Positive → opinion of the actor rises (and mood lifts); negative → falls. This one formula powers stance reactions ([relationships.md](relationships.md)), news-driven mood, and drive shifts ([../npc-ai.md](../npc-ai.md)).
 
-## Revealing sympathies
+### Reveal — deterministic-progressive
 
-Sympathies are hidden until the player earns them — and earning them is **deterministic and progressive, not a chance roll.** A chance roll punishes unlucky players and hides information; progression turns relationship-building into visibly unlocking the character sheet.
+Causes reveal on the **first conversation of the (game) day** — the one-meaningful-interaction-per-day lever (Persona social links). **Not a chance roll:** each first-talk reveals the next not-yet-known cause-sympathy, highest magnitude first, until exhausted, then a tag appears on the character in inspector mode.
 
-- On the **first conversation of the day** with a character, they express their **strongest not-yet-revealed sympathy** — support or distaste for one cause — in character. That cause is now tagged on them in inspector mode.
-- Subsequent days reveal the next-strongest, until exhausted. One reveal per character per day; brute-force re-clicking yields nothing.
+Deterministic over chance because a roll punishes unlucky players and hides information; progressive reveal turns relationship-building into *visibly unlocking the character sheet over days* — legibility as reward (see [relationships.md](relationships.md) § reward loops). The daily gate also blocks brute-force re-clicking.
 
-This makes **legibility a reward in itself** ([relationships.md](relationships.md#why-the-player-maintains-it)): time invested in a character literally unlocks who they are, before any mechanical payoff.
+## Aggregation — the bridge to politics (Phase 6.4)
 
-## Aggregation — the politics payoff
+Individual sympathies are flavor until they **sum into something the player can move**. A district has a measurable *lean* (the weighted sum of its residents' sympathies); a facility has a loyalty *mood*. Stances and policies shift the aggregate.
 
-Individual sympathies are flavor until they **sum into something the player can move.** This is the far-future destination, not a near-term feature:
+- This is where the Guild-3-style **politician path** lives — and why it's faction-tier: policy needs an institution to enact, so it lands when the player runs or leads a faction ([../phasing.md](../phasing.md) Phase 6.4), not before.
+- It is also the **connective tissue between the city life-sim and the space / fleet layer**: the city is the *electorate*. A fleet-owning player still walks back into Von Braun because the district's lean is something their stances and standing can move.
 
-- A **district** has a measurable lean = the weighted sum of its residents' sympathies. A **facility** has a loyalty mood the same way.
-- Policies, broadcasts, and the player's public stances shift the aggregate.
-- A player who has *joined* a faction can rise inside it by swaying a populace — the **politician career path** ([faction-management.md](faction-management.md)). This is also the load-bearing answer to "why does a fleet-owning player still walk back into Von Braun": the city is the electorate.
+Perf: aggregation is a per-district reduce over residents, computed **lazily** (on stance / policy events + daily rollover), not per tick. State N = residents per district (tens). Cache the reduce; invalidate on membership / sympathy change.
 
-Aggregation lands at faction-tier. The per-character reaction mechanic above is the near-term half and ships as soon as causes exist.
+## Save contract
 
-## Why this is not wasted simulation
-
-The discipline that keeps psychology from becoming an invisible spreadsheet: **every unit of NPC interiority has a matching player-facing surface that reveals it** (design principle #1, player-model first).
-
-| Interiority | Surface |
-|---|---|
-| Temperament | Dialogue tone, always on |
-| Cause-sympathies | Progressive first-talk reveal + inspector tag |
-| A reaction to the player's stance | The lazy grievance/credit reveal ([relationships.md](relationships.md#the-lazy-reveal)) |
-| Aggregate district lean | Politics surface (faction-tier) |
-
-If interiority ever outruns its surface, cut the interiority — not the other way around.
+Temperament and sympathy `Effect`s serialize with the `StatSheet` (`serializeSheet` strips formulas, `attachFormulas` re-seeds on load). Cause tags are static data. Revealed-to-player flags live per character and round-trip via `EntityKey`.
 
 ## Related
 
-- [relationships.md](relationships.md) — the opinion graph, propagation, lazy reveal, and loyalty that read these axes
-- [newsfeed.md](newsfeed.md) — shares the cause-tag vocabulary; the awareness channel that paces reactions
-- [../npc-ai.md](../npc-ai.md) — sympathies and temperament feed the drive/utility weights
-- [../characters/effects.md](../characters/effects.md) — sympathies are Effects on the StatSheet (single channel)
-- [faction-management.md](faction-management.md) — aggregation and the politician career path
+- [relationships.md](relationships.md) — the per-pair machinery temperament + causes color
+- [newsfeed.md](newsfeed.md) — shares the cause-tag vocabulary; surfaces stances as gossip
+- [../npc-ai.md](../npc-ai.md) — temperament + sympathies weight drives
+- [faction-management.md](faction-management.md) — Phase 6.4 aggregation → policy
