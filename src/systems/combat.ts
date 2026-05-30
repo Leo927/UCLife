@@ -31,13 +31,14 @@ import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
-  EnemyAI, IsFlagshipMark, IsInActiveFleet,
+  EnemyAI, IsFlagshipMark, IsInActiveFleet, PlayerPartsInventory,
 } from '../ecs/traits'
 import { formationOffsetForSlot } from './fleetFormation'
-import { getEnemyShip } from '../data/enemyShips'
+import { getEnemyShip, isEnemyShipId } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
 import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
+import { getMsFrameMod } from '../data/ms-frame-mods'
 import { useClock } from '../sim/clock'
 import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel, grantSupplies } from '../sim/ship'
@@ -478,6 +479,7 @@ export function startCombat(
     else e.destroy()
   }
   projectiles.length = 0
+  salvageAccum = []   // Issue #64 — fresh salvage tally per engagement
   activeCampaignEnemyKey = campaignEnemyKey ?? null
 
   const ship = getPlayerShip()
@@ -599,6 +601,72 @@ const DEFEAT_DROP_OPTIONS: { sceneId: 'vonBraunCity' | 'zumCity'; airportHubId: 
   { sceneId: 'zumCity',   airportHubId: 'zumCityAirport',   poiId: 'side3' },
 ]
 
+// Issue #64 — MS-parts salvage accrued this engagement. Reset at
+// startCombat, rolled per enemy in onEnemyDestroyed (seeded combat RNG),
+// drained at endCombat('victory') into PlayerPartsInventory + the tally
+// payload's salvaged-parts section.
+interface SalvageDrop { partId: string; kind: 'weapon' | 'frameMod'; qty: number }
+let salvageAccum: SalvageDrop[] = []
+
+export interface TallySalvageRow {
+  partId: string
+  kind: 'weapon' | 'frameMod'
+  nameZh: string
+  qty: number
+}
+
+// Roll one destroyed enemy's salvage table. Each entry rolls independently
+// against the seeded combat RNG so a fixture engagement always yields the
+// same drops. Non-enemy class ids (player escorts) have no table → no-op.
+function rollSalvageFor(shipClassId: string): void {
+  if (!isEnemyShipId(shipClassId)) return
+  const table = getEnemyShip(shipClassId).salvage
+  if (!table || table.length === 0) return
+  const rng = getSimRng()
+  for (const s of table) {
+    if (rng.next() < s.chance) {
+      salvageAccum.push({ partId: s.partId, kind: s.kind, qty: s.qty })
+    }
+  }
+}
+
+// Aggregate the engagement's salvage, credit PlayerPartsInventory, and
+// return the per-part rows for the tally payload. Clears the accumulator.
+// With no inventory singleton present (fixtures without a starter MS) the
+// drops are discarded and nothing is reported.
+function drainSalvageToInventory(): TallySalvageRow[] {
+  const drops = salvageAccum
+  salvageAccum = []
+  if (drops.length === 0) return []
+
+  const byPart = new Map<string, { kind: 'weapon' | 'frameMod'; qty: number }>()
+  for (const d of drops) {
+    const cur = byPart.get(d.partId)
+    if (cur) cur.qty += d.qty
+    else byPart.set(d.partId, { kind: d.kind, qty: d.qty })
+  }
+
+  let invEnt: Entity | null = null
+  for (const e of getWorld(SHIP_SCENE_ID).query(PlayerPartsInventory)) { invEnt = e; break }
+  if (!invEnt) return []
+
+  const inv = invEnt.get(PlayerPartsInventory)!
+  const weapons = { ...inv.weapons }
+  const frameMods = { ...inv.frameMods }
+  for (const [partId, { kind, qty }] of byPart) {
+    if (kind === 'weapon') weapons[partId] = (weapons[partId] ?? 0) + qty
+    else frameMods[partId] = (frameMods[partId] ?? 0) + qty
+  }
+  invEnt.set(PlayerPartsInventory, { ...inv, weapons, frameMods })
+
+  const rows: TallySalvageRow[] = []
+  for (const [partId, { kind, qty }] of byPart) {
+    const nameZh = kind === 'weapon' ? getMsWeapon(partId).nameZh : getMsFrameMod(partId).nameZh
+    rows.push({ partId, kind, nameZh, qty })
+  }
+  return rows
+}
+
 // Phase 6.2 — handle named-hostile bookkeeping at the moment an enemy
 // ship's hull crosses zero. If the destroyed ship has a pinned captain
 // (captainId on its CombatShipState row) and the player's brig has a
@@ -612,6 +680,9 @@ const DEFEAT_DROP_OPTIONS: { sceneId: 'vonBraunCity' | 'zumCity'; airportHubId: 
 function onEnemyDestroyed(ent: Entity): void {
   const cs = ent.get(CombatShipState)
   if (!cs) return
+  // Issue #64 — roll salvage BEFORE the captain early-returns so every
+  // broken-down hull yields parts, named or anonymous.
+  rollSalvageFor(cs.shipClassId)
   const npcId = cs.captainId
   if (!npcId) return
   const npc = getSpecialNpcById(npcId)
@@ -761,6 +832,13 @@ export function endCombat(outcome: CombatOutcome): void {
       contextZh: p.contextZh,
     }))
     const { occupied: brigOccupied, capacity: brigCapacity } = getBrigOccupancy()
+    // Issue #64 — drain this engagement's salvage into PlayerPartsInventory
+    // and surface it as the tally's salvaged-parts section.
+    const salvagedParts = drainSalvageToInventory()
+    if (salvagedParts.length > 0) {
+      const summary = salvagedParts.map((s) => `${s.nameZh}×${s.qty}`).join('、')
+      pushCombatLog(`回收部件 · ${summary}`, 'narr')
+    }
     emitSim('ui:open-combat-tally', {
       creditsDelta: reward,
       creditsAfter,
@@ -773,12 +851,26 @@ export function endCombat(outcome: CombatOutcome): void {
       capturedPows,
       brigOccupied,
       brigCapacity,
+      salvagedParts,
     })
   } else if (outcome === 'defeat') {
     applyDefeatConsequence()
   } else {
     applyFleePenalty()
   }
+}
+
+// Issue #64 — synchronously break down every hostile through the canonical
+// destruction path (salvage roll + named-hostile capture in onEnemyDestroyed),
+// then resolve the engagement as a victory. Mirrors what the tactical loop
+// does when the player's fire finishes the last enemy, without depending on
+// weapon-charge timing — so a smoke can drive a deterministic salvage drop.
+export function breakDownEnemiesForVictory(): void {
+  for (const e of getEnemyEntities()) {
+    onEnemyDestroyed(e)
+    e.destroy()
+  }
+  endCombat('victory')
 }
 
 // Damage routing on a specific enemy. Shields-up: incoming damage builds

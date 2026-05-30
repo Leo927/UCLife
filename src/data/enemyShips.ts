@@ -2,6 +2,17 @@ import json5 from 'json5'
 import raw from './enemyShips.json5?raw'
 import { isWeaponId, getWeapon } from './weapons'
 import type { MountSize } from './weapons'
+import { isMsWeaponId } from './ms-weapons'
+import { isMsFrameModId } from './ms-frame-mods'
+
+// Issue #64 — per-enemy-class MS-parts salvage drop entry.
+export type SalvageKind = 'weapon' | 'frameMod'
+export interface SalvageEntry {
+  partId: string
+  kind: SalvageKind
+  chance: number   // 0..1 drop probability, rolled with the seeded combat RNG
+  qty: number      // units credited to PlayerPartsInventory when the roll passes
+}
 
 // Enemy ship blueprint — Starsector-shape stat block. Combat spawns a
 // CombatShipState entity from one of these.
@@ -35,6 +46,8 @@ export interface EnemyShipBlueprint {
     retreatThresholdPct: number
     maintainRange: number
   }
+  // Issue #64 — optional MS-parts salvage table. Absent = no parts drop.
+  salvage?: SalvageEntry[]
 }
 
 interface EnemyShipsFile {
@@ -127,6 +140,27 @@ for (const ship of parsed.ships) {
   }
   if (ship.ai.maintainRange <= 0) {
     throw new Error(`enemyShips.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
+  }
+
+  if (ship.salvage !== undefined) {
+    if (!Array.isArray(ship.salvage)) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" salvage must be an array`)
+    }
+    for (const s of ship.salvage) {
+      if (s.kind !== 'weapon' && s.kind !== 'frameMod') {
+        throw new Error(`enemyShips.json5: ship "${ship.id}" salvage kind must be 'weapon' | 'frameMod'`)
+      }
+      const known = s.kind === 'weapon' ? isMsWeaponId(s.partId) : isMsFrameModId(s.partId)
+      if (!known) {
+        throw new Error(`enemyShips.json5: ship "${ship.id}" salvage partId "${s.partId}" not a known ${s.kind}`)
+      }
+      if (typeof s.chance !== 'number' || s.chance < 0 || s.chance > 1) {
+        throw new Error(`enemyShips.json5: ship "${ship.id}" salvage chance must be in [0,1]`)
+      }
+      if (!Number.isInteger(s.qty) || s.qty <= 0) {
+        throw new Error(`enemyShips.json5: ship "${ship.id}" salvage qty must be a positive integer`)
+      }
+    }
   }
 }
 

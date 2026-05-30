@@ -30,6 +30,7 @@ export interface DialogueText {
     aeSupplyDealer: string
     aeShipSales: string
     aeVehicleSales: string
+    aePartsSales: string
     hireAsPilot: string
   }
   branches: {
@@ -324,6 +325,22 @@ export interface DialogueText {
       slotLabel: string
       slotFull: string
       vehiclePickHeader: string
+    }
+    // Issue #64 — AE MS-parts broker (weapons + frame mods).
+    aePartsSales: {
+      title: string
+      intro: string
+      moneyLabel: string
+      weaponsHeader: string
+      frameModsHeader: string
+      statDamage: string
+      statRange: string
+      statSlots: string
+      buyButton: string
+      buyDisabledMoney: string
+      ownedLabel: string
+      toastBought: string
+      gateNoMoney: string
     }
     // Issue #65 — pilot roster notebook.
     pilotRoster: {

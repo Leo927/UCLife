@@ -255,6 +255,7 @@ registerDebugHandle('hireBranchListing', (npcKey: string): string[] => {
       isAeSupplyDealerOnDuty: false,
       isAEShipSalesOnDuty: false,
       isAEVehicleSalesOnDuty: false,
+      isAEPartsDealerOnDuty: false,
       ownsPrivateFacility: false,
       managerStation: null,
     },

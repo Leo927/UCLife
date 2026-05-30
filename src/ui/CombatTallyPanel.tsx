@@ -53,6 +53,19 @@ export function CombatTallyPanel() {
             </span>
           </div>
         </section>
+        {tally.salvagedParts.length > 0 && (
+          <section className="status-section">
+            <h3>回收部件</h3>
+            {tally.salvagedParts.map((s) => (
+              <div key={s.partId} className="combat-tally-row">
+                <span className="combat-tally-row-label">{s.nameZh}</span>
+                <span className="combat-tally-row-value">
+                  <span className="combat-tally-row-delta">+{s.qty}</span>
+                </span>
+              </div>
+            ))}
+          </section>
+        )}
         <section className="status-section">
           <h3>俘虏</h3>
           {tally.capturedPows.length === 0 ? (

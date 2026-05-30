@@ -3,7 +3,7 @@
 // must never reach for these.
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
-import { world } from '../../ecs/world'
+import { world, getWorld, SCENE_IDS } from '../../ecs/world'
 import {
   IsPlayer, Attributes, Money, Reputation,
   type StatId,
@@ -71,6 +71,17 @@ registerDebugHandle('cheatMoney', (n: number) => {
   if (!p) return false
   p.set(Money, { amount: n })
   return true
+})
+
+// Read the player's current Money across whichever scene world hosts the
+// player entity (the player migrates between scenes). Returns null if no
+// player is found. Issue #64 — the parts smoke asserts funds debited.
+registerDebugHandle('getPlayerMoney', (): number | null => {
+  for (const id of SCENE_IDS) {
+    const p = getWorld(id).queryFirst(IsPlayer)
+    if (p) return p.get(Money)?.amount ?? 0
+  }
+  return null
 })
 
 registerDebugHandle('cheatPiloting', (n: number) => {

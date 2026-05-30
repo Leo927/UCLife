@@ -20,6 +20,7 @@ import { hangarManagerBranch } from './branches/hangarManager'
 import { aeSupplyDealerBranch } from './branches/aeSupplyDealer'
 import { aeShipSalesBranch } from './branches/aeShipSales'
 import { aeVehicleSalesBranch } from './branches/aeVehicleSales'
+import { aePartsSalesBranch } from './branches/aePartsSales'
 import { hireAsPilotBranch } from './branches/hireAsPilot'
 import { jobSiteBranch } from './branches/jobSite'
 import { talkHireBranch } from './branches/talkHire'
@@ -40,6 +41,7 @@ const ROLE_BRANCHES: BranchBuilder[] = [
   aeSupplyDealerBranch,
   aeShipSalesBranch,
   aeVehicleSalesBranch,
+  aePartsSalesBranch,
   hireAsPilotBranch,
   factoryManagerBranch,
   jobSiteBranch,

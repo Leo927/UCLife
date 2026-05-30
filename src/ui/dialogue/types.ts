@@ -51,6 +51,8 @@ export type DialogueRoles = {
   isAEShipSalesOnDuty: boolean
   // Phase 6.2.5.B — AE vehicle (MS / fighter / MW) broker at the VB spaceport.
   isAEVehicleSalesOnDuty: boolean
+  // Issue #64 — AE MS-parts broker at the VB spaceport (weapons + frame mods).
+  isAEPartsDealerOnDuty: boolean
   ownsPrivateFacility: boolean
   managerStation: Entity | null
 }

@@ -68,6 +68,7 @@
     aeSupplyDealer: '订补给',
     aeShipSales: '看看机型',
     aeVehicleSales: '看看 MS / 战机',
+    aePartsSales: '采购 MS 部件',
     hireAsPilot: '邀请加入 (机师)',
   },
   branches: {
@@ -236,6 +237,23 @@
       slotLabel: 'MS 泊位',
       slotFull: '已满',
       vehiclePickHeader: '可选机型',
+    },
+    // Issue #64 — AE MS-parts broker. Two-section catalog (weapons +
+    // frame mods); each row buys immediately into the parts stockpile.
+    aePartsSales: {
+      title: 'AE MS 部件柜台',
+      intro: '机库零件、武装一应俱全 —— 即买即入库。',
+      moneyLabel: '钱包',
+      weaponsHeader: '武器',
+      frameModsHeader: '机体改装件',
+      statDamage: '伤害',
+      statRange: '射程',
+      statSlots: '占用槽位',
+      buyButton: '购买',
+      buyDisabledMoney: '金钱不足',
+      ownedLabel: '库存',
+      toastBought: '已购入：{part} ×1，已入库。',
+      gateNoMoney: '现金不足 · 单价 ¥{price}。',
     },
     // Phase 6.2.5.B — hire-as-pilot dialogue branch. Same gating shape
     // as talkHire (faction-rep OR opinion gate); the panel just voices a
