@@ -1,0 +1,25 @@
+// Step 1 (NPC transit navigation) fixture. A single named NPC in
+// vonBraunCity that the smoke repositions at a transit kiosk, plus a player
+// at a clean street tile to confirm the fare-gate asymmetry (the player's
+// click-to-move never routes through a transit portal). The two real
+// vonBraunCity transit terminals (vonBraunCityPlaza + aeIndustrialStop) sit
+// ~250 tiles apart but walkably connected — the portal is the cheap long-haul
+// route an NPC takes and the player is denied. Coordinates are tile-space.
+{
+  seed: 'npc-transit-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+
+  npcs: [
+    {
+      id: 'commuter',
+      name: 'Transit Commuter',
+      at: { scene: 'vonBraunCity', x: 20, y: 18 },
+    },
+  ],
+}

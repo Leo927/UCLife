@@ -23,6 +23,11 @@ export interface WorldConfig {
     startAlpha: number
     colorCss: string
   }
+  transitNav: {
+    edgeCostUnits: number
+    boardDistPx: number
+    snapMaxRing: number
+  }
   activeZone: {
     activeRadiusTiles: number
     viewportBleedTiles: number

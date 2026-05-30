@@ -10,6 +10,7 @@ import msRosterRaw from '../../tests/fixtures/ms-roster.json5?raw'
 import msSortieRaw from '../../tests/fixtures/ms-sortie.json5?raw'
 import pilotRosterRaw from '../../tests/fixtures/pilot-roster.json5?raw'
 import msPartsRaw from '../../tests/fixtures/ms-parts.json5?raw'
+import npcTransitRaw from '../../tests/fixtures/npc-transit.json5?raw'
 import cpDpRaw from '../../tests/fixtures/cp-dp.json5?raw'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { useScene } from '../sim/scene'
@@ -100,6 +101,7 @@ const FIXTURES: Record<string, string> = {
   'ms-sortie': msSortieRaw,
   'pilot-roster': pilotRosterRaw,
   'ms-parts': msPartsRaw,
+  'npc-transit': npcTransitRaw,
   'cp-dp': cpDpRaw,
 }
 

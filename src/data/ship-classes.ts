@@ -99,9 +99,10 @@ export interface ShipClassDef {
   // legacy authoring loadable; new templates author explicitly).
   supplyPerDay?: number
   // Issue #69 — tactical deployment-points cost. The DP cap gates how much
-  // of the active fleet the player can commit to one engagement. Optional
-  // so legacy authoring stays loadable (folds to 0 → free to field); new
-  // templates author explicitly.
+  // of the active fleet the player can commit to one engagement. Seeded onto
+  // ShipStatSheet at spawn so the war-room DP commit reads it via getStat.
+  // Optional so legacy authoring stays loadable (folds to 0 → free to field);
+  // new templates author explicitly.
   dpCost?: number
   crewMax: number
   // Brig POW slots authored per-class. 0 for civilian-spec hulls per

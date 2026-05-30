@@ -52,6 +52,17 @@ describe('applyFixture', () => {
     expect(player!.get(Money)!.amount).toBe(200000)
   })
 
+  it('loads npc-transit: player + commuter NPC both land in vonBraunCity', () => {
+    applyFixture('npc-transit')
+    const w = getWorld('vonBraunCity')
+    expect(w.queryFirst(IsPlayer)).not.toBeNull()
+    let commuterFound = false
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === 'commuter') commuterFound = true
+    }
+    expect(commuterFound).toBe(true)
+  })
+
   it('loads cp-dp: three-ship fleet + piloting=50 + dpCost projects onto ship sheets', () => {
     applyFixture('cp-dp')
     const player = findPlayer()!
