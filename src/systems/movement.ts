@@ -72,6 +72,16 @@ export function movementSystem(world: World, gameMinutes: number) {
       const wp = path.index < path.waypoints.length
         ? path.waypoints[path.index]
         : path.waypoints[path.waypoints.length - 1]
+      // Transit-portal hop: the entity has already walked to the boarding
+      // kiosk (the previous waypoint), so traverse instantly onto the far
+      // kiosk rather than walking the straight line through walls. MVP — an
+      // in-transit travel delay is later polish.
+      if (wp.portal && path.index < path.waypoints.length) {
+        pos.x = wp.x
+        pos.y = wp.y
+        path.index++
+        continue
+      }
       const dx = wp.x - pos.x
       const dy = wp.y - pos.y
       const d = Math.hypot(dx, dy)

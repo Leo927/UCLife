@@ -292,14 +292,119 @@
   // Aggression doctrine — three-position slider on every active ship.
   // Authored as a list so smoke + UI iterate the same source. The
   // default applied at spawn is the first entry's id ('steady'), with
-  // the other two flanking it on the UI. Real combat-AI reads land at
-  // 6.2.E2 + 6.2.7 (DP / CP layer); 6.2.E1 ships only the data channel.
+  // the other two flanking it on the UI. Issue #69 makes the slider
+  // fully active in tactical AI:
+  //   aiAggression       — weapon-charge multiplier (close-in pressure).
+  //   maintainRangeMul   — multiplier on the ship class's `maintainRange`
+  //                        standoff distance. `cautious` holds at a wider
+  //                        range (1.4×) and so disengages early; `aggressive`
+  //                        closes to a tighter range (0.6×) and presses;
+  //                        `steady` keeps the authored class range (1.0×).
+  //   retreatThresholdMul — multiplier on the class retreatThresholdPct so
+  //                        `cautious` flees sooner and `aggressive` later.
+  //                        (Retreat-AI is a later-phase wire; the field is
+  //                        authored now so doctrine has one source of truth.)
   aggressionLevels: [
-    { id: 'cautious',  labelZh: '谨慎', aiAggression: 0.3 },
-    { id: 'steady',    labelZh: '稳健', aiAggression: 0.5 },
-    { id: 'aggressive', labelZh: '激进', aiAggression: 0.8 },
+    { id: 'cautious',  labelZh: '谨慎', aiAggression: 0.3, maintainRangeMul: 1.4, retreatThresholdMul: 1.6 },
+    { id: 'steady',    labelZh: '稳健', aiAggression: 0.5, maintainRangeMul: 1.0, retreatThresholdMul: 1.0 },
+    { id: 'aggressive', labelZh: '激进', aiAggression: 0.8, maintainRangeMul: 0.6, retreatThresholdMul: 0.5 },
   ],
   aggressionDefault: 'steady',
+
+  // ── Issue #69 — Command Points (in-engagement comm bandwidth) ─────────
+  //
+  // CP is a regenerating pool spent by fleet-wide orders during tactical.
+  // When the pool runs dry, the fleet falls back on per-ship standing
+  // aggression doctrine. Diegetic justification: Minovsky particle scatter
+  // makes long-range fleet coordination costly (Design/fleet.md §Command
+  // points).
+  //
+  // maxCommandPoints formula (Design/fleet.md):
+  //   base
+  //   + player.shipCommand / shipCommandDivisor
+  //   + player.tactics    / tacticsDivisor
+  //   + flagshipCommOfficer.command / commOfficerDivisor
+  //
+  // SKILL STAND-IN (Issue #69): the `shipCommand` / `tactics` / `command`
+  // skills are designed-but-deferred (Design/characters/skills.md "Skills
+  // the catalog is reserved for" — they earn ids only when a trainer verb
+  // AND a consumer ship together). Authoring them now would add a skill
+  // nothing can train. Instead the formula reads existing shipped skills as
+  // stand-ins, keyed here so the swap to real skills later is config-only:
+  //   - player command + tactics → player `piloting` (the shipped combat
+  //     skill; one level contributes through both the command + tactics
+  //     terms below).
+  //   - flagship comm officer's `command` → the assigned captain's
+  //     `engineering` level (the same skill the captain officer-Effect
+  //     already reads, captainEffectSkill).
+  // The divisors mirror the design's /25, /30, /30 spread but operate on
+  // skill LEVEL (0..100), so an end-game player + skilled captain lands a
+  // pool roughly 4 → 12.
+  commandPoints: {
+    base: 4,
+    // Player command term — reads playerCommandSkill level / shipCommandDivisor.
+    playerCommandSkill: 'piloting',
+    shipCommandDivisor: 25,
+    // Player tactics term — reads playerTacticsSkill level / tacticsDivisor.
+    playerTacticsSkill: 'piloting',
+    tacticsDivisor: 30,
+    // Flagship comm-officer term — reads the assigned captain's
+    // commOfficerSkill level / commOfficerDivisor. Empty captain seat
+    // contributes 0.
+    commOfficerSkill: 'engineering',
+    commOfficerDivisor: 30,
+    // Pool ceiling (defensive clamp so a bad config can't grant absurd CP).
+    maxPoolCap: 24,
+
+    // Per-tactical-tick CP regen. `regenPerSec` accumulates fractional CP
+    // each combat tick; the pool only increments by whole points (the
+    // fractional remainder carries). A `CP regen` info log fires on each
+    // whole-point gain so the player sees bandwidth recover.
+    regenPerSec: 0.15,
+
+    // Per-day campaign partial refill — applied on day rollover so a long
+    // campaign leg slowly tops the pool back up between engagements. A
+    // fraction of maxCommandPoints (0..1).
+    dailyRefillFraction: 0.5,
+
+    // Fleet-wide order costs. Each order debits CP; an order is refused
+    // when the pool can't cover its cost (the fleet then acts on standing
+    // doctrine). Order ids are the canonical command vocabulary
+    // (Design/fleet.md §Command points + Design/post-combat.md combat log).
+    orderCosts: {
+      rally: 1,
+      focusFire: 1,
+      retreat: 2,
+      formationChange: 1,
+      msLaunchAuth: 2,
+    },
+  },
+
+  // ── Issue #69 — Deployment Points (pre-engagement budget) ─────────────
+  //
+  // DP is a per-engagement budget. Each ship class declares `dpCost`; each
+  // MS declares `dpCost`. Before a fight the player commits a subset of the
+  // active fleet up to the DP cap; the rest hold station. The cap is a
+  // function of player skill + flagship comm suite (Design/fleet.md
+  // §Deployment points).
+  //
+  // dpCap formula:
+  //   base
+  //   + floor(player.shipCommand level / shipCommandPerDp)
+  //   + floor(flagshipCommOfficer.command level / commOfficerPerDp)
+  //
+  // Same skill stand-in as commandPoints above (piloting for the player
+  // command term; the captain's engineering for the comm-suite term),
+  // keyed here so the later real-skill swap is config-only.
+  deploymentPoints: {
+    base: 6,
+    playerCommandSkill: 'piloting',
+    shipCommandPerDp: 20,
+    commOfficerSkill: 'engineering',
+    commOfficerPerDp: 25,
+    // Cap ceiling (defensive clamp).
+    maxCapCap: 40,
+  },
 
   // ── Phase 6.2.E2 — auto-launch + cross-POI transit + formation flying ──
   //

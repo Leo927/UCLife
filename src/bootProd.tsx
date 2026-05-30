@@ -53,6 +53,10 @@ import './boot/fleetTransitTick'
 // prisoner provisioning, onsets the brig_neglect condition through the
 // shared physiology pipeline, and resolves neglect deaths / escapes.
 import './boot/brigConditionTick'
+// Issue #69 — per-day Command-Point partial refill on day rollover: refill a
+// fraction of the CP pool on each daily rollover so a long campaign leg slowly
+// tops the bandwidth back up between engagements.
+import './boot/commandPointsTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

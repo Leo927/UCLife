@@ -24,7 +24,9 @@ import './ownership'  // Phase 5.5 — faction roster + per-building Owner snaps
 import './research'   // Phase 5.5.6 — research lab + queue + planner + ticker
 import './hangar'     // Phase 6.2.A — hangar facility introspection
 import './orbitalLift' // Phase 6.2.A.2 — orbital-lift transit between scenes
+import './transitNav' // NPC-only transit navigation portals (Step 1)
 import './fleet'      // Phase 6.2.C2 — fleet roster + sales-rep lookup
 import './assets'     // Phase 3 — awaitAssetsReady barrier for smoke tests
 import './test'       // Phase 5 — getGameState() facade + applyFixture loader
 import './ms'         // Phase 6.2.5.A — MS roster + parts inventory + retrofit
+import './commandPoints' // Issue #69 — CP pool + DP commit + doctrine

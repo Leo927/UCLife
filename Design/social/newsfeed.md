@@ -43,5 +43,6 @@ The `data/news.json5` schema should pin `date` as the canonical key from day one
 
 - [ambitions.md](ambitions.md) — ambitions tag news entries; news becomes the player's personal story
 - [relationships.md](relationships.md) — gossip channel pipes news through NPCs
+- [psychology.md](psychology.md) — shares the cause-tag vocabulary; sympathies color how NPCs react to news
 - [../setting.md](../setting.md) — timeline-as-state mechanism
 - [../phasing.md](../phasing.md) — Phase 7 war asymmetry

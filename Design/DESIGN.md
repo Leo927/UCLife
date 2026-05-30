@@ -66,6 +66,7 @@ This document is an **index**, not a monolith. Each topic below lives in its own
 | ↳ Ambitions (Phase 5.0) | [social/ambitions.md](social/ambitions.md) |
 | ↳ Newsfeed (Phase 5.1) | [social/newsfeed.md](social/newsfeed.md) |
 | ↳ Relationships & faction reputation | [social/relationships.md](social/relationships.md) |
+| ↳ Character psychology (temperament + causes) | [social/psychology.md](social/psychology.md) |
 | ↳ Facilities and ownership (Phase 5.5 — Civilian Faction) | [social/facilities-and-ownership.md](social/facilities-and-ownership.md) |
 | ↳ Research and faction unlocks (Phase 5.5.6) | [social/research.md](social/research.md) |
 | ↳ Facility tiers — owner-side investment (Phase 5.5.6+) | [social/facility-tiers.md](social/facility-tiers.md) |

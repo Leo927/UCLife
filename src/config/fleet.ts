@@ -69,8 +69,38 @@ export interface FleetConfig {
     rows: number
     flagshipSlot: number
   }
-  aggressionLevels: { id: string; labelZh: string; aiAggression: number }[]
+  aggressionLevels: {
+    id: string
+    labelZh: string
+    aiAggression: number
+    // Issue #69 — doctrine reads through tactical AI.
+    maintainRangeMul: number
+    retreatThresholdMul: number
+  }[]
   aggressionDefault: string
+  // Issue #69 — Command Points (in-engagement comm bandwidth).
+  commandPoints: {
+    base: number
+    playerCommandSkill: string
+    shipCommandDivisor: number
+    playerTacticsSkill: string
+    tacticsDivisor: number
+    commOfficerSkill: string
+    commOfficerDivisor: number
+    maxPoolCap: number
+    regenPerSec: number
+    dailyRefillFraction: number
+    orderCosts: Record<string, number>
+  }
+  // Issue #69 — Deployment Points (pre-engagement budget).
+  deploymentPoints: {
+    base: number
+    playerCommandSkill: string
+    shipCommandPerDp: number
+    commOfficerSkill: string
+    commOfficerPerDp: number
+    maxCapCap: number
+  }
   // Phase 6.2.E2 — formation slot offsets + cross-POI transit + transit fee.
   formationSlotOffsets: Record<string, { dx: number; dy: number }>
   transitDaysDefault: number

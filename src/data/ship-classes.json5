@@ -95,6 +95,9 @@
       // fleet by the daily drain tick at 6.2.F). A civilian light hull
       // burns a token amount; bigger hulls (Pegasus, etc.) author higher.
       supplyPerDay: 4,
+      // Issue #69 — tactical deployment-points cost. A civilian light hull
+      // is cheap to field; a capital carrier (pegasusClass) costs far more.
+      dpCost: 3,
       crewMax: 4,
       // Civilian-spec hulls in the design get brigCapacity: 0; the
       // lightFreighter ships a refit 2-cell brig so the named-hostile
@@ -229,6 +232,8 @@
       // so a half-rate drain keeps the demo readable when a second hull
       // joins the fleet.
       supplyPerDay: 2,
+      // Issue #69 — light escort, cheapest hull to field.
+      dpCost: 2,
       crewMax: 2,
       brigCapacity: 0,
       officers: {
@@ -305,6 +310,9 @@
       fuelMax: 80,
       suppliesMax: 400,
       supplyPerDay: 18,
+      // Issue #69 — capital carrier; the single most expensive hull to
+      // commit to an engagement (a 20-ship fleet fields a small subset).
+      dpCost: 10,
       crewMax: 200,
       brigCapacity: 8,
       // Phase 6.2.5 — internal MS bay. Pegasus-class hangar bay holds up

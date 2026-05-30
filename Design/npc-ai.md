@@ -15,6 +15,7 @@ Computed each tick from:
 - **Memory & opinions** (avoid disliked, return to favored)
 - **Faction events** (rumor of war → fear → seek company/shelter)
 - **External policy weights** (Phase 6: when player runs a faction, they author these)
+- **Psychology** (temperament + cause sympathies — see [social/psychology.md](social/psychology.md)) weights how strongly events and stances move drives
 
 ## Memory
 
@@ -32,5 +33,6 @@ The player character is structurally identical to NPCs — same trait set, same 
 
 - [characters/index.md](characters/index.md) — vitals feed drives
 - [social/relationships.md](social/relationships.md) — opinions and memory drive social NPC behavior
+- [social/psychology.md](social/psychology.md) — temperament + sympathies weight reactions
 - [llm.md](llm.md) — Phase 8 LLM dialogue layered on persona blobs
 - [time.md](time.md) — commitment-skip interactions

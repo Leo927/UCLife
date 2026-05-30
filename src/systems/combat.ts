@@ -47,7 +47,7 @@ import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
-import { combatConfig, cockpitConfig, fleetConfig } from '../config'
+import { combatConfig, cockpitConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
 } from '../sim/cockpit'
@@ -64,6 +64,10 @@ import {
 } from './recoverables'
 import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
+import {
+  initCommandPoolForEngagement, clearDeploymentCommit, regenCommandPoints,
+  doctrineForAggression, commandPoolDescribe, useCpDp,
+} from './fleetCommandPoints'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -404,6 +408,14 @@ function spawnEnemyShip(
 //     branch added in this slice — see below.)
 //   - position at flagship's PLAYER_SPAWN + formation slot offset.
 function spawnActiveFleetEscorts(w: World): void {
+  // Issue #69 — DP commit gate. When the player has explicitly committed a
+  // subset via the war-room DP-commit surface, only those ships deploy (the
+  // rest of the active fleet holds station). When the commit set is empty
+  // (the common path — no explicit commit before this fight), fall back to
+  // deploying the whole active fleet so the prior auto-launch behavior is
+  // preserved.
+  const committed = useCpDp.getState().committedShipKeys
+  const gateByCommit = committed.length > 0
   for (const e of w.query(Ship, IsInActiveFleet, EntityKey)) {
     if (e.has(IsFlagshipMark)) continue
     if (e.has(CombatShipState)) continue
@@ -411,13 +423,20 @@ function spawnActiveFleetEscorts(w: World): void {
     // Skip ships currently in cross-POI transit — they're not at the
     // engagement site.
     if (s.transitDestinationId) continue
+    if (gateByCommit && !committed.includes(e.get(EntityKey)!.key)) continue
     const cls = getShipClass(s.templateId)
     const offset = formationOffsetForSlot(s.formationSlot)
     const pos = offset
       ? { x: PLAYER_SPAWN.x + offset.dx, y: PLAYER_SPAWN.y + offset.dy }
       : { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y }
-    const aggLvl = fleetConfig.aggressionLevels.find((a) => a.id === s.aggression)
-    const aiAggression = aggLvl?.aiAggression ?? cls.ai.aggression
+    // Issue #69 — the war-room aggression slider reads fully through here:
+    // doctrine sets both weapon-charge pressure (aiAggression) and the
+    // standoff range (maintainRange × maintainRangeMul). cautious holds at a
+    // wider range / disengages early; aggressive closes and presses.
+    const doctrine = doctrineForAggression(s.aggression)
+    const aiAggression = doctrine.aiAggression
+    const maintainRange = cls.ai.maintainRange * doctrine.maintainRangeMul
+    const retreatThreshold = cls.ai.retreatThresholdPct * doctrine.retreatThresholdMul
     // Attach CombatShipState to the existing Ship entity (matches the
     // flagship pattern) so the long-arc fleet entity stays alive at
     // endCombat — we then just remove the trait, not destroy the entity.
@@ -456,8 +475,8 @@ function spawnActiveFleetEscorts(w: World): void {
       })),
       ai: {
         aggression: aiAggression,
-        retreatThreshold: cls.ai.retreatThresholdPct,
-        maintainRange: cls.ai.maintainRange,
+        retreatThreshold,
+        maintainRange,
       },
     }))
   }
@@ -532,11 +551,17 @@ export function startCombat(
       angularAccel: cls.angularAccel,
       maxAngVel: cls.maxAngVel,
       weapons: [],
-      ai: {
-        aggression: cls.ai.aggression,
-        retreatThreshold: cls.ai.retreatThresholdPct,
-        maintainRange: cls.ai.maintainRange,
-      },
+      // Issue #69 — the flagship's own aggression slider sets its standing
+      // doctrine (the AI directive that drives the helm when the player
+      // isn't holding WASD). Same doctrine mapping the escorts use.
+      ai: (() => {
+        const d = doctrineForAggression(s.aggression)
+        return {
+          aggression: d.aiAggression,
+          retreatThreshold: cls.ai.retreatThresholdPct * d.retreatThresholdMul,
+          maintainRange: cls.ai.maintainRange * d.maintainRangeMul,
+        }
+      })(),
     }))
   }
 
@@ -568,6 +593,13 @@ export function startCombat(
   // tally only lists POWs taken this fight (not cumulative across a
   // multi-engagement session).
   clearBrigPendingTally()
+  // Issue #69 — seed the Command-Point pool full for this engagement and
+  // surface the starting bandwidth in the log. The pre-engagement DP commit
+  // set carries into this fight (the war room set it before launch); the
+  // pool is in-engagement bandwidth, fresh each fight.
+  initCommandPoolForEngagement()
+  const cp = commandPoolDescribe()
+  pushCombatLog(`指挥点就绪 · ${cp.current}/${cp.max}`, 'info')
   const leadName = getEnemyShip(leadShipId).nameZh
   const fleetNote = fleet.length > 1 ? ` · 队伍 ${fleet.length} 艘` : ''
   logEvent(`战斗开始 · 对手: ${leadName}${fleetNote}`)
@@ -802,6 +834,10 @@ export function endCombat(outcome: CombatOutcome): void {
   }
   projectiles.length = 0
   beamFlashes.length = 0
+  // Issue #69 — clear the per-engagement DP commit so a stale set doesn't
+  // carry into the next fight. CP pool state is re-seeded at the next
+  // startCombat; leave it as-is here (the war room may read post-fight CP).
+  clearDeploymentCommit()
 
   // Reset player weapon charge so a follow-up encounter starts cold.
   for (const e of w.query(WeaponMount)) {
@@ -1574,6 +1610,11 @@ export function combatSystem(_world: World, dtMs: number): void {
       beamFlashes.splice(i, 1)
     }
   }
+
+  // -- 5c. Issue #69 — Command-Point regen ---------------------------------
+  // O(1) pool increment (no per-unit work); a `CP regen` info log fires on
+  // each whole-point gain. Profile behind CPDP_PROF=1.
+  regenCommandPoints(dtSec)
 
   // -- 5b. Phase 6.2.5.C sortie loop: door cycles, resupply, tug ------------
   // Door cycle ticks; on a dock-cycle completion the MS routes into the
