@@ -1,5 +1,7 @@
-// vonBraunDrydock mini-station smoke. Verifies the concourse expansion:
-//   1. Boot lands in the vonBraunDrydock concourse.
+// Drydock mini-station smoke. The drydock is now the hidden orbital region
+// of vonBraunCity. Verifies the concourse expansion:
+//   1. Boot lands in vonBraunCity (the fixture drops the player in the
+//      drydock concourse region).
 //   2. The three service buildings (drydockBar, drydockClinic, supplyDepot)
 //      spawn in the scene.
 //   3. The AE supply dealer special NPC is seated at the supply depot and
@@ -8,7 +10,7 @@
 import { test, expect, DOM_COMMIT_TIMEOUT_MS, isExpectedTestModePortraitMissing } from './_fixtures'
 
 const FIXTURE = 'vonBraunDrydock-station'
-const SCENE = 'vonBraunDrydock'
+const SCENE = 'vonBraunCity'
 const SERVICE_BUILDINGS = ['drydockBar', 'drydockClinic', 'supplyDepot']
 
 const REQUIRED_HANDLES = [

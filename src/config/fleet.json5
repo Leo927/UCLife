@@ -152,14 +152,13 @@
   vehicleSalesDeskTileVB: { x: 128, y: 27 },
 
   // Phase 6.2.C2 — AE ship-sales desk tile inside the Von Braun orbital
-  // drydock concourse. The drydock building sits at tile (20,24) with size
-  // (20,16) and a north-facing door at offsetTiles=9 (top edge tile
-  // x=29). The desk sits on open concourse a few tiles south of the
-  // orbital lift (lift at tile (30,4)) and north of the drydock door,
-  // so the player walks down from the lift, passes the AE sales desk,
-  // and reaches the drydock manager beyond it. The rep's special-NPC
-  // tileX/tileY MUST equal these so spawn linkage succeeds.
-  shipSalesDeskTileVonBraunDrydock: { x: 30, y: 16 },
+  // drydock concourse, now folded into vonBraunCity's hidden southern region
+  // (offset +10x / +540y from the old drydock envelope). The desk sits on the
+  // open concourse a few tiles south of the orbital lift (lift kiosk near tile
+  // (40,545)) and north of the hangar door, so the player walks down from the
+  // lift, passes the AE sales desk, and reaches the drydock manager beyond it.
+  // The rep's special-NPC tileX/tileY MUST equal these so spawn linkage succeeds.
+  shipSalesDeskTileVonBraunDrydock: { x: 40, y: 556 },
 
   // Phase 6.2.C2 — sales-rep catalog. Maps each AE sales workstation
   // specId to the single hull class that rep sells. Adding a new rep

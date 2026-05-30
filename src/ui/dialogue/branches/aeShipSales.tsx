@@ -29,7 +29,7 @@ import {
   enqueueDelivery, deriveHangarOccupancy,
 } from '../../../systems/shipDelivery'
 import { fittingSlotClasses } from '../../../data/facilityTypes'
-import { poiIdForScene } from '../../../data/pois'
+import { poiIdForHangar } from '../../../data/pois'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 // Per-class delivery lead-time lookup. Civilian/merc hulls slot into
@@ -101,7 +101,7 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
     // could host the hull (own class or larger). Sum capacity + occupancy
     // + in-flight deliveries across all fitting classes so the gate reads
     // accurately when a capital slot is being used wastefully for an MS.
-    const poiId = poiIdForScene(activeSceneId)
+    const poiId = poiIdForHangar(activeSceneId, b.get(Building)!)
     const occMap = poiId ? deriveHangarOccupancy(poiId) : {}
     const fitting = fittingSlotClasses(h.slotCapacity, cls.hangarSlotClass)
     if (fitting.length === 0) continue

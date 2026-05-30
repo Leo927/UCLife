@@ -1,7 +1,7 @@
 import type { Entity, World } from 'koota'
 import { world, setActiveSceneId, getWorld, SCENE_IDS, type SceneId } from './world'
 import {
-  scenes, initialSceneId,
+  scenes, initialSceneId, isInHiddenRegion,
   type SceneConfig, type MicroSceneConfig, type ShipSceneConfig,
 } from '../data/scenes'
 import {
@@ -24,8 +24,10 @@ import {
   type BarSeatTemplate, type InteractableTemplate,
 } from '../data/objectTemplates'
 import { getHangarFacilityType } from '../data/facilityTypes'
-import { liftsForScene, liftFareFrom } from '../data/orbitalLifts'
-import { poiIdForScene } from '../data/pois'
+import {
+  liftsForScene, liftFareForEndpoint, liftEndpointCountInScene, type LiftEndpoint,
+} from '../data/orbitalLifts'
+import { poiIdForHangar } from '../data/pois'
 import { bootstrapFactions, defaultOwnerFor, seedPrivateOwners } from './ownership'
 import { spawnNPC, spawnPlayer, type NPCSpec } from '../character/spawn'
 import { getShipClass, type ShipClassDef } from '../data/ship-classes'
@@ -590,13 +592,13 @@ function spawnCraftedItem(
 // Tracks which hubs / terminals / lifts have been bound this bootstrap pass,
 // so a runaway district config asking for two airports in one scene doesn't
 // silently claim both ends of an inter-city flight pair (and similarly for
-// transit terminals — one per scene per placement kind — and orbital lifts —
-// one liftId per `orbitalLift` building per scene). Lift keys are
-// `${sceneId}::${liftId}` because each lift row spans two scenes and each
-// endpoint needs its own kiosk.
+// transit terminals — one per scene per placement kind). Orbital lifts count
+// kiosk spawns per `${sceneId}::${liftId}` rather than a single bound flag:
+// a same-world lift (drydock) plants two kiosks in one scene (one per
+// endpoint), so the cap is liftEndpointCountInScene(), not one.
 const airportHubsBound = new Set<string>()
 const transitTerminalsBound = new Set<string>()
-const orbitalLiftsBound = new Set<string>()
+const orbitalLiftSpawnCount = new Map<string, number>()
 
 function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   const { rect, primaryDoor } = slot
@@ -792,9 +794,17 @@ function clamp(v: number, lo: number, hi: number): number {
 
 function spawnLiftBuilding(slot: PlacedSlot, sceneId: SceneId): void {
   const { rect, primaryDoor } = slot
-  const lift = liftsForScene(sceneId).find((l) => !orbitalLiftsBound.has(`${sceneId}::${l.id}`))
+  // Pick a lift naming this scene that still has an unstamped endpoint here.
+  // A same-world lift (sceneIdA === sceneIdB) plants two kiosks in one scene,
+  // so we count spawns per (scene, lift) rather than tracking a single bound
+  // flag — the first orbitalLift building in the scene becomes one endpoint,
+  // the second the other.
+  const lift = liftsForScene(sceneId).find(
+    (l) => (orbitalLiftSpawnCount.get(`${sceneId}::${l.id}`) ?? 0) < liftEndpointCountInScene(l, sceneId),
+  )
   if (!lift) return  // No matching/free lift for this scene; vestibule is inert.
-  orbitalLiftsBound.add(`${sceneId}::${lift.id}`)
+  const countKey = `${sceneId}::${lift.id}`
+  orbitalLiftSpawnCount.set(countKey, (orbitalLiftSpawnCount.get(countKey) ?? 0) + 1)
 
   // Kiosk centered against the wall opposite the primary door — same
   // geometry as the airport's ticket counter and the transit kiosk.
@@ -807,11 +817,19 @@ function spawnLiftBuilding(slot: PlacedSlot, sceneId: SceneId): void {
   else if (primaryDoor.side === 'w') kx = rect.x + rect.w - inset
   else                               kx = rect.x + inset
 
+  // Endpoint: a cross-scene lift binds by scene; a same-world lift binds by
+  // region — the kiosk in the hidden (drydock) region is the orbital end 'b'
+  // (fare-free to leave), everything else the surface end 'a' (fareUp).
+  const endpoint: LiftEndpoint =
+    lift.sceneIdA !== lift.sceneIdB
+      ? (sceneId === lift.sceneIdA ? 'a' : 'b')
+      : (isInHiddenRegion(sceneId, Math.floor(kx / TILE), Math.floor(ky / TILE)) ? 'b' : 'a')
+
   world.spawn(
     Position({ x: kx, y: ky }),
-    Interactable({ kind: 'orbitalLift', label: lift.shortZh, fee: liftFareFrom(lift, sceneId) ?? 0 }),
-    OrbitalLift({ liftId: lift.id }),
-    EntityKey({ key: `orbital-lift-${lift.id}-${sceneId}` }),
+    Interactable({ kind: 'orbitalLift', label: lift.shortZh, fee: liftFareForEndpoint(lift, endpoint) }),
+    OrbitalLift({ liftId: lift.id, endpoint }),
+    EntityKey({ key: `orbital-lift-${lift.id}-${sceneId}-${endpoint}` }),
     TemplateRef({ id: 'orbital-lift-kiosk' }),
   )
 }
@@ -969,20 +987,22 @@ function spawnAeWorkforce(): void {
 // staffed standing population instead of an empty room slowly trickling
 // in immigrants. The population system in src/systems/population.ts then
 // maintains the count from there.
-function spawnReplenishmentSeed(scene: MicroSceneConfig): void {
-  if (!scene.replenishment) return
-  const target = scene.replenishment.target
-  const tile = scene.replenishment.arrivalTile
-  for (let i = 0; i < target; i++) {
-    spawnNPC(world, {
-      name: pickFreshName(world),
-      color: pickRandomColor(),
-      title: '市民',
-      x: TILE * tile.x,
-      y: TILE * tile.y,
-      money: 50 + Math.floor(Math.random() * 100),
-      key: `npc-seed-${scene.id}-${i + 1}`,
-    })
+function spawnReplenishmentSeed(scene: MicroSceneConfig, fromRegion = 0): void {
+  const regions = scene.replenishments ?? []
+  for (let ri = fromRegion; ri < regions.length; ri++) {
+    const region = regions[ri]
+    const tile = region.arrivalTile
+    for (let i = 0; i < region.target; i++) {
+      spawnNPC(world, {
+        name: pickFreshName(world),
+        color: pickRandomColor(),
+        title: '市民',
+        x: TILE * tile.x,
+        y: TILE * tile.y,
+        money: 50 + Math.floor(Math.random() * 100),
+        key: `npc-seed-${scene.id}-${ri}-${i + 1}`,
+      })
+    }
   }
 }
 
@@ -1063,6 +1083,13 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
     }
   }
 
+  // Hand-authored static walls (tile-space → pixels). Seals the drydock
+  // region into its own walkable component (the hull ring); spawned as plain
+  // Wall entities with no door.
+  for (const w of scene.walls ?? []) {
+    spawnWallEntity({ x: w.x * TILE, y: w.y * TILE, w: w.w * TILE, h: w.h * TILE })
+  }
+
   // Fixed buildings get their own RNG so adding/removing a procgen zone
   // doesn't perturb door offsets on hand-placed buildings.
   const fixedRng = SeededRng.fromString(`${scene.id}:fixed`)
@@ -1071,10 +1098,10 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
     spawnBuilding(pb.typeId, pb.slot, fixedRng, scene.id)
   }
 
-  // Phase 6.2.C2 — Von Braun drydock concourse AE sales desk. Spawned in
-  // its own scene so the drydock-bound rep entry in special-npcs.json5
-  // can pre-claim the seat. Other scenes get nothing.
-  if (scene.id === 'vonBraunDrydock') {
+  // Phase 6.2.C2 — drydock concourse AE ship-sales desk. The drydock now
+  // lives inside vonBraunCity's hidden region, so the desk spawns here; the
+  // drydock-bound rep entry in special-npcs.json5 pre-claims the seat.
+  if (scene.id === 'vonBraunCity') {
     spawnVonBraunDrydockShipSalesDesk()
   }
 
@@ -1087,6 +1114,10 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
   if (scene.id === initialSceneId) {
     spawnAeWorkforce()
     spawnFoundingCivilians(scene)
+    // Founding civilians cover the first replenishment region (the city core,
+    // seeded at the player spawn). Seed the remaining regions (the drydock)
+    // up to target so the orbital concourse reads as staffed on first visit.
+    spawnReplenishmentSeed(scene, 1)
   } else {
     spawnReplenishmentSeed(scene)
   }
@@ -1311,57 +1342,57 @@ export function grantStarterMsToFlagship(): void {
 // entities in the target scene first.
 export function refreshDepotMsLayout(sceneId: SceneId): void {
   const depotWorld = getWorld(sceneId)
-  const poiId = poiIdForScene(sceneId)
-  if (!poiId) return
 
   // Wipe stale MsRef entities so a delete / move leaves no orphan sprite.
   const doomed: Entity[] = []
   for (const ent of depotWorld.query(MsRef)) doomed.push(ent)
   for (const ent of doomed) ent.destroy()
 
-  // Find the hangar building in this scene; if there isn't one, nothing
-  // to anchor to.
-  let hangarBuilding: Entity | null = null
-  for (const b of depotWorld.query(Building, Hangar)) { hangarBuilding = b; break }
-  if (!hangarBuilding) return
-  const bld = hangarBuilding.get(Building)!
-  const anchorX = bld.x + bld.w / 2
-  const anchorY = bld.y + bld.h / 2
-
   const shipWorld = getWorld(SHIP_SCENE_ID)
   const offsets = msConfig.depotBayOffsets
 
-  let bayIdx = 0
-  for (const msEnt of shipWorld.query(Ms, EntityKey)) {
-    const ms = msEnt.get(Ms)!
-    const msKey = msEnt.get(EntityKey)!.key
-    if (ms.dockedAtPoiId !== poiId) continue
-    if (ms.storedOnShipKey) continue
-    if (ms.transitDestinationId) continue
+  // One scene may host several hangars at distinct POIs (the surface yard +
+  // the orbital drydock both in vonBraunCity). Lay each hangar's MS out
+  // around that hangar, keyed to its own POI.
+  for (const hangarBuilding of depotWorld.query(Building, Hangar)) {
+    const bld = hangarBuilding.get(Building)!
+    const poiId = poiIdForHangar(sceneId, bld)
+    if (!poiId) continue
+    const anchorX = bld.x + bld.w / 2
+    const anchorY = bld.y + bld.h / 2
 
-    const bayOff = offsets[bayIdx % offsets.length]
-    const sx = anchorX + bayOff.dx * TILE
-    const sy = anchorY + bayOff.dy * TILE
+    let bayIdx = 0
+    for (const msEnt of shipWorld.query(Ms, EntityKey)) {
+      const ms = msEnt.get(Ms)!
+      const msKey = msEnt.get(EntityKey)!.key
+      if (ms.dockedAtPoiId !== poiId) continue
+      if (ms.storedOnShipKey) continue
+      if (ms.transitDestinationId) continue
 
-    depotWorld.spawn(
-      Position({ x: sx, y: sy }),
-      Interactable({ kind: 'climbIntoMs', label: '登舱出击', fee: 0 }),
-      MsRef({ msKey }),
-      EntityKey({ key: `ms-depot-sprite-${sceneId}-${msKey}` }),
-      TemplateRef({ id: 'ship-ms-sprite' }),
-    )
+      const bayOff = offsets[bayIdx % offsets.length]
+      const sx = anchorX + bayOff.dx * TILE
+      const sy = anchorY + bayOff.dy * TILE
 
-    const tx = sx + msConfig.terminalOffsetDx * TILE
-    const ty = sy + msConfig.terminalOffsetDy * TILE
-    depotWorld.spawn(
-      Position({ x: tx, y: ty }),
-      Interactable({ kind: 'msTerminal', label: 'MS 终端', fee: 0 }),
-      MsRef({ msKey }),
-      EntityKey({ key: `ms-depot-terminal-${sceneId}-${msKey}` }),
-      TemplateRef({ id: 'ship-ms-terminal' }),
-    )
+      depotWorld.spawn(
+        Position({ x: sx, y: sy }),
+        Interactable({ kind: 'climbIntoMs', label: '登舱出击', fee: 0 }),
+        MsRef({ msKey }),
+        EntityKey({ key: `ms-depot-sprite-${sceneId}-${msKey}` }),
+        TemplateRef({ id: 'ship-ms-sprite' }),
+      )
 
-    bayIdx += 1
+      const tx = sx + msConfig.terminalOffsetDx * TILE
+      const ty = sy + msConfig.terminalOffsetDy * TILE
+      depotWorld.spawn(
+        Position({ x: tx, y: ty }),
+        Interactable({ kind: 'msTerminal', label: 'MS 终端', fee: 0 }),
+        MsRef({ msKey }),
+        EntityKey({ key: `ms-depot-terminal-${sceneId}-${msKey}` }),
+        TemplateRef({ id: 'ship-ms-terminal' }),
+      )
+
+      bayIdx += 1
+    }
   }
 
   markPathfindingDirty(sceneId)
@@ -1495,7 +1526,7 @@ export function setupWorld(opts: SetupWorldOpts = { skipDefaultPlayer: false }) 
   roughSpotCounter = 0
   airportHubsBound.clear()
   transitTerminalsBound.clear()
-  orbitalLiftsBound.clear()
+  orbitalLiftSpawnCount.clear()
   for (const k of Object.keys(buildingKeyCounters)) delete buildingKeyCounters[k]
   clearAirportPlacements()
   clearTransitPlacements()

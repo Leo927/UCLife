@@ -39,7 +39,7 @@ import {
   shipDeliverySystem, enqueueDelivery, receiveDelivery,
   deriveHangarOccupancy,
 } from '../../systems/shipDelivery'
-import { poiIdForScene } from '../../data/pois'
+import { poiIdForHangar } from '../../data/pois'
 import { getStat } from '../../stats/sheet'
 import { getShipClass } from '../../data/ship-classes'
 import { spawnNPC } from '../../character/spawn'
@@ -233,7 +233,7 @@ registerDebugHandle('setHangarRepairPriority', (buildingKey: string, shipKey: st
 // ship list, current focus. Lets the smoke read the same numbers the
 // player would see without driving the React tree.
 registerDebugHandle('hangarRepairDescribe', (buildingKey: string) => {
-  for (const sceneId of ['vonBraunCity', 'vonBraunDrydock', 'zumCity'] as const) {
+  for (const sceneId of ['vonBraunCity', 'zumCity'] as const) {
     const sw = getWorld(sceneId)
     for (const b of sw.query(Building, Hangar, EntityKey)) {
       if (b.get(EntityKey)!.key !== buildingKey) continue
@@ -287,7 +287,7 @@ registerDebugHandle('hangarOccupancy', (buildingKey: string): {
     for (const b of sw.query(Building, Hangar, EntityKey)) {
       if (b.get(EntityKey)!.key !== buildingKey) continue
       const h = b.get(Hangar)!
-      const poiId = poiIdForScene(sceneId)
+      const poiId = poiIdForHangar(sceneId, b.get(Building)!)
       return {
         poiId,
         capacity: h.slotCapacity,
@@ -375,6 +375,7 @@ registerDebugHandle('listGates', (sceneId: string) => {
   const tilePx = worldConfig.tilePx
   const seen = new Map<string, {
     gateNumber: string
+    poiId: string
     slotClass: 'capital' | 'smallCraft'
     boundShipKey: string
     shipName: string
@@ -384,25 +385,31 @@ registerDebugHandle('listGates', (sceneId: string) => {
   for (const e of w.query(GateSlot, Position)) {
     const slot = e.get(GateSlot)!
     const p = e.get(Position)!
-    let row = seen.get(slot.gateNumber)
+    // Gate identity is (poiId, gateNumber): one scene can host two hangars
+    // (surface yard + orbital drydock) that each number from C1 / S1.
+    const key = `${slot.poiId}:${slot.gateNumber}`
+    let row = seen.get(key)
     if (!row) {
       const shipEnt = findShipByKey(slot.boundShipKey)
       const ship = shipEnt?.get(Ship)
       row = {
         gateNumber: slot.gateNumber,
+        poiId: slot.poiId,
         slotClass: slot.slotClass,
         boundShipKey: slot.boundShipKey,
         shipName: ship?.name ?? '',
         ownerLabel: shipOwnerLabel(shipEnt),
         kioskTile: null,
       }
-      seen.set(slot.gateNumber, row)
+      seen.set(key, row)
     }
     if (e.has(GateKioskMark)) {
       row.kioskTile = { x: p.x / tilePx, y: p.y / tilePx }
     }
   }
-  return Array.from(seen.values()).sort((a, b) => a.gateNumber.localeCompare(b.gateNumber))
+  return Array.from(seen.values()).sort(
+    (a, b) => (a.poiId.localeCompare(b.poiId) || a.gateNumber.localeCompare(b.gateNumber)),
+  )
 })
 
 // Phase 6.2.A — list ship markers currently mirrored into a scene's

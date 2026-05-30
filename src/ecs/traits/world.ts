@@ -127,11 +127,13 @@ export const FlightHub = trait({
 
 // Phase 6.2.A.2 — orbital-lift kiosk binding. Sits alongside an Interactable
 // of kind 'orbitalLift'. `liftId` keys into orbital-lifts.json5 to resolve
-// the (durationMin, fare, paired-scene) economics; the interaction system
-// reads the kiosk's current-scene id off the active world to pick which
-// endpoint is the destination.
+// the (durationMin, fare) economics. `endpoint` ('a' = surface/sceneIdA,
+// 'b' = orbital/sceneIdB) is stamped at spawn and disambiguates the two
+// kiosks when both endpoints live in one world (the folded-in drydock): it
+// selects the departure fare and identifies the paired arrival kiosk.
 export const OrbitalLift = trait({
   liftId: '',
+  endpoint: 'a' as 'a' | 'b',
 })
 
 // Scene-side anchor for a fleet ship parked in a hangar at this scene's
@@ -155,6 +157,11 @@ export const GateSlot = trait({
   gateNumber: '',
   slotClass: 'capital' as 'capital' | 'smallCraft',
   boundShipKey: '',
+  // POI of the hangar this gate belongs to. A scene may host more than one
+  // hangar at distinct POIs (the surface yard + the orbital drydock both in
+  // vonBraunCity), so gate identity is (poiId, gateNumber) — only ships
+  // docked at this poiId bind here.
+  poiId: '',
 })
 
 // Side-role markers stamped on the three entities that make up a gate

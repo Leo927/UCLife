@@ -111,15 +111,33 @@ export type FixedBuildingRef = {
   resolvedRect?: { x: number; y: number; w: number; h: number }
 }
 
-// Per-scene NPC replenishment. Absence of this field means the scene never
-// auto-spawns immigrants. Required values:
+export type TileRect = { x: number; y: number; w: number; h: number }
+
+// Per-region NPC replenishment. A scene may declare several regions; each
+// maintains its own alive-NPC target counted only within `regionRect`, so
+// spatially-disconnected regions (e.g. the hidden drydock inside vonBraunCity)
+// top up independently of the rest of the world.
 //   target      — alive-NPC count to maintain (excluding the player).
 //   arrivalTile — where each new immigrant spawns, in this scene's tile-space.
-//                 Must be a walkable street tile inside the scene envelope.
+//                 Must be a walkable tile inside `regionRect`.
+//   regionRect  — tile-space bounds the alive-count is taken over.
 // Throttle (replenishIntervalMin) stays global — see config/population.json5.
 export interface ReplenishmentConfig {
   target: number
   arrivalTile: { x: number; y: number }
+  regionRect: TileRect
+}
+
+// Camera clamp region (tile-space). The camera clamps to whichever region
+// contains the player, so spatially-disconnected regions never bleed into one
+// another's view. `hidden` regions are additionally dropped from the world map.
+// `poiId` ties the region to a space-campaign POI so that two hangars sharing
+// one scene (the surface yard + the orbital drydock folded into vonBraunCity)
+// keep distinct fleet-POI identities — see pois.ts `poiIdForSceneAt`.
+export interface CameraRegionConfig {
+  rect: TileRect
+  hidden?: boolean
+  poiId?: string
 }
 
 export interface MicroSceneConfig {
@@ -136,7 +154,12 @@ export interface MicroSceneConfig {
   // road carver still doesn't know about holes.
   procgenZones?: ProcgenConfig[]
   fixedBuildings?: FixedBuildingRef[]
-  replenishment?: ReplenishmentConfig
+  // Hand-authored static walls (tile-space). Used to seal off a region into
+  // its own walkable pathfinding component (the drydock hull ring) without a
+  // building footprint. Spawned as plain Wall entities at bootstrap.
+  walls?: TileRect[]
+  cameraRegions?: CameraRegionConfig[]
+  replenishments?: ReplenishmentConfig[]
 }
 
 export interface ShipSceneConfig {
@@ -268,18 +291,20 @@ for (const s of parsed.scenes) {
       }
     }
   }
-  if (s.sceneType === 'micro' && s.replenishment) {
-    const r = s.replenishment
-    if (!Number.isFinite(r.target) || r.target < 0) {
-      throw new Error(
-        `scenes.json5: scene "${s.id}" replenishment.target must be a non-negative number`,
-      )
-    }
-    const t = r.arrivalTile
-    if (t.x < 0 || t.y < 0 || t.x >= s.tilesX || t.y >= s.tilesY) {
-      throw new Error(
-        `scenes.json5: scene "${s.id}" replenishment.arrivalTile (${t.x},${t.y}) is outside the ${s.tilesX}x${s.tilesY} envelope`,
-      )
+  if (s.sceneType === 'micro' && s.replenishments) {
+    for (let ri = 0; ri < s.replenishments.length; ri++) {
+      const r = s.replenishments[ri]
+      if (!Number.isFinite(r.target) || r.target < 0) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" replenishments[${ri}].target must be a non-negative number`,
+        )
+      }
+      const t = r.arrivalTile
+      if (t.x < 0 || t.y < 0 || t.x >= s.tilesX || t.y >= s.tilesY) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" replenishments[${ri}].arrivalTile (${t.x},${t.y}) is outside the ${s.tilesX}x${s.tilesY} envelope`,
+        )
+      }
     }
   }
 }
@@ -302,6 +327,62 @@ export function getSceneConfig(id: string): SceneConfig {
 
 export function isSceneId(id: string): boolean {
   return byId.has(id)
+}
+
+function pointInRect(tileX: number, tileY: number, r: TileRect): boolean {
+  return tileX >= r.x && tileX < r.x + r.w && tileY >= r.y && tileY < r.y + r.h
+}
+
+// Camera regions for a micro scene (empty for non-micro / scenes that don't
+// declare any). The camera clamps to whichever region contains the player.
+export function getCameraRegions(id: string): readonly CameraRegionConfig[] {
+  const c = byId.get(id)
+  if (!c || c.sceneType !== 'micro') return []
+  return c.cameraRegions ?? []
+}
+
+// True when (tileX, tileY) falls inside a `hidden` camera region of the scene
+// — used to drop drydock buildings from the world map and to tag the
+// drydock-end lift kiosk as the orbital (fare-free-to-leave) endpoint.
+export function isInHiddenRegion(id: string, tileX: number, tileY: number): boolean {
+  for (const region of getCameraRegions(id)) {
+    if (region.hidden && pointInRect(tileX, tileY, region.rect)) return true
+  }
+  return false
+}
+
+// The camera-clamp rect (tile-space) containing (tileX, tileY), or null when
+// the scene declares no regions / the point is in none — the caller then
+// clamps to the full scene envelope. Lets the camera stay inside the player's
+// current region so spatially-disconnected regions never share a frame.
+export function cameraRegionAt(id: string, tileX: number, tileY: number): TileRect | null {
+  for (const region of getCameraRegions(id)) {
+    if (pointInRect(tileX, tileY, region.rect)) return region.rect
+  }
+  return null
+}
+
+// The poiId of the camera region containing (tileX, tileY), or null. Lets the
+// fleet layer resolve a hangar's POI per-building when several regions (hence
+// several POIs) share one scene. pois.ts wraps this with a single-POI fallback.
+export function regionPoiAt(id: string, tileX: number, tileY: number): string | null {
+  for (const region of getCameraRegions(id)) {
+    if (region.poiId && pointInRect(tileX, tileY, region.rect)) return region.poiId
+  }
+  return null
+}
+
+// The surface (visible) and orbital (hidden) region poiIds of a scene, for the
+// starmap to draw the elevator line of a same-world lift between its two POIs.
+export function regionPoiIds(id: string): { visible: string | null; hidden: string | null } {
+  let visible: string | null = null
+  let hidden: string | null = null
+  for (const region of getCameraRegions(id)) {
+    if (!region.poiId) continue
+    if (region.hidden) { hidden ??= region.poiId }
+    else { visible ??= region.poiId }
+  }
+  return { visible, hidden }
 }
 
 // Pathfinding (src/systems/pathfinding.ts) and HPA* (src/systems/hpa.ts)

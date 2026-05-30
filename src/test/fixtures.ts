@@ -13,6 +13,7 @@ import msPartsRaw from '../../tests/fixtures/ms-parts.json5?raw'
 import prisonerRaw from '../../tests/fixtures/prisoner.json5?raw'
 import recoverablesRaw from '../../tests/fixtures/recoverables.json5?raw'
 import npcTransitRaw from '../../tests/fixtures/npc-transit.json5?raw'
+import drydockRaw from '../../tests/fixtures/drydock.json5?raw'
 import cpDpRaw from '../../tests/fixtures/cp-dp.json5?raw'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { useScene } from '../sim/scene'
@@ -106,6 +107,7 @@ const FIXTURES: Record<string, string> = {
   'prisoner': prisonerRaw,
   'recoverables': recoverablesRaw,
   'npc-transit': npcTransitRaw,
+  'drydock': drydockRaw,
   'cp-dp': cpDpRaw,
 }
 

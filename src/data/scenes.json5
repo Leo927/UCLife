@@ -74,17 +74,131 @@
       titleZh: '冯·布劳恩月面市',
       sceneType: 'micro',
       tilesX: 800,
-      tilesY: 520,
+      // y 0..520 is the walkable lunar-surface city; y 520..600 is the
+      // spatially-disconnected orbital drydock region (hull-ringed, reached
+      // only by the orbital lift — see `walls` / `cameraRegions` below). The
+      // fiction is that the drydock is in synchronous orbit; mechanically it
+      // is the same koota world so its crew tick on the city sim loop.
+      tilesY: 600,
       // West of the central procgen zone, on open ground. Player walks east
       // into the city's road network.
       playerSpawnTile: { x: 20, y: 50 },
 
-      // Same walkable street tile the homeless player spawns on — keeps
-      // immigrants on the road network so their first BT tick has a path.
-      replenishment: {
-        target: 30,
-        arrivalTile: { x: 20, y: 16 },
-      },
+      // Per-region NPC replenishment. Each region maintains its own alive-NPC
+      // target counted only within `regionRect` (tile-space), so the drydock
+      // crew and the city populace top up independently. arrivalTile is the
+      // walkable tile each immigrant appears on inside that region.
+      replenishments: [
+        // City: same walkable street tile the homeless player spawns on —
+        // keeps immigrants on the road network so their first BT tick has a path.
+        {
+          target: 30,
+          arrivalTile: { x: 20, y: 16 },
+          regionRect: { x: 0, y: 0, w: 800, h: 520 },
+        },
+        // Drydock: manager (1) + hangar workers (8) + crew-rotation headroom,
+        // counted only inside the hull ring. arrivalTile is a clean concourse
+        // tile two south of the lift vestibule.
+        {
+          target: 12,
+          arrivalTile: { x: 40, y: 550 },
+          regionRect: { x: 10, y: 540, w: 60, h: 50 },
+        },
+      ],
+
+      // Drydock hull ring (tile-space, 1 tile thick). Seals the drydock
+      // concourse off from the city's walkable plain so it is its own
+      // walkable pathfinding component — no foot route connects the two; the
+      // orbital lift (a NPC-only transit portal + the player's fare-gated
+      // kiosk) is the only way across. Interior is x 10..70, y 540..590.
+      walls: [
+        { x: 9, y: 539, w: 62, h: 1 },
+        { x: 9, y: 590, w: 62, h: 1 },
+        { x: 9, y: 539, w: 1, h: 52 },
+        { x: 70, y: 539, w: 1, h: 52 },
+      ],
+
+      // Camera clamp regions (tile-space). The camera clamps to whichever
+      // region contains the player, so the drydock is never visible while in
+      // the city and vice-versa. `hidden: true` also drops the region's
+      // buildings from the world map (MapPanel / worldMap.ts). `poiId` keeps
+      // the surface yard and the orbital drydock on distinct space-campaign
+      // POIs even though they share this one world (pois.ts poiIdForSceneAt).
+      cameraRegions: [
+        { rect: { x: 0, y: 0, w: 800, h: 520 }, poiId: 'vonBraun' },
+        { rect: { x: 10, y: 540, w: 60, h: 50 }, hidden: true, poiId: 'vonBraunDrydock' },
+      ],
+
+      // Orbital drydock concourse — relocated from the former `vonBraunDrydock`
+      // scene into this world's hidden southern region (offset +10x / +540y
+      // from the old 60×50 envelope). Doors face the concourse exactly as
+      // before. All five buildings sit inside the hull ring; the lift kiosk
+      // is the only crossing to the city.
+      fixedBuildings: [
+        {
+          type: 'hangarDrydock',
+          tile: { x: 24, y: 562 },
+          door: { side: 'n', offsetTiles: 15 },
+          display: {
+            id: 'vonBraunStateDrydock',
+            nameZh: '冯·布劳恩国营船坞',
+            shortZh: '国营船坞',
+            kind: 'complex',
+            description: '冯·布劳恩同步轨道船坞群的国营泊位——巡洋舰、战列舰一类的大吨位舰艇在此停泊和维护。船坞主管和技工常驻泊位：船坞自带食堂和员工铺位,全天候三班倒。',
+          },
+        },
+        // Orbital-lift vestibule (drydock end). Door faces south onto the
+        // concourse so the player exits the lift, walks past the arrival
+        // tile, and continues south to the hangar's north door at (39, 562).
+        {
+          type: 'orbitalLift',
+          tile: { x: 38, y: 544 },
+          door: { side: 's', offsetTiles: 1 },
+          display: {
+            id: 'vonBraunDrydockOrbitalLift',
+            nameZh: '冯·布劳恩船坞 · 轨道升降梯',
+            shortZh: '轨道升降梯',
+            kind: 'complex',
+            description: '船坞群的轨道升降梯入口。乘梯直达冯·布劳恩月面市。',
+          },
+        },
+        {
+          type: 'drydockBar',
+          tile: { x: 16, y: 551 },
+          door: { side: 's', offsetTiles: 4 },
+          display: {
+            id: 'vonBraunDrydockBar',
+            nameZh: '冯·布劳恩船坞 · 酒吧',
+            shortZh: '船坞酒吧',
+            kind: 'complex',
+            description: '船坞常驻机组的休憩场所——轮班工人和往来飞行员在这里喝一杯、放松一下。',
+          },
+        },
+        {
+          type: 'drydockClinic',
+          tile: { x: 48, y: 551 },
+          door: { side: 's', offsetTiles: 3 },
+          display: {
+            id: 'vonBraunDrydockClinic',
+            nameZh: '冯·布劳恩船坞 · 诊所',
+            shortZh: '船坞诊所',
+            kind: 'complex',
+            description: '为常驻船坞的机组提供诊断与基础治疗。当班医生全天候值守。',
+          },
+        },
+        {
+          type: 'supplyDepot',
+          tile: { x: 58, y: 551 },
+          door: { side: 's', offsetTiles: 3 },
+          display: {
+            id: 'vonBraunDrydockSupplyDepot',
+            nameZh: '冯·布劳恩船坞 · 补给站',
+            shortZh: '补给站',
+            kind: 'complex',
+            description: '亚纳海姆电子在船坞区设立的补给与燃料分销点。可向驻场代表为机库订购补给。',
+          },
+        },
+      ],
 
       procgenZones: [
         // ── Von Braun central district ────────────────────────────────────
@@ -290,9 +404,10 @@
               buildingsPerBlockMax: 1,
             },
             // Middle band: convenience commerce for the workforce. Hosts
-            // the orbital-lift vestibule too — sceneId binding in
-            // orbital-lifts.json5 (vonBraunCity ↔ vonBraunDrydock) wires
-            // the kiosk inside automatically at spawn time.
+            // the orbital-lift vestibule too (the city/surface end of the
+            // drydock lift) — both endpoints of the vonBraunDrydockLift row
+            // in orbital-lifts.json5 now live in this one world, so spawn
+            // stamps this kiosk as endpoint 'a' (the fare-up surface end).
             {
               id: 'aeIndustrial_commercial',
               rect: { x: 0, y: 24, w: 132, h: 14 },
@@ -399,124 +514,6 @@
               buildingsPerBlockMax: 1,
             },
           ],
-        },
-      ],
-    },
-
-    // Phase 6.2.A.2 — Von Braun orbital drydock concourse. Reached only via
-    // the orbital lift from Von Braun (no airport, no procgen city). A
-    // walkable apron with one state-owned `hangarDrydock` facility
-    // (capital + smallCraft slots) at the south end; the orbital-lift
-    // kiosk sits at the north edge so the player walks down into the
-    // drydock floor after disembarking. UC canon: capital ships base in
-    // space; lunar-surface industrial complexes are construction yards,
-    // not parking lots, so capital tonnage is reachable only here.
-    //
-    // The drydock crew live on-station: the hangar's open floor doubles
-    // as a cafeteria + bunk strip (see hangarDrydock layout), and the
-    // scene runs its own replenishment loop so the worker pool keeps
-    // topping up as crew rotate out. New arrivals walk out of the lift
-    // and the BT find-job path seats them at empty hangar workstations.
-    //
-    // Mini-station expansion: the concourse hosts three service
-    // buildings (drydockBar, drydockClinic, supplyDepot) so the live-in
-    // crew have somewhere to drink, get patched up, and so the player
-    // can order hangar supply on-site. replenishment.target is unchanged
-    // — it tracks the job count (hangar + bar + clinic), not standing
-    // population; jobless NPCs can't survive.
-    {
-      id: 'vonBraunDrydock',
-      titleZh: '冯·布劳恩 · 轨道船坞',
-      sceneType: 'micro',
-      tilesX: 60,
-      tilesY: 50,
-
-      // Drydock manager (1) + hangar workers (8) + a small headroom for
-      // crew rotation, so empty workstations refill without a long lag.
-      // ArrivalTile sits two tiles south of the lift vestibule — a clean
-      // walkable concourse tile, well clear of the lift's south wall.
-      replenishment: {
-        target: 12,
-        arrivalTile: { x: 30, y: 10 },
-      },
-
-      fixedBuildings: [
-        {
-          type: 'hangarDrydock',
-          tile: { x: 14, y: 22 },
-          door: { side: 'n', offsetTiles: 15 },
-          display: {
-            id: 'vonBraunStateDrydock',
-            nameZh: '冯·布劳恩国营船坞',
-            shortZh: '国营船坞',
-            kind: 'complex',
-            description: '冯·布劳恩同步轨道船坞群的国营泊位——巡洋舰、战列舰一类的大吨位舰艇在此停泊和维护。船坞主管和技工常驻泊位：船坞自带食堂和员工铺位，全天候三班倒。',
-          },
-        },
-        // Phase 6.2.A.2 — orbital-lift vestibule for the Von Braun pair.
-        // The drydock concourse has no procgen zone, so the lift building
-        // is hand-placed here as a fixedBuilding. Door faces south onto
-        // the concourse so the player exits the lift, walks past the
-        // arrival tile, and continues south to the drydock's north door
-        // at (29, 22). The kiosk-to-lift binding is by sceneId — spawn
-        // looks up the row in orbital-lifts.json5 whose endpoints contain
-        // 'vonBraunDrydock' and stamps the kiosk inside.
-        {
-          type: 'orbitalLift',
-          tile: { x: 28, y: 4 },
-          door: { side: 's', offsetTiles: 1 },
-          display: {
-            id: 'vonBraunDrydockOrbitalLift',
-            nameZh: '冯·布劳恩船坞 · 轨道升降梯',
-            shortZh: '轨道升降梯',
-            kind: 'complex',
-            description: '船坞群的轨道升降梯入口。乘梯直达冯·布劳恩月面市。',
-          },
-        },
-        // Concourse service row — the mini-station expansion. Three
-        // hand-placed service buildings line the open band between the
-        // lift (y=4..8) and the hangar's north wall (y=22): a crew bar
-        // and clinic on the west half, the AE supply depot on the east.
-        // All doors face south onto the walkable concourse. Coords stay
-        // clear of the lift, the hangar (x=14..46 / y=22..46), the
-        // replenishment arrival tile (30,10) and the ship-sales desk
-        // (30,16). bar/clinic auto-staff from the replenishment pool;
-        // the supply depot's AE dealer is a special NPC.
-        {
-          type: 'drydockBar',
-          tile: { x: 6, y: 11 },
-          door: { side: 's', offsetTiles: 4 },
-          display: {
-            id: 'vonBraunDrydockBar',
-            nameZh: '冯·布劳恩船坞 · 酒吧',
-            shortZh: '船坞酒吧',
-            kind: 'complex',
-            description: '船坞常驻机组的休憩场所——轮班工人和往来飞行员在这里喝一杯、放松一下。',
-          },
-        },
-        {
-          type: 'drydockClinic',
-          tile: { x: 38, y: 11 },
-          door: { side: 's', offsetTiles: 3 },
-          display: {
-            id: 'vonBraunDrydockClinic',
-            nameZh: '冯·布劳恩船坞 · 诊所',
-            shortZh: '船坞诊所',
-            kind: 'complex',
-            description: '为常驻船坞的机组提供诊断与基础治疗。当班医生全天候值守。',
-          },
-        },
-        {
-          type: 'supplyDepot',
-          tile: { x: 48, y: 11 },
-          door: { side: 's', offsetTiles: 3 },
-          display: {
-            id: 'vonBraunDrydockSupplyDepot',
-            nameZh: '冯·布劳恩船坞 · 补给站',
-            shortZh: '补给站',
-            kind: 'complex',
-            description: '亚纳海姆电子在船坞区设立的补给与燃料分销点。可向驻场代表为机库订购补给。',
-          },
         },
       ],
     },

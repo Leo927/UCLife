@@ -6,7 +6,10 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, getActiveSceneId, type SceneId } from '../../ecs/world'
 import { IsPlayer, Money, OrbitalLift, Position } from '../../ecs/traits'
-import { getOrbitalLift, liftOtherEndpoint, liftFareFrom, orbitalLifts } from '../../data/orbitalLifts'
+import {
+  getOrbitalLift, liftOtherEndpoint, liftFareForEndpoint, orbitalLifts,
+  type LiftEndpoint,
+} from '../../data/orbitalLifts'
 import { useClock } from '../../sim/clock'
 import { migratePlayerToScene } from '../../sim/scene'
 import { worldConfig } from '../../config'
@@ -16,6 +19,7 @@ const TILE = worldConfig.tilePx
 interface OrbitalLiftSnapshot {
   liftId: string
   sceneId: SceneId
+  endpoint: LiftEndpoint
   posTile: { x: number; y: number }
   fare: number
   durationMin: number
@@ -34,8 +38,9 @@ registerDebugHandle('listOrbitalLifts', (sceneIdOverride?: SceneId): OrbitalLift
     out.push({
       liftId: ol.liftId,
       sceneId,
+      endpoint: ol.endpoint,
       posTile: { x: Math.round(p.x / TILE), y: Math.round(p.y / TILE) },
-      fare: liftFareFrom(lift, sceneId) ?? 0,
+      fare: liftFareForEndpoint(lift, ol.endpoint),
       durationMin: lift.durationMin,
       destSceneId: liftOtherEndpoint(lift, sceneId),
     })
@@ -46,11 +51,12 @@ registerDebugHandle('listOrbitalLifts', (sceneIdOverride?: SceneId): OrbitalLift
 registerDebugHandle('orbitalLiftCatalog', () => orbitalLifts.map((l) => ({ ...l })))
 
 // Deterministic transit driver — same flow the interaction system runs,
-// minus the visual fade. Charges fare, advances clock by durationMin, and
-// migrates the player to the kiosk on the other end. Returns the resolved
-// destination sceneId or null on failure (insufficient funds, bad liftId,
-// no paired kiosk on the destination scene).
-registerDebugHandle('runOrbitalLift', (liftId: string): SceneId | null => {
+// minus the visual fade. Rides from the kiosk of `fromEndpoint` (default: the
+// kiosk nearest the player), charges that endpoint's fare, advances the clock
+// by durationMin, and migrates the player to the paired (opposite-endpoint)
+// kiosk. Returns the resolved destination sceneId or null on failure
+// (insufficient funds, bad liftId, no kiosk for the chosen endpoint).
+registerDebugHandle('runOrbitalLift', (liftId: string, fromEndpoint?: LiftEndpoint): SceneId | null => {
   const lift = getOrbitalLift(liftId)
   if (!lift) return null
   const fromSceneId = getActiveSceneId()
@@ -58,10 +64,26 @@ registerDebugHandle('runOrbitalLift', (liftId: string): SceneId | null => {
   if (!destSceneId) return null
 
   const fromWorld = getWorld(fromSceneId)
-  const player = fromWorld.queryFirst(IsPlayer)
+  const player = fromWorld.queryFirst(IsPlayer, Position)
   if (!player) return null
 
-  const fare = liftFareFrom(lift, fromSceneId) ?? 0
+  // Resolve the departure endpoint: explicit if given, else the kiosk nearest
+  // the player (mirrors the interaction system's nearest-interactable scan).
+  let endpoint = fromEndpoint
+  if (endpoint === undefined) {
+    const pp = player.get(Position)!
+    let bestD = Infinity
+    for (const ent of fromWorld.query(OrbitalLift, Position)) {
+      const ol = ent.get(OrbitalLift)!
+      if (ol.liftId !== liftId) continue
+      const p = ent.get(Position)!
+      const d = (p.x - pp.x) ** 2 + (p.y - pp.y) ** 2
+      if (d < bestD) { bestD = d; endpoint = ol.endpoint }
+    }
+  }
+  if (endpoint === undefined) return null
+
+  const fare = liftFareForEndpoint(lift, endpoint)
   if (fare > 0) {
     const m = player.get(Money)
     if (!m || m.amount < fare) return null
@@ -72,7 +94,7 @@ registerDebugHandle('runOrbitalLift', (liftId: string): SceneId | null => {
   let arrivalPx: { x: number; y: number } | null = null
   for (const ent of destWorld.query(OrbitalLift, Position)) {
     const ol = ent.get(OrbitalLift)!
-    if (ol.liftId !== liftId) continue
+    if (ol.liftId !== liftId || ol.endpoint === endpoint) continue
     const p = ent.get(Position)!
     arrivalPx = { x: p.x, y: p.y + TILE }
     break

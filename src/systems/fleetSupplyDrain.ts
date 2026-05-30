@@ -119,8 +119,8 @@ export function fleetSupplyDrainSystem(
 }
 
 // Public for the HUD readout. Aggregates the current supplyCurrent +
-// supplyMax (and fuel) across every hangar in the passed world. The
-// caller stitches multi-world (vonBraunCity + vonBraunDrydock) sums.
+// supplyMax (and fuel) across every hangar in the passed world (the
+// surface + orbital-drydock hangars now share the vonBraunCity world).
 export function aggregateHangarReserves(hangarWorld: World): {
   supplyCurrent: number; supplyMax: number;
   fuelCurrent: number; fuelMax: number;

@@ -56,7 +56,7 @@ import {
 import { defaultShipName } from '../../data/shipNaming'
 import { useUI } from '../../ui/uiStore'
 import { getShipClass } from '../../data/ship-classes'
-import { getPoi, poiIdForScene } from '../../data/pois'
+import { getPoi, poiIdForHangar } from '../../data/pois'
 import {
   enqueueDelivery, receiveDelivery, shipDeliverySystem,
 } from '../../systems/shipDelivery'
@@ -130,8 +130,9 @@ registerDebugHandle('fleetRosterSnapshot', (): FleetRosterRow[] => {
   for (const sceneId of SCENE_IDS) {
     const w = getWorld(sceneId)
     for (const b of w.query(Building, Hangar)) {
-      const label = b.get(Building)?.label ?? ''
-      const poi = poiIdForScene(sceneId)
+      const bld = b.get(Building)
+      const label = bld?.label ?? ''
+      const poi = bld ? poiIdForHangar(sceneId, bld) : null
       if (poi && label) hangarLabelByPoi.set(poi, label)
     }
   }

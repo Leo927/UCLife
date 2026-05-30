@@ -4,7 +4,7 @@ import { IsPlayer, Position, Building, MoveTarget, QueuedInteract, QueuedTalk, A
 import { worldConfig } from '../config'
 import { getActiveSceneDimensions } from '../ecs/world'
 import { useScene } from '../sim/scene'
-import { getSceneConfig } from '../data/scenes'
+import { getSceneConfig, isInHiddenRegion } from '../data/scenes'
 import { getPlacesInScene, type WorldPlace } from '../data/worldMap'
 import { flightHubs } from '../data/flights'
 import { getTransitPlacement } from '../sim/transitPlacements'
@@ -115,6 +115,9 @@ function fitToContentBox(sceneId: string, tilesX: number, tilesY: number): MapVi
     maxY = Math.max(maxY, z.rect.y + z.rect.h)
   }
   for (const fb of cfg.fixedBuildings ?? []) {
+    // Hidden-region buildings (the orbital drydock) are off-map — exclude
+    // them from the content bbox so the city view doesn't pan south to them.
+    if (isInHiddenRegion(sceneId, fb.tile.x, fb.tile.y)) continue
     minX = Math.min(minX, fb.tile.x)
     minY = Math.min(minY, fb.tile.y)
     // Approximate fixed-building footprint without coupling to buildingTypes.

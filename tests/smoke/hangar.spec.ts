@@ -34,13 +34,16 @@ test('hangar: state-owned with correct slots, manager dialog readout', async ({ 
   )
   expect(scene, `fixture must boot in vonBraunCity, got ${scene}`).toBe('vonBraunCity')
 
-  // 1. Hangar spawned with the right facility shape.
+  // 1. Surface hangar spawned with the right facility shape. vonBraunCity
+  // now also hosts the orbital drydock (hidden region), so select the
+  // surface yard by type rather than assuming a single hangar.
   const hangars = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.listHangars(),
   )
-  expect(hangars.length, `expected 1 hangar in vonBraunCity, found ${hangars.length}`).toBe(1)
-  const vb = hangars[0]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vb = hangars.find((h: any) => h.typeId === HANGAR_TYPE_ID)
+  expect(vb, `${HANGAR_TYPE_ID} missing from vonBraunCity hangars`).toBeTruthy()
   expect(vb.typeId).toBe(HANGAR_TYPE_ID)
   expect(vb.tier).toBe(EXPECTED_TIER)
   expect(vb.slotCapacity.ms).toBe(EXPECTED_MS_SLOTS)

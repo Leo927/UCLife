@@ -16,8 +16,13 @@
 //                  time, so this id is mainly a debug-handle key.
 //   labelZh      — full player-facing name (used by debug surfaces only at MVP).
 //   shortZh      — the Interactable label on the kiosk.
-//   sceneIdA / sceneIdB — the two endpoints. sceneIdA is the surface POI,
-//                  sceneIdB its orbital companion. Validated against scenes.json5.
+//   sceneIdA / sceneIdB — the two endpoints. sceneIdA is the surface end,
+//                  sceneIdB the orbital end. May be the SAME scene id when the
+//                  orbital end is a hidden, hull-ringed region folded into the
+//                  surface world (the Von Braun drydock): both kiosks then
+//                  live in one koota world and the lift is a true NPC-only
+//                  transit portal over the HPA* graph, not a cross-scene
+//                  destroy-and-respawn migration. Validated against scenes.json5.
 //   durationMin  — in-game minutes the ride costs; clock advances at midpoint.
 //   fareUp       — ¥ deducted to depart sceneIdA → sceneIdB (surface → orbital).
 //   fareDown     — ¥ deducted to depart sceneIdB → sceneIdA (orbital → surface).
@@ -33,8 +38,11 @@
       id: 'vonBraunDrydockLift',
       labelZh: '冯·布劳恩 · 轨道升降梯',
       shortZh: '轨道升降梯',
+      // Both endpoints live in vonBraunCity: 'a' (sceneIdA, fareUp) is the
+      // surface kiosk in the AE Industrial District; 'b' (sceneIdB, fareDown)
+      // is the kiosk in the hidden orbital-drydock region of the same world.
       sceneIdA: 'vonBraunCity',
-      sceneIdB: 'vonBraunDrydock',
+      sceneIdB: 'vonBraunCity',
       durationMin: 90,
       fareUp: 500,
       fareDown: 0,

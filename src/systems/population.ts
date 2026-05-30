@@ -3,73 +3,92 @@
 
 import type { World } from 'koota'
 import { Not } from 'koota'
-import { Character, Health, IsPlayer } from '../ecs/traits'
+import { Character, Health, IsPlayer, Position } from '../ecs/traits'
 import { spawnNPC } from '../character/spawn'
 import { populationConfig, worldConfig } from '../config'
 import type { ReplenishmentConfig } from '../data/scenes'
 import { getSimRng } from '../sim/rng'
 import {
-  pickFreshName, pickRandomColor,
-  getAnonymousCounter, setAnonymousCounter, resetNameGen,
+  pickFreshName, pickRandomColor, resetNameGen,
+  getAnonymousCounter, setAnonymousCounter,
 } from '../character/nameGen'
 
 const TILE = worldConfig.tilePx
 
-// loop.ts looks up the active scene's replenishment config and only invokes
-// this system when one is declared, so any scene without a `replenishment`
-// field (ship interiors, space sectors) is silently skipped. The save format
-// keeps immigrantCounter as a single global counter — splitting per-world
-// would force a save migration with no correctness benefit, since EntityKeys
-// must be unique across the whole save (see character/spawn.ts: spawnNPC
-// uses npc-imm-N keys).
-let lastSpawnGameMs: number | null = null
+// loop.ts iterates the active scene's replenishment regions and invokes this
+// system once per region, so any scene without `replenishments` (ship
+// interiors, space sectors) is silently skipped. Each region throttles
+// independently — `lastSpawnGameMs` is keyed by region so a chronically
+// under-target region can't starve another sharing the world. immigrantCounter
+// stays a single global counter because EntityKeys (npc-imm-N) must be unique
+// across the whole save.
+const lastSpawnGameMs = new Map<string, number>()
 
-// Persisted in saves so reload doesn't reuse keys from prior immigrants.
 let immigrantCounter = 0
 
 export function resetPopulationClock(): void {
-  lastSpawnGameMs = null
+  lastSpawnGameMs.clear()
   immigrantCounter = 0
   resetNameGen()
 }
 
+// Persisted so reload doesn't reuse immigrant keys or reset per-region
+// throttles. lastSpawnGameMs is a region-keyed map serialized as a record.
 export function getPopulationState(): {
-  lastSpawnGameMs: number | null
+  lastSpawnByRegion: Record<string, number>
   anonymousCounter: number
   immigrantCounter: number
 } {
-  return { lastSpawnGameMs, anonymousCounter: getAnonymousCounter(), immigrantCounter }
+  return {
+    lastSpawnByRegion: Object.fromEntries(lastSpawnGameMs),
+    anonymousCounter: getAnonymousCounter(),
+    immigrantCounter,
+  }
 }
 
 export function setPopulationState(s: {
-  lastSpawnGameMs: number | null
+  lastSpawnByRegion: Record<string, number>
   anonymousCounter: number
   immigrantCounter: number
 }): void {
-  lastSpawnGameMs = s.lastSpawnGameMs
+  lastSpawnGameMs.clear()
+  for (const [k, v] of Object.entries(s.lastSpawnByRegion ?? {})) lastSpawnGameMs.set(k, v)
   setAnonymousCounter(s.anonymousCounter)
   immigrantCounter = s.immigrantCounter
+}
+
+// Count alive NPCs whose tile falls inside the region. O(N) per region per
+// tick; with ~42 NPCs across two regions this is a few dozen comparisons —
+// negligible against the per-tick BT / vitals work.
+function aliveInRegion(world: World, region: ReplenishmentConfig): number {
+  const r = region.regionRect
+  let alive = 0
+  for (const e of world.query(Character, Health, Position, Not(IsPlayer))) {
+    if (e.get(Health)!.dead) continue
+    const p = e.get(Position)!
+    const tx = p.x / TILE, ty = p.y / TILE
+    if (tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) alive += 1
+  }
+  return alive
 }
 
 export function populationSystem(
   world: World,
   gameDate: Date,
   config: ReplenishmentConfig,
+  regionKey: string,
 ): void {
-  let alive = 0
-  for (const e of world.query(Character, Health, Not(IsPlayer))) {
-    if (!e.get(Health)!.dead) alive += 1
-  }
-  if (alive >= config.target) return
+  if (aliveInRegion(world, config) >= config.target) return
 
   const nowMs = gameDate.getTime()
-  if (lastSpawnGameMs === null) {
-    // Wait one full window post-reset so founding NPCs settle first.
-    lastSpawnGameMs = nowMs
+  const last = lastSpawnGameMs.get(regionKey)
+  if (last === undefined) {
+    // Wait one full window post-reset so founding/seeded NPCs settle first.
+    lastSpawnGameMs.set(regionKey, nowMs)
     return
   }
   const intervalMs = populationConfig.replenishIntervalMin * 60 * 1000
-  if (nowMs - lastSpawnGameMs < intervalMs) return
+  if (nowMs - last < intervalMs) return
 
   immigrantCounter += 1
   spawnNPC(world, {
@@ -81,5 +100,5 @@ export function populationSystem(
     money: getSimRng().int(50, 149),
     key: `npc-imm-${immigrantCounter}`,
   })
-  lastSpawnGameMs = nowMs
+  lastSpawnGameMs.set(regionKey, nowMs)
 }

@@ -22,7 +22,7 @@ import {
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { getMsClass } from '../data/ms'
-import { getPoi, poiIdForScene } from '../data/pois'
+import { getPoi, poiIdForHangar } from '../data/pois'
 import { fittingSlotClasses } from '../data/facilityTypes'
 import { getStat } from '../stats/sheet'
 import { findHangarAtPoi } from './hangarQuery'
@@ -266,21 +266,25 @@ export function listMsTransferDestinations(msKey: string): MsTransferDestination
   }
   if (!originPoiId) return []
   const out: MsTransferDestination[] = []
+  // One destination per hangar POI (a scene may host several hangars at
+  // distinct POIs — the surface yard + the orbital drydock in vonBraunCity).
+  const seen = new Set<string>()
   for (const sceneId of SCENE_IDS) {
-    const poiId = poiIdForScene(sceneId)
-    if (!poiId) continue
-    if (poiId === originPoiId) continue
-    // Only surface destinations that have a hangar (so depot routes exist).
-    if (!findHangarAtPoi(poiId)) continue
-    const poi = getPoi(poiId)
-    out.push({
-      poiId,
-      poiNameZh: poi?.nameZh ?? poiId,
-      transferFee: msTransferFeeForRoute(originPoiId, poiId),
-      transitFee: fleetConfig.transitFee,
-      days: msTransitDaysForRoute(originPoiId, poiId),
-      canAccept: destinationCanAcceptMs(poiId),
-    })
+    const w = getWorld(sceneId)
+    for (const b of w.query(Building, Hangar)) {
+      const poiId = poiIdForHangar(sceneId, b.get(Building)!)
+      if (!poiId || poiId === originPoiId || seen.has(poiId)) continue
+      seen.add(poiId)
+      const poi = getPoi(poiId)
+      out.push({
+        poiId,
+        poiNameZh: poi?.nameZh ?? poiId,
+        transferFee: msTransferFeeForRoute(originPoiId, poiId),
+        transitFee: fleetConfig.transitFee,
+        days: msTransitDaysForRoute(originPoiId, poiId),
+        canAccept: destinationCanAcceptMs(poiId),
+      })
+    }
   }
   return out
 }
@@ -292,7 +296,3 @@ function findPlayerEntity(): Entity | null {
   }
   return null
 }
-
-// Defensive: avoid the lint warning for `Building` even though it isn't
-// directly used in this file's queries (we go through findHangarAtPoi).
-void Building

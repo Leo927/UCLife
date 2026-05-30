@@ -52,7 +52,9 @@
       // share the moon as their host body — the surface and orbital ends of the
       // same shipyard town, connected by the orbital elevator authored in
       // orbital-lifts.json5. Linked via the visual elevator line in the starmap.
-      dockScenes: ['vonBraunDrydock'],
+      // Docking lands in vonBraunCity (the drydock is no longer its own scene —
+      // it is the hidden orbital region of vonBraunCity, reached via the lift).
+      dockScenes: ['vonBraunCity'],
       bodyId: 'moon',
       orbitRadius: 190,
       orbitPeriodDays: 0.5,

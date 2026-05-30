@@ -19,7 +19,7 @@ import {
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
-import { getPoi, poiIdForScene } from '../data/pois'
+import { getPoi, poiIdForHangar } from '../data/pois'
 import { fittingSlotClasses } from '../data/facilityTypes'
 import { deriveHangarOccupancy } from './shipDelivery'
 import { findHangarAtPoi } from './hangarQuery'
@@ -161,7 +161,7 @@ export function listTransferDestinations(shipEnt: Entity): TransferDestination[]
   for (const sceneId of SCENE_IDS) {
     const w = getWorld(sceneId)
     for (const b of w.query(Building, Hangar, EntityKey)) {
-      const poiId = poiIdForScene(sceneId)
+      const poiId = poiIdForHangar(sceneId, b.get(Building)!)
       if (!poiId) continue
       if (poiId === originPoiId) continue
       const h = b.get(Hangar)!

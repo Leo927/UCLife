@@ -1,18 +1,20 @@
 // Player standing in the Von Braun drydock concourse with the bootstrap
 // flagship redirected to dock at the drydock POI (so it materialises a
-// gate in the drydock scene's hangar). Drives the GateTerminalPanel smoke.
+// gate in the drydock hangar). Drives the GateTerminalPanel smoke.
 //
-// Player tile (30, 20) sits inside the drydock concourse, just south of
-// the orbital lift and north of the hangar building's north door — safe
-// open floor that doesn't collide with any spawned worker / kiosk.
+// The drydock is now the hidden orbital region of vonBraunCity (reached via
+// the lift), so the scene is vonBraunCity. Player tile (40, 560) sits inside
+// the drydock concourse — open floor north of the hangar's north door, clear
+// of the lift, the ship-sales desk, and any spawned worker / kiosk. The ship
+// stays docked at the 'vonBraunDrydock' POI (still a distinct fleet POI).
 {
   seed: 'gate-drydock-001',
   startDate: '2026-05-17T08:00:00Z',
-  scene: 'vonBraunDrydock',
+  scene: 'vonBraunCity',
 
   player: {
     money: 50000,
-    location: { scene: 'vonBraunDrydock', x: 30, y: 20 },
+    location: { scene: 'vonBraunCity', x: 40, y: 560 },
   },
 
   ships: [

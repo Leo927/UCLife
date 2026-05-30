@@ -70,6 +70,7 @@ import { useClock } from '../sim/clock'
 import { worldConfig } from '../config'
 import { getObjectTemplate, type DoorVariant } from '../data/objectTemplates'
 import { getActiveSceneDimensions, getActiveSceneId, getWorld, world } from '../ecs/world'
+import { cameraRegionAt } from '../data/scenes'
 import { startAnimTicker, useAnimTick } from './sprite/animTick'
 import type { LpcDirection } from './sprite/types'
 import type { BedTier } from '../ecs/traits'
@@ -136,8 +137,18 @@ export function Game() {
   // The active-zone hint goes to the active scene's un-proxied world so the
   // worldSingleton WeakMap doesn't cache against the cross-scene proxy.
   const playerPosForCam = useTrait(useQueryFirst(IsPlayer, Position) ?? null, Position)
-  const camX = playerPosForCam ? clamp(playerPosForCam.x - canvas.w / 2, 0, Math.max(0, W - canvas.w)) : 0
-  const camY = playerPosForCam ? clamp(playerPosForCam.y - canvas.h / 2, 0, Math.max(0, H - canvas.h)) : 0
+  // Clamp the camera to the player's current region (if the scene declares
+  // any) so a spatially-disconnected region — the hidden orbital drydock —
+  // never shares a frame with the city. Falls back to the full envelope.
+  const region = playerPosForCam
+    ? cameraRegionAt(getActiveSceneId(), playerPosForCam.x / TILE, playerPosForCam.y / TILE)
+    : null
+  const camMinX = region ? region.x * TILE : 0
+  const camMinY = region ? region.y * TILE : 0
+  const camMaxX = region ? (region.x + region.w) * TILE : W
+  const camMaxY = region ? (region.y + region.h) * TILE : H
+  const camX = playerPosForCam ? clamp(playerPosForCam.x - canvas.w / 2, camMinX, Math.max(camMinX, camMaxX - canvas.w)) : 0
+  const camY = playerPosForCam ? clamp(playerPosForCam.y - canvas.h / 2, camMinY, Math.max(camMinY, camMaxY - canvas.h)) : 0
   useEffect(() => {
     useCamera.getState().setCamera({ canvasW: canvas.w, canvasH: canvas.h, camX, camY })
     camRef.current = { x: camX, y: camY }

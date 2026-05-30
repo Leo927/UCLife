@@ -1,4 +1,4 @@
-import { scenes, type WorldPlaceDisplay, type WorldPlaceKind } from './scenes'
+import { scenes, isInHiddenRegion, type WorldPlaceDisplay, type WorldPlaceKind } from './scenes'
 
 export type { WorldPlaceKind } from './scenes'
 
@@ -54,6 +54,12 @@ for (const s of scenes) {
   }
   for (const fb of s.fixedBuildings ?? []) {
     if (!fb.display || !fb.resolvedRect) continue
+    // Buildings inside a hidden camera region (the orbital drydock) are
+    // absent from the world map — the player only experiences them after
+    // riding the lift.
+    const cx = fb.resolvedRect.x + fb.resolvedRect.w / 2
+    const cy = fb.resolvedRect.y + fb.resolvedRect.h / 2
+    if (isInHiddenRegion(s.id, cx, cy)) continue
     places.push(placeFromDisplay(s.id, fb.display, fb.resolvedRect))
   }
 }
