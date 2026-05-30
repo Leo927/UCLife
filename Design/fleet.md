@@ -217,7 +217,16 @@ CP is *spent* by fleet-wide commands during tactical (rally to point, focus fire
 
 DP is a per-engagement budget. Each ship class has `dpCost`; each MS has `dpCost`. The player commits ships + MS up to DP cap. DP cap is a function of player skills + flagship comm suite. **This decouples fleet size from tactical complexity** — a 20-ship fleet might field 8 ships in any one engagement, with the rest holding station, refitting, or guarding cargo.
 
-(Concrete CP/DP numbers TBD; the framework is what 6.2 needs to land.)
+### Shipped (Issue #69 — Phase 6.2.7)
+
+CP + DP are wired into tactical and the doctrine sliders read through:
+
+- **Config** — all formula constants live in `src/config/fleet.json5` (`commandPoints` + `deploymentPoints` blocks); the doctrine list grew `maintainRangeMul` + `retreatThresholdMul`. **System** — `src/systems/fleetCommandPoints.ts` (CP pool zustand store, DP commit set, formulas, regen, doctrine resolver). `dpCost` is authored on `ship-classes.json5` / `ms-classes.json5`, projected onto `ShipStatSheet` at spawn, and read via `getStat`.
+- **DP commit** — `commitShipToEngagement(shipKey)` adds an active-fleet ship up to the cap; over-budget commits are refused with `reason: 'over_budget'` (mirrors the hangar-capacity gate). When a commit set is non-empty, only committed ships deploy in tactical; an empty set deploys the whole active fleet (back-compat with the auto-launch path).
+- **CP pool** — seeded full at `startCombat`; `issueFleetOrder(orderId)` debits per `orderCosts` and refuses (`reason: 'insufficient_cp'`) when dry, logging `指挥点耗尽` (CP exhausted) via `pushCombatLog`. Regen accrues per tactical tick (whole-point increments, `指挥点恢复` info log) and partially refills per campaign day (`day:rollover:settled`).
+- **Doctrine** — `aggression` maps to both weapon-charge pressure (`aiAggression`) and standoff distance (`maintainRange × maintainRangeMul`): `cautious` holds wide (1.4×), `aggressive` closes tight (0.6×). The stance is the standing-orders fallback when CP is exhausted.
+- **`commArrayShipCount`** is not yet wired (later phase, per the formula's noted future term).
+- **Skill stand-in** — the designed `shipCommand` / `tactics` / `command` skills are still deferred (see [characters/skills.md](characters/skills.md)). The formulas read existing shipped skills as stand-ins (player `piloting` for the command + tactics terms; the flagship captain's `engineering` for the comm-officer term), keyed in `fleet.json5` so the swap to real skills is config-only when they ship.
 
 ## Player-facing surfaces
 

@@ -203,6 +203,7 @@ Designed-but-deferred candidates, with the phase that would justify them:
 | Skill | Reason deferred | Earned by |
 |---|---|---|
 | Melee, Tactics, Ship Command | Phase 6+ tactical / fleet combat | [../combat.md](../combat.md) |
+| _(stand-in note)_ | Issue #69's CP/DP formulas (`maxCommandPoints`, `dpCap`) need `Tactics` / `Ship Command` and a comm-officer `command` skill, but those don't earn ids until a trainer verb ships. The formulas read existing skills as stand-ins (player `piloting`; flagship captain's `engineering`), keyed in `src/config/fleet.json5` so the swap is config-only once the real skills land. | [../fleet.md](../fleet.md) |
 | Electronics, Fabrication, Minovsky Physics | Phase 6+ ship/MS work and tech-level gating | [../combat.md](../combat.md) |
 | First Aid | Phase 4 physiology — splits off `medicine` for self-treat verbs | [physiology.md](physiology.md) |
 | Chemistry | Phase 4+ — pharma crafting hook | [physiology.md](physiology.md) |

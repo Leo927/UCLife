@@ -468,6 +468,10 @@ interface CombatPlayerSideSnapshot {
   hullMax: number
   weaponsCount: number
   aiAggression: number
+  // Issue #69 — resolved standing-doctrine standoff distance (after the
+  // aggression slider's maintainRangeMul). Smoke asserts cautious holds at a
+  // wider range than aggressive.
+  aiMaintainRange: number
 }
 registerDebugHandle('combatPlayerSideSnapshot', (): CombatPlayerSideSnapshot[] => {
   const w = getWorld('playerShipInterior')
@@ -485,6 +489,7 @@ registerDebugHandle('combatPlayerSideSnapshot', (): CombatPlayerSideSnapshot[] =
       hullMax: cs.hullMax,
       weaponsCount: cs.weapons.length,
       aiAggression: cs.ai.aggression,
+      aiMaintainRange: cs.ai.maintainRange,
     })
   }
   return out

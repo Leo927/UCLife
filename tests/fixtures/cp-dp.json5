@@ -1,0 +1,55 @@
+// Issue #69 — Command-Point + Deployment-Point smoke fixture.
+//
+// A known active fleet + known player skills so the DP cap and CP pool
+// formulas are deterministic:
+//   - flagship = lightFreighter (dpCost 3), parked at Von Braun.
+//   - escort A = lunarMilitia   (dpCost 2), docked at Von Braun.
+//   - escort B = pegasusClass   (dpCost 10), docked at Von Braun.
+//   - player piloting XP = 5000 → level 50 (XP is cumulative; level =
+//     floor(xp / 100); see src/character/skills.ts). piloting is the
+//     shipped combat-skill stand-in for the deferred shipCommand / tactics
+//     skills (Design/characters/skills.md + fleetCommandPoints.ts header).
+//
+// With piloting level 50 and no flagship comm officer assigned, the
+// formulas (fleet.json5) evaluate to:
+//   dpCap          = 6 + floor(50/20) + 0                 = 8
+//   maxCommandPnts = floor(4 + 50/25 + 50/30 + 0)         = 7
+//
+// The test promotes A + B into the active fleet (war room), then commits
+// against the DP cap: A(2)+flagship-implicit fits under 8; adding B(10)
+// blows the cap and is refused. The combat phase then asserts the CP pool
+// matches the formula, debits on a fleet order, refuses when dry, and that
+// a cautious vs. aggressive escort close/hold differently.
+{
+  seed: 'cp-dp-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 2000000,
+    location: { scene: 'vonBraunCity', x: 32, y: 18 },
+    skills: { piloting: 5000 },
+  },
+
+  ships: [
+    {
+      // First entry = flagship (applyShips marks i===0 with IsFlagshipMark).
+      id: 'ship',
+      template: 'lightFreighter',
+      name: '自由号',
+      dockedAt: 'vonBraun',
+    },
+    {
+      id: 'escort-a',
+      template: 'lunarMilitia',
+      name: '民兵甲',
+      dockedAt: 'vonBraun',
+    },
+    {
+      id: 'escort-b',
+      template: 'pegasusClass',
+      name: '飞马号',
+      dockedAt: 'vonBraun',
+    },
+  ],
+}

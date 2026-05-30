@@ -28,6 +28,9 @@ export interface MsClassDef {
   // Issue #63 — additional daily supply consumption while this MS is
   // in-repair (damaged hull/armor being restored at a hangar).
   supplyPerRepairDay: number
+  // Issue #69 — tactical deployment-points cost. Optional so legacy MS
+  // authoring stays loadable (folds to 0); new classes author explicitly.
+  dpCost?: number
   hullMax: number
   armorMax: number
   topSpeed: number
@@ -81,6 +84,9 @@ for (const m of parsed.ms) {
   }
   if (typeof m.supplyPerRepairDay !== 'number' || m.supplyPerRepairDay < 0) {
     throw new Error(`ms-classes.json5: ms "${m.id}" supplyPerRepairDay must be >= 0`)
+  }
+  if (m.dpCost !== undefined && (typeof m.dpCost !== 'number' || m.dpCost < 0)) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" dpCost must be a non-negative number`)
   }
   if (typeof m.propellantStorage !== 'number' || m.propellantStorage <= 0) {
     throw new Error(`ms-classes.json5: ms "${m.id}" propellantStorage must be > 0`)

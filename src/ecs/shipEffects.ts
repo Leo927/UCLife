@@ -79,6 +79,12 @@ export function projectShipSheet(
   if (cls.hangarCapacity !== undefined) {
     sheet = setBase(sheet, 'hangarCapacity', cls.hangarCapacity)
   }
+  // Issue #69 — tactical deployment-points cost. Projects to the dpCost
+  // stat base so the war-room DP commit reads it via getStat (Effects could
+  // later modify it — e.g. a comm-relay mod shaving fielding cost).
+  if (cls.dpCost !== undefined) {
+    sheet = setBase(sheet, 'dpCost', cls.dpCost)
+  }
   for (const id of Object.keys(extras) as ShipStatId[]) {
     sheet = setBase(sheet, id, extras[id]!)
   }

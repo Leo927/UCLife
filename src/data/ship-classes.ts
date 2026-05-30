@@ -98,6 +98,11 @@ export interface ShipClassDef {
   // template omits it (the validator below accepts undefined to keep
   // legacy authoring loadable; new templates author explicitly).
   supplyPerDay?: number
+  // Issue #69 — tactical deployment-points cost. The DP cap gates how much
+  // of the active fleet the player can commit to one engagement. Optional
+  // so legacy authoring stays loadable (folds to 0 → free to field); new
+  // templates author explicitly.
+  dpCost?: number
   crewMax: number
   // Brig POW slots authored per-class. 0 for civilian-spec hulls per
   // Design/fleet.md; lightFreighter ships a small 2-cell brig so the
@@ -204,6 +209,9 @@ for (const ship of parsed.ships) {
   if (ship.suppliesMax < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" suppliesMax must be >= 0`)
   if (ship.supplyPerDay !== undefined && (typeof ship.supplyPerDay !== 'number' || ship.supplyPerDay < 0)) {
     throw new Error(`ship-classes.json5: ship "${ship.id}" supplyPerDay must be a non-negative number`)
+  }
+  if (ship.dpCost !== undefined && (typeof ship.dpCost !== 'number' || ship.dpCost < 0)) {
+    throw new Error(`ship-classes.json5: ship "${ship.id}" dpCost must be a non-negative number`)
   }
   if (ship.crewMax <= 0) throw new Error(`ship-classes.json5: ship "${ship.id}" crewMax must be > 0`)
   if (ship.priceFiat < 0) throw new Error(`ship-classes.json5: ship "${ship.id}" priceFiat must be >= 0`)

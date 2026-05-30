@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { applyFixture } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -50,6 +50,25 @@ describe('applyFixture', () => {
     const player = findPlayer()
     expect(player).not.toBeNull()
     expect(player!.get(Money)!.amount).toBe(200000)
+  })
+
+  it('loads cp-dp: three-ship fleet + piloting=50 + dpCost projects onto ship sheets', () => {
+    applyFixture('cp-dp')
+    const player = findPlayer()!
+    // Fixture stores XP (cumulative); 5000 XP = level 50.
+    expect(getStat(player.get(Attributes)!.sheet, 'piloting')).toBe(5000)
+
+    const shipWorld = getWorld('playerShipInterior')
+    const byKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+    expect(byKey.has('escort-a')).toBe(true)
+    expect(byKey.has('escort-b')).toBe(true)
+
+    // dpCost projects onto the ShipStatSheet from the class template.
+    const escortA = byKey.get('escort-a')!
+    expect(getStat(escortA.get(ShipStatSheet)!.sheet, 'dpCost')).toBe(2)
+    const escortB = byKey.get('escort-b')!
+    expect(getStat(escortB.get(ShipStatSheet)!.sheet, 'dpCost')).toBe(10)
   })
 
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
