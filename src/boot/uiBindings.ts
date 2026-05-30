@@ -40,4 +40,6 @@ export function bindUi(): void {
   onSim('ui:open-war-room', () => useUI.getState().setWarRoom(true))
   onSim('ui:open-ms-retrofit', ({ msKey }) => useUI.getState().setMsRetrofit(msKey))
   onSim('ui:open-combat-tally', (t) => useUI.getState().setCombatTally(t))
+  // Issue #71 — recoverables dialogue opens before the tally.
+  onSim('ui:open-recoverables', () => useUI.getState().setRecoverables(true))
 }

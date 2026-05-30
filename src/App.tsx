@@ -33,6 +33,7 @@ import { PilotRosterPanel } from './ui/PilotRosterPanel'
 import { WarRoomPanel } from './ui/WarRoomPanel'
 import { MsRetrofitPanel } from './ui/MsRetrofitPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
+import { RecoverablesPanel } from './ui/RecoverablesPanel'
 import { PortraitModal } from './ui/PortraitModal'
 // PortraitTester lives inside the GPL-licensed FC pregmod subtree. Lazy-load
 // it so the FC adapter + SlaveLike type stay out of the main bundle until a
@@ -82,6 +83,7 @@ export function App() {
       <PilotRosterPanel />
       <WarRoomPanel />
       <MsRetrofitPanel />
+      <RecoverablesPanel />
       <CombatTallyPanel />
       <PortraitModal />
       <DeathModal />

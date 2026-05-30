@@ -128,6 +128,22 @@ export interface FleetConfig {
   // count for that class in hangarMarkerLayout.
   gatePrefixCapital: string
   gatePrefixSmallCraft: string
+  // Issue #71 — recoverables (post-combat hull / pod recovery).
+  recoverables: RecoverablesConfig
+}
+
+export interface HullTierSalvageYield {
+  supplies: number
+  fuel: number
+  credits: number
+}
+
+export interface RecoverablesConfig {
+  // Supply cost per recovered hull, keyed by hangarSlotClass tier.
+  salvageRecoverSupplyCost: Record<string, number>
+  prizeCrewDivisor: number
+  // Break-down yields, keyed by hangarSlotClass tier.
+  salvageYield: Record<string, HullTierSalvageYield>
 }
 
 interface BoothShape {

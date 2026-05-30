@@ -93,7 +93,29 @@ export const Ship = trait({
   transitDestinationId: '',
   transitDepartureDay: 0,
   transitArrivalDay: 0,
+  // Issue #71 — salvaged-hull-in-flight pattern. A captured hull joins
+  // the fleet already in-flight with no home hangar; empty string = "no
+  // home hangar yet" (the `null` of Design/post-combat.md). While empty
+  // AND WasCaptured is present, the ship station-keeps with the formation
+  // but draws supply / fuel from its OWN currentSupply / currentFuel
+  // (halved at capture), not from any hangar. On the flagship's next dock
+  // the hull queues delivery to a hangar with capacity, exactly like a
+  // fresh purchase, and this is set to the receiving POI's hangar.
+  homeHangarId: '',
+  // Per-instance bunkers — only meaningful while a captured hull is
+  // in-flight (homeHangarId empty + WasCaptured). Seeded at capture from
+  // the hostile's stocks, halved. Once delivered to a hangar the ship
+  // draws from the fleet pool and these go inert.
+  currentSupply: 0,
+  currentFuel: 0,
 })
+
+// Issue #71 — marker present iff this ship entity was taken as a combat
+// prize (Recover verb on the recoverables dialogue). Influences future
+// loyalty / morale / faction relations: Federation rep penalty when a
+// Federation hull is kept, AE buyback markup, hostile-faction ransom —
+// all authored as relation DATA, not branches on this marker.
+export const WasCaptured = trait({})
 
 // Fleet-level operational pool. Singleton in the playerShipInterior
 // world (the same world that hosts the Ship roster). Source of truth

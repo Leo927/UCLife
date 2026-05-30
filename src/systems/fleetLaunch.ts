@@ -31,8 +31,9 @@ import { dialogueText } from '../data/dialogueText'
 import { getShipClass } from '../data/ship-classes'
 import {
   releaseShipsFromCarrier, findCarrierSlotForShip, assignShipToCarrierBay,
-  hasFreePoiSlotForShip,
+  hasFreePoiSlotForShip, routeCapturedHullsToDelivery,
 } from './shipDelivery'
+import { useClock, gameDayNumber } from '../sim/clock'
 
 const SHIP_SCENE_ID = 'playerShipInterior' as const
 const SPACE_SCENE_ID = 'spaceCampaign' as const
@@ -149,6 +150,10 @@ export function onFlagshipDock(destPoiId: string): FlagshipDockResult {
     e.destroy()
     result.bodiesDespawned++
   }
+  // Issue #71 — route any captured in-flight hull (WasCaptured + no home
+  // hangar) to a delivery queue at the docked POI, exactly like a fresh
+  // purchase. Reuses the shipDelivery pipeline.
+  routeCapturedHullsToDelivery(destPoiId, gameDayNumber(useClock.getState().gameDate))
   return result
 }
 

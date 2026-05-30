@@ -14,6 +14,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.brigState',
   '__uclife__.getAdjutant',
   '__uclife__.fastWinCombat',
+  '__uclife__.finishRecoverables',
 ]
 
 const STEP_BUDGET_MIN = 60
@@ -101,6 +102,10 @@ test('captains office: adjutant, brig capacity, POW capture, panels', async ({ s
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
+
+  // Issue #71 — the recoverables dialogue now fires before the tally.
+  // Resolve it (defaults: scuttle hulls / leave pods) so the tally emits.
+  await sim.page.evaluate(() => (window as any).__uclife__.finishRecoverables())
 
   const brigAfter = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,0 +1,146 @@
+// Issue #70 — prisoner-system tunables. Drives src/sim/brig.ts (the
+// single verb-bearing brig module shared by the brig walk-up panel and
+// the captain's-office comm-panel face wall) plus the brig-condition
+// physiology tick.
+//
+// Faction asymmetries are DATA, not hardcodes: each verb declares the
+// reputation delta the player earns with the prisoner's HOME faction,
+// and a per-faction `approval` override map captures the asymmetry where
+// a faction reacts differently to a verb than the default (e.g. Zeon
+// hardliners post-war APPROVE of executing prisoners). The resolver
+// reads `approval[factionId]` first, falling back to the verb's default.
+{
+  // ── Per-verb reputation outcomes ─────────────────────────────────────
+  //
+  // Each verb row:
+  //   homeDelta      — rep change with the prisoner's home faction
+  //                    (default; overridable per-faction via `approval`).
+  //   captorDelta    — rep change with the player's own faction
+  //                    (morale / doctrine signal; small).
+  //   broadDelta     — rep change applied to every OTHER known faction
+  //                    (the wider world's reaction). 0 = no spillover.
+  //   approval       — per-faction override of homeDelta. Authored only
+  //                    where a faction's reaction diverges from default.
+  verbs: {
+    // Interrogation extracts intel; mild rep cost with the home faction
+    // (they learn one of theirs talked) but no broad fallout.
+    interrogate: {
+      homeDelta: -3,
+      captorDelta: 1,
+      broadDelta: 0,
+      approval: {},
+    },
+    // Ransom — civil exchange: small positive both sides.
+    ransom: {
+      homeDelta: 5,
+      captorDelta: 1,
+      broadDelta: 0,
+      approval: {},
+    },
+    // Recruit — defection. The home faction takes it as a betrayal.
+    recruit: {
+      homeDelta: -10,
+      captorDelta: 2,
+      broadDelta: 0,
+      approval: {},
+    },
+    // Execute — major rep penalty across most factions. Zeon hardliners
+    // post-war APPROVE (positive home delta) — authored as the approval
+    // override, NOT a code branch.
+    execute: {
+      homeDelta: -25,
+      captorDelta: -2,
+      broadDelta: -8,
+      approval: {
+        zeon: 10,
+      },
+    },
+    // Hand over to a third party — pays out per faction relations; the
+    // home faction reads it as roughly as bad as a ransom-gone-wrong.
+    handOver: {
+      homeDelta: -12,
+      captorDelta: 1,
+      broadDelta: -2,
+      approval: {},
+    },
+    // Release at the next colony — small positive with the home faction.
+    release: {
+      homeDelta: 8,
+      captorDelta: 0,
+      broadDelta: 1,
+      approval: {},
+    },
+  },
+
+  // Neglect death carries the SAME rep-penalty pattern as execute (the
+  // home faction can't tell starvation from murder), applied when a
+  // prisoner dies in the brig of brig_neglect. Authored separately so a
+  // designer can soften "death you didn't choose" without touching the
+  // execute verb. Defaults equal to execute.
+  neglectDeath: {
+    homeDelta: -25,
+    captorDelta: -2,
+    broadDelta: -8,
+    approval: {
+      zeon: 10,
+    },
+  },
+
+  // ── Ransom payout ────────────────────────────────────────────────────
+  //
+  // Credits paid to the player when ransoming a prisoner. Flat base plus
+  // a per-context bonus authored where a named prisoner is worth more
+  // (the broker knows who they are). Anonymous crew take the base.
+  ransomCreditsBase: 4000,
+
+  // Hand-over payout — credits from the third party. Lower than ransom
+  // (you're selling, not returning) but no brig-slot-frees-at-dock delay.
+  handOverCredits: 2500,
+
+  // ── Recruit gate ─────────────────────────────────────────────────────
+  //
+  // Recruiting a prisoner is a high-loyalty-cost conversion: viable only
+  // for prisoners with low pre-capture faction loyalty. `maxHomeRepToRecruit`
+  // is the ceiling on the prisoner's home-faction rep for the verb to be
+  // offered — a fiercely loyal captive can't be flipped.
+  maxHomeRepToRecruit: 30,
+
+  // ── Interrogation skill check ────────────────────────────────────────
+  //
+  // Gate = player's Intelligence + Charisma attribute sum vs threshold.
+  // At-or-above threshold = full intel; below = partial. Both attributes
+  // default to 50 (StatSheet spawn baseline) so an un-built player clears
+  // the partial tier but not the full tier.
+  interrogateThresholdFull: 120,
+  interrogateThresholdPartial: 70,
+
+  // ── Brig-condition upkeep (reuses the physiology pipeline) ───────────
+  //
+  // Each prisoner is a real Character entity in playerShipInterior; the
+  // brig daily tick decays their provisioning (food / water / medical
+  // access) and, once below `provisionFloor`, onsets the `brig_neglect`
+  // condition. The condition then advances on the SHARED physiology
+  // day-rollover tick — no second decay engine. Death (severity 100 →
+  // Health.dead) is detected on the next brig tick and applies the
+  // neglect rep penalty.
+  //
+  // provisionStart  — provisioning level a freshly-captured prisoner
+  //                   starts at (0..100). A well-run brig replenishes it;
+  //                   6.2.5 has no replenish verb yet, so it only decays.
+  // provisionDecayPerDay — daily drop while held.
+  // provisionFloor  — at or below this, brig_neglect onsets / persists.
+  provisionStart: 80,
+  provisionDecayPerDay: 25,
+  provisionFloor: 20,
+
+  // The condition id onset by neglect. Authored in conditions.json5.
+  neglectConditionId: 'brig_neglect',
+
+  // ── Over-capacity escape risk ────────────────────────────────────────
+  //
+  // Surplus prisoners beyond brigCapacity are housed in less-secure
+  // quarters; each over-capacity prisoner rolls an escape attempt per
+  // brig tick against this probability (seeded). An escape frees the
+  // brig slot with NO rep payout — the prisoner is simply gone.
+  escapeAttemptChancePerDay: 0.15,
+}

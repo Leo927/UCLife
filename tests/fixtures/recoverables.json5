@@ -1,0 +1,25 @@
+// Issue #71 — recoverables smoke fixture. Player aboard a Pegasus-class
+// flagship in playerShipInterior, docked at Von Braun (so the post-dock
+// captured-hull → delivery routing has a hangar to target). Cash on hand
+// so salvage credits are observable. The smoke seeds the flagship's prize-
+// crew pool + drives a deterministic engagement via debug handles.
+{
+  seed: 'recoverables-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 0,
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
+    skills: { piloting: 10 },
+  },
+
+  ships: [
+    {
+      id: 'ship',
+      template: 'pegasusClass',
+      name: '木马号',
+      dockedAt: 'vonBraun',
+    },
+  ],
+}

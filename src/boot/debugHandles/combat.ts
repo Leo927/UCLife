@@ -4,14 +4,26 @@
 // the weapon-charge state machine through real time).
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
-import { getWorld } from '../../ecs/world'
+import { getWorld, SCENE_IDS } from '../../ecs/world'
+import type { Entity } from 'koota'
 import {
-  Position, CombatShipState, EnemyAI, EntityKey,
+  Position, CombatShipState, EnemyAI, EntityKey, IsPlayer, IsInActiveFleet,
+  Ship, WasCaptured, IsFlagshipMark,
 } from '../../ecs/traits'
 import {
   useCombatStore, startCombat, combatSystem, endCombat,
   breakDownEnemiesForVictory, type CombatOutcome,
 } from '../../systems/combat'
+import {
+  capturePrisoner, interrogatePrisoner, ransomPrisoner, recruitPrisoner,
+  executePrisoner, handOverPrisoner, releasePrisoner, tickBrigConditionsNow,
+} from '../../systems/prisoners'
+import {
+  getRecoverables, recoverHull, salvageHull, scuttleHull, recoverPod,
+  leavePod, canRecoverHull, finishRecoverables,
+} from '../../systems/recoverables'
+import { onFlagshipDock } from '../../systems/fleetLaunch'
+import { getRep } from '../../systems/reputation'
 import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
 import {
@@ -19,8 +31,15 @@ import {
   getPlayerMs, PLAYER_MS_KEY, getAdjutant,
 } from '../../sim/cockpit'
 import { useBrig, getBrigOccupancy } from '../../sim/brig'
-import { simNow } from '../../sim/time'
 import { useUI } from '../../ui/uiStore'
+
+function findAnyPlayer(): Entity | undefined {
+  for (const id of SCENE_IDS) {
+    const e = getWorld(id).queryFirst(IsPlayer)
+    if (e) return e
+  }
+  return undefined
+}
 
 registerDebugHandle('useCombatStore', useCombatStore)
 registerDebugHandle('useTransition', useTransition)
@@ -134,18 +153,90 @@ registerDebugHandle('brigState', () => {
       id: p.id,
       nameZh: p.nameZh,
       titleZh: p.titleZh,
+      factionId: p.factionId,
+      provision: p.provision,
+      entityKey: p.entityKey,
     })),
   }
 })
 registerDebugHandle('clearBrig', () => { useBrig.getState().reset(); return true })
-registerDebugHandle('forceCapture', (npcId: string) => {
-  return useBrig.getState().add({
+registerDebugHandle('forceCapture', (npcId: string, factionId: string = 'pirate') => {
+  return capturePrisoner({
     id: npcId,
     nameZh: npcId,
     contextZh: '(forced)',
-    factionId: 'pirate',
-    capturedAtMs: simNow(),
+    factionId,
   })
+})
+
+// Issue #70 — prisoner verb handles. Each resolves through the single
+// systems/prisoners.ts implementation (shared by the brig walk-up panel
+// and the comm-panel face wall) and returns the structured VerbResult so
+// the smoke can assert credits + per-faction rep deltas deterministically.
+registerDebugHandle('prisonerInterrogate', (id: string) => interrogatePrisoner(id))
+registerDebugHandle('prisonerRansom', (id: string) => ransomPrisoner(id))
+registerDebugHandle('prisonerRecruit', (id: string) => recruitPrisoner(id))
+registerDebugHandle('prisonerExecute', (id: string) => executePrisoner(id))
+registerDebugHandle('prisonerHandOver', (id: string) => handOverPrisoner(id))
+registerDebugHandle('prisonerRelease', (id: string) => releasePrisoner(id))
+// Advance the in-flight brig-condition upkeep tick once at the current
+// game day (decay provisioning → onset brig_neglect; resolve neglect
+// deaths / escapes). The shared physiology day tick (physiologyTickDay)
+// advances brig_neglect toward the fatal peak between calls.
+registerDebugHandle('brigConditionTick', () => { tickBrigConditionsNow(); return true })
+// Player reputation readback by faction (for the rep-delta assertions).
+registerDebugHandle('playerRepByFaction', (factionId: string) => {
+  const p = findAnyPlayer()
+  if (!p) return null
+  return getRep(p, factionId as never)
+})
+
+// Issue #71 — recoverables dialogue handles. The smoke drives the
+// post-combat hull / pod resolution through these and asserts the new
+// reserve ship's in-flight state + the brig occupancy bump.
+registerDebugHandle('getRecoverables', () => getRecoverables())
+registerDebugHandle('canRecoverHull', (id: string) => canRecoverHull(id))
+registerDebugHandle('recoverHull', (id: string) => recoverHull(id))
+registerDebugHandle('salvageHull', (id: string) => salvageHull(id))
+registerDebugHandle('scuttleHull', (id: string) => scuttleHull(id))
+registerDebugHandle('recoverPod', (id: string) => recoverPod(id))
+registerDebugHandle('leavePod', (id: string) => leavePod(id))
+registerDebugHandle('finishRecoverables', () => { finishRecoverables(); return true })
+// Dock the flagship at a POI (drives the captured-hull → delivery routing).
+registerDebugHandle('flagshipDockCheat', (poiId: string) => onFlagshipDock(poiId))
+// Seed the flagship's crew pool to a known count so the prize-crew gate
+// (idle flagship crew ≥ ceil(crewRequired / divisor)) is deterministic.
+registerDebugHandle('setFlagshipCrewCount', (n: number) => {
+  const fs = getWorld('playerShipInterior').queryFirst(Ship, IsFlagshipMark)
+  if (!fs) return false
+  const s = fs.get(Ship)!
+  const crewIds = Array.from({ length: Math.max(0, n) }, (_, i) => `prize-crew-${i}`)
+  fs.set(Ship, { ...s, crewIds })
+  return true
+})
+// Inspect captured ships in playerShipInterior — the in-flight state the
+// recoverables smoke asserts (WasCaptured / homeHangarId / half bunkers).
+registerDebugHandle('capturedShips', () => {
+  const w = getWorld('playerShipInterior')
+  const out: Array<{
+    key: string; templateId: string; wasCaptured: boolean
+    homeHangarId: string; currentSupply: number; currentFuel: number
+    inActiveFleet: boolean
+  }> = []
+  for (const e of w.query(Ship, EntityKey)) {
+    if (!e.has(WasCaptured)) continue
+    const s = e.get(Ship)!
+    out.push({
+      key: e.get(EntityKey)!.key,
+      templateId: s.templateId,
+      wasCaptured: true,
+      homeHangarId: s.homeHangarId,
+      currentSupply: s.currentSupply,
+      currentFuel: s.currentFuel,
+      inActiveFleet: e.has(IsInActiveFleet),
+    })
+  }
+  return out
 })
 registerDebugHandle('getAdjutant', () => getAdjutant())
 registerDebugHandle('openCommPanel', () => { useUI.getState().setCommPanel(true); return true })

@@ -46,6 +46,8 @@ function recordOf(id: string): PrisonerRecord {
     contextZh: 'test',
     factionId: 'pirate',
     capturedAtMs: 0,
+    entityKey: `pow-${id}`,
+    provision: 80,
   }
 }
 
@@ -105,5 +107,21 @@ describe('brig POW store', () => {
     useBrig.getState().add(recordOf('a'))
     useBrig.getState().hydrate(null)
     expect(useBrig.getState().prisoners).toEqual([])
+  })
+
+  it('removeById drops a prisoner and returns the record (Issue #70 verbs)', () => {
+    useBrig.getState().add(recordOf('a'))
+    useBrig.getState().add(recordOf('b'))
+    const removed = useBrig.getState().removeById('a')
+    expect(removed?.id).toBe('a')
+    expect(useBrig.getState().prisoners.map((p) => p.id)).toEqual(['b'])
+    // Removing a missing id is a no-op returning null.
+    expect(useBrig.getState().removeById('zzz')).toBeNull()
+  })
+
+  it('setProvision writes back the brig-condition provisioning level', () => {
+    useBrig.getState().add(recordOf('a'))
+    useBrig.getState().setProvision('a', 15)
+    expect(useBrig.getState().prisoners[0].provision).toBe(15)
   })
 })

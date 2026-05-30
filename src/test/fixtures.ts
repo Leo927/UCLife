@@ -10,6 +10,8 @@ import msRosterRaw from '../../tests/fixtures/ms-roster.json5?raw'
 import msSortieRaw from '../../tests/fixtures/ms-sortie.json5?raw'
 import pilotRosterRaw from '../../tests/fixtures/pilot-roster.json5?raw'
 import msPartsRaw from '../../tests/fixtures/ms-parts.json5?raw'
+import prisonerRaw from '../../tests/fixtures/prisoner.json5?raw'
+import recoverablesRaw from '../../tests/fixtures/recoverables.json5?raw'
 import npcTransitRaw from '../../tests/fixtures/npc-transit.json5?raw'
 import cpDpRaw from '../../tests/fixtures/cp-dp.json5?raw'
 import { getWorld, SCENE_IDS } from '../ecs/world'
@@ -101,6 +103,8 @@ const FIXTURES: Record<string, string> = {
   'ms-sortie': msSortieRaw,
   'pilot-roster': pilotRosterRaw,
   'ms-parts': msPartsRaw,
+  'prisoner': prisonerRaw,
+  'recoverables': recoverablesRaw,
   'npc-transit': npcTransitRaw,
   'cp-dp': cpDpRaw,
 }

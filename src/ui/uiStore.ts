@@ -92,6 +92,11 @@ interface UIState {
   // Phase 6.0 post-combat tally — null while no engagement has just
   // resolved with a payout. Set when 'ui:open-combat-tally' fires.
   combatTally: CombatTallyPayload | null
+  // Issue #71 — recoverables dialogue. Open while the player resolves
+  // survivor hulls / ejected pods; fires BEFORE the tally. The panel reads
+  // the live list from systems/recoverables via the __uclife__ surface;
+  // this boolean just gates the modal's mount.
+  recoverablesOpen: boolean
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -121,6 +126,7 @@ interface UIState {
   setWarRoom: (open: boolean) => void
   setMsRetrofit: (msKey: string | null) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
+  setRecoverables: (open: boolean) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -156,6 +162,7 @@ export const useUI = create<UIState>((set) => ({
   warRoomOpen: false,
   msRetrofitKey: null,
   combatTally: null,
+  recoverablesOpen: false,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -185,6 +192,7 @@ export const useUI = create<UIState>((set) => ({
   setWarRoom: (open) => set({ warRoomOpen: open }),
   setMsRetrofit: (msKey) => set({ msRetrofitKey: msKey }),
   setCombatTally: (t) => set({ combatTally: t }),
+  setRecoverables: (open) => set({ recoverablesOpen: open }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

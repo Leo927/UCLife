@@ -17,6 +17,7 @@ import { useClock } from '../sim/clock'
 import { getWorld } from '../ecs/world'
 import { dispatchRecoveryTug } from '../sim/recoveryTug'
 import { pushCombatLog } from '../sim/combatLog'
+import { PrisonerVerbRow } from './PrisonerVerbs'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -90,18 +91,18 @@ export function CommPanelDialog() {
             <div className="status-meta">禁闭室无人。</div>
           ) : (
             prisoners.map((p) => (
-              <div key={p.id} className="combat-tally-row">
-                <span className="combat-tally-row-label">
-                  {p.nameZh}
-                  {p.titleZh ? <span className="status-meta"> · {p.titleZh}</span> : null}
-                </span>
-                <span className="combat-tally-row-value">已羁押</span>
+              <div key={p.id} className="combat-tally-prisoner" data-prisoner-id={p.id}>
+                <div className="combat-tally-row">
+                  <span className="combat-tally-row-label">
+                    {p.nameZh}
+                    {p.titleZh ? <span className="status-meta"> · {p.titleZh}</span> : null}
+                  </span>
+                  <span className="combat-tally-row-value">给养 {Math.round(p.provision)}</span>
+                </div>
+                <PrisonerVerbRow prisoner={p} />
               </div>
             ))
           )}
-          <div className="status-meta">
-            审讯 · 索赎 · 招募 · 处决 · 移交 · 释放等指令将在 6.2.5 启用。
-          </div>
         </section>
         {clockMode === 'combat' && (
           <section className="status-section">

@@ -58,6 +58,10 @@ import { tickResupply, routeDockedMsToResupply } from '../sim/sortieResupply'
 import { drainPilotedMs, isMsStranded, tryConsumeAmmo } from '../sim/sortieDrain'
 import { tickTugs } from '../sim/recoveryTug'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
+import { capturePrisoner } from './prisoners'
+import {
+  resetRecoverables, recordRecoverable, openRecoverablesBeforeTally,
+} from './recoverables'
 import { getSimRng } from '../sim/rng'
 import { getSpecialNpcById } from '../character/specialNpcs'
 import {
@@ -499,6 +503,7 @@ export function startCombat(
   }
   projectiles.length = 0
   salvageAccum = []   // Issue #64 — fresh salvage tally per engagement
+  resetRecoverables() // Issue #71 — fresh recoverables accumulator per fight
   activeCampaignEnemyKey = campaignEnemyKey ?? null
 
   const ship = getPlayerShip()
@@ -715,6 +720,19 @@ function onEnemyDestroyed(ent: Entity): void {
   // Issue #64 — roll salvage BEFORE the captain early-returns so every
   // broken-down hull yields parts, named or anonymous.
   rollSalvageFor(cs.shipClassId)
+  // Issue #71 — record the disabled hull as a recoverable (Recover /
+  // Salvage / Scuttle) plus its surviving crew's escape pod (Recover /
+  // Leave). Recorded for every broken-down hostile-eligible class; the
+  // class lookup throws for non-enemy ids, so gate on isEnemyShipId.
+  if (isEnemyShipId(cs.shipClassId)) {
+    recordRecoverable({
+      shipClassId: cs.shipClassId,
+      nameZh: cs.nameZh || getEnemyShip(cs.shipClassId).nameZh,
+      hullCurrent: cs.hullCurrent,
+      armorCurrent: cs.armorCurrent,
+      captainId: '',
+    })
+  }
   const npcId = cs.captainId
   if (!npcId) return
   const npc = getSpecialNpcById(npcId)
@@ -725,13 +743,12 @@ function onEnemyDestroyed(ent: Entity): void {
   const fits = cap > 0 && occ < cap
 
   if (fits) {
-    const ok = useBrig.getState().add({
+    const ok = capturePrisoner({
       id: npcId,
       nameZh: npc.name,
       titleZh: npc.title,
       contextZh: npc.contextZh ?? npc.title ?? '',
       factionId: npc.factionRole?.faction ?? 'pirate',
-      capturedAtMs: simNow(),
     })
     if (ok) {
       pushCombatLog(`俘获 · ${npc.name}${npc.title ? ` (${npc.title})` : ''}`, 'narr')
@@ -875,7 +892,7 @@ export function endCombat(outcome: CombatOutcome): void {
       const summary = salvagedParts.map((s) => `${s.nameZh}×${s.qty}`).join('、')
       pushCombatLog(`回收部件 · ${summary}`, 'narr')
     }
-    emitSim('ui:open-combat-tally', {
+    const tallyPayload = {
       creditsDelta: reward,
       creditsAfter,
       suppliesDelta: supplyGain,
@@ -888,7 +905,14 @@ export function endCombat(outcome: CombatOutcome): void {
       brigOccupied,
       brigCapacity,
       salvagedParts,
-    })
+    }
+    // Issue #71 — the recoverables dialogue fires BEFORE the tally. If
+    // there are survivor hulls / pods, stash the tally and open
+    // recoverables; the panel re-emits the (brig-refreshed) tally when the
+    // player resolves or closes it. No recoverables → emit the tally now.
+    if (!openRecoverablesBeforeTally(tallyPayload)) {
+      emitSim('ui:open-combat-tally', tallyPayload)
+    }
   } else if (outcome === 'defeat') {
     applyDefeatConsequence()
   } else {

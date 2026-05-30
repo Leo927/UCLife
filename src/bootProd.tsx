@@ -49,6 +49,10 @@ import './boot/factionSalaryTick'
 // in-transit non-flagship active ships at their destination POI when
 // arrivalDay rolls over.
 import './boot/fleetTransitTick'
+// Issue #70 — in-flight brig-condition upkeep. Same event; decays
+// prisoner provisioning, onsets the brig_neglect condition through the
+// shared physiology pipeline, and resolves neglect deaths / escapes.
+import './boot/brigConditionTick'
 // Issue #69 — per-day Command-Point partial refill on day rollover: refill a
 // fraction of the CP pool on each daily rollover so a long campaign leg slowly
 // tops the bandwidth back up between engagements.

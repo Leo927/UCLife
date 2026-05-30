@@ -71,6 +71,9 @@ export type { AudioConfig, AudioClipSpec, UiAudioId } from './audio'
 export { physiologyConfig } from './physiology'
 export type { PhysiologyConfig } from './physiology'
 
+export { prisonersConfig } from './prisoners'
+export type { PrisonersConfig, PrisonerVerb, PrisonerVerbOutcome } from './prisoners'
+
 export { artConfig } from './art'
 export type { ArtConfig, ArtAssetSpec, ArtId } from './art'
 

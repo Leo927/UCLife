@@ -23,7 +23,7 @@ import { getWorld, type SceneId } from '../../ecs/world'
 import {
   Ship, WeaponMount, EntityKey, IsFlagshipMark, IsInActiveFleet,
   ShipStatSheet, ShipEffectsList, FleetEscort, ShipBody, Position,
-  Velocity, Thrust, Owner,
+  Velocity, Thrust, Owner, WasCaptured,
 } from '../../ecs/traits'
 import type { OwnerKind } from '../../ecs/traits'
 import { fleetConfig } from '../../config'
@@ -93,6 +93,13 @@ interface ShipBlock {
   // stored inside another ship's internal bay. Optional — pre-6.2.5 saves
   // load as not-stored-aboard (empty string), matching the trait default.
   storedAboardShipKey?: string
+  // Issue #71 — captured-hull state. `wasCaptured` mirrors the WasCaptured
+  // marker; the rest are the in-flight bunker fields. All optional — non-
+  // captured ships and pre-Issue-71 saves load with the trait defaults.
+  wasCaptured?: boolean
+  homeHangarId?: string
+  currentSupply?: number
+  currentFuel?: number
 }
 
 interface FleetBlock {
@@ -162,6 +169,10 @@ function snapshotFleet(): FleetBlock | undefined {
       transitArrivalDay: s.transitArrivalDay,
       mothballed: s.mothballed,
       storedAboardShipKey: s.storedAboardShipKey,
+      wasCaptured: e.has(WasCaptured),
+      homeHangarId: s.homeHangarId,
+      currentSupply: s.currentSupply,
+      currentFuel: s.currentFuel,
     })
   }
   if (ships.length === 0) return undefined
@@ -280,6 +291,12 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
     // Phase 6.2.5 — aboard-carrier linkage. Pre-6.2.5 blocks default to
     // not stored aboard (empty string), matching the trait default.
     storedAboardShipKey: newBlock.storedAboardShipKey ?? '',
+    // Issue #71 — captured-hull in-flight fields. Pre-Issue-71 blocks
+    // default to housed (empty homeHangarId is harmless without the
+    // WasCaptured marker) + zero own-bunkers.
+    homeHangarId: newBlock.homeHangarId ?? '',
+    currentSupply: newBlock.currentSupply ?? 0,
+    currentFuel: newBlock.currentFuel ?? 0,
   })
 
   // IsInActiveFleet marker presence — round-trip independently from
@@ -288,6 +305,10 @@ function applyShipBlock(block: ShipBlock | LegacyShipBlock, entityKey: string): 
   const wantActive = newBlock.isInActiveFleet ?? !!newBlock.isFlagship
   if (wantActive && !shipEnt.has(IsInActiveFleet)) shipEnt.add(IsInActiveFleet)
   else if (!wantActive && shipEnt.has(IsInActiveFleet)) shipEnt.remove(IsInActiveFleet)
+
+  // Issue #71 — WasCaptured marker presence.
+  if (newBlock.wasCaptured && !shipEnt.has(WasCaptured)) shipEnt.add(WasCaptured)
+  else if (!newBlock.wasCaptured && shipEnt.has(WasCaptured)) shipEnt.remove(WasCaptured)
 
   // Phase 6.2.B — restore ShipStatSheet + ShipEffectsList. Legacy saves
   // (or any block missing statSheet) re-project from the template so

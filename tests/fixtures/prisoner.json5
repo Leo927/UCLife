@@ -1,0 +1,24 @@
+// Issue #70 — prisoner-verbs smoke fixture. Player aboard a Pegasus-class
+// flagship (brigCapacity 8) in playerShipInterior, with cash so ransom /
+// hand-over payouts are observable. Prisoners are seeded by the smoke via
+// the forceCapture debug handle (a hand-crafted scenario, not a captured
+// savestate) so the test controls the home faction per POW.
+{
+  seed: 'prisoner-verbs-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 0,
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
+  },
+
+  ships: [
+    {
+      id: 'ship',
+      template: 'pegasusClass',
+      name: '木马号',
+      dockedAt: 'vonBraun',
+    },
+  ],
+}
