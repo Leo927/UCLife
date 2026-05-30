@@ -1,6 +1,21 @@
 # Issue #64 — Ralph loop progress
 
-## Status: IN PROGRESS
+## Status: COMPLETE — all gates green (iter 1)
+
+## Gate results (final)
+- test:unit: PASS (537 tests, incl. partsPricing.test.ts)
+- ci:local --grep ms-parts-acquisition: PASS
+- ci:local (broad, --workers=1): PASS (46 + 5 smokes)
+  - NOTE: a parallel-worker run showed a space-combat Pixi `_resolution`
+    teardown flake; passes 1/1 in isolation + 1/1 serially → infra flake,
+    not a regression (my endCombat change is a no-op when nothing salvaged).
+- lint:arch: PASS (no new violations)
+- build: PASS (tsc -b + vite build clean)
+- docs: Design/fleet.md (both follow-ups ✅ Issue #64) + Design/post-combat.md
+  (salvage shipped note) updated.
+
+Commits: 6d4e8e1 (feature) + docs.
+
 
 ## Done
 - (iter 1) Branch `claude/issue-64-ms-parts-broker-loot` off main; committed loop spec.

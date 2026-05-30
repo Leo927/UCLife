@@ -57,6 +57,7 @@ Per hull, three options:
 
 - **Recover** — the hull joins the player's fleet as a salvaged ship instance (see §Recovered-hull state on join below). Costs supply (config: `salvageRecoverSupplyCost` per hull tier). Requires available *capture-prize-crew* aboard the flagship — the player has to dedicate crew to fly the captured hull, pulled from the flagship's idle crew pool, sized to the hull's `crewRequired / 4` minimum-prize-crew. If there isn't enough, the option is gated and the dialogue says so plainly ("not enough idle crew aboard to fly this hull").
 - **Salvage** — the hull is broken down for parts. Yields MS-class parts (weapons + frame mods if present), supplies, fuel, credits per the salvage table on the ship class. No crew cost; takes a configured amount of post-combat time (handled by the abstract end-of-engagement tick, not real-time).
+  - **Shipped (Issue #64):** the MS-parts portion auto-resolves at the post-combat tally — there is no per-hull Recover/Salvage/Scuttle *choice* yet. Each broken-down enemy class declares a `salvage[]` table on `enemyShips.json5` (`{ partId, kind: 'weapon' | 'frameMod', chance, qty }`); on victory the engagement's drops are rolled with the seeded combat RNG, credited straight to `PlayerPartsInventory`, and listed in a new **salvaged-parts** section of the tally panel (`回收部件`). The full survivor-hull recoverables dialogue (the Recover/Scuttle choice + supplies/fuel/credits salvage yields above) stays a later-phase concern.
 - **Scuttle** — leave it. No cost, no payout.
 
 Per pod, two options:
