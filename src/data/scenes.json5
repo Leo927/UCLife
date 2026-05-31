@@ -111,11 +111,26 @@
       // walkable pathfinding component — no foot route connects the two; the
       // orbital lift (a NPC-only transit portal + the player's fare-gated
       // kiosk) is the only way across. Interior is x 10..70, y 540..590.
+      //
+      // The remaining southern expansion (everything in y >= 519 outside the
+      // ring) is dead void, fully walled off. Leaving it as open walkable
+      // ground would fold a ~800x80 empty plain into the *city's* HPA* graph:
+      // every cross-cluster NPC pathfind would then explore ~30% more abstract
+      // nodes (measured 12.5k -> 16.5k popped/call), and city NPCs could wander
+      // the void. Sealing it keeps the city's walkable component the size it
+      // was before the relocation. The drydock interior stays walkable; the
+      // lift portal (a teleport edge, not a walkable corridor) still bridges
+      // the two components.
       walls: [
         { x: 9, y: 539, w: 62, h: 1 },
         { x: 9, y: 590, w: 62, h: 1 },
         { x: 9, y: 539, w: 1, h: 52 },
         { x: 70, y: 539, w: 1, h: 52 },
+        // Void seal: band above the ring + the three sides around it.
+        { x: 0, y: 519, w: 800, h: 20 },
+        { x: 0, y: 539, w: 9, h: 61 },
+        { x: 71, y: 539, w: 729, h: 61 },
+        { x: 9, y: 591, w: 62, h: 9 },
       ],
 
       // Camera clamp regions (tile-space). The camera clamps to whichever

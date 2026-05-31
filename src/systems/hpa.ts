@@ -94,6 +94,10 @@ interface AbstractNode {
 interface SceneHpa {
   clusters: Cluster[]
   dirty: boolean
+  // Lazily-built union of component ids bridged by transit portals (see
+  // portalBridges). Rebuilt with the cluster graph; cleared by markHpaDirty,
+  // which fires alongside component invalidation in markPathfindingDirty.
+  portalUnion: Map<number, number> | null
 }
 // already keyed per scene: cluster graph is per-world (each scene has its
 // own walls + door layout). Map<SceneId, SceneHpa> is the canonical shape.
@@ -102,7 +106,7 @@ const sceneHpa = new Map<SceneId, SceneHpa>()
 function getSceneHpa(id: SceneId): SceneHpa {
   let h = sceneHpa.get(id)
   if (!h) {
-    h = { clusters: [], dirty: true }
+    h = { clusters: [], dirty: true, portalUnion: null }
     sceneHpa.set(id, h)
   }
   return h
@@ -113,6 +117,7 @@ export function markHpaDirty(sceneId?: SceneId): void {
   const h = getSceneHpa(id)
   h.dirty = true
   h.clusters = []
+  h.portalUnion = null
 }
 
 // Flip `enabled` on from devtools (`__uclife__.world` won't reach this; do
@@ -390,7 +395,12 @@ export function hpaFind(world: World, sIdx: number, tIdx: number, allowTransit =
     if (PROF) hpaStats.componentFastFail++
     return null
   }
-  if (cs !== ct && portals.length === 0) {
+  // A transit portal present anywhere in the world would otherwise disable the
+  // cross-component bailout for *every* query — turning each pathfind to a
+  // genuinely sealed region (no portal reaches it) into a full abstract-graph
+  // exhaustion. Restrict the relaxation to component pairs a portal actually
+  // bridges; everything else fast-fails as before.
+  if (cs !== ct && !portalBridges(world, portals, cs, ct)) {
     if (PROF) hpaStats.componentFastFail++
     return null
   }
@@ -518,6 +528,44 @@ function kioskCellIdx(world: World, px: number, py: number): number | null {
   const idx = cy * COLS + cx
   if (wall[idx] === 0) return idx
   return nearestFreeCellIdx(wall, cx, cy)
+}
+
+function unionRoot(parent: Map<number, number>, x: number): number {
+  let r = x
+  while ((parent.get(r) ?? r) !== r) r = parent.get(r)!
+  return r
+}
+
+// Component ids joined transitively by every portal's two stand-cells. Built
+// lazily (the snap + component lookups are cheap and only the portal endpoints
+// matter) and cached on the SceneHpa so repeated cross-component queries reuse
+// it. getComponentOf forces the component grid current; markHpaDirty clears the
+// cache in lockstep with component invalidation.
+function portalComponentUnion(world: World, portals: readonly TransitPortal[]): Map<number, number> {
+  const h = getSceneHpa(getActiveSceneId())
+  if (h.portalUnion) return h.portalUnion
+  const parent = new Map<number, number>()
+  for (const portal of portals) {
+    const aIdx = kioskCellIdx(world, portal.ax, portal.ay)
+    const bIdx = kioskCellIdx(world, portal.bx, portal.by)
+    if (aIdx === null || bIdx === null) continue
+    const ca = getComponentOf(world, aIdx)
+    const cb = getComponentOf(world, bIdx)
+    if (ca === 0 || cb === 0) continue
+    const ra = unionRoot(parent, ca), rb = unionRoot(parent, cb)
+    if (ra !== rb) parent.set(ra, rb)
+  }
+  h.portalUnion = parent
+  return parent
+}
+
+// Whether a transit portal (directly or via a chain of portals) connects the
+// two walkable components. Only then is a cross-component abstract search worth
+// running; otherwise the route provably cannot exist and we fast-fail.
+function portalBridges(world: World, portals: readonly TransitPortal[], cs: number, ct: number): boolean {
+  if (portals.length === 0) return false
+  const parent = portalComponentUnion(world, portals)
+  return unionRoot(parent, cs) === unionRoot(parent, ct)
 }
 
 // Insert each portal endpoint as a temp node wired to its cluster's entrances
