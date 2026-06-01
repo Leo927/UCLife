@@ -250,6 +250,27 @@
       description: '联邦在建殖民群；战后成为白色基地的发射地。',
     },
 
+    // — Claimable colony candidates — Phase 6.3.A ——————————————
+    // One named, hand-authored derelict for 6.3.A. The full 3–5 seeded
+    // + monthly news-generated candidate pool is deferred to a later slice.
+    {
+      id: 'marikoRefinery',
+      nameZh: '万里子炼气站',
+      shortZh: '万里子',
+      type: 'colony',
+      factionControlPre: 'civilian',
+      factionControlPost: 'none',
+      services: [],
+      dockScenes: ['marikoRefineryScene'],
+      bodyId: 'moon',
+      orbitRadius: 250,
+      orbitPeriodDays: 0.6,
+      orbitPhase: 1.2,
+      region: 'lunarSphere',
+      takeoffFuelCost: 8,
+      description: '万里子资源公司遗留的废弃氦-3炼气站。公司破产后无人认领，站内尚有留守人员。',
+    },
+
     // — Asteroid clusters ——————————————————————————————————————
     {
       id: 'axis',

@@ -97,6 +97,10 @@ interface UIState {
   // the live list from systems/recoverables via the __uclife__ surface;
   // this boolean just gates the modal's mount.
   recoverablesOpen: boolean
+  // Phase 6.3.A — colony claim panel. Non-null while the player is
+  // resolving the claim for the POI identified by the string. Cleared
+  // by the panel on cancel or successful claim.
+  colonyClaimPoiId: string | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -127,6 +131,7 @@ interface UIState {
   setMsRetrofit: (msKey: string | null) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setRecoverables: (open: boolean) => void
+  setColonyClaimPoiId: (poiId: string | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -163,6 +168,7 @@ export const useUI = create<UIState>((set) => ({
   msRetrofitKey: null,
   combatTally: null,
   recoverablesOpen: false,
+  colonyClaimPoiId: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -193,6 +199,7 @@ export const useUI = create<UIState>((set) => ({
   setMsRetrofit: (msKey) => set({ msRetrofitKey: msKey }),
   setCombatTally: (t) => set({ combatTally: t }),
   setRecoverables: (open) => set({ recoverablesOpen: open }),
+  setColonyClaimPoiId: (poiId) => set({ colonyClaimPoiId: poiId }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

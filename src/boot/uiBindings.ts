@@ -42,4 +42,6 @@ export function bindUi(): void {
   onSim('ui:open-combat-tally', (t) => useUI.getState().setCombatTally(t))
   // Issue #71 — recoverables dialogue opens before the tally.
   onSim('ui:open-recoverables', () => useUI.getState().setRecoverables(true))
+  // Phase 6.3.A — colony claim panel.
+  onSim('ui:colony-claim', ({ poiId }) => useUI.getState().setColonyClaimPoiId(poiId))
 }

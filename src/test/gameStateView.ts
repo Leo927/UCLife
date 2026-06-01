@@ -7,6 +7,7 @@ import {
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
 import { factionsConfig, type FactionId } from '../config'
+import { isPlayerColony, getColonyRecord } from '../sim/colony'
 
 export interface CharacterView {
   getId(): string
@@ -47,6 +48,11 @@ export interface SceneView {
   getBuildings(): SceneBuildingView[]
 }
 
+export interface ColonyOwnershipView {
+  isPlayerOwned: boolean
+  adminEntityKey: string | null
+}
+
 export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
@@ -54,6 +60,10 @@ export interface GameStateView {
   getFaction(id: string): FactionView | null
   getDialogue(): DialogueView | null
   getScene(): SceneView
+  // Phase 6.3.A — colony ownership query.
+  // Returns null when the poiId is not a known claimable colony.
+  // Returns { isPlayerOwned: false, adminEntityKey: null } while unowned.
+  getColonyOwnership(poiId: string): ColonyOwnershipView
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -264,6 +274,13 @@ export function getGameState(): GameStateView {
     },
     getScene(): SceneView {
       return makeSceneView(getActiveSceneId())
+    },
+    getColonyOwnership(poiId: string): ColonyOwnershipView {
+      if (isPlayerColony(poiId)) {
+        const rec = getColonyRecord(poiId)
+        return { isPlayerOwned: true, adminEntityKey: rec?.adminEntityKey ?? null }
+      }
+      return { isPlayerOwned: false, adminEntityKey: null }
     },
   }
 }

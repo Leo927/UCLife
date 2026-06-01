@@ -38,6 +38,7 @@ export type InteractableKind =
   | 'climbIntoMs'
   | 'msTerminal'
   | 'gateTerminal'
+  | 'adminChair'
 
 export type ActionKind =
   | 'idle' | 'walking' | 'eating' | 'sleeping' | 'washing'

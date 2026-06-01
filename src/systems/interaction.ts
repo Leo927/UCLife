@@ -22,13 +22,14 @@ import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
 import { runTransition, useTransition } from '../sim/transition'
 import { getActiveSceneId, getWorld } from '../ecs/world'
-import { getPoi } from '../data/pois'
+import { getPoi, poiIdForSceneAt } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
 import {
   getOrbitalLift, liftOtherEndpoint, liftFareForEndpoint, type LiftEndpoint,
 } from '../data/orbitalLifts'
 import { findBoardingPadPx } from './shipMarkers'
+import { isPlayerColony } from '../sim/colony'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
@@ -374,6 +375,24 @@ export function interactionSystem(world: World) {
         continue
       }
       emitSim('ui:open-war-room', { reason: 'warRoom' })
+      continue
+    }
+    if (nearestKind === 'adminChair') {
+      const chairPos = nearestEnt?.get(Position)
+      if (!chairPos) continue
+      const activeScene = getActiveSceneId()
+      const tileX = Math.floor(chairPos.x / worldConfig.tilePx)
+      const tileY = Math.floor(chairPos.y / worldConfig.tilePx)
+      const poiId = poiIdForSceneAt(activeScene, tileX, tileY)
+      if (!poiId) {
+        emitSim('toast', { textZh: '无法确认所在地点' })
+        continue
+      }
+      if (isPlayerColony(poiId)) {
+        emitSim('toast', { textZh: '此地已是你的势力领地' })
+        continue
+      }
+      emitSim('ui:colony-claim', { poiId })
       continue
     }
     if (nearestKind === 'work') {

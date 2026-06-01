@@ -546,6 +546,99 @@
       playerSpawnRoomId: 'bridge',
     },
 
+    // ── Phase 6.3.A — Mariko Refinery colony scene ───────────────────────
+    // One-district industrial colony. Smaller than Von Braun: one procgen
+    // zone + two hand-placed fixed buildings (command center + refinery
+    // shell). The command center contains the administrator's chair that
+    // seals colony ownership. Income wiring lands in Phase 6.3.B.
+    //
+    // Fixed buildings sit east of the procgen rect (x=30..160, y=10..140)
+    // so the road carver never collides with them.
+    {
+      id: 'marikoRefineryScene',
+      titleZh: '万里子炼气站',
+      sceneType: 'micro',
+      tilesX: 250,
+      tilesY: 200,
+      playerSpawnTile: { x: 10, y: 30 },
+
+      replenishments: [
+        {
+          target: 8,
+          arrivalTile: { x: 10, y: 25 },
+          regionRect: { x: 0, y: 0, w: 250, h: 200 },
+        },
+      ],
+
+      procgenZones: [
+        {
+          enabled: true,
+          seed: 'mariko-industrial-001',
+          rect: { x: 30, y: 10, w: 130, h: 130 },
+          roads: {
+            avenueSpacingTiles: { min: 25, max: 35 },
+            streetSpacingTiles: { min: 12, max: 18 },
+            avenueWidthTiles: 2,
+            streetWidthTiles: 2,
+            alleyChance: 0.3,
+            alleyWidthTiles: 1,
+            alleyMinBlockTiles: 8,
+          },
+          districts: [
+            {
+              id: 'industrial',
+              rect: { x: 0, y: 0, w: 130, h: 130 },
+              types: [
+                { id: 'bar', min: 1, max: 1 },
+                { id: 'flop', min: 1, max: 2 },
+              ],
+              buildingsPerBlockMax: 2,
+            },
+          ],
+          display: {
+            id: 'marikoIndustrialZone',
+            nameZh: '居住区',
+            shortZh: '居住区',
+            kind: 'district',
+            description: '站内生活区，留守人员在此聚居。',
+          },
+        },
+      ],
+
+      fixedBuildings: [
+        {
+          type: 'colonyCommandCenter',
+          tile: { x: 175, y: 50 },
+          door: { side: 'w', offsetTiles: 4 },
+          display: {
+            id: 'marikoCommandCenter',
+            nameZh: '指挥中心',
+            shortZh: '指挥中心',
+            kind: 'complex',
+            description: '站务行政指挥中心。内有行政主椅——坐上它，就是接管这个站的第一步。',
+          },
+        },
+        {
+          type: 'colonyRefineryShell',
+          tile: { x: 175, y: 110 },
+          door: { side: 'w', offsetTiles: 5 },
+          display: {
+            id: 'marikoRefineryShell',
+            nameZh: '炼气车间（停工）',
+            shortZh: '炼气车间',
+            kind: 'complex',
+            description: '氦-3精炼主车间。设备已停工，需要修复才能恢复生产。（收益接入将在 6.3.B 阶段实装）',
+          },
+        },
+      ],
+
+      walls: [],
+
+      cameraRegions: [
+        { rect: { x: 0, y: 0, w: 250, h: 200 }, poiId: 'marikoRefinery' },
+      ],
+    },
+
     {
       id: 'spaceCampaign',
       titleZh: '太空 · 地球圈',
