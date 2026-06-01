@@ -1,0 +1,18 @@
+// Phase 6.3.A fixture — player already inside the Mariko Refinery colony
+// scene, near the command center's administrator's chair. Used by the
+// colony-claim smoke test.
+//
+// The fixture drops the player at the approach corridor to the command
+// center (tile 170, 60) — close enough to walk to the admin chair but
+// not directly on top of it, so the interaction test can drive position.
+{
+  seed: 'colony-claim-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'marikoRefineryScene',
+
+  player: {
+    money: 500000,
+    location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
+    skills: { leadership: 5 },
+  },
+}

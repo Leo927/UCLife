@@ -85,6 +85,10 @@ export interface SimEventPayloads {
   // The panel reads the full list via the __uclife__ / recoverables
   // surface; this event just signals "open" + a count for the smoke gate.
   'ui:open-recoverables': { hulls: number; pods: number }
+  // Phase 6.3.A — colony claim panel. Fired when the player presses E on
+  // the administrator's chair in an unowned colony. `poiId` identifies
+  // which colony the player is attempting to claim.
+  'ui:colony-claim': { poiId: string }
 }
 
 // Exported so systems/recoverables.ts can stash + re-emit this payload

@@ -206,6 +206,11 @@ export const Faction = trait({
 // check `owner.entity.has(IsPlayerFaction)` rather than `id === 'player'`.
 export const IsPlayerFaction = trait()
 
+// Phase 6.3.A — declared for future ECS use when colony entities get spawned
+// (Phase 6.3.B+). Ownership state for 6.3.A lives in the colony registry
+// (src/sim/colony.ts) and is exposed via getGameState().getColonyOwnership().
+export const IsPlayerColony = trait()
+
 // Phase 5.5.6 — faction-side StatSheet, parallel to Attributes.sheet on
 // characters. Holds revenueMul / salaryMul / maintenanceMul /
 // researchSpeedMul / recruitChanceMul / loyaltyDriftMul. Authored by

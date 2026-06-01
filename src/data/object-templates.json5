@@ -149,6 +149,12 @@
     'gate-board-pad-flagship':     { kind: 'interactable', interactableKind: 'boardShip',    labelZh: '舱口',   visual: { w: 28, h: 28, fill: 0x172554, stroke: 0xfbbf24 } },
     'ship-disembark':      { kind: 'interactable', interactableKind: 'disembarkShip', labelZh: '下舰',     visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x94a3b8 } },
 
+    // — Colony: Phase 6.3.A —
+    // Administrator's chair in the colony command center. Pressing E
+    // while the colony is unowned opens the claim-possession dialogue;
+    // once owned it surfaces the colony management panel (Phase 6.3.B+).
+    'colony-admin-chair': { kind: 'interactable', interactableKind: 'adminChair', labelZh: '行政主椅', visual: { w: 28, h: 28, fill: 0x1a3a2a, stroke: 0x22c55e } },
+
     // — Park fixtures —
     'park-tap':       { kind: 'interactable', interactableKind: 'tap',      labelZh: '水龙头', visual: { w: 28, h: 28, fill: 0x1e293b, stroke: 0x64748b } },
     'park-scavenge':  { kind: 'interactable', interactableKind: 'scavenge', labelZh: '垃圾堆', visual: { w: 28, h: 28, fill: 0x3a2e1a, stroke: 0xa3a3a3 } },

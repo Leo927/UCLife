@@ -407,6 +407,37 @@
     },
   },
 
+  // ── COLONY FACILITIES — Phase 6.3.A ────────────────────────────────────
+
+  // Administration hub for a claimable colony. Fixed size so it works
+  // as a fixedBuilding in the colony scene. Contains the administrator's
+  // chair interactable — the claim-possession verb for Phase 6.3.A.
+  // Income wiring and stability effects are deferred to Phase 6.3.B.
+  colonyCommandCenter: {
+    labelZh: '行政指挥中心',
+    size: { w: 10, h: 8 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'colony-admin-chair', role: 'supervisor' },
+      ],
+    },
+  },
+
+  // Derelict helium-3 refinery shell. Fixed size. A water dispenser is
+  // the only operable fixture (squatters need water). Income wiring and
+  // production machinery land in Phase 6.3.B.
+  colonyRefineryShell: {
+    labelZh: '炼气设施（停工）',
+    size: { w: 14, h: 10 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.
