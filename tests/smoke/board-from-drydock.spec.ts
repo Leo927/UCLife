@@ -38,7 +38,7 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (window as any).__uclife_test__.step({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      until: () => (window as any).__uclife__.listGates('vonBraunDrydock').length > 0,
+      until: () => (window as any).__uclife__.listGates('vonBraunCity').length > 0,
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
@@ -47,7 +47,7 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
   //    player-owned (boardShip kind), not the faction-only inspectShip.
   const gates = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listGates('vonBraunDrydock'),
+    () => (window as any).__uclife__.listGates('vonBraunCity'),
   )
   const boundCapital = gates.find(
     (g: { slotClass: string; boundShipKey: string }) =>
@@ -58,7 +58,7 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
 
   const portalKinds = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listShipMarkers('vonBraunDrydock'),
+    () => (window as any).__uclife__.listShipMarkers('vonBraunCity'),
   )
   const pegasusPortal = portalKinds.find(
     (m: { shipKey: string }) => m.shipKey === 'pegasus-1',

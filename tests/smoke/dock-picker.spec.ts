@@ -27,10 +27,12 @@ test('dock picker: open via debug handle renders rows, close clears state', asyn
   )
   expect(initial, 'picker should be closed at boot').toBeNull()
 
+  // Two real landing scenes — the picker resolves each candidate's title, so
+  // they must be live scene ids (the former vonBraunDrydock is no longer one).
   const payload = {
     poiId: 'vonBraun',
     shipKey: 'ship',
-    candidates: ['vonBraunCity', 'vonBraunDrydock'],
+    candidates: ['vonBraunCity', 'zumCity'],
   }
   const opened = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,7 +40,7 @@ test('dock picker: open via debug handle renders rows, close clears state', asyn
     payload,
   )
   expect(opened?.poiId, 'openDockPicker should stamp the payload').toBe('vonBraun')
-  expect(opened?.candidates).toEqual(['vonBraunCity', 'vonBraunDrydock'])
+  expect(opened?.candidates).toEqual(['vonBraunCity', 'zumCity'])
 
   await sim.page.waitForSelector('[data-dock-picker-row="vonBraunCity"]', { timeout: DOM_COMMIT_TIMEOUT_MS })
   const rowCount = await sim.page.locator('[data-dock-picker-row]').count()

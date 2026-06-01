@@ -1,6 +1,8 @@
 import json5 from 'json5'
 import raw from './pois.json5?raw'
 import { getBody } from './celestialBodies'
+import { regionPoiAt } from './scenes'
+import { worldConfig } from '../config'
 
 // POI table. Pure data + types — no koota, no derivation. Every POI
 // orbits a host body; per-frame world position is derived in the
@@ -132,4 +134,25 @@ export function poiIdForScene(sceneId: string): string | null {
     if (poi.dockScenes?.includes(sceneId)) return poi.id
   }
   return null
+}
+
+// POI for a point inside a scene. When the scene tags camera regions with
+// poiIds (the surface yard vs the orbital drydock, both in vonBraunCity),
+// the containing region's poiId wins; otherwise falls back to the scene's
+// single POI. This is the per-building resolution the fleet layer uses so
+// two hangars in one world keep distinct POIs.
+export function poiIdForSceneAt(sceneId: string, tileX: number, tileY: number): string | null {
+  return regionPoiAt(sceneId, tileX, tileY) ?? poiIdForScene(sceneId)
+}
+
+// POI a hangar building belongs to, resolved from its centre tile. Region-
+// aware so two hangars in one scene (the surface yard + the orbital drydock
+// folded into vonBraunCity) keep distinct POIs. `rect` is in pixels (the
+// Building trait's units).
+export function poiIdForHangar(
+  sceneId: string,
+  rect: { x: number; y: number; w: number; h: number },
+): string | null {
+  const tile = worldConfig.tilePx
+  return poiIdForSceneAt(sceneId, (rect.x + rect.w / 2) / tile, (rect.y + rect.h / 2) / tile)
 }

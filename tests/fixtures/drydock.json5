@@ -1,0 +1,24 @@
+// Drydock-relocation fixture (Design/phasing.md § Step 2). The drydock is now
+// the hidden orbital region of vonBraunCity, reached only via the lift.
+//   - Player at the city spawn with cash to ride the lift up.
+//   - A named NPC ('commuter') in the city core, repositioned by the smoke at
+//     the surface lift kiosk to prove an NPC foot-routes to the drydock bar
+//     through the lift transit portal.
+{
+  seed: 'drydock-relocation-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+
+  npcs: [
+    {
+      id: 'commuter',
+      name: 'Drydock Commuter',
+      at: { scene: 'vonBraunCity', x: 20, y: 18 },
+    },
+  ],
+}

@@ -13,6 +13,7 @@ import { IsPlayer, Position, Body, PoiTag, Velocity, Course, EnemyAI, EntityKey 
 import { dialogueText } from '../data/dialogueText'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi, poiIdForScene } from '../data/pois'
+import { regionPoiIds } from '../data/scenes'
 import { orbitalLifts } from '../data/orbitalLifts'
 import { spaceConfig } from '../config'
 import { leaveHelm } from '../sim/helm'
@@ -80,8 +81,19 @@ function readEnemies(): EnemyShipSnapshot[] {
 const liftPoiPairs: { liftId: string; poiAId: string; poiBId: string }[] = (() => {
   const out: { liftId: string; poiAId: string; poiBId: string }[] = []
   for (const lift of orbitalLifts) {
-    const poiA = poiIdForScene(lift.sceneIdA)
-    const poiB = poiIdForScene(lift.sceneIdB)
+    // A same-world lift (the folded-in drydock) connects the scene's surface
+    // POI to its hidden-region POI; a cross-scene lift maps each endpoint
+    // scene to its single POI.
+    let poiA: string | null
+    let poiB: string | null
+    if (lift.sceneIdA === lift.sceneIdB) {
+      const r = regionPoiIds(lift.sceneIdA)
+      poiA = r.visible
+      poiB = r.hidden
+    } else {
+      poiA = poiIdForScene(lift.sceneIdA)
+      poiB = poiIdForScene(lift.sceneIdB)
+    }
     if (!poiA || !poiB) continue
     out.push({ liftId: lift.id, poiAId: poiA, poiBId: poiB })
   }

@@ -25,26 +25,29 @@ import { getActiveSceneId, getWorld } from '../ecs/world'
 import { getPoi } from '../data/pois'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig, isSceneId } from '../data/scenes'
-import { getOrbitalLift, liftOtherEndpoint, liftFareFrom } from '../data/orbitalLifts'
+import {
+  getOrbitalLift, liftOtherEndpoint, liftFareForEndpoint, type LiftEndpoint,
+} from '../data/orbitalLifts'
 import { findBoardingPadPx } from './shipMarkers'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
 
 // Pixel position to drop the player on at the other end of an orbital lift.
-// Resolves by querying the destination scene's OrbitalLift kiosk with the
-// matching liftId — keeps arrival data alongside the kiosk it pairs with,
-// so adding a new lift is one `orbitalLift` building per endpoint and
-// nothing else. Returns null if the destination scene has no matching
-// kiosk (data drift — surfaces as a toast at call site).
+// Resolves by querying the destination scene's OrbitalLift kiosk for the
+// *opposite* endpoint — so a same-world lift (the folded-in drydock, where
+// both kiosks share a world) lands the player at the paired kiosk instead of
+// the one they departed from. Returns null if no paired kiosk exists (data
+// drift — surfaces as a toast at call site).
 function findOrbitalLiftArrivalPx(
   destSceneId: string,
   liftId: string,
+  fromEndpoint: LiftEndpoint,
 ): { x: number; y: number } | null {
   const destWorld = getWorld(destSceneId)
   for (const ent of destWorld.query(OrbitalLift, Position)) {
     const ol = ent.get(OrbitalLift)!
-    if (ol.liftId !== liftId) continue
+    if (ol.liftId !== liftId || ol.endpoint === fromEndpoint) continue
     const p = ent.get(Position)!
     // Drop the player one tile away from the kiosk along the +y axis so the
     // arrival doesn't immediately retrigger the kiosk's proximity scan.
@@ -183,7 +186,7 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '升降梯目的地异常' })
         continue
       }
-      const fare = liftFareFrom(lift, fromSceneId) ?? 0
+      const fare = liftFareForEndpoint(lift, ol.endpoint)
       const m = player.get(Money)
       if (fare > 0 && (!m || m.amount < fare)) {
         emitSim('toast', { textZh: `金钱不足 · 需 ¥${fare}` })
@@ -191,9 +194,9 @@ export function interactionSystem(world: World) {
       }
       // Charge fare up-front so a mid-transition cancel still reflects the
       // commitment — same pattern as flights / transit. Resolve the arrival
-      // tile against the destination scene's kiosk so the player materialises
-      // next to the other end of the lift.
-      const arrivalPx = findOrbitalLiftArrivalPx(destSceneId, ol.liftId)
+      // tile against the paired (opposite-endpoint) kiosk so the player
+      // materialises next to the other end of the lift.
+      const arrivalPx = findOrbitalLiftArrivalPx(destSceneId, ol.liftId, ol.endpoint)
       if (!arrivalPx) {
         emitSim('toast', { textZh: '升降梯目的地舱口异常' })
         continue

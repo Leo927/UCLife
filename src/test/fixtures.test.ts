@@ -84,12 +84,13 @@ describe('applyFixture', () => {
 
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
     applyFixture('vonBraunDrydock-station')
-    const player = getWorld('vonBraunDrydock').queryFirst(IsPlayer)
+    // The drydock concourse is now the hidden orbital region of vonBraunCity.
+    const player = getWorld('vonBraunCity').queryFirst(IsPlayer)
     expect(player).not.toBeNull()
     expect(player!.get(Money)!.amount).toBe(50000)
     const pos = player!.get(Position)!
-    expect(pos.x).toBe(30 * TILE)
-    expect(pos.y).toBe(20 * TILE)
+    expect(pos.x).toBe(40 * TILE)
+    expect(pos.y).toBe(560 * TILE)
   })
 })
 

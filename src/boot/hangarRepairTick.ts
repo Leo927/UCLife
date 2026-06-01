@@ -5,9 +5,10 @@
 // the loop doesn't reach upward into systems/ (same arch boundary the
 // research tick already obeys).
 //
-// Multi-scene scope: hangars exist in city scenes (vonBraunCity,
-// vonBraunDrydock); ships sit in playerShipInterior. The system walks
-// every SCENE_ID once per tick — it doesn't read getActiveSceneId().
+// Multi-scene scope: hangars live in city scenes (the surface + orbital-
+// drydock hangars both in vonBraunCity); ships sit in playerShipInterior.
+// The system walks every SCENE_ID once per tick — it doesn't read
+// getActiveSceneId().
 
 import { onSim } from '../sim/events'
 import { hangarRepairSystem } from '../systems/hangarRepair'

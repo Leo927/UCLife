@@ -18,7 +18,7 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getShipClass } from '../data/ship-classes'
 import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
-import { poiIdForScene } from '../data/pois'
+import { poiIdForHangar } from '../data/pois'
 import {
   fittingSlotClasses, HANGAR_SLOT_HIERARCHY, type HangarSlotClass,
 } from '../data/facilityTypes'
@@ -194,7 +194,8 @@ export function receiveDelivery(
   const row = h.pendingDeliveries[rowIndex]
   if (!row) return { ok: false, reason: 'no_row' }
   if (row.status !== 'arrived') return { ok: false, reason: 'not_arrived' }
-  const poiId = poiIdForScene(sceneId)
+  const bld = hangarEnt.get(Building)
+  const poiId = bld ? poiIdForHangar(sceneId, bld) : null
   if (!poiId) return { ok: false, reason: 'no_poi' }
   const cls = getShipClass(row.shipClassId)
   // Slot hierarchy: accept the smallest free slot at or above the ship's

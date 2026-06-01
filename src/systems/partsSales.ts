@@ -26,7 +26,7 @@ function catalogHasPart(specId: string, kind: PartKind, partId: string): boolean
 }
 
 function findPlayer() {
-  for (const id of [SHIP_SCENE_ID, 'vonBraunCity', 'vonBraunDrydock', 'zumCity']) {
+  for (const id of [SHIP_SCENE_ID, 'vonBraunCity', 'zumCity']) {
     const p = getWorld(id).queryFirst(IsPlayer)
     if (p) return p
   }

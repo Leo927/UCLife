@@ -173,13 +173,18 @@ function frame(now: number) {
       releaseStaleBarSeats(world)
       releaseStaleRoughSpots(world)
       attributesSystem(world, useClock.getState().gameDate)
-      // Per-scene opt-in: only scenes declaring a `replenishment` config in
-      // scenes.json5 auto-spawn immigrants, and they spawn at that scene's
-      // own arrivalTile. Ship interiors / space sectors omit the field, so
-      // boarding the ship doesn't drop citizens into the cabin.
+      // Per-scene opt-in: only scenes declaring `replenishments` regions in
+      // scenes.json5 auto-spawn immigrants, each at its region's arrivalTile.
+      // Ship interiors / space sectors omit the field, so boarding the ship
+      // doesn't drop citizens into the cabin.
       const activeScene = getSceneConfig(getActiveSceneId())
-      if (activeScene.sceneType === 'micro' && activeScene.replenishment) {
-        populationSystem(world, useClock.getState().gameDate, activeScene.replenishment)
+      if (activeScene.sceneType === 'micro' && activeScene.replenishments) {
+        for (let ri = 0; ri < activeScene.replenishments.length; ri++) {
+          populationSystem(
+            world, useClock.getState().gameDate, activeScene.replenishments[ri],
+            `${activeScene.id}#${ri}`,
+          )
+        }
       }
       // Mirror ships docked at the active scene's POI as clickable
       // Interactable markers inside the hangar building. Idempotent —

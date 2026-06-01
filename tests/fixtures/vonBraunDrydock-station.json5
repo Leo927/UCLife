@@ -2,17 +2,17 @@
 // expansion smoke (drydockBar / drydockClinic / supplyDepot service
 // buildings + the AE supply-dealer special NPC).
 //
-// Player tile (30, 20) sits in the central concourse, south of the
-// orbital lift and north of the hangar's north door — open floor that
-// doesn't collide with any spawned building, worker, or kiosk. Noon
-// start so the AE supply dealer (shift 08:00–20:00) is on duty.
+// The drydock is now the hidden orbital region of vonBraunCity. Player tile
+// (40, 560) sits in the central concourse, north of the hangar's north door
+// — open floor that doesn't collide with any spawned building, worker, or
+// kiosk. Noon start so the AE supply dealer (shift 08:00–20:00) is on duty.
 {
   seed: 'vbd-station-001',
   startDate: '2026-05-17T12:00:00Z',
-  scene: 'vonBraunDrydock',
+  scene: 'vonBraunCity',
 
   player: {
     money: 50000,
-    location: { scene: 'vonBraunDrydock', x: 30, y: 20 },
+    location: { scene: 'vonBraunCity', x: 40, y: 560 },
   },
 }

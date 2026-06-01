@@ -34,7 +34,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (window as any).__uclife_test__.step({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      until: () => (window as any).__uclife__.listGates('vonBraunDrydock').length > 0,
+      until: () => (window as any).__uclife__.listGates('vonBraunCity').length > 0,
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
@@ -42,7 +42,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
   // 1. Gates exist with the configured prefix scheme.
   const gates = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listGates('vonBraunDrydock'),
+    () => (window as any).__uclife__.listGates('vonBraunCity'),
   )
   expect(gates.length, 'expected gate triples in vonBraunDrydock').toBeGreaterThan(0)
   const capitalGates = gates.filter((g: { gateNumber: string }) => g.gateNumber.startsWith('C'))
@@ -86,7 +86,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       until: () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const g = (window as any).__uclife__.listGates('vonBraunDrydock')
+        const g = (window as any).__uclife__.listGates('vonBraunCity')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return g.some((row: any) => row.boundShipKey && row.shipName === '英雄号')
       },
@@ -96,7 +96,7 @@ test('gate terminal: dock binds, sign labels, terminal opens, rename writes', as
 
   const after = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.listGates('vonBraunDrydock'),
+    () => (window as any).__uclife__.listGates('vonBraunCity'),
   )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renamed = after.find((g: any) => g.boundShipKey !== '')

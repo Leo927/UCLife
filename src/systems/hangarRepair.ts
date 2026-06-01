@@ -24,7 +24,7 @@ import {
   Ship, ShipStatSheet, EntityKey,
 } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { poiIdForScene } from '../data/pois'
+import { poiIdForHangar } from '../data/pois'
 import { getJobSpec } from '../data/jobs'
 import { fleetConfig } from '../config'
 import { getStat } from '../stats/sheet'
@@ -52,7 +52,7 @@ export function hangarRepairSystem(_gameDay: number): HangarRepairResult {
   for (const sceneId of SCENE_IDS) {
     const sceneWorld = getWorld(sceneId)
     for (const hangarEnt of sceneWorld.query(Building, Hangar)) {
-      const poiId = poiIdForScene(sceneId)
+      const poiId = poiIdForHangar(sceneId, hangarEnt.get(Building)!)
       if (!poiId) continue
       const dockedShips = findDamagedShipsAtPoi(poiId)
       if (dockedShips.length === 0) continue
@@ -221,7 +221,7 @@ export function describeHangarRepair(hangarEnt: Entity, sceneId: string): {
 } {
   const sceneWorld = getWorld(sceneId)
   const throughput = computeHangarThroughput(sceneWorld, hangarEnt)
-  const poiId = poiIdForScene(sceneId)
+  const poiId = poiIdForHangar(sceneId, hangarEnt.get(Building)!)
   const damaged: string[] = []
   if (poiId) {
     for (const ship of findDamagedShipsAtPoi(poiId)) {

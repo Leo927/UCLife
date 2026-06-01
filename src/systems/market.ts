@@ -9,6 +9,19 @@ import { economyConfig } from '../config'
 import { bedActiveOccupant } from './bed'
 import { getRep, hasFriendInFaction } from './reputation'
 import { getStat } from '../stats/sheet'
+import { reachableComponentAtPx } from './pathfinding'
+
+// Whether `targetPos` is in the same walkable component as the requester —
+// i.e. reachable on foot without crossing a transit portal. NPCs only take
+// jobs / beds they can actually walk to, so the drydock crew stay in the
+// drydock and city folk stay in the city instead of commuting the orbital lift
+// (which would empty a region and run the replenisher away). When the
+// requester isn't on a walkable cell (component 0 — e.g. wall-free test
+// worlds resolve everything to one component anyway), the filter is a no-op.
+function sameWalkRegion(world: World, requesterComp: number, targetPos: { x: number; y: number }): boolean {
+  if (requesterComp === 0) return true
+  return reachableComponentAtPx(world, targetPos.x, targetPos.y) === requesterComp
+}
 
 function rentPriceFor(entity: Entity, listed: number): number {
   const a = entity.get(Attributes)
@@ -62,6 +75,8 @@ export function meetsRequirements(world: World, entity: Entity, ws: Entity): boo
 }
 
 export function findBestOpenJob(world: World, entity: Entity): Entity | null {
+  const ep = entity.get(Position)
+  const myComp = ep ? reachableComponentAtPx(world, ep.x, ep.y) : 0
   let best: Entity | null = null
   let bestWage = -1
   for (const ws of world.query(Workstation)) {
@@ -72,6 +87,8 @@ export function findBestOpenJob(world: World, entity: Entity): Entity | null {
     if (spec.installOnly) continue
     if (!recruitedAllowsWorkstation(world, entity, ws)) continue
     if (!meetsRequirements(world, entity, ws)) continue
+    const wsPos = ws.get(Position)
+    if (wsPos && !sameWalkRegion(world, myComp, wsPos)) continue
     if (spec.wage > bestWage) {
       bestWage = spec.wage
       best = ws
@@ -123,6 +140,8 @@ const TIER_RANK: Record<BedTier, number> = { luxury: 4, apartment: 3, dorm: 2, f
 // names the prior tenant.
 export function findBestOpenBed(world: World, entity: Entity, money: number): Entity | null {
   const now = useClock.getState().gameDate.getTime()
+  const ep = entity.get(Position)
+  const myComp = ep ? reachableComponentAtPx(world, ep.x, ep.y) : 0
   let best: Entity | null = null
   let bestScore = -Infinity
   for (const bed of world.query(Bed, Position)) {
@@ -131,6 +150,7 @@ export function findBestOpenBed(world: World, entity: Entity, money: number): En
     if (b.tier === 'lounge') continue
     const active = bedActiveOccupant(b, now)
     if (active !== null && active !== entity) continue
+    if (!sameWalkRegion(world, myComp, bed.get(Position)!)) continue
     const price = rentPriceFor(entity, b.nightlyRent)
     if (price > money) continue
     const tierScore = TIER_RANK[b.tier as BedTier] ?? 0

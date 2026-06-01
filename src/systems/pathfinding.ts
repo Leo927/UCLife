@@ -199,6 +199,25 @@ export function nearestFreeCellIdx(grid: Uint8Array, cx: number, cy: number): nu
   return null
 }
 
+// Walkable component containing the wall-grid cell nearest (px, py), or 0 if
+// none within the snap ring. Two positions sharing a (nonzero) component are
+// connected by foot; different components are reachable only by a transit
+// portal (e.g. the orbital lift). Used to keep NPC job / home search inside the
+// requester's own walkable region rather than commuting across a fare-gated
+// lift — which would empty a sealed region and trigger runaway replenishment.
+export function reachableComponentAtPx(world: World, px: number, py: number): number {
+  const wall = getWallGrid(world)
+  const cx = Math.max(0, Math.min(COLS - 1, Math.floor(px / CELL)))
+  const cy = Math.max(0, Math.min(ROWS - 1, Math.floor(py / CELL)))
+  let idx = cy * COLS + cx
+  if (wall[idx] === 1) {
+    const snapped = nearestFreeCellIdx(wall, cx, cy)
+    if (snapped === null) return 0
+    idx = snapped
+  }
+  return getComponentOf(world, idx)
+}
+
 // HPA wants the wall-only layer (no per-requester door overlay).
 export function getWallGrid(world: World): Uint8Array {
   const sc = getSceneCache(getActiveSceneId())

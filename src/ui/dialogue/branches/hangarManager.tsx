@@ -14,7 +14,7 @@ import {
 import { receiveMsDelivery } from '../../../systems/msDelivery'
 import { autoAssignPilotForMs } from '../../../systems/msPilotAssign'
 import { refreshAllDepotMsLayouts } from '../../../ecs/spawn'
-import { poiIdForScene } from '../../../data/pois'
+import { poiIdForHangar } from '../../../data/pois'
 import {
   enqueueHangarTransfer, listTransferDestinations, listTransferableShipsAtPoi,
   type TransferableShip, type TransferDestination,
@@ -56,7 +56,8 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
   const tierLabel = t.tierLabel[hangarTrait.tier]
   const slotEntries = Object.entries(hangarTrait.slotCapacity) as Array<[HangarSlotClass, number]>
   const sceneId = sceneIdForBuilding(building)
-  const poiId = sceneId ? poiIdForScene(sceneId) : null
+  const bld = building.get(Building)
+  const poiId = sceneId && bld ? poiIdForHangar(sceneId, bld) : null
   const occupancy = poiId ? deriveHangarOccupancy(poiId) : {}
 
   return (

@@ -4,16 +4,18 @@
 import type { Entity } from 'koota'
 import { Building, Hangar } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { poiIdForScene } from '../data/pois'
+import { poiIdForHangar } from '../data/pois'
 
-// First Hangar building at the given POI, or null when none. Hangar-per-POI
-// is 1:1 today; if that ever changes the callers will need to specify which.
+// First Hangar building at the given POI, or null when none. Each POI still
+// maps to a single hangar; the surface yard and the orbital drydock are
+// distinct POIs even though they now share the vonBraunCity world.
 export function findHangarAtPoi(poiId: string): Entity | null {
   if (!poiId) return null
   for (const sceneId of SCENE_IDS) {
-    if (poiIdForScene(sceneId) !== poiId) continue
     const w = getWorld(sceneId)
-    for (const b of w.query(Building, Hangar)) return b
+    for (const b of w.query(Building, Hangar)) {
+      if (poiIdForHangar(sceneId, b.get(Building)!) === poiId) return b
+    }
   }
   return null
 }

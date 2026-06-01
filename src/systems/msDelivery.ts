@@ -19,7 +19,7 @@ import {
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { getMsClass, defaultMountedWeapons } from '../data/ms'
 import { attachMsStatSheet } from '../ecs/msEffects'
-import { poiIdForScene } from '../data/pois'
+import { poiIdForHangar } from '../data/pois'
 import { fittingSlotClasses } from '../data/facilityTypes'
 import { deriveHangarOccupancy } from './shipDelivery'
 
@@ -115,7 +115,8 @@ export function receiveMsDelivery(
   const row = h.pendingMsDeliveries[rowIndex]
   if (!row) return { ok: false, reason: 'no_row' }
   if (row.status !== 'arrived') return { ok: false, reason: 'not_arrived' }
-  const poiId = poiIdForScene(sceneId)
+  const bld = hangarEnt.get(Building)
+  const poiId = bld ? poiIdForHangar(sceneId, bld) : null
   if (!poiId) return { ok: false, reason: 'no_poi' }
   // Hangar must advertise at least one MS-fitting slot class. The MS
   // hierarchy entry is 'ms'; deriveHangarOccupancy is not consulted here

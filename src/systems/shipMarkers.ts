@@ -22,7 +22,7 @@ import {
   Wall, Door,
 } from '../ecs/traits'
 import { getWorld } from '../ecs/world'
-import { poiIdForScene } from '../data/pois'
+import { poiIdForHangar } from '../data/pois'
 import { getShipClass } from '../data/ship-classes'
 import type { HangarSlotClass, HangarTier } from '../data/facilityTypes'
 import { worldConfig, fleetConfig } from '../config'
@@ -94,16 +94,24 @@ function gateSlots(
     : floorSlots(building, layout)
 }
 
-function findHangar(world: World): {
+interface HangarInfo {
   rect: { x: number; y: number; w: number; h: number }
   tier: HangarTier
-} | null {
+  poiId: string
+}
+
+// Every hangar in the scene, each with the POI it serves. A scene may host
+// more than one (the surface yard + the orbital drydock, both vonBraunCity).
+function findHangars(world: World, sceneId: string): HangarInfo[] {
+  const out: HangarInfo[] = []
   for (const ent of world.query(Hangar, Building)) {
     const b = ent.get(Building)!
     const h = ent.get(Hangar)!
-    return { rect: { x: b.x, y: b.y, w: b.w, h: b.h }, tier: h.tier }
+    const poiId = poiIdForHangar(sceneId, b)
+    if (!poiId) continue
+    out.push({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, tier: h.tier, poiId })
   }
-  return null
+  return out
 }
 
 function gateNumberFor(slotClass: LaidOutSlotClass, indexInClass: number): string {
@@ -172,119 +180,124 @@ function ensureGates(world: World, sceneId: string): void {
   const existing = world.queryFirst(GateSlot)
   if (existing) return
 
-  const hangar = findHangar(world)
-  if (!hangar) return
-
-  const tierLayout = fleetConfig.hangarMarkerLayout[hangar.tier]
-  if (!tierLayout) return
+  const hangars = findHangars(world, sceneId)
+  if (hangars.length === 0) return
 
   const scene = getSceneConfig(sceneId)
   const sceneTilesX = scene.tilesX
   let spawnedBridgeEntities = false
 
-  for (const slotClass of ['capital', 'smallCraft'] as LaidOutSlotClass[]) {
-    const layout = tierLayout[slotClass]
-    if (!layout) continue
-    const slots = gateSlots(hangar.rect, layout)
-    for (let i = 0; i < slots.length; i++) {
-      const slot = slots[i]
-      const gateNumber = gateNumberFor(slotClass, i)
-      const gateKeyBase = `gate-${sceneId}-${gateNumber}`
+  for (const hangar of hangars) {
+    const tierLayout = fleetConfig.hangarMarkerLayout[hangar.tier]
+    if (!tierLayout) continue
+    // Gate identity is (poiId, gateNumber): two hangars in one scene each
+    // start their numbering at C1 / S1, kept distinct by the POI prefix.
+    const poiId = hangar.poiId
 
-      // Sign — carries the gate label as a Pixi text overlay (3-line:
-      // gate id / ship name or VACANT / owner). Doubles as a fallback
-      // Interactable so the proximity scan opens the panel from either
-      // the sign or the kiosk tile.
-      world.spawn(
-        Position({
-          x: slot.x + layout.signOffsetTiles.x * TILE,
-          y: slot.y + layout.signOffsetTiles.y * TILE,
-        }),
-        Interactable({ kind: 'gateTerminal', label: gateNumber, fee: 0 }),
-        GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
-        GateSignMark(),
-        EntityKey({ key: `${gateKeyBase}-sign` }),
-        TemplateRef({ id: layout.signTemplate }),
-      )
+    for (const slotClass of ['capital', 'smallCraft'] as LaidOutSlotClass[]) {
+      const layout = tierLayout[slotClass]
+      if (!layout) continue
+      const slots = gateSlots(hangar.rect, layout)
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i]
+        const gateNumber = gateNumberFor(slotClass, i)
+        const gateKeyBase = `gate-${sceneId}-${poiId}-${gateNumber}`
 
-      // Kiosk — Interactable gateTerminal. Press E to open the panel
-      // (vacant-gate branch surfaces a toast; bound gate opens the
-      // GateTerminalPanel scoped to the bound ship).
-      world.spawn(
-        Position({
-          x: slot.x + layout.terminalOffsetTiles.x * TILE,
-          y: slot.y + layout.terminalOffsetTiles.y * TILE,
-        }),
-        Interactable({ kind: 'gateTerminal', label: gateNumber, fee: 0 }),
-        GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
-        GateKioskMark(),
-        EntityKey({ key: `${gateKeyBase}-kiosk` }),
-        TemplateRef({ id: 'gate-kiosk' }),
-      )
-
-      // Boarding pad — sits at the far end of the bridge near the scene
-      // edge. The sync pass toggles its Interactable + ShipMarker +
-      // visual template based on the bound ship's ownership. Vacant
-      // gates carry no Interactable so the proximity scan ignores them.
-      if (layout.placement === 'wall') {
-        const bridge = computeBridgeGeometry(slot, layout, sceneTilesX)
-
-        world.spawn(
-          Position({ x: bridge.padCenter.x, y: bridge.padCenter.y }),
-          GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
-          GateBoardMark(),
-          EntityKey({ key: `${gateKeyBase}-board` }),
-        )
-
-        // Bridge walls — top + bottom of the walkway. Persistent: the
-        // bridge exists whether or not a ship is bound; only the door
-        // state and the boarding pad's interactable toggle on bind.
-        world.spawn(
-          Wall(bridge.wallTop),
-          TemplateRef({ id: 'wall-default' }),
-          EntityKey({ key: `${gateKeyBase}-bridge-wall-n` }),
-        )
-        world.spawn(
-          Wall(bridge.wallBottom),
-          TemplateRef({ id: 'wall-default' }),
-          EntityKey({ key: `${gateKeyBase}-bridge-wall-s` }),
-        )
-
-        // Bridge door — closed (locked + ship-locked template) until
-        // the sync pass discovers a player-owned ship bound to this
-        // gate. orient='v' for the wall-placement layout: the corridor
-        // runs east-west, the door is a vertical panel spanning the
-        // walkway height.
+        // Sign — carries the gate label as a Pixi text overlay (3-line:
+        // gate id / ship name or VACANT / owner). Doubles as a fallback
+        // Interactable so the proximity scan opens the panel from either
+        // the sign or the kiosk tile.
         world.spawn(
           Position({
-            x: bridge.door.x + bridge.door.w / 2,
-            y: bridge.door.y + bridge.door.h / 2,
+            x: slot.x + layout.signOffsetTiles.x * TILE,
+            y: slot.y + layout.signOffsetTiles.y * TILE,
           }),
-          Door({
-            x: bridge.door.x, y: bridge.door.y,
-            w: bridge.door.w, h: bridge.door.h,
-            orient: 'v',
-            bedEntity: null, factionGate: null, locked: true,
-          }),
-          TemplateRef({ id: 'door-ship-locked' }),
-          EntityKey({ key: `${gateKeyBase}-bridge-door` }),
+          Interactable({ kind: 'gateTerminal', label: gateNumber, fee: 0 }),
+          GateSlot({ gateNumber, slotClass, boundShipKey: '', poiId }),
+          GateSignMark(),
+          EntityKey({ key: `${gateKeyBase}-sign` }),
+          TemplateRef({ id: layout.signTemplate }),
         )
 
-        spawnedBridgeEntities = true
-      } else {
-        // Floor placement (surface hangars) — keep the legacy in-booth
-        // board portal entity. The bridge concept is drydock-only; surface
-        // hangars host smallCraft inside the open floor so there's no
-        // wall to break or edge to extend a corridor to.
+        // Kiosk — Interactable gateTerminal. Press E to open the panel
+        // (vacant-gate branch surfaces a toast; bound gate opens the
+        // GateTerminalPanel scoped to the bound ship).
         world.spawn(
           Position({
-            x: slot.x + layout.boardOffsetTiles.x * TILE,
-            y: slot.y + layout.boardOffsetTiles.y * TILE,
+            x: slot.x + layout.terminalOffsetTiles.x * TILE,
+            y: slot.y + layout.terminalOffsetTiles.y * TILE,
           }),
-          GateSlot({ gateNumber, slotClass, boundShipKey: '' }),
-          GateBoardMark(),
-          EntityKey({ key: `${gateKeyBase}-board` }),
+          Interactable({ kind: 'gateTerminal', label: gateNumber, fee: 0 }),
+          GateSlot({ gateNumber, slotClass, boundShipKey: '', poiId }),
+          GateKioskMark(),
+          EntityKey({ key: `${gateKeyBase}-kiosk` }),
+          TemplateRef({ id: 'gate-kiosk' }),
         )
+
+        // Boarding pad — sits at the far end of the bridge near the scene
+        // edge. The sync pass toggles its Interactable + ShipMarker +
+        // visual template based on the bound ship's ownership. Vacant
+        // gates carry no Interactable so the proximity scan ignores them.
+        if (layout.placement === 'wall') {
+          const bridge = computeBridgeGeometry(slot, layout, sceneTilesX)
+
+          world.spawn(
+            Position({ x: bridge.padCenter.x, y: bridge.padCenter.y }),
+            GateSlot({ gateNumber, slotClass, boundShipKey: '', poiId }),
+            GateBoardMark(),
+            EntityKey({ key: `${gateKeyBase}-board` }),
+          )
+
+          // Bridge walls — top + bottom of the walkway. Persistent: the
+          // bridge exists whether or not a ship is bound; only the door
+          // state and the boarding pad's interactable toggle on bind.
+          world.spawn(
+            Wall(bridge.wallTop),
+            TemplateRef({ id: 'wall-default' }),
+            EntityKey({ key: `${gateKeyBase}-bridge-wall-n` }),
+          )
+          world.spawn(
+            Wall(bridge.wallBottom),
+            TemplateRef({ id: 'wall-default' }),
+            EntityKey({ key: `${gateKeyBase}-bridge-wall-s` }),
+          )
+
+          // Bridge door — closed (locked + ship-locked template) until
+          // the sync pass discovers a player-owned ship bound to this
+          // gate. orient='v' for the wall-placement layout: the corridor
+          // runs east-west, the door is a vertical panel spanning the
+          // walkway height.
+          world.spawn(
+            Position({
+              x: bridge.door.x + bridge.door.w / 2,
+              y: bridge.door.y + bridge.door.h / 2,
+            }),
+            Door({
+              x: bridge.door.x, y: bridge.door.y,
+              w: bridge.door.w, h: bridge.door.h,
+              orient: 'v',
+              bedEntity: null, factionGate: null, locked: true,
+            }),
+            TemplateRef({ id: 'door-ship-locked' }),
+            EntityKey({ key: `${gateKeyBase}-bridge-door` }),
+          )
+
+          spawnedBridgeEntities = true
+        } else {
+          // Floor placement (surface hangars) — keep the legacy in-booth
+          // board portal entity. The bridge concept is drydock-only; surface
+          // hangars host smallCraft inside the open floor so there's no
+          // wall to break or edge to extend a corridor to.
+          world.spawn(
+            Position({
+              x: slot.x + layout.boardOffsetTiles.x * TILE,
+              y: slot.y + layout.boardOffsetTiles.y * TILE,
+            }),
+            GateSlot({ gateNumber, slotClass, boundShipKey: '', poiId }),
+            GateBoardMark(),
+            EntityKey({ key: `${gateKeyBase}-board` }),
+          )
+        }
       }
     }
   }
@@ -334,16 +347,23 @@ interface GateTriple {
   slot: TraitInstance<typeof GateSlot>
 }
 
+// Keyed by `${poiId}:${gateNumber}` so two hangars in one scene (each
+// numbering its gates from C1 / S1) don't collide.
+function gateKey(slot: TraitInstance<typeof GateSlot>): string {
+  return `${slot.poiId}:${slot.gateNumber}`
+}
+
 function collectGates(world: World): Map<string, GateTriple> {
   const map = new Map<string, Partial<GateTriple>>()
   for (const ent of world.query(GateSlot)) {
     const slot = ent.get(GateSlot)!
-    const t = map.get(slot.gateNumber) ?? {}
+    const key = gateKey(slot)
+    const t = map.get(key) ?? {}
     if (ent.has(GateKioskMark)) t.kiosk = ent
     else if (ent.has(GateSignMark)) t.sign = ent
     else if (ent.has(GateBoardMark)) t.board = ent
     t.slot = slot
-    map.set(slot.gateNumber, t)
+    map.set(key, t)
   }
   const out = new Map<string, GateTriple>()
   for (const [k, v] of map) {
@@ -362,8 +382,8 @@ function writeBinding(triple: GateTriple, shipKey: string): void {
 // Find the boarding-bridge door entity associated with this gate. Returns
 // null for floor-placement gates (surface hangars) since those have no
 // bridge.
-function findBridgeDoor(world: World, sceneId: string, gateNumber: string): Entity | null {
-  const key = `gate-${sceneId}-${gateNumber}-bridge-door`
+function findBridgeDoor(world: World, sceneId: string, poiId: string, gateNumber: string): Entity | null {
+  const key = `gate-${sceneId}-${poiId}-${gateNumber}-bridge-door`
   for (const e of world.query(Door, EntityKey)) {
     if (e.get(EntityKey)!.key === key) return e
   }
@@ -377,7 +397,7 @@ function applyBoardPortal(
   info: ExpectedShip | null,
 ): void {
   const board = triple.board
-  const door = findBridgeDoor(world, sceneId, triple.slot.gateNumber)
+  const door = findBridgeDoor(world, sceneId, triple.slot.poiId, triple.slot.gateNumber)
 
   if (!info) {
     if (board.has(Interactable)) board.remove(Interactable)
@@ -417,13 +437,29 @@ function applyBoardPortal(
 }
 
 export function syncShipMarkers(world: World, sceneId: string): void {
-  const poiId = poiIdForScene(sceneId)
-  if (!poiId) return
   ensureGates(world, sceneId)
 
   const gates = collectGates(world)
   if (gates.size === 0) return
 
+  // A scene may host hangars at several POIs (surface yard + orbital drydock
+  // in vonBraunCity). Bind each POI's docked ships only to that POI's gates,
+  // so a capital hull at the drydock can't claim a surface-yard gate.
+  const poiIds = new Set<string>()
+  for (const t of gates.values()) poiIds.add(t.slot.poiId)
+
+  for (const poiId of poiIds) {
+    if (!poiId) continue
+    const poiGates = [...gates.values()].filter((t) => t.slot.poiId === poiId)
+    bindPoiGates(world, sceneId, poiId, poiGates)
+  }
+}
+
+// Assign the ships docked at `poiId` to that POI's gates. Lifted out of
+// syncShipMarkers so multiple POIs in one scene each run an independent pass.
+function bindPoiGates(
+  world: World, sceneId: string, poiId: string, poiGates: GateTriple[],
+): void {
   const expected = expectedDockedShips(poiId)
 
   // Bucket gates by slotClass; carry the gate-number order so we always
@@ -432,7 +468,7 @@ export function syncShipMarkers(world: World, sceneId: string): void {
     capital: [],
     smallCraft: [],
   }
-  for (const t of gates.values()) {
+  for (const t of poiGates) {
     gatesByClass[t.slot.slotClass].push(t)
   }
   for (const cls of ['capital', 'smallCraft'] as LaidOutSlotClass[]) {
@@ -445,7 +481,7 @@ export function syncShipMarkers(world: World, sceneId: string): void {
   const stickyByClass: Record<LaidOutSlotClass, Map<string, GateTriple>> = {
     capital: new Map(), smallCraft: new Map(),
   }
-  for (const t of gates.values()) {
+  for (const t of poiGates) {
     if (t.slot.boundShipKey && stillDocked.has(t.slot.boundShipKey)) {
       stickyByClass[t.slot.slotClass].set(t.slot.boundShipKey, t)
     } else if (t.slot.boundShipKey) {

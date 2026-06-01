@@ -27,10 +27,10 @@ if (traceArg) {
 setupWorld()
 
 const initialScene = getSceneConfig(initialSceneId)
-const replenishment =
-  initialScene.sceneType === 'micro' ? initialScene.replenishment : undefined
-if (!replenishment) {
-  throw new Error(`survive harness expects scene "${initialSceneId}" to declare replenishment`)
+const replenishments =
+  initialScene.sceneType === 'micro' ? initialScene.replenishments : undefined
+if (!replenishments || replenishments.length === 0) {
+  throw new Error(`survive harness expects scene "${initialSceneId}" to declare replenishments`)
 }
 
 for (const p of world.query(IsPlayer)) {
@@ -90,7 +90,12 @@ for (let t = 1; t <= totalMinutes; t++) {
   actionSystem(world, 1)
   rentSystem(world, useClock.getState().gameDate.getTime())
   workSystem(world, useClock.getState().gameDate, 1)
-  populationSystem(world, useClock.getState().gameDate, replenishment)
+  for (let ri = 0; ri < replenishments.length; ri++) {
+    populationSystem(
+      world, useClock.getState().gameDate, replenishments[ri],
+      `${initialScene.id}#${ri}`,
+    )
+  }
   relationsSystem(world, useClock.getState().gameDate, 1)
   // Headless: cameraStore stays at 0×0 so activeZoneSystem falls through
   // to its "viewport not measured → mark all Active" branch. Calling it

@@ -9,6 +9,7 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { getWorld, SCENE_IDS } from '../../ecs/world'
+import { poiIdForHangar } from '../../data/pois'
 import {
   Ms, MsStatSheet, PlayerPartsInventory, EntityKey, Building, Hangar, Character,
   EmployedAsPilot, RecruitedTo, IsPlayer, Money, ResupplyState,
@@ -180,13 +181,7 @@ registerDebugHandle('listHangarsForMs', (): Array<{
       out.push({
         buildingKey: b.get(EntityKey)!.key,
         sceneId,
-        // poiIdForScene is in src/data/pois; rather than re-import it here
-        // we reconstruct the POI by buildingKey convention: `bld-<sceneId>-...`
-        poiId: sceneId === 'vonBraunCity'
-          ? 'vonBraun'
-          : sceneId === 'vonBraunDrydock'
-            ? 'vonBraunDrydock'
-            : null,
+        poiId: poiIdForHangar(sceneId, b.get(Building)!),
         slotCapacity: { ...h.slotCapacity } as Record<string, number>,
       })
     }

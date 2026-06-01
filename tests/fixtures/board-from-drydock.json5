@@ -6,16 +6,17 @@
 // the flagship marker to migrate and the interior to rebuild with the
 // Pegasus layout.
 //
-// Player tile (30, 20) sits inside the drydock concourse — open floor
-// south of the orbital lift, north of the hangar's north door.
+// The drydock is now the hidden orbital region of vonBraunCity. Player tile
+// (40, 560) sits inside the drydock concourse — open floor north of the
+// hangar's north door. The Pegasus stays docked at the 'vonBraunDrydock' POI.
 {
   seed: 'board-drydock-001',
   startDate: '2026-05-17T08:00:00Z',
-  scene: 'vonBraunDrydock',
+  scene: 'vonBraunCity',
 
   player: {
     money: 50000,
-    location: { scene: 'vonBraunDrydock', x: 30, y: 20 },
+    location: { scene: 'vonBraunCity', x: 40, y: 560 },
   },
 
   ships: [

@@ -142,8 +142,13 @@ export function advanceSimByGameMs(gameMs: number): void {
     releaseStaleRoughSpots(world)
     attributesSystem(world, useClock.getState().gameDate)
     const activeScene = getSceneConfig(getActiveSceneId())
-    if (activeScene.sceneType === 'micro' && activeScene.replenishment) {
-      populationSystem(world, useClock.getState().gameDate, activeScene.replenishment)
+    if (activeScene.sceneType === 'micro' && activeScene.replenishments) {
+      for (let ri = 0; ri < activeScene.replenishments.length; ri++) {
+        populationSystem(
+          world, useClock.getState().gameDate, activeScene.replenishments[ri],
+          `${activeScene.id}#${ri}`,
+        )
+      }
     }
     if (activeScene.sceneType === 'micro') {
       syncShipMarkers(world, activeScene.id)

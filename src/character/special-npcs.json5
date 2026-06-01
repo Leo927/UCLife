@@ -199,17 +199,17 @@
 
     // === Phase 6.2.C2 — AE Von Braun drydock ship sales rep ===
     // Sits at the AE sales desk inside the Von Braun orbital drydock
-    // concourse. The desk is spawned programmatically in ecs/spawn.ts when
-    // the vonBraunDrydock scene bootstraps; tile coords below mirror
-    // fleet.json5's shipSalesDeskTileVonBraunDrydock so the spawn linkage
-    // (Workstation.occupant ↔ Job.workstation) succeeds. Capital-grade
-    // catalog (Pegasus only at 6.2.C2; more hulls join here later).
+    // concourse — now the hidden southern region of vonBraunCity. The desk is
+    // spawned programmatically in ecs/spawn.ts when vonBraunCity bootstraps;
+    // tile coords below mirror fleet.json5's shipSalesDeskTileVonBraunDrydock
+    // so the spawn linkage (Workstation.occupant ↔ Job.workstation) succeeds.
+    // Capital-grade catalog (Pegasus only at 6.2.C2; more hulls join later).
     {
       name: '卡米尔·罗德',
       color: '#1e3a8a',
       title: 'AE 销售代表',
-      sceneId: 'vonBraunDrydock',
-      tileX: 30, tileY: 16,
+      sceneId: 'vonBraunCity',
+      tileX: 40, tileY: 556,
       fatigue: 14,
       money: 12000,
       skills: { mechanics: 2200, computers: 1800 },
@@ -255,18 +255,18 @@
 
     // === Phase 6.2.A.2 expansion — Von Braun drydock supply depot dealer ===
     // Sits at the supplyDepot building's open-floor supervisor desk on the
-    // drydock concourse. Reuses specId 'ae_supply_dealer': koota gives each
-    // scene its own world, so this NPC links to the drydock depot's
-    // workstation while the VB AE Complex dealer links to its own — the
-    // sceneId filter in spawnSpecialNpcs processes each in its own scene.
-    // tileX/tileY sit inside the supplyDepot footprint (scene tile 48,11,
-    // size 6×4). The aeSupplyDealer dialog branch fires for either dealer.
+    // drydock concourse (now vonBraunCity's hidden southern region). Reuses
+    // specId 'ae_supply_dealer': there are two supply-depot workstations in
+    // this world — the VB AE Complex dealer and this drydock dealer — and
+    // spawnSpecialNpcs seats whichever desk is free. tileX/tileY sit inside
+    // the relocated supplyDepot footprint (scene tile 58,551, size 6×4). The
+    // aeSupplyDealer dialog branch fires for either dealer.
     {
       name: '马科斯·雷耶斯',
       color: '#0d9488',
       title: 'AE 补给商务代表',
-      sceneId: 'vonBraunDrydock',
-      tileX: 51, tileY: 13,
+      sceneId: 'vonBraunCity',
+      tileX: 61, tileY: 553,
       fatigue: 14,
       money: 8000,
       skills: { mechanics: 900, computers: 1600 },
