@@ -1,0 +1,18 @@
+// Phase 6.3.B fixture — player inside the Mariko Refinery colony scene
+// with a player faction already established and enough funds for testing.
+// Used by the colony-economics smoke test.
+//
+// The player starts near the command center with sufficient credits.
+// The smoke test claims the colony via the debug handle before testing
+// income accrual, resupply, and hiring.
+{
+  seed: 'colony-econ-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'marikoRefineryScene',
+
+  player: {
+    money: 500000,
+    location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
+    skills: { leadership: 5 },
+  },
+}

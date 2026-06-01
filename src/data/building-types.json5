@@ -438,6 +438,22 @@
     },
   },
 
+  // Phase 6.3.B — colony supply depot. Holds fuel + supplies for the
+  // player's fleet when docked at the colony. Wired with the Hangar trait
+  // (colonyHangar tier in facility-types.json5) at spawn time so it
+  // participates in the existing supply/fuel storage and no-markup
+  // resupply path. Smaller footprint than the VB state hangar.
+  colonyHangar: {
+    labelZh: '补给仓库',
+    size: { w: 12, h: 8 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.

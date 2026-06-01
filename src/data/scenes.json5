@@ -627,7 +627,22 @@
             nameZh: '炼气车间（停工）',
             shortZh: '炼气车间',
             kind: 'complex',
-            description: '氦-3精炼主车间。设备已停工，需要修复才能恢复生产。（收益接入将在 6.3.B 阶段实装）',
+            description: '氦-3精炼主车间。设备已停工，但仍向所有者提供基础收益。',
+          },
+        },
+        {
+          // Phase 6.3.B — colony supply depot. Holds fuel + supplies
+          // for the player's fleet at no markup. Wired with colonyHangar
+          // Hangar tier at spawn time.
+          type: 'colonyHangar',
+          tile: { x: 175, y: 160 },
+          door: { side: 'w', offsetTiles: 3 },
+          display: {
+            id: 'marikoDepot',
+            nameZh: '补给仓库',
+            shortZh: '补给仓库',
+            kind: 'complex',
+            description: '殖民地补给仓库。向驻扎本站的舰船提供补给和燃料，无溢价。',
           },
         },
       ],

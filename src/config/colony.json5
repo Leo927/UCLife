@@ -1,0 +1,47 @@
+// Phase 6.3.B — colony economics configuration.
+// Colony-level income + stability weight, resupply markup, and recruitment
+// discount constants. All per-facility-type income rates are keyed by the
+// Building typeId (matches building-types.json5 keys).
+{
+  income: {
+    // Credits added to the player faction fund per owned facility type per day.
+    // Only applies when the colony POI is in the player-colony registry.
+    perFacilityType: {
+      colonyRefineryShell: 500,
+    },
+    // Daily supply/fuel deposited into a colony's Hangar reserve (if present).
+    // Applied by colonyEconomicsSystem on day:rollover so the colony stockpile
+    // slowly fills without the player placing AE dealer orders.
+    hangarResupplyPerDay: {
+      supply: 50,
+      fuel: 20,
+    },
+  },
+
+  stability: {
+    // Base score before facility contributions. Colonies start neutral.
+    baseScore: 0,
+    // Per-day contribution for each QoL facility type present.
+    qolContribution: {
+      bar: 10,
+      clinic: 10,
+    },
+    // Per-day penalty applied once for each QoL type that is absent.
+    // A colony with no bar and no clinic loses 2 × missingQolPenaltyPerType per day.
+    missingQolPenaltyPerType: -15,
+  },
+
+  recruitment: {
+    // Fraction of signingBonus charged when hiring an NPC from a player colony.
+    // 0.5 means pay half the normal signing fee.
+    colonySigningFeeDiscount: 0.5,
+    // Opinion added to the NPC→player Knows edge on successful colony hire.
+    colonyLoyaltyBonus: 20,
+  },
+
+  resupply: {
+    // Credit multiplier for colony depot supply/fuel transfers to player ships.
+    // 0.0 = free (player's own stock; no markup charged).
+    markupFactor: 0.0,
+  },
+}

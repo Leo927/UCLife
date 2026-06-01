@@ -7,7 +7,7 @@ import {
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
 import { factionsConfig, type FactionId } from '../config'
-import { isPlayerColony, getColonyRecord } from '../sim/colony'
+import { isPlayerColony, getColonyRecord, getColonyEconomics, type WarehouseItem } from '../sim/colony'
 
 export interface CharacterView {
   getId(): string
@@ -53,6 +53,14 @@ export interface ColonyOwnershipView {
   adminEntityKey: string | null
 }
 
+// Phase 6.3.B — colony economics view for smoke tests.
+export interface ColonyEconomicsView {
+  stabilityScore: number
+  accumulatedIncome: number
+  warehouseContents: WarehouseItem[]
+  lastRolloverDay: number
+}
+
 export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
@@ -64,6 +72,9 @@ export interface GameStateView {
   // Returns null when the poiId is not a known claimable colony.
   // Returns { isPlayerOwned: false, adminEntityKey: null } while unowned.
   getColonyOwnership(poiId: string): ColonyOwnershipView
+  // Phase 6.3.B — colony economics state query.
+  // Returns null when the poiId is not a player-owned colony.
+  getColonyEconomics(poiId: string): ColonyEconomicsView | null
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -281,6 +292,17 @@ export function getGameState(): GameStateView {
         return { isPlayerOwned: true, adminEntityKey: rec?.adminEntityKey ?? null }
       }
       return { isPlayerOwned: false, adminEntityKey: null }
+    },
+    getColonyEconomics(poiId: string): ColonyEconomicsView | null {
+      if (!isPlayerColony(poiId)) return null
+      const econ = getColonyEconomics(poiId)
+      if (!econ) return null
+      return {
+        stabilityScore: econ.stabilityScore,
+        accumulatedIncome: econ.accumulatedIncome,
+        warehouseContents: econ.warehouseContents,
+        lastRolloverDay: econ.lastRolloverDay,
+      }
     },
   }
 }

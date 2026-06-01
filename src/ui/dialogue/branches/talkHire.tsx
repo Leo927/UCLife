@@ -19,12 +19,14 @@ import {
   Money, Owner, Position, RecruitedTo, Workstation,
 } from '../../../ecs/traits'
 import { useUI } from '../../uiStore'
-import { recruitmentConfig } from '../../../config'
+import { recruitmentConfig, colonyConfig } from '../../../config'
 import { getRep } from '../../../systems/reputation'
 import { isPlayerOwnedBuilding } from '../../../ecs/playerFaction'
-import { world } from '../../../ecs/world'
+import { world, getActiveSceneId } from '../../../ecs/world'
 import { playUi } from '../../../audio/player'
 import { dialogueText } from '../../../data/dialogueText'
+import { poiIdForScene } from '../../../data/pois'
+import { isPlayerColony } from '../../../sim/colony'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
@@ -64,6 +66,16 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
   // surface, the NPC's not in a place to consider the conversation.
   if (!gateOpen && opGap > 25) return null
 
+  // Phase 6.3.B — colony pre-loyal discount.
+  // If the player is in a scene that belongs to a player-owned colony,
+  // the NPC is considered pre-loyal: signing fee is discounted and they
+  // start with a higher opinion of the player.
+  const activePoiId = poiIdForScene(getActiveSceneId())
+  const inPlayerColony = activePoiId !== null && isPlayerColony(activePoiId)
+  const effectiveSigningBonus = inPlayerColony
+    ? Math.round(gates.signingBonus * (1 - colonyConfig.recruitment.colonySigningFeeDiscount))
+    : gates.signingBonus
+
   const t = dialogueText.branches.talkHire
 
   // Whichever gate is closer to clearing drives the NPC's hesitation
@@ -81,23 +93,23 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
 
   const info = gateOpen
     ? t.gateOpen
-        .replace('{bonus}', String(gates.signingBonus))
+        .replace('{bonus}', String(effectiveSigningBonus))
         .replace('{salary}', String(recruitmentConfig.factionMemberDailySalary))
     : hesitate()
 
   const onAccept = () => {
     const m = player.get(Money)
-    if (!m || m.amount < gates.signingBonus) {
+    if (!m || m.amount < effectiveSigningBonus) {
       useUI.getState().showToast(t.toastNoMoney)
       return
     }
     playUi('ui.hr.accept')
-    player.set(Money, { amount: m.amount - gates.signingBonus })
+    player.set(Money, { amount: m.amount - effectiveSigningBonus })
     const targetMoney = target.get(Money)
     if (targetMoney) {
-      target.set(Money, { amount: targetMoney.amount + gates.signingBonus })
+      target.set(Money, { amount: targetMoney.amount + effectiveSigningBonus })
     } else {
-      target.add(Money({ amount: gates.signingBonus }))
+      target.add(Money({ amount: effectiveSigningBonus }))
     }
     if (job?.workstation) {
       const cur = job.workstation.get(Workstation)
@@ -109,9 +121,15 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
     if (target.has(RecruitedTo)) target.set(RecruitedTo, { owner: player })
     else target.add(RecruitedTo({ owner: player }))
 
+    // Colony pre-loyal: add loyalty bonus to opinion on hire.
+    const baseOpinionBonus = 10
+    const opinionBonus = inPlayerColony
+      ? baseOpinionBonus + colonyConfig.recruitment.colonyLoyaltyBonus
+      : baseOpinionBonus
+
     if (target.has(Knows(player))) {
       const e = target.get(Knows(player))!
-      target.set(Knows(player), { ...e, opinion: Math.min(100, e.opinion + 10) })
+      target.set(Knows(player), { ...e, opinion: Math.min(100, e.opinion + opinionBonus) })
     }
 
     const ch = target.get(Character)
