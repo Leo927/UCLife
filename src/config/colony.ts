@@ -21,11 +21,30 @@ export interface ColonyResupplyConfig {
   markupFactor: number
 }
 
+export interface ColonyCharterConfig {
+  feeBase: number
+  repGate: number
+  factions: string[]
+}
+
+export interface ColonyConstructionConfig {
+  durationDays: Record<string, number>
+  interruptChancePerJobPerDay: number
+}
+
+export interface ColonyEstablishmentPackageConfig {
+  cost: number
+  cargoId: string
+}
+
 export interface ColonyConfig {
   income: ColonyIncomeConfig
   stability: ColonyStabilityConfig
   recruitment: ColonyRecruitmentConfig
   resupply: ColonyResupplyConfig
+  charter: ColonyCharterConfig
+  construction: ColonyConstructionConfig
+  establishmentPackage: ColonyEstablishmentPackageConfig
 }
 
 export const colonyConfig = json5.parse(raw) as ColonyConfig

@@ -8,6 +8,9 @@
     // Only applies when the colony POI is in the player-colony registry.
     perFacilityType: {
       colonyRefineryShell: 500,
+      colonyRefinery: 800,
+      colonyHydroponics: 300,
+      colonyMiningDrill: 600,
     },
     // Daily supply/fuel deposited into a colony's Hangar reserve (if present).
     // Applied by colonyEconomicsSystem on day:rollover so the colony stockpile
@@ -43,5 +46,42 @@
     // Credit multiplier for colony depot supply/fuel transfers to player ships.
     // 0.0 = free (player's own stock; no markup charged).
     markupFactor: 0.0,
+  },
+
+  // Phase 6.3.C — build-path charter configuration.
+  // Permits officials at EFSF / Zeon / AE major POIs grant charters.
+  // repGate is the minimum faction-rep score required for approval.
+  charter: {
+    feeBase: 50000,
+    repGate: 30,
+    factions: ['efsf', 'zeon', 'anaheim'],
+  },
+
+  // Phase 6.3.C — per-facility-type construction duration (game-days).
+  // Interrupts fire at interruptChancePerJobPerDay probability per in-progress
+  // job per day:rollover tick, using the seeded sim RNG for determinism.
+  construction: {
+    durationDays: {
+      colonyHabPod: 1,
+      colonyRefinery: 7,
+      colonyHydroponics: 5,
+      colonyHabitation: 3,
+      colonyMSFactory: 14,
+      colonyWarshipSlipway: 21,
+      colonyBarracks: 5,
+      colonyMiningDrill: 7,
+      colonyBar: 3,
+      colonyMarket: 3,
+      colonyClinic: 4,
+    },
+    interruptChancePerJobPerDay: 0.1,
+  },
+
+  // Phase 6.3.C — establishment package fleet cargo item.
+  // One purchase at a major shipyard covers the hab pod, construction crew,
+  // and initial supplies for a single new colony.
+  establishmentPackage: {
+    cost: 200000,
+    cargoId: 'colony-establishment-package',
   },
 }
