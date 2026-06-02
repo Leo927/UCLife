@@ -21,6 +21,7 @@ import type { World } from 'koota'
 import { Building, Faction, Hangar, IsPlayerFaction } from '../ecs/traits'
 import { getAllColonyRecords, getColonyEconomics, setColonyEconomics } from '../sim/colony'
 import { colonyConfig } from '../config'
+import { computeAdminLoadStatus } from './colonyAdmin'
 import { getPrimaryDockScene } from '../data/pois'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim } from '../sim/events'
@@ -63,7 +64,11 @@ export function colonyEconomicsSystem(gameDay: number): ColonyEconomicsResult {
   const colonies = getAllColonyRecords()
   if (colonies.length === 0) return result
 
-  for (const { poiId } of colonies) {
+  // Phase 6.3.D — compute admin-load status once per day-tick (O(colonies)).
+  const adminLoad = computeAdminLoadStatus()
+  const overloadPenaltyPerPoint = colonyConfig.adminLoad.overloadStabilityPenaltyPerPoint
+
+  for (const { poiId, administratorKey } of colonies) {
     const econ = getColonyEconomics(poiId)
     if (!econ) continue
 
@@ -97,6 +102,12 @@ export function colonyEconomicsSystem(gameDay: number): ColonyEconomicsResult {
       if (!qolPresent.has(typeId)) {
         stabilityDelta += colonyConfig.stability.missingQolPenaltyPerType
       }
+    }
+
+    // Phase 6.3.D — admin-overload stability penalty.
+    // Only applies to colonies without an assigned administrator.
+    if (administratorKey === '' && adminLoad.overloadAmount > 0) {
+      stabilityDelta += adminLoad.overloadAmount * overloadPenaltyPerPoint
     }
 
     // Top up Hangar reserves at this colony scene.

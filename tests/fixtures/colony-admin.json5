@@ -1,0 +1,38 @@
+// Phase 6.3.D fixture — admin-load gate + officer assignment + colony detention.
+//
+// Player at the Mariko Refinery colony scene with:
+//   - Zero engineering skill → admin capacity = loadCapBase (1 colony).
+//   - A pegasusClass flagship docked at marikoRefinery for detention routing.
+//   - An idle NPC ("zhang-wei") with high engineering skill, usable as a
+//     colony administrator in the smoke test.
+//
+// The smoke test claims two colonies via debug handles and drives all
+// assertions through __uclife__ (deterministic-tests rule 1+2).
+{
+  seed: 'colony-admin-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'marikoRefineryScene',
+
+  player: {
+    money: 500000,
+    location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
+  },
+
+  ships: [
+    {
+      id: 'ship',
+      template: 'pegasusClass',
+      name: '木马号',
+      dockedAt: 'marikoRefinery',
+    },
+  ],
+
+  npcs: [
+    {
+      id: 'zhang-wei',
+      name: '张伟',
+      at: { scene: 'marikoRefineryScene', x: 172, y: 62 },
+      skills: { engineering: 5000 },
+    },
+  ],
+}

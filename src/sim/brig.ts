@@ -46,7 +46,14 @@ interface BrigState {
   // Per-fight queue — startCombat clears, endCombat reads. Surfaces the
   // tally panel's "captured this engagement" right column.
   pendingTally: PrisonerRecord[]
+  // Phase 6.3.D — overflow: prisoners beyond brig capacity held in less-secure
+  // quarters. These can be routed to colony detention when docked.
+  overflowPrisoners: PrisonerRecord[]
   add: (rec: PrisonerRecord) => boolean
+  // Phase 6.3.D — force a prisoner into overflow (less-secure quarters).
+  addToOverflow: (rec: PrisonerRecord) => void
+  // Phase 6.3.D — clear all overflow prisoners (after routing to detention).
+  clearOverflow: () => void
   // Issue #70 — remove a prisoner by id (verb resolution / death / escape).
   removeById: (id: string) => PrisonerRecord | null
   // Issue #70 — write back a prisoner's provisioning level.
@@ -60,6 +67,7 @@ interface BrigState {
 
 export interface SerializedBrig {
   prisoners: PrisonerRecord[]
+  overflowPrisoners?: PrisonerRecord[]
 }
 
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -79,6 +87,7 @@ export function getBrigCapacity(): number {
 export const useBrig = create<BrigState>((set, get) => ({
   prisoners: [],
   pendingTally: [],
+  overflowPrisoners: [],
   add: (rec) => {
     const cap = getBrigCapacity()
     const cur = get().prisoners.length
@@ -90,6 +99,11 @@ export const useBrig = create<BrigState>((set, get) => ({
     }))
     return true
   },
+  addToOverflow: (rec) => {
+    if (get().overflowPrisoners.some((p) => p.id === rec.id)) return
+    set((s) => ({ overflowPrisoners: [...s.overflowPrisoners, rec] }))
+  },
+  clearOverflow: () => set({ overflowPrisoners: [] }),
   removeById: (id) => {
     const found = get().prisoners.find((p) => p.id === id) ?? null
     if (!found) return null
@@ -105,11 +119,14 @@ export const useBrig = create<BrigState>((set, get) => ({
     }))
   },
   clearPendingTally: () => set({ pendingTally: [] }),
-  reset: () => set({ prisoners: [], pendingTally: [] }),
-  serialize: () => ({ prisoners: get().prisoners.slice() }),
+  reset: () => set({ prisoners: [], pendingTally: [], overflowPrisoners: [] }),
+  serialize: () => ({
+    prisoners: get().prisoners.slice(),
+    overflowPrisoners: get().overflowPrisoners.slice(),
+  }),
   hydrate: (snap) => {
     if (!snap) {
-      set({ prisoners: [], pendingTally: [] })
+      set({ prisoners: [], pendingTally: [], overflowPrisoners: [] })
       return
     }
     // Backfill new fields for legacy 6.2 save blobs.
@@ -118,7 +135,12 @@ export const useBrig = create<BrigState>((set, get) => ({
       entityKey: p.entityKey ?? '',
       provision: p.provision ?? 100,
     }))
-    set({ prisoners, pendingTally: [] })
+    const overflowPrisoners = (snap.overflowPrisoners ?? []).map((p) => ({
+      ...p,
+      entityKey: p.entityKey ?? '',
+      provision: p.provision ?? 100,
+    }))
+    set({ prisoners, pendingTally: [], overflowPrisoners })
   },
 }))
 

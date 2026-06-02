@@ -84,4 +84,45 @@
     cost: 200000,
     cargoId: 'colony-establishment-package',
   },
+
+  // Phase 6.3.D — administrative-load gate.
+  // Player Leadership is the primary contributor to how many colonies can be
+  // administered simultaneously. Leadership is deferred in the skill catalog;
+  // this section reads an existing shipped skill as a stand-in (keyed here so
+  // the swap to real Leadership is config-only when it ships).
+  //
+  // Formula:
+  //   adminCapacity = loadCapBase + floor(player_skill_level * loadCapPerSkillLevel)
+  //   personalLoad  = sum per colony: loadPerColony * (1 − adminLoadReductionFraction if admin assigned, else 1)
+  //   overload      = max(0, personalLoad − adminCapacity)
+  //
+  // Per-day stability penalty for each player-administered colony (one without
+  // an assigned administrator) when the player is over capacity:
+  //   penalty = overload * overloadStabilityPenaltyPerPoint
+  adminLoad: {
+    // SKILL STAND-IN (Issue #81): Leadership earns an id only when a trainer
+    // verb AND a consumer system ship together. `engineering` is the closest
+    // existing shipped skill; swap is config-only when Leadership ships.
+    leadershipSkillStandin: 'engineering',
+    // Base admin capacity (colonies manageable with no skill investment).
+    loadCapBase: 1,
+    // Additional capacity per skill LEVEL (0–100).
+    // Level 25 → +1; level 50 → +2; level 100 → +4.
+    loadCapPerSkillLevel: 0.04,
+    // Admin-load cost per colony the player personally administers.
+    loadPerColony: 1,
+    // Fraction of load handled by an assigned administrator.
+    // 0.6 means the admin carries 60% of the colony's load; player pays 40%.
+    adminLoadReductionFraction: 0.6,
+    // Stability-score penalty applied per unit of overload per day,
+    // to each colony without an assigned administrator.
+    overloadStabilityPenaltyPerPoint: -10,
+  },
+
+  // Phase 6.3.D — colony detention.
+  // Default capacity for surplus prisoners routed from the flagship brig.
+  // A future facility type (colonyDetentionBlock) will raise this.
+  detention: {
+    defaultDetentionCapacity: 4,
+  },
 }

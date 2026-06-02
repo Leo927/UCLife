@@ -37,6 +37,19 @@ export interface ColonyEstablishmentPackageConfig {
   cargoId: string
 }
 
+export interface ColonyAdminLoadConfig {
+  leadershipSkillStandin: string
+  loadCapBase: number
+  loadCapPerSkillLevel: number
+  loadPerColony: number
+  adminLoadReductionFraction: number
+  overloadStabilityPenaltyPerPoint: number
+}
+
+export interface ColonyDetentionConfig {
+  defaultDetentionCapacity: number
+}
+
 export interface ColonyConfig {
   income: ColonyIncomeConfig
   stability: ColonyStabilityConfig
@@ -45,6 +58,8 @@ export interface ColonyConfig {
   charter: ColonyCharterConfig
   construction: ColonyConstructionConfig
   establishmentPackage: ColonyEstablishmentPackageConfig
+  adminLoad: ColonyAdminLoadConfig
+  detention: ColonyDetentionConfig
 }
 
 export const colonyConfig = json5.parse(raw) as ColonyConfig
