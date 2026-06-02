@@ -57,5 +57,15 @@
       supplyStorage: 5000,
       fuelStorage: 2000,
     },
+    // Phase 6.3.B — colony supply depot. Smaller than the VB state hangar;
+    // holds MS-tier ships + light small-craft. Supply/fuel caps are scaled
+    // down to match a small independent colony's logistics footprint.
+    // Stocked and topped up daily by colonyEconomicsSystem.
+    colonyHangar: {
+      tier: 'surface',
+      slotCapacity: { ms: 2, smallCraft: 2 },
+      supplyStorage: 500,
+      fuelStorage: 200,
+    },
   },
 }

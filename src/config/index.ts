@@ -81,3 +81,6 @@ export type { ArtConfig, ArtAssetSpec, ArtId } from './art'
 export type { BedTier, RoadKind, InteractableKind, ActionKind, RoughKind } from './kinds'
 
 export { msConfig } from './ms'
+
+export { colonyConfig } from './colony'
+export type { ColonyConfig, ColonyIncomeConfig, ColonyStabilityConfig, ColonyRecruitmentConfig, ColonyResupplyConfig } from './colony'

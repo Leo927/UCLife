@@ -13,6 +13,5 @@
   player: {
     money: 500000,
     location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
-    skills: { leadership: 5 },
   },
 }
