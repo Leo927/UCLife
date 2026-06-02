@@ -1,5 +1,7 @@
 // Colony ownership registry — Phase 6.3.A.
 // Phase 6.3.B extends with per-colony economics state.
+// Phase 6.3.C extends with construction jobs, charter state, and establishment
+// package tracking for the build-path acquisition arc.
 // Tracks which POIs the player-faction has claimed.
 // Keyed by poiId; each record carries the entity key of the installed admin.
 // State persists via src/boot/saveHandlers/colony.ts.
@@ -85,14 +87,19 @@ export function getAllColonyEconomicsEntries(): Array<{ poiId: string; state: Co
 export function resetColonies(): void {
   records.clear()
   economics.clear()
+  constructionJobs.clear()
+  buildPathState = freshBuildPathState()
 }
 
 export function restoreColonies(
   data: ColonyRecord[],
   economicsData?: Array<{ poiId: string; state: ColonyEconomicsState }>,
+  constructionData?: Array<{ poiId: string; jobs: ConstructionJob[] }>,
+  buildPath?: BuildPathState,
 ): void {
   records.clear()
   economics.clear()
+  constructionJobs.clear()
   for (const row of data) records.set(row.poiId, { ...row })
   if (economicsData) {
     for (const { poiId, state } of economicsData) economics.set(poiId, { ...state })
@@ -100,4 +107,71 @@ export function restoreColonies(
     // Upgrade path: records with no economics snapshot start fresh.
     for (const row of data) economics.set(row.poiId, freshEconomicsState())
   }
+  if (constructionData) {
+    for (const { poiId, jobs } of constructionData) constructionJobs.set(poiId, jobs.map((j) => ({ ...j })))
+  }
+  buildPathState = buildPath ? { ...buildPath } : freshBuildPathState()
+}
+
+// Phase 6.3.C — construction job types and registry.
+
+export type ConstructionStatus = 'inProgress' | 'completed'
+
+export interface ConstructionJob {
+  id: string
+  poiId: string
+  facilityTypeId: string
+  authorizedDay: number
+  durationDays: number
+  status: ConstructionStatus
+}
+
+// Phase 6.3.C — build-path global state (charter + establishment package).
+export interface BuildPathState {
+  charterGranted: boolean
+  charterFaction: string | null
+  pirateAttentionFlag: boolean
+  hasEstablishmentPackage: boolean
+}
+
+function freshBuildPathState(): BuildPathState {
+  return {
+    charterGranted: false,
+    charterFaction: null,
+    pirateAttentionFlag: false,
+    hasEstablishmentPackage: false,
+  }
+}
+
+const constructionJobs = new Map<string, ConstructionJob[]>()
+let buildPathState: BuildPathState = freshBuildPathState()
+
+export function addConstructionJob(job: ConstructionJob): void {
+  const existing = constructionJobs.get(job.poiId) ?? []
+  constructionJobs.set(job.poiId, [...existing, { ...job }])
+}
+
+export function getConstructionJobs(poiId: string): ConstructionJob[] {
+  return constructionJobs.get(poiId) ?? []
+}
+
+export function getAllConstructionJobEntries(): Array<{ poiId: string; jobs: ConstructionJob[] }> {
+  return [...constructionJobs.entries()].map(([poiId, jobs]) => ({ poiId, jobs }))
+}
+
+export function updateConstructionJob(poiId: string, jobId: string, patch: Partial<ConstructionJob>): boolean {
+  const jobs = constructionJobs.get(poiId)
+  if (!jobs) return false
+  const idx = jobs.findIndex((j) => j.id === jobId)
+  if (idx < 0) return false
+  jobs[idx] = { ...jobs[idx], ...patch }
+  return true
+}
+
+export function getBuildPathState(): BuildPathState {
+  return { ...buildPathState }
+}
+
+export function setBuildPathState(patch: Partial<BuildPathState>): void {
+  buildPathState = { ...buildPathState, ...patch }
 }

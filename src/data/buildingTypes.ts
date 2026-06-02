@@ -176,6 +176,10 @@ export type BuildingType = {
   // See ownership.json5 for the spawn-time default ('state' is required;
   // the flag is meaningless on a faction- or private-owned facility).
   stateLocked?: boolean
+  // Phase 6.3.C — facilities only buildable at colonies (not present in
+  // established city scenes). Gated from city realtor listings because
+  // no Building entity with this typeId will exist in a city world.
+  colonyOnly?: boolean
 }  & { layout: BuildingLayout }
 
 export function isFixedSize(s: ProcgenSize | FixedSize): s is FixedSize {

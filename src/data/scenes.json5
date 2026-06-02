@@ -654,6 +654,66 @@
       ],
     },
 
+    // ── Phase 6.3.C — colony build-site scene ───────────────────────────────
+    // Minimal scene for a player-built colony. Starts with a single hab pod
+    // (where construction NPCs sleep) and a command center. Additional
+    // facilities appear as Building entities when colonyConstructionSystem
+    // completes each authorized job — the scene envelope stays fixed while
+    // the logical facility roster grows.
+    //
+    // Fixed buildings sit east of the player spawn so the initial walk-in
+    // reads left-to-right (walk in → face the hab pod → face the command
+    // center → authorize the first facility).
+    {
+      id: 'colonyBuildSiteScene',
+      titleZh: '待建殖民地',
+      sceneType: 'micro',
+      tilesX: 200,
+      tilesY: 160,
+      playerSpawnTile: { x: 10, y: 20 },
+
+      replenishments: [
+        {
+          target: 4,
+          arrivalTile: { x: 10, y: 18 },
+          regionRect: { x: 0, y: 0, w: 200, h: 160 },
+        },
+      ],
+
+      fixedBuildings: [
+        {
+          type: 'colonyHabPod',
+          tile: { x: 25, y: 20 },
+          door: { side: 's', offsetTiles: 2 },
+          display: {
+            id: 'buildSiteHabPod',
+            nameZh: '居住舱',
+            shortZh: '居住舱',
+            kind: 'complex',
+            description: '建设期间施工队员的临时居所。',
+          },
+        },
+        {
+          type: 'colonyCommandCenter',
+          tile: { x: 50, y: 20 },
+          door: { side: 'w', offsetTiles: 4 },
+          display: {
+            id: 'buildSiteCommandCenter',
+            nameZh: '指挥中心',
+            shortZh: '指挥中心',
+            kind: 'complex',
+            description: '殖民地行政指挥中心。在此授权新设施的建设。',
+          },
+        },
+      ],
+
+      walls: [],
+
+      cameraRegions: [
+        { rect: { x: 0, y: 0, w: 200, h: 160 }, poiId: 'colonyBuildSite' },
+      ],
+    },
+
     {
       id: 'spaceCampaign',
       titleZh: '太空 · 地球圈',

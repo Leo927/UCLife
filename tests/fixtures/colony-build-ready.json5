@@ -1,0 +1,17 @@
+// Phase 6.3.C fixture — player with charter-eligible reputation, sufficient
+// credits, and an existing player faction. Used by colony-build.spec.ts to
+// test the build-path arc (charter → establishment package → drop → construct).
+//
+// Player starts inside the colony build site scene so colonyFacilityRoster
+// queries the scene world immediately after boot. The smoke test drives all
+// actions via __uclife__ debug handles — no UI clicks, no fixed sleeps.
+{
+  seed: 'colony-build-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'colonyBuildSiteScene',
+
+  player: {
+    money: 1000000,
+    location: { scene: 'colonyBuildSiteScene', x: 10, y: 20 },
+  },
+}
