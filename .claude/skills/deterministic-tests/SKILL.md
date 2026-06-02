@@ -252,9 +252,8 @@ Fixtures are hand-crafted JSON5 in `tests/fixtures/<name>.json5`. Schema details
 Workflow:
 
 1. Write the `.json5` in `tests/fixtures/`. Coordinates are **tile-space** (loader multiplies by `worldConfig.tilePx`).
-2. Register it in `src/test/fixtures.ts`'s `FIXTURES` map (`?raw` Vite import). The loader is allowlist-based — unknown keys throw with the field path.
+2. Reference it via `sim.boot({ fixture: '<name>' })`, where `<name>` is the filename stem. **No registration step** — `src/test/fixtures.ts` auto-discovers every `tests/fixtures/*.json5` via `import.meta.glob`. Drop the file, use the stem. The loader is allowlist-based — unknown keys throw with the field path.
 3. Add a `*.test.ts` round-trip in `src/test/fixtures.test.ts` so the loader catches schema typos before smoke red.
-4. Reference it via `sim.boot({ fixture: '<name>' })`.
 
 **Principles, hold the line:**
 
