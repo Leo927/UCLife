@@ -1,22 +1,4 @@
 import json5 from 'json5'
-import minimalPlayerOnlyRaw from '../../tests/fixtures/minimal-player-only.json5?raw'
-import amuroAtRecruitOfficeRaw from '../../tests/fixtures/amuro-at-recruit-office.json5?raw'
-import playerWithCashAtVbRaw from '../../tests/fixtures/player-with-cash-at-vb.json5?raw'
-import gateAtDrydockRaw from '../../tests/fixtures/gate-at-drydock.json5?raw'
-import vonBraunDrydockStationRaw from '../../tests/fixtures/vonBraunDrydock-station.json5?raw'
-import boardFromDrydockRaw from '../../tests/fixtures/board-from-drydock.json5?raw'
-import msStarterRaw from '../../tests/fixtures/ms-starter.json5?raw'
-import msRosterRaw from '../../tests/fixtures/ms-roster.json5?raw'
-import msSortieRaw from '../../tests/fixtures/ms-sortie.json5?raw'
-import pilotRosterRaw from '../../tests/fixtures/pilot-roster.json5?raw'
-import msPartsRaw from '../../tests/fixtures/ms-parts.json5?raw'
-import prisonerRaw from '../../tests/fixtures/prisoner.json5?raw'
-import recoverablesRaw from '../../tests/fixtures/recoverables.json5?raw'
-import npcTransitRaw from '../../tests/fixtures/npc-transit.json5?raw'
-import drydockRaw from '../../tests/fixtures/drydock.json5?raw'
-import cpDpRaw from '../../tests/fixtures/cp-dp.json5?raw'
-import playerFlagshipNearDerelictRaw from '../../tests/fixtures/player-flagship-near-derelict.json5?raw'
-import playerOwnedColonyRaw from '../../tests/fixtures/player-owned-colony.json5?raw'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { useScene } from '../sim/scene'
 import { spawnNPC, spawnPlayer } from '../character/spawn'
@@ -94,29 +76,27 @@ const TILE = worldConfig.tilePx
 const VALID_FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
 const VALID_SKILL_IDS: ReadonlySet<string> = new Set(skillsConfig.order as readonly string[])
 
-const FIXTURES: Record<string, string> = {
-  'minimal-player-only': minimalPlayerOnlyRaw,
-  'amuro-at-recruit-office': amuroAtRecruitOfficeRaw,
-  'player-with-cash-at-vb': playerWithCashAtVbRaw,
-  'gate-at-drydock': gateAtDrydockRaw,
-  'vonBraunDrydock-station': vonBraunDrydockStationRaw,
-  'board-from-drydock': boardFromDrydockRaw,
-  'ms-starter': msStarterRaw,
-  'ms-roster': msRosterRaw,
-  'ms-sortie': msSortieRaw,
-  'pilot-roster': pilotRosterRaw,
-  'ms-parts': msPartsRaw,
-  'prisoner': prisonerRaw,
-  'recoverables': recoverablesRaw,
-  'npc-transit': npcTransitRaw,
-  'drydock': drydockRaw,
-  'cp-dp': cpDpRaw,
-  'player-flagship-near-derelict': playerFlagshipNearDerelictRaw,
-  'player-owned-colony': playerOwnedColonyRaw,
+// Fixtures auto-register: every tests/fixtures/*.json5 is discovered at build
+// time by Vite's import.meta.glob (works under Vitest too). Drop a .json5 in
+// that directory and reference it by its filename stem — no edit here needed.
+const fixtureModules = import.meta.glob('../../tests/fixtures/*.json5', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+const FIXTURES: Record<string, string> = {}
+for (const [path, raw] of Object.entries(fixtureModules)) {
+  const name = path.split('/').pop()!.replace(/\.json5$/, '')
+  FIXTURES[name] = raw
 }
 
 export function __registerInlineFixtureForTest(name: string, raw: string): void {
   FIXTURES[name] = raw
+}
+
+export function listFixtureNames(): string[] {
+  return Object.keys(FIXTURES)
 }
 
 function fail(name: string, path: string, msg: string): never {

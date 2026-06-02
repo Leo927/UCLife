@@ -1,5 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { applyFixture } from './fixtures'
+import { readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
@@ -91,6 +94,26 @@ describe('applyFixture', () => {
     const pos = player!.get(Position)!
     expect(pos.x).toBe(40 * TILE)
     expect(pos.y).toBe(560 * TILE)
+  })
+})
+
+describe('fixture auto-discovery', () => {
+  const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/fixtures')
+  const filesOnDisk = readdirSync(FIXTURE_DIR)
+    .filter((f) => f.endsWith('.json5'))
+    .map((f) => f.replace(/\.json5$/, ''))
+
+  it('registers every tests/fixtures/*.json5 with no manual wiring', () => {
+    const registered = listFixtureNames().sort()
+    expect(registered).toEqual([...filesOnDisk].sort())
+  })
+
+  it('registry is non-empty (guards against a broken glob path silently registering nothing)', () => {
+    expect(listFixtureNames().length).toBeGreaterThan(0)
+  })
+
+  it('resolves a known fixture name to a non-empty raw string', () => {
+    expect(listFixtureNames()).toContain('minimal-player-only')
   })
 })
 

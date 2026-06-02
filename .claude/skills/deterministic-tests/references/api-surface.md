@@ -9,7 +9,7 @@ Parsed in `src/test/bootTestMode.ts#parseTestBootParams`. Defaults to `?test=1` 
 | Param | Type | Default | Notes |
 |-------|------|---------|-------|
 | `test` | `1` | required | Without this, prod boot path. The branch is `import.meta.env.DEV`-gated. |
-| `fixture` | string | none | Names a fixture in `src/test/fixtures.ts`'s `FIXTURES` map. Throws if unknown. |
+| `fixture` | string | none | Filename stem of a `tests/fixtures/*.json5` (auto-discovered). Throws if unknown. |
 | `seed` | string | `testConfig.defaultSeed` (`test-boot-default`) | Overrides fixture's `seed` field if both present. |
 | `nowMs` | number | `Date.parse(testConfig.defaultStartIso)` | Frozen sim-clock epoch in ms. Overrides fixture's `startDate`. |
 | `assets` | `1` | `0` | When unset, portrait/sprite/recolor/LPC pipelines short-circuit to placeholders. Set to opt into real asset loading + `awaitAssetsReady()` drain. |
@@ -185,18 +185,9 @@ npcs: [
 
 ### Registration
 
-After authoring the JSON5, register it in `src/test/fixtures.ts`:
+**None.** `src/test/fixtures.ts` auto-discovers every `tests/fixtures/*.json5` at build time via `import.meta.glob('../../tests/fixtures/*.json5', { query: '?raw', import: 'default', eager: true })`. The registry key is the filename stem. Drop the `.json5` and reference it by stem in `sim.boot({ fixture: '<stem>' })` — no edit to `fixtures.ts`. (`import.meta.glob` resolves under both Vite and Vitest, and the `?raw` query bundles the JSON5 at compile time — no runtime fetch.)
 
-```ts
-import myFixtureRaw from '../../tests/fixtures/my-fixture.json5?raw'
-
-const FIXTURES: Record<string, string> = {
-  // ...
-  'my-fixture': myFixtureRaw,
-}
-```
-
-The `?raw` import lets Vite bundle the JSON5 into the test build at compile time — no runtime fetch. Inline registration for unit tests: `__registerInlineFixtureForTest(name, raw)`.
+Inline registration for unit tests only: `__registerInlineFixtureForTest(name, raw)`.
 
 ## `test-config.json5` keys
 
