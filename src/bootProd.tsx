@@ -30,6 +30,9 @@ import './boot/researchTick'
 // Phase 6.3.B — colony income + stability accrual rides the same event
 // so it lands after the dailyEconomics → recruitment rollup settles.
 import './boot/colonyEconomicsTick'
+// Phase 6.3.C — colony construction timer + interrupts advance on the
+// same event, after economics settle.
+import './boot/colonyConstructionTick'
 // Phase 6.2.B — hangar repair throughput rides the same event so the
 // repair tick lands after dailyEconomics + research settle for the day.
 import './boot/hangarRepairTick'

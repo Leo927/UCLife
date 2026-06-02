@@ -654,6 +654,60 @@
       ],
     },
 
+    // Phase 6.3.C — colony build-path starter scene.
+    // Bootstrapped by dropping an establishment package at colonyBuildSite.
+    // Starts with one hab pod + command center; facilities are added as
+    // construction jobs complete (Building entities dynamically spawned).
+    {
+      id: 'colonyBuildSiteScene',
+      titleZh: '建设中殖民地',
+      sceneType: 'micro',
+      tilesX: 150,
+      tilesY: 120,
+      playerSpawnTile: { x: 5, y: 10 },
+
+      replenishments: [
+        {
+          target: 4,
+          arrivalTile: { x: 5, y: 8 },
+          regionRect: { x: 0, y: 0, w: 150, h: 120 },
+        },
+      ],
+
+      fixedBuildings: [
+        {
+          type: 'colonyHabPod',
+          tile: { x: 20, y: 20 },
+          door: { side: 'w', offsetTiles: 3 },
+          display: {
+            id: 'buildSiteHabPod',
+            nameZh: '居住舱',
+            shortZh: '居住舱',
+            kind: 'complex',
+            description: '建设队员的临时居所。殖民地一切从这里开始。',
+          },
+        },
+        {
+          type: 'colonyCommandCenter',
+          tile: { x: 60, y: 20 },
+          door: { side: 'w', offsetTiles: 4 },
+          display: {
+            id: 'buildSiteCommandCenter',
+            nameZh: '指挥中心',
+            shortZh: '指挥中心',
+            kind: 'complex',
+            description: '建设地指挥中心。在此授权新设施的建设。',
+          },
+        },
+      ],
+
+      walls: [],
+
+      cameraRegions: [
+        { rect: { x: 0, y: 0, w: 150, h: 120 }, poiId: 'colonyBuildSite' },
+      ],
+    },
+
     {
       id: 'spaceCampaign',
       titleZh: '太空 · 地球圈',

@@ -1,0 +1,14 @@
+// Phase 6.3.C fixture — player inside the colony build-site scene
+// with enough credits to file a charter and buy an establishment package.
+// The scene already has a hab pod + command center as fixed buildings.
+// Charter filing and package purchase are driven via debug handles.
+{
+  seed: 'colony-build-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'colonyBuildSiteScene',
+
+  player: {
+    money: 1000000,
+    location: { scene: 'colonyBuildSiteScene', x: 80, y: 40 },
+  },
+}

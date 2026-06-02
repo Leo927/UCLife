@@ -1,7 +1,7 @@
-// Phase 6.3.B — colony economics configuration.
-// Colony-level income + stability weight, resupply markup, and recruitment
-// discount constants. All per-facility-type income rates are keyed by the
-// Building typeId (matches building-types.json5 keys).
+// Colony configuration — Phase 6.3.B (economics) and Phase 6.3.C (build path).
+// All per-facility-type income rates are keyed by the Building typeId
+// (matches building-types.json5 keys). Construction durations and charter
+// parameters live here so they can be tuned without touching .ts files.
 {
   income: {
     // Credits added to the player faction fund per owned facility type per day.
@@ -43,5 +43,44 @@
     // Credit multiplier for colony depot supply/fuel transfers to player ships.
     // 0.0 = free (player's own stock; no markup charged).
     markupFactor: 0.0,
+  },
+
+  // Phase 6.3.C — charter acquisition parameters.
+  charter: {
+    // Factions that operate a permits office the player can visit.
+    // Building without a charter is legal but draws pirate attention (6.3.E).
+    factions: ['ae', 'efsf', 'zeon'],
+    // Minimum faction reputation required to file a charter.
+    minFactionRep: 30,
+    // Credit fee charged at the counter on approval.
+    fee: 50000,
+  },
+
+  // Phase 6.3.C — colony establishment package.
+  establishmentPackage: {
+    // Credits charged at the shipyard for one package.
+    cost: 500000,
+  },
+
+  // Phase 6.3.C — per-facility construction times (game-days) and
+  // interrupt probability. Keyed by building-type id.
+  construction: {
+    daysPerType: {
+      colonyHabPod: 3,
+      colonyRefinery: 7,
+      colonyHydroponics: 5,
+      colonyHabitation: 5,
+      colonyMSFactory: 14,
+      colonyWarshipSlipway: 21,
+      colonyBarracks: 5,
+      colonyMiningDrill: 3,
+      colonyBar: 3,
+      colonyMarket: 3,
+      colonyClinic: 3,
+    },
+    // Probability (0–1) that any active construction day produces an
+    // interrupt event (worker injury, inspector visit, supply contest).
+    // Applied once per colony per day that has at least one in-progress job.
+    interruptChancePerColonyDay: 0.1,
   },
 }

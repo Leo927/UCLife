@@ -454,6 +454,164 @@
     },
   },
 
+  // ── COLONY-ONLY FACILITIES — Phase 6.3.C ───────────────────────────────
+  // All entries carry colonyOnly: true — the city realtor never lists
+  // them and established-city map procgen never spawns them. They are
+  // constructed exclusively via the build-path (colonyAuthorizeFacility
+  // debug handle in tests; future permits-official UI in 6.3.D+).
+  //
+  // All sizes are fixed (w, h) so they qualify as fixedBuildings in
+  // scenes.json5 and can also be dynamically spawned at construction
+  // completion without a procgen slot computation.
+
+  colonyHabPod: {
+    labelZh: '居住舱',
+    colonyOnly: true,
+    size: { w: 10, h: 8 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'bed-dorm', role: 'bed_row', count: 6 },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyRefinery: {
+    labelZh: '精炼厂',
+    colonyOnly: true,
+    size: { w: 14, h: 10 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-factory-manager', role: 'supervisor' },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyHydroponics: {
+    labelZh: '水培农场',
+    colonyOnly: true,
+    size: { w: 12, h: 10 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-factory-worker-day', role: 'worker' },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyHabitation: {
+    labelZh: '居住区',
+    colonyOnly: true,
+    size: { w: 10, h: 8 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'bed-dorm', role: 'bed_row', count: 8 },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyMSFactory: {
+    labelZh: '机动战士工厂',
+    colonyOnly: true,
+    size: { w: 16, h: 12 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-factory-manager', role: 'supervisor' },
+        { template: 'workstation-factory-engineer', role: 'worker' },
+        { template: 'workstation-factory-worker-day', role: 'worker' },
+      ],
+    },
+  },
+
+  colonyWarshipSlipway: {
+    labelZh: '军舰船台',
+    colonyOnly: true,
+    size: { w: 20, h: 16 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-hangar-manager', role: 'supervisor' },
+        { template: 'workstation-hangar-worker', role: 'worker' },
+        { template: 'workstation-hangar-worker', role: 'worker' },
+      ],
+    },
+  },
+
+  colonyBarracks: {
+    labelZh: '军营',
+    colonyOnly: true,
+    size: { w: 10, h: 8 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'bed-dorm', role: 'bed_row', count: 8 },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyMiningDrill: {
+    labelZh: '采矿钻机',
+    colonyOnly: true,
+    size: { w: 8, h: 6 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-factory-worker-day', role: 'worker' },
+      ],
+    },
+  },
+
+  colonyBar: {
+    labelZh: '酒吧',
+    colonyOnly: true,
+    size: { w: 8, h: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-bartender', role: 'supervisor' },
+        { template: 'bar-seat', role: 'customer_row', count: 4 },
+        { template: 'queue-point-bar', role: 'queue' },
+      ],
+    },
+  },
+
+  colonyMarket: {
+    labelZh: '市场',
+    colonyOnly: true,
+    size: { w: 10, h: 6 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-shop-clerk-morning', role: 'counter' },
+        { template: 'workstation-shop-clerk-afternoon', role: 'counter' },
+        { template: 'landmark-shop-counter', role: 'shopCounter' },
+        { template: 'landmark-shop-approach', role: 'shopApproach' },
+        { template: 'landmark-shop-entry', role: 'shopEntry' },
+        { template: 'landmark-shop-exit', role: 'shopExit' },
+      ],
+    },
+  },
+
+  colonyClinic: {
+    labelZh: '诊所',
+    colonyOnly: true,
+    size: { w: 8, h: 5 },
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-civilian-doctor', role: 'supervisor' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.

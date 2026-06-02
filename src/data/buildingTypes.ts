@@ -176,6 +176,11 @@ export type BuildingType = {
   // See ownership.json5 for the spawn-time default ('state' is required;
   // the flag is meaningless on a faction- or private-owned facility).
   stateLocked?: boolean
+  // Phase 6.3.C — colony-build-path exclusive. When true, this facility
+  // class can only be constructed at player-owned colonies via the build-
+  // path; the city realtor never lists it and established-city maps never
+  // spawn it. Exposed via colonyOnlyFacilityTypes() debug handle.
+  colonyOnly?: boolean
 }  & { layout: BuildingLayout }
 
 export function isFixedSize(s: ProcgenSize | FixedSize): s is FixedSize {

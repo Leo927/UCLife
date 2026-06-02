@@ -271,6 +271,29 @@
       description: '万里子资源公司遗留的废弃氦-3炼气站。公司破产后无人认领，站内尚有留守人员。',
     },
 
+    // — Phase 6.3.C build-path site ————————————————————————————
+    // Unclaimed asteroid point for the build-path smoke test.
+    // Player flies here and drops the establishment package to bootstrap
+    // the colony. pirate-attention flag is set when the player builds
+    // without a charter (consumed by 6.3.E).
+    {
+      id: 'colonyBuildSite',
+      nameZh: '无名小行星 · 建设点',
+      shortZh: '建设点',
+      type: 'asteroid',
+      factionControlPre: 'none',
+      factionControlPost: 'none',
+      services: [],
+      dockScenes: ['colonyBuildSiteScene'],
+      bodyId: 'buildSiteAsteroid',
+      orbitRadius: 30,
+      orbitPeriodDays: 0.2,
+      orbitPhase: 0,
+      region: 'outerBelt',
+      takeoffFuelCost: 2,
+      description: '一处无人认领的小行星点——殖民地建设的起点。',
+    },
+
     // — Asteroid clusters ——————————————————————————————————————
     {
       id: 'axis',

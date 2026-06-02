@@ -83,4 +83,4 @@ export type { BedTier, RoadKind, InteractableKind, ActionKind, RoughKind } from 
 export { msConfig } from './ms'
 
 export { colonyConfig } from './colony'
-export type { ColonyConfig, ColonyIncomeConfig, ColonyStabilityConfig, ColonyRecruitmentConfig, ColonyResupplyConfig } from './colony'
+export type { ColonyConfig, ColonyIncomeConfig, ColonyStabilityConfig, ColonyRecruitmentConfig, ColonyResupplyConfig, ColonyCharterConfig, ColonyEstablishmentPackageConfig, ColonyConstructionConfig } from './colony'

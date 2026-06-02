@@ -161,5 +161,18 @@
       bodyRadius: 60,
       takeoffFuelCost: 2,
     },
+
+    // Phase 6.3.C — unclaimed asteroid for the build-path smoke test.
+    {
+      id: 'buildSiteAsteroid',
+      kind: 'asteroid',
+      nameZh: '无名小行星',
+      parentId: 'earth',
+      orbitRadius: 14000,
+      orbitPeriodDays: 155,
+      orbitPhase: 0.7,
+      bodyRadius: 30,
+      takeoffFuelCost: 2,
+    },
   ],
 }

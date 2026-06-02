@@ -21,11 +21,33 @@ export interface ColonyResupplyConfig {
   markupFactor: number
 }
 
+// Phase 6.3.C — charter acquisition config.
+export interface ColonyCharterConfig {
+  factions: string[]
+  minFactionRep: number
+  fee: number
+}
+
+// Phase 6.3.C — establishment package config.
+export interface ColonyEstablishmentPackageConfig {
+  cost: number
+}
+
+// Phase 6.3.C — construction timing config.
+export interface ColonyConstructionConfig {
+  daysPerType: Record<string, number>
+  interruptChancePerColonyDay: number
+}
+
 export interface ColonyConfig {
   income: ColonyIncomeConfig
   stability: ColonyStabilityConfig
   recruitment: ColonyRecruitmentConfig
   resupply: ColonyResupplyConfig
+  // Phase 6.3.C additions.
+  charter: ColonyCharterConfig
+  establishmentPackage: ColonyEstablishmentPackageConfig
+  construction: ColonyConstructionConfig
 }
 
 export const colonyConfig = json5.parse(raw) as ColonyConfig
