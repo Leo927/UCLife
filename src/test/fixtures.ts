@@ -15,6 +15,7 @@ import recoverablesRaw from '../../tests/fixtures/recoverables.json5?raw'
 import npcTransitRaw from '../../tests/fixtures/npc-transit.json5?raw'
 import drydockRaw from '../../tests/fixtures/drydock.json5?raw'
 import cpDpRaw from '../../tests/fixtures/cp-dp.json5?raw'
+import playerFlagshipNearDerelictRaw from '../../tests/fixtures/player-flagship-near-derelict.json5?raw'
 import playerOwnedColonyRaw from '../../tests/fixtures/player-owned-colony.json5?raw'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { useScene } from '../sim/scene'
@@ -110,6 +111,7 @@ const FIXTURES: Record<string, string> = {
   'npc-transit': npcTransitRaw,
   'drydock': drydockRaw,
   'cp-dp': cpDpRaw,
+  'player-flagship-near-derelict': playerFlagshipNearDerelictRaw,
   'player-owned-colony': playerOwnedColonyRaw,
 }
 
