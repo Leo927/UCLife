@@ -164,3 +164,5 @@ When possible, design game objects to be diegetic — visible, touchable objects
 - Always prefer MCP server over raw API call.
 - Use the plantuml skill to generate diagrams.
 - Always commit your changes
+- When resolving a GitHub issue, always create a PR by default.
+- After creating a PR, wait until CI passes before considering the work done — subscribe to the PR's CI activity, address any failures, and only report completion once CI is green.
