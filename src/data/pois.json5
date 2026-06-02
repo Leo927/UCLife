@@ -304,5 +304,27 @@
       takeoffFuelCost: 2,
       description: '联邦小行星矿业前哨。',
     },
+
+    // — Phase 6.3.C — build-path colony site ——————————————————————
+    // Unclaimed asteroid point suitable for colony establishment.
+    // Player flies here with a colony establishment package and drops it
+    // to claim the site and begin construction.
+    {
+      id: 'colonyBuildSite',
+      nameZh: '待建殖民地',
+      shortZh: '待建地',
+      type: 'asteroid',
+      factionControlPre: 'none',
+      factionControlPost: 'none',
+      services: [],
+      dockScenes: ['colonyBuildSiteScene'],
+      bodyId: 'axis',
+      orbitRadius: 80,
+      orbitPeriodDays: 0.25,
+      orbitPhase: 1.5,
+      region: 'outerBelt',
+      takeoffFuelCost: 2,
+      description: '未开发的小行星矿点。无人认领，适合建立殖民据点。',
+    },
   ],
 }

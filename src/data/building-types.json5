@@ -454,6 +454,163 @@
     },
   },
 
+  // ── COLONY FACILITIES — Phase 6.3.C (build-path) ───────────────────────
+  // All colonyOnly:true — never placed in city procgen; only buildable via
+  // the colony construction system. Fixed size so they work as fixedBuildings.
+
+  // Initial life-support module. Dropped with the establishment package;
+  // construction crew sleeps here during the build phase.
+  colonyHabPod: {
+    labelZh: '居住舱',
+    size: { w: 8, h: 6 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'bed-dorm', role: 'bed_row', count: 4 },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  // Operational refinery — distinct from colonyRefineryShell (derelict).
+  // Produces He-3 income once construction completes.
+  colonyRefinery: {
+    labelZh: '炼气车间',
+    size: { w: 14, h: 10 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyHydroponics: {
+    labelZh: '水培农场',
+    size: { w: 12, h: 8 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyHabitation: {
+    labelZh: '居住模块',
+    size: { w: 10, h: 8 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'bed-dorm', role: 'bed_row', count: 6 },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  // Colony-only: at-scale MS production pipeline. Not available in established
+  // city hangars (those offer repair/retrofit only, not mass production).
+  colonyMSFactory: {
+    labelZh: 'MS工厂',
+    size: { w: 20, h: 14 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      primaryDoor: 'n',
+      items: [
+        { template: 'workstation-factory-manager', role: 'supervisor' },
+        { template: 'workstation-factory-worker-morning', role: 'worker' },
+        { template: 'workstation-factory-worker-day', role: 'worker' },
+      ],
+    },
+  },
+
+  // Colony-only: capital ship slipway. The Phase 6 capital-ship production
+  // pipeline exists only at player colonies, not in established cities.
+  colonyWarshipSlipway: {
+    labelZh: '军舰船坞',
+    size: { w: 24, h: 16 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      primaryDoor: 'n',
+      items: [
+        { template: 'workstation-hangar-manager', role: 'supervisor' },
+        { template: 'workstation-hangar-worker', role: 'worker' },
+        { template: 'workstation-hangar-worker', role: 'worker' },
+      ],
+    },
+  },
+
+  colonyBarracks: {
+    labelZh: '驻防营地',
+    size: { w: 12, h: 8 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'bed-dorm', role: 'bed_row', count: 6 },
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  // Asteroid-only: raw mineral extraction. Requires asteroid geological
+  // survey before placement (enforcement deferred to 6.3.D+).
+  colonyMiningDrill: {
+    labelZh: '采矿钻机',
+    size: { w: 10, h: 8 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'water-dispenser', role: 'amenity_row' },
+      ],
+    },
+  },
+
+  colonyBar: {
+    labelZh: '殖民地酒吧',
+    size: { w: 8, h: 5 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-bartender', role: 'supervisor' },
+        { template: 'bar-seat', role: 'customer_row', count: 4 },
+        { template: 'queue-point-bar', role: 'queue' },
+      ],
+    },
+  },
+
+  colonyMarket: {
+    labelZh: '殖民地市场',
+    size: { w: 8, h: 5 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-shop-clerk-morning', role: 'counter' },
+      ],
+    },
+  },
+
+  colonyClinic: {
+    labelZh: '殖民地诊所',
+    size: { w: 6, h: 5 },
+    colonyOnly: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-civilian-doctor', role: 'supervisor' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.
