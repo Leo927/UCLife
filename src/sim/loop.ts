@@ -24,7 +24,6 @@ import { supplyDrainSystem } from '../systems/supplyDrain'
 import { dailyEconomicsSystem } from '../systems/dailyEconomics'
 import { housingPressureSystem } from '../systems/housingPressure'
 import { recruitmentSystem } from '../systems/recruitment'
-import { colonyEconomicsSystem } from '../systems/colonyEconomics'
 import { syncShipMarkers } from '../systems/shipMarkers'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
@@ -155,10 +154,6 @@ function frame(now: number) {
         // single-scene scope as housing pressure: applicants live in the
         // active scene's lobby.
         recruitmentSystem(world, newDay)
-        // Phase 6.3.B — colony income + stability accrual. Runs after
-        // facility economics so any same-day foreclosure doesn't confuse
-        // the colony income walk. Colony-registry-level, not per-world.
-        colonyEconomicsSystem(newDay)
         // Phase 5.5.6 — fire after the rollup chain so research
         // subscribers (boot/researchTick.ts) credit progress AFTER
         // dailyEconomics has settled and recruitment has populated
