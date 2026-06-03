@@ -611,6 +611,25 @@
     },
   },
 
+  // Phase 6.4.B — colony recruitment post. A colony-only booth where the
+  // player installs a recruitment officer and sets en-masse hire criteria
+  // as a conversation. Applicants walk up to the post over game-time;
+  // the officer auto-approves matching ones (or mis-hires if low-Leadership).
+  // Reuses the 'recruiter' workstation specId so recruitmentSystem picks it
+  // up automatically via the existing Recruiter trait logic.
+  colonyRecruitmentPost: {
+    labelZh: '招聘台',
+    size: { w: 6, h: 5 },
+    colonyOnly: true,
+    hasManageCell: true,
+    layout: {
+      algorithm: 'open_floor',
+      items: [
+        { template: 'workstation-recruiter', role: 'supervisor' },
+      ],
+    },
+  },
+
   // ── CRAFTED: fixed buildings ────────────────────────────────────────────
 
   // relTile uses the convention: pixel = rect.x + relTile.x * TILE.

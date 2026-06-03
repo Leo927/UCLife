@@ -95,4 +95,29 @@
     // credited to the new hire's wallet.
     signingBonus: 200,
   },
+
+  // Phase 6.4.B — faction lean pool.
+  // Each procgen applicant is randomly assigned one of these leans at spawn.
+  // Used to match against RecruiterCriteria.factionLean when the player
+  // sets a faction-affinity filter ("亲联邦的", "亲吉翁的", etc.).
+  factionLeanPool: ['federation', 'zeon', 'anaheim', 'civilian'],
+
+  // Phase 6.4.B — officer Leadership skill gate for auto-approve.
+  // When autoAccept is true, the seated officer's Leadership skill
+  // (currently via leadershipSkillStandin — Engineering — per Issue #81)
+  // determines auto-approve quality:
+  //   level >= highSkillThreshold → only matching applicants are accepted.
+  //   level <  highSkillThreshold → matching accepted + lowSkillMishireRate
+  //                                  chance to accept off-criteria applicants.
+  officerAutoApprove: {
+    // SKILL STAND-IN (Issue #81): swap to real Leadership when it ships.
+    leadershipSkillStandin: 'engineering',
+    // Officer skill level (0–100) at or above which auto-approve
+    // accepts only on-criteria applicants (no mis-hires).
+    highSkillThreshold: 30,
+    // Probability [0,1] that a low-skill officer accepts an off-criteria
+    // applicant (mis-hire path). Applied per applicant, using the seeded
+    // sim RNG for determinism.
+    lowSkillMishireRate: 0.3,
+  },
 }

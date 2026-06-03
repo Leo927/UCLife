@@ -20,6 +20,13 @@ export interface RecruitmentConfig {
     opinionGate: { min: number }
     signingBonus: number
   }
+  // Phase 6.4.B — faction lean pool and officer auto-approve config.
+  factionLeanPool: FactionId[]
+  officerAutoApprove: {
+    leadershipSkillStandin: SkillId
+    highSkillThreshold: number
+    lowSkillMishireRate: number
+  }
 }
 
 export const recruitmentConfig = json5.parse(raw) as RecruitmentConfig

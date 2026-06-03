@@ -32,12 +32,15 @@ registerTraitSerializer<RecruiterSnap>({
     }
   },
   write: (e, v) => {
-    if (e.has(Recruiter)) e.set(Recruiter, v)
-    else e.add(Recruiter(v))
+    // Phase 6.4.B backwards compat: old saves won't have factionLean in criteria.
+    const criteria = { factionLean: null, ...v.criteria }
+    const payload = { ...v, criteria }
+    if (e.has(Recruiter)) e.set(Recruiter, payload)
+    else e.add(Recruiter(payload))
   },
   reset: (e) => {
     if (e.has(Recruiter)) e.set(Recruiter, {
-      criteria: { skill: null, minLevel: 0, autoAccept: false },
+      criteria: { skill: null, minLevel: 0, factionLean: null, autoAccept: false },
       cumulativeNoHireDays: 0,
       lastRollDay: 0,
     })
@@ -51,6 +54,8 @@ interface ApplicantSnap {
   summary: string
   topSkillId: string
   topSkillLevel: number
+  // Phase 6.4.B — optional for backwards compat with pre-6.4.B saves.
+  factionLean?: string | null
 }
 
 registerTraitSerializer<ApplicantSnap>({
@@ -65,6 +70,7 @@ registerTraitSerializer<ApplicantSnap>({
       summary: a.summary,
       topSkillId: a.topSkillId,
       topSkillLevel: a.topSkillLevel,
+      factionLean: a.factionLean,
     }
   },
   write: (e, v, ctx) => {
@@ -76,6 +82,7 @@ registerTraitSerializer<ApplicantSnap>({
       summary: v.summary,
       topSkillId: v.topSkillId,
       topSkillLevel: v.topSkillLevel,
+      factionLean: v.factionLean ?? null,
     }
     if (e.has(Applicant)) e.set(Applicant, payload)
     else e.add(Applicant(payload))

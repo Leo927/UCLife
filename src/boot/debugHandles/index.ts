@@ -31,5 +31,6 @@ import './assets'     // Phase 3 — awaitAssetsReady barrier for smoke tests
 import './test'       // Phase 5 — getGameState() facade + applyFixture loader
 import './ms'         // Phase 6.2.5.A — MS roster + parts inventory + retrofit
 import './commandPoints' // Issue #69 — CP pool + DP commit + doctrine
-import './colony'     // Phase 6.3.B — colony economics + stability + warehouse + resupply
-import './factionTier' // Phase 6.4.A — faction-tier unlock check + inter-rep + player rep setter
+import './colony'          // Phase 6.3.B — colony economics + stability + warehouse + resupply
+import './factionTier'     // Phase 6.4.A — faction-tier unlock check + inter-rep + player rep setter
+import './recruitmentScale' // Phase 6.4.B — officer Leadership gate, faction lean, salary tick

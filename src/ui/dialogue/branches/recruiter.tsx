@@ -13,10 +13,19 @@ import {
 } from '../../../systems/recruitment'
 import { recruitmentConfig, skillsConfig } from '../../../config'
 import type { SkillId } from '../../../character/skills'
+import type { FactionId } from '../../../config'
 import { dialogueText } from '../../../data/dialogueText'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 const SKILL_OPTIONS: SkillId[] = recruitmentConfig.skillsRolled
+
+// Phase 6.4.B — faction lean display labels (zh-CN).
+const FACTION_LEAN_LABELS: Partial<Record<FactionId, string>> = {
+  federation: '联邦',
+  zeon: '吉翁',
+  anaheim: '阿纳海姆',
+  civilian: '中立',
+}
 
 export function recruiterBranch(ctx: DialogueCtx): DialogueNode | null {
   if (!ctx.roles.isRecruiterOnDuty) return null
@@ -41,19 +50,46 @@ function RecruiterPanel({ recruiter }: { recruiter: Entity }) {
   const lobby = lobbyForStation(world, station)
   const [reply, setReply] = useState<string | null>(null)
 
+  const [factionLean, setFactionLean] = useState<FactionId | null>(
+    recTrait?.criteria.factionLean ?? null,
+  )
+
   const setCriteria = (skill: SkillId | null, minLevel: number) => {
     playUi('ui.factory-manager.accept')
     if (!recTrait) return
     station.set(Recruiter, {
       ...recTrait,
-      criteria: { skill, minLevel, autoAccept: skill !== null },
+      criteria: { skill, minLevel, factionLean, autoAccept: skill !== null || factionLean !== null },
     })
-    if (skill === null) {
+    if (skill === null && factionLean === null) {
       setReply(dialogueText.branches.recruiter.replyNoFilter)
     } else {
-      const label = skillsConfig.catalog[skill]?.label ?? skill
-      setReply(`明白——以后${label} Lv ${minLevel} 以上的，我直接收下；不够的让你过目。`)
+      const skillPart = skill ? `${skillsConfig.catalog[skill]?.label ?? skill} Lv ${minLevel} 以上` : ''
+      const leanPart = factionLean ? `偏向${FACTION_LEAN_LABELS[factionLean] ?? factionLean}` : ''
+      const parts = [skillPart, leanPart].filter(Boolean).join('、')
+      setReply(`明白——${parts}的，我直接收下；不符合的让你过目。`)
     }
+  }
+
+  const toggleFactionLean = (lean: FactionId) => {
+    playUi('ui.factory-manager.accept')
+    const next = factionLean === lean ? null : lean
+    setFactionLean(next)
+    if (!recTrait) return
+    // Immediately apply faction lean change to the station criteria,
+    // preserving the existing skill filter.
+    const cur = recTrait.criteria
+    station.set(Recruiter, {
+      ...recTrait,
+      criteria: {
+        skill: cur.skill,
+        minLevel: cur.minLevel,
+        factionLean: next,
+        autoAccept: cur.skill !== null || next !== null,
+      },
+    })
+    const leanLabel = next ? FACTION_LEAN_LABELS[next] ?? next : null
+    setReply(leanLabel ? `好，会优先找${leanLabel}倾向的人。` : dialogueText.branches.recruiter.replyNoFilter)
   }
 
   const onAccept = (applicant: Entity) => {
@@ -73,9 +109,11 @@ function RecruiterPanel({ recruiter }: { recruiter: Entity }) {
 
   const criteriaLabel = (() => {
     const c = recTrait?.criteria
-    if (!c || !c.skill) return '无筛选 · 所有申请排队等审'
-    const label = skillsConfig.catalog[c.skill]?.label ?? c.skill
-    return `自动收${label} Lv ${c.minLevel} +`
+    if (!c) return '无筛选 · 所有申请排队等审'
+    const parts: string[] = []
+    if (c.skill) parts.push(`${skillsConfig.catalog[c.skill]?.label ?? c.skill} Lv ${c.minLevel}+`)
+    if (c.factionLean) parts.push(`偏${FACTION_LEAN_LABELS[c.factionLean] ?? c.factionLean}`)
+    return parts.length > 0 ? `自动收 ${parts.join('·')}` : '无筛选 · 所有申请排队等审'
   })()
 
   const wsTrait = station.get(Workstation)
@@ -104,6 +142,24 @@ function RecruiterPanel({ recruiter }: { recruiter: Entity }) {
         ))}
       </div>
 
+      <div className="dialog-options" style={{ marginTop: 6 }}>
+        <span style={{ fontSize: '0.85em', opacity: 0.7, marginRight: 6 }}>倾向筛选：</span>
+        {(recruitmentConfig.factionLeanPool as FactionId[]).map((lean) => (
+          <button
+            key={lean}
+            className={`dialog-option${factionLean === lean ? ' dialog-option-selected' : ''}`}
+            onClick={() => toggleFactionLean(lean)}
+          >
+            {FACTION_LEAN_LABELS[lean] ?? lean}
+          </button>
+        ))}
+        {factionLean !== null && (
+          <button className="dialog-option" onClick={() => setFactionLean(null)}>
+            不限倾向
+          </button>
+        )}
+      </div>
+
       <h3 style={{ marginTop: 12 }}>{dialogueText.branches.recruiter.lobbyHeader}</h3>
       {lobby.length === 0 && <p className="hr-intro">{dialogueText.branches.recruiter.lobbyEmpty}</p>}
       <div className="secretary-hire-list">
@@ -115,6 +171,12 @@ function RecruiterPanel({ recruiter }: { recruiter: Entity }) {
             <div className="apt-row-info">
               <div className="apt-row-name">{data.name}</div>
               <div className="apt-row-meta">{data.summary}</div>
+              {data.factionLean && (
+                <div className="apt-row-meta" style={{ fontSize: '0.8em', opacity: 0.75 }}>
+                  {FACTION_LEAN_LABELS[data.factionLean as FactionId] ?? data.factionLean}
+                  倾向
+                </div>
+              )}
             </div>
             <div className="apt-row-actions">
               <button className="apt-row-buy" onClick={() => onAccept(applicant)}>录用</button>

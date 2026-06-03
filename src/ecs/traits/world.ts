@@ -361,12 +361,17 @@ export interface RecruiterCriteria {
   // Minimum skill level the applicant must have on `skill` to auto-accept.
   // Ignored when skill is null.
   minLevel: number
+  // Phase 6.4.B — faction-lean filter. null = any lean accepted.
+  // Matches against Applicant.factionLean rolled at spawn time.
+  factionLean: FactionId | null
   // When false, every applicant queues for player review regardless of
   // skill match. When true, matching applicants are accepted on spawn.
+  // Officer Leadership (6.4.B) modulates quality: high-skill officer
+  // accepts only on-criteria; low-skill officer may mis-hire off-criteria.
   autoAccept: boolean
 }
 export const Recruiter = trait(() => ({
-  criteria: { skill: null, minLevel: 0, autoAccept: false } as RecruiterCriteria,
+  criteria: { skill: null, minLevel: 0, factionLean: null, autoAccept: false } as RecruiterCriteria,
   cumulativeNoHireDays: 0,
   lastRollDay: 0,
 }))

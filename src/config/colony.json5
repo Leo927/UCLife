@@ -73,6 +73,8 @@
       colonyBar: 3,
       colonyMarket: 3,
       colonyClinic: 4,
+      // Phase 6.4.B — colony recruitment post construction time.
+      colonyRecruitmentPost: 4,
     },
     interruptChancePerJobPerDay: 0.1,
   },

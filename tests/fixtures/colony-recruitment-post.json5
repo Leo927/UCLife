@@ -1,0 +1,21 @@
+{
+  // Phase 6.4.B recruitment-scale smoke fixture.
+  // Player starts near the vonBraunCity recruit office with enough money
+  // to buy the building and run a salary debit. Seed is fixed so the
+  // seeded RNG produces a deterministic applicant spawn + faction-lean
+  // sequence across all test steps.
+  seed: 'recruitment-scale-6-4-b',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000000,
+    location: { scene: 'vonBraunCity', x: 32, y: 18 },
+    skills: { engineering: 0, piloting: 10 },
+    background: 'soldier',
+  },
+
+  factions: [
+    { id: 'anaheim', money: 1000000 },
+  ],
+}

@@ -285,6 +285,7 @@ interface ApplicantSnapshot {
   topSkillLevel: number
   qualityScore: number
   summary: string
+  factionLean: string | null
 }
 
 registerDebugHandle('recruiterLobby', (): ApplicantSnapshot[] => {
@@ -298,6 +299,7 @@ registerDebugHandle('recruiterLobby', (): ApplicantSnapshot[] => {
     topSkillLevel: data.topSkillLevel,
     qualityScore: data.qualityScore,
     summary: data.summary,
+    factionLean: data.factionLean,
   }))
 })
 
@@ -312,7 +314,7 @@ registerDebugHandle('recruiterSpawnApplicant', (): { ok: boolean; reason?: strin
 })
 
 registerDebugHandle('recruiterSetCriteria', (
-  skill: SkillId | null, minLevel: number, autoAccept: boolean,
+  skill: SkillId | null, minLevel: number, autoAccept: boolean, factionLean?: string | null,
 ): { ok: boolean; reason?: string } => {
   const player = world.queryFirst(IsPlayer)
   if (!player) return { ok: false, reason: 'no player' }
@@ -320,7 +322,7 @@ registerDebugHandle('recruiterSetCriteria', (
   if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
   if (!ws.has(Recruiter)) return { ok: false, reason: 'no Recruiter trait' }
   const cur = ws.get(Recruiter)!
-  ws.set(Recruiter, { ...cur, criteria: { skill, minLevel, autoAccept } })
+  ws.set(Recruiter, { ...cur, criteria: { skill, minLevel, factionLean: factionLean ?? null, autoAccept } })
   return { ok: true }
 })
 
