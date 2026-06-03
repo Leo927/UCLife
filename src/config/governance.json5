@@ -1,0 +1,67 @@
+{
+  // Governance council — Phase 6.4.C.
+  // No magic numbers: every numerical knob lives here.
+
+  // How many game-days a dissenting officer carries the mood penalty
+  // after a council resolution they voted against.
+  dissentDurationDays: 14,
+
+  // Mood delta applied to a dissenting officer (negative = unhappy).
+  dissentMoodDelta: -20,
+
+  // Policy catalog. Each policy has a set of discrete options and a
+  // default value. Effects are additive multiplier deltas applied to the
+  // faction StatSheet via addFactionEffect (effectId = 'policy:<kind>').
+  // revenueMul and maintenanceMul are the live consumer stats on the
+  // FactionStatSheet; the others are reserved-but-wired slots.
+  policies: {
+    taxation: {
+      defaultValue: 0.10,
+      options: [0.08, 0.10, 0.12, 0.15],
+      labelZh: '税率',
+      // Effect on faction stats per option.
+      // Key must match an option value serialized as a string.
+      effects: {
+        '0.08': { revenueMul: -0.10, loyaltyDriftMul: -0.10 },
+        '0.10': { revenueMul:  0.00, loyaltyDriftMul:  0.00 },
+        '0.12': { revenueMul:  0.20, loyaltyDriftMul:  0.10 },
+        '0.15': { revenueMul:  0.50, loyaltyDriftMul:  0.30 },
+      },
+    },
+
+    alignment: {
+      defaultValue: 'neutral',
+      options: ['federation', 'neutral', 'zeon'],
+      labelZh: '政治立场',
+      effects: {
+        federation: { recruitChanceMul: 0.10, loyaltyDriftMul: -0.05 },
+        neutral:    { recruitChanceMul: 0.00, loyaltyDriftMul:  0.00 },
+        zeon:       { recruitChanceMul: 0.10, loyaltyDriftMul: -0.05 },
+      },
+    },
+
+    tradePriority: {
+      defaultValue: 'balanced',
+      options: ['commerce', 'balanced', 'military'],
+      labelZh: '贸易重心',
+      effects: {
+        commerce:  { revenueMul: 0.15, maintenanceMul: -0.05, researchSpeedMul: -0.05 },
+        balanced:  { revenueMul: 0.00, maintenanceMul:  0.00, researchSpeedMul:  0.00 },
+        military:  { revenueMul: -0.05, maintenanceMul: 0.10, researchSpeedMul:  0.10 },
+      },
+    },
+  },
+
+  // Attendee scoring — how NPC traits influence their stance on each policy.
+  // Scores > 0 mean the NPC tends to support a more aggressive version;
+  // scores < 0 mean they prefer a conservative stance.
+  // These are deltas per unit of skill level (0-100 scale).
+  stanceWeights: {
+    // Higher intelligence → prefers revenue stability (moderate taxation).
+    // Higher charisma → willing to push for what the player wants.
+    intelligencePerLevel:  0.5,
+    charismaPerLevel:      0.3,
+    // NPC opinion of the player shifts stance toward player's position.
+    opinionPerPoint:       0.1,
+  },
+}
