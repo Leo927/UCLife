@@ -11,7 +11,7 @@
 import type { Entity, World, TraitInstance } from 'koota'
 import {
   Faction, EntityKey, Owner, Building, Character, Money, IsPlayer, FactionRole, Facility,
-  FactionSheet, FactionEffectsList, FactionUnlocks, FactionResearch,
+  FactionSheet, FactionEffectsList, FactionUnlocks, FactionResearch, FactionInterRep,
 } from './traits'
 import { factionsConfig, ownershipConfig, isPrivateBuildingType, type FactionId } from '../config'
 import { SeededRng } from '../procgen'
@@ -41,6 +41,7 @@ export function bootstrapFactions(world: World): void {
       FactionEffectsList,
       FactionUnlocks,
       FactionResearch,
+      FactionInterRep,
     )
   }
 }

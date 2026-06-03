@@ -4,6 +4,9 @@ import { dialogueText, pickByTitle } from '../../../data/dialogueText'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 export function rootGreetingFor(ctx: DialogueCtx): string {
+  if (ctx.roles.isPlayerFactionLeader && ctx.roles.isFactionAlignedNpc) {
+    return dialogueText.greetings.factionLeader ?? pickByTitle(dialogueText.greetings, ctx.title, ctx.employed)
+  }
   return pickByTitle(dialogueText.greetings, ctx.title, ctx.employed)
 }
 

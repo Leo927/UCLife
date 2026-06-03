@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import type { Entity } from 'koota'
-import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building, Conditions } from '../ecs/traits'
+import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building, Conditions, Faction, FactionRole } from '../ecs/traits'
 import type { ActionKind, Gender } from '../ecs/traits'
+import { hasFactionUnlock } from '../ecs/factionEffects'
+import { FACTION_TIER_UNLOCK_ID } from '../systems/factionTier'
 import { useUI } from './uiStore'
 import { actionLabel } from '../data/actions'
 import { getJobSpec } from '../data/jobs'
@@ -29,6 +31,7 @@ export function NPCDialog() {
   const action = useTrait(target, Action)
   const job = useTrait(target, Job)
   const player = useQueryFirst(IsPlayer)
+  const allFactions = useQuery(Faction)
   const allStations = useQuery(Workstation)
   // Subscribe to Owner so the seller branch refreshes after a transaction.
   const allBuildings = useQuery(Building, Owner)
@@ -99,6 +102,15 @@ export function NPCDialog() {
     ),
     ownsPrivateFacility,
     managerStation: ws,
+    // Phase 6.4.A — player-faction tier status for greeting variants.
+    isPlayerFactionLeader: (() => {
+      const pf = allFactions.find((e) => e.get(Faction)!.id === 'player')
+      return pf ? hasFactionUnlock(pf, FACTION_TIER_UNLOCK_ID) : false
+    })(),
+    isFactionAlignedNpc: (() => {
+      const fr = target?.get(FactionRole)
+      return !!(fr && fr.faction !== 'civilian' && fr.faction !== 'player')
+    })(),
   }
 
   const root = buildNpcDialogue({ npc: target, title, employed, roles })

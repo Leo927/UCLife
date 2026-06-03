@@ -261,6 +261,16 @@ export const FactionResearch = trait(() => ({
   completed: [] as string[],
 }))
 
+// Phase 6.4.A — inter-faction reputation slot for the player-faction.
+// Seeded at faction-tier unlock from the player's accumulated personal
+// canon-faction standing; persisted as faction state (not character
+// state). The values represent standing toward the player-faction as
+// observed by each canon faction, capped at the regional-power ceiling
+// in factions.json5 so the player stays canonically minor.
+export const FactionInterRep = trait(() => ({
+  rep: {} as Partial<Record<FactionId, number>>,
+}))
+
 // Phase 6.2.A hangar facility. Sits alongside Building + Facility on
 // hangar entities (state-rental + player-owned). The tier governs which
 // slot classes the bay can hold; slotCapacity is the per-class cap.

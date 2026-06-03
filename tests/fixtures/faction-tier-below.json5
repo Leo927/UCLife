@@ -1,0 +1,21 @@
+// Phase 6.4.A fixture — player just BELOW the faction-tier gate.
+// Three ships (meets minShips), zero colonies, zero canon-faction rep
+// (does not meet minColonies or minCanonRepSum thresholds).
+// Used by faction-tier-unlock.spec.ts: start below threshold, then
+// grant colonies + rep programmatically via debug handles to cross it.
+{
+  seed: 'faction-tier-001',
+  startDate: '2026-06-01T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+
+  ships: [
+    { id: 'ship',   template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun' },
+    { id: 'ship-2', template: 'lightFreighter', name: '希望号', dockedAt: 'vonBraun' },
+    { id: 'ship-3', template: 'lightFreighter', name: '前进号', dockedAt: 'vonBraun' },
+  ],
+}

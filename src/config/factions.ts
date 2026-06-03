@@ -24,10 +24,20 @@ export interface FactionSpec {
   seniorPromotionMinOpinion: number
 }
 
+// Phase 6.4.A — faction-tier emergence gate thresholds + regional ceiling.
+export interface FactionTierGateConfig {
+  minColonies: number
+  minShips: number
+  minCanonRepSum: number
+  regionalPowerCeiling: number
+}
+
 export interface FactionsConfig {
   catalog: Record<string, FactionSpec>
   // Each entry is the minimum rep value to qualify for that grade.
   tierThresholds: Record<FactionTier, number>
+  // Phase 6.4.A — faction-tier gate constants.
+  factionTierGate: FactionTierGateConfig
 }
 
 export const factionsConfig = json5.parse(raw) as FactionsConfig

@@ -66,6 +66,9 @@ import './boot/brigConditionTick'
 // fraction of the CP pool on each daily rollover so a long campaign leg slowly
 // tops the bandwidth back up between engagements.
 import './boot/commandPointsTick'
+// Phase 6.4.A — faction-tier gate check. Runs after colonies + construction
+// settle so colony count is authoritative when the gate evaluates.
+import './boot/factionTierTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

@@ -93,4 +93,21 @@
     D: -40,  // 冷淡 — cold
     E: -100, // 敌对 — enemy
   },
+
+  // Phase 6.4.A — faction-tier emergence gate. All three conditions must
+  // hold on the same day:rollover for the gate to flip to faction tier.
+  // One-way in this slice — demotion machinery lands in Phase 7+.
+  factionTierGate: {
+    // Minimum player-owned colonies required.
+    minColonies: 2,
+    // Minimum non-mothballed fleet ships required.
+    minShips: 3,
+    // Minimum combined personal reputation across all canon factions
+    // (anaheim + federation + zeon + pirate summed).
+    minCanonRepSum: 80,
+    // Maximum rep the player-faction can seed/accumulate toward any
+    // single canon faction. Keeps the player canonically minor —
+    // the war still goes the way the war goes.
+    regionalPowerCeiling: 90,
+  },
 }

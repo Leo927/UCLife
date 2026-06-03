@@ -55,6 +55,12 @@ export type DialogueRoles = {
   isAEPartsDealerOnDuty: boolean
   ownsPrivateFacility: boolean
   managerStation: Entity | null
+  // Phase 6.4.A — player holds faction-tier unlock (player-faction is a
+  // first-class power). Faction-aligned NPCs use the leader greeting.
+  isPlayerFactionLeader: boolean
+  // Phase 6.4.A — NPC belongs to a canon faction (not civilian/player).
+  // Combined with isPlayerFactionLeader to gate the leader greeting variant.
+  isFactionAlignedNpc: boolean
 }
 
 export type DialogueCtx = {

@@ -14,9 +14,10 @@
 
 import { registerTraitSerializer } from '../../save/traitRegistry'
 import {
-  FactionSheet, FactionEffectsList, FactionUnlocks, FactionResearch,
+  FactionSheet, FactionEffectsList, FactionUnlocks, FactionResearch, FactionInterRep,
   type FactionStatId,
 } from '../../ecs/traits'
+import type { FactionId } from '../../config'
 import {
   attachFormulas, serializeSheet, type SerializedSheet,
 } from '../../stats/sheet'
@@ -130,5 +131,24 @@ registerTraitSerializer<FactionResearchSnap>({
         lostOverflowToday: 0, completed: [],
       })
     }
+  },
+})
+
+// Phase 6.4.A — inter-faction reputation slot on the player-faction entity.
+interface FactionInterRepSnap {
+  rep: Partial<Record<FactionId, number>>
+}
+
+registerTraitSerializer<FactionInterRepSnap>({
+  id: 'factionInterRep',
+  trait: FactionInterRep,
+  read: (e) => ({ rep: { ...e.get(FactionInterRep)!.rep } }),
+  write: (e, v) => {
+    const rep = { ...v.rep }
+    if (e.has(FactionInterRep)) e.set(FactionInterRep, { rep })
+    else e.add(FactionInterRep({ rep }))
+  },
+  reset: (e) => {
+    if (e.has(FactionInterRep)) e.set(FactionInterRep, { rep: {} })
   },
 })
