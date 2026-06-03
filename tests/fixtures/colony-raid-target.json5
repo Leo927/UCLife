@@ -1,0 +1,31 @@
+// Phase 6.3.E fixture — wealthy, under-garrisoned colony for pirate raid smoke test.
+//
+// The colony is player-owned at the Mariko Refinery POI with:
+//   - A refinery-shell building that has been generating income, so
+//     accumulatedIncome > 0 and raidChance > baseRaidChancePerDay.
+//   - No barracks buildings → garrisonStrength = 0.
+//   - No garrison commander assigned → commander skill level = 0.
+//   - pirateAttentionFlag is set via debug handle in the smoke test.
+//
+// The smoke test claims the colony, inflates accumulatedIncome via the
+// economics debug handle, then calls forceColonyThreats to verify a raid
+// spawns. It also verifies auto-resolve works when a barracks is added.
+{
+  seed: 'colony-raid-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'marikoRefineryScene',
+
+  player: {
+    money: 500000,
+    location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
+  },
+
+  ships: [
+    {
+      id: 'ship',
+      template: 'pegasusClass',
+      name: '木马号',
+      dockedAt: 'marikoRefinery',
+    },
+  ],
+}

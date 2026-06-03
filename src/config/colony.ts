@@ -50,6 +50,23 @@ export interface ColonyDetentionConfig {
   defaultDetentionCapacity: number
 }
 
+// Phase 6.3.E — threat configuration shape.
+export interface ColonyThreatsConfig {
+  baseRaidChancePerDay: number
+  raidWealthFactor: number
+  raidGarrisonFactor: number
+  maxRaidChancePerDay: number
+  pirateAttentionMultiplier: number
+  garrisonStrengthPerBarracks: number
+  garrisonCommanderSkillStandin: string
+  garrisonStrengthPerCommanderSkillLevel: number
+  autoResolveGarrisonThreshold: number
+  raidThreatLevel: number
+  raidCooldownDays: number
+  stabilityFloor: number
+  collapseGraceDays: number
+}
+
 export interface ColonyConfig {
   income: ColonyIncomeConfig
   stability: ColonyStabilityConfig
@@ -60,6 +77,7 @@ export interface ColonyConfig {
   establishmentPackage: ColonyEstablishmentPackageConfig
   adminLoad: ColonyAdminLoadConfig
   detention: ColonyDetentionConfig
+  threats: ColonyThreatsConfig
 }
 
 export const colonyConfig = json5.parse(raw) as ColonyConfig
