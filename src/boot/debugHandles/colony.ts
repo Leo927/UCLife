@@ -1,6 +1,7 @@
 // Phase 6.3.B — colony economics debug handles.
 // Phase 6.3.C — extended with construction, charter, and establishment-package handles.
 // Phase 6.3.D — extended with admin-load, officer assignment, and detention handles.
+// Phase 6.3.E — extended with colony threat state + threat system trigger handles.
 // Exposes per-colony state for deterministic smoke tests without going
 // through the UI. All handles are gated behind DEV mode in bootProd.tsx.
 
@@ -8,16 +9,19 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import {
   getColonyEconomics, setColonyEconomics,
   addColonyWarehouseItem, isPlayerColony,
-  claimColony,
+  claimColony, getColonyRecord,
   addConstructionJob, getConstructionJobs, getAllConstructionJobEntries,
   getBuildPathState, setBuildPathState,
   assignColonyRole, getColonyRole, getDetentionOccupants, getDetentionCapacity,
+  getColonyThreatState, setColonyThreatState,
   type WarehouseItem,
   type ConstructionJob,
   type ColonyRole,
+  type ColonyThreatState,
 } from '../../sim/colony'
 import { colonyEconomicsSystem, colonyResupplyFromHangar } from '../../systems/colonyEconomics'
 import { colonyConstructionSystem, fireConstructionInterrupt } from '../../systems/colonyConstruction'
+import { colonyThreatsSystem, computeGarrisonStrength } from '../../systems/colonyThreats'
 import { computeAdminLoadStatus, computeAdminCapacity } from '../../systems/colonyAdmin'
 import { routeBrigOverflowToColonyDetention } from '../../systems/colonyDetention'
 import { useBrig } from '../../sim/brig'
@@ -381,3 +385,97 @@ registerDebugHandle(
 registerDebugHandle('brigGetOverflow', (): PrisonerRecord[] => {
   return useBrig.getState().overflowPrisoners.slice()
 })
+
+// ── Phase 6.3.E — colony threat state + threat system handles ───────────────
+
+interface ThreatStateSnapshot {
+  poiId: string
+  lastRaidAttemptDay: number
+  collapseGraceStartDay: number
+}
+
+registerDebugHandle('colonyGetThreatState', (poiId: string): ThreatStateSnapshot | null => {
+  if (!isPlayerColony(poiId)) return null
+  const state = getColonyThreatState(poiId)
+  return { poiId, ...state }
+})
+
+registerDebugHandle(
+  'colonySetThreatState',
+  (poiId: string, state: ColonyThreatState): { ok: boolean } => {
+    if (!isPlayerColony(poiId)) return { ok: false }
+    setColonyThreatState(poiId, state)
+    return { ok: true }
+  },
+)
+
+interface ForceThreatsResult {
+  day: number
+  coloniesProcessed: number
+  raidsSpawned: number
+  autoResolved: number
+  collapseWarningsFired: number
+  coloniesForfeited: number
+}
+
+registerDebugHandle('forceColonyThreats', (gameDay?: number): ForceThreatsResult => {
+  const day = gameDay ?? gameDayNumber(useClock.getState().gameDate)
+  const r = colonyThreatsSystem(day)
+  return { day, ...r }
+})
+
+interface GarrisonSnapshot {
+  poiId: string
+  garrisonStrength: number
+  autoResolveThreshold: number
+  canAutoResolve: boolean
+}
+
+registerDebugHandle('colonyGetGarrisonStrength', (poiId: string): GarrisonSnapshot | null => {
+  if (!isPlayerColony(poiId)) return null
+  const rec = getColonyRecord(poiId)
+  if (!rec) return null
+  const sceneId = getPrimaryDockScene(poiId)
+  if (!sceneId) return null
+  const w = getWorld(sceneId)
+  const garrisonStrength = computeGarrisonStrength(w, rec)
+  const autoResolveThreshold = colonyConfig.threats.autoResolveGarrisonThreshold
+  return {
+    poiId,
+    garrisonStrength,
+    autoResolveThreshold,
+    canAutoResolve: garrisonStrength >= autoResolveThreshold,
+  }
+})
+
+interface ForceRaidResult {
+  ok: boolean
+  poiId: string
+  autoResolved: boolean
+  garrisonStrength: number
+  reason?: string
+}
+
+// Deterministic handle: directly trigger a pirate raid on the colony
+// without a random roll. Used by smoke tests to verify raid consequences
+// (cooldown tracking, auto-resolve) without depending on RNG outcomes.
+registerDebugHandle(
+  'colonyForceRaid',
+  (poiId: string, gameDay: number): ForceRaidResult => {
+    if (!isPlayerColony(poiId)) return { ok: false, poiId, autoResolved: false, garrisonStrength: 0, reason: 'not_a_player_colony' }
+    const rec = getColonyRecord(poiId)
+    if (!rec) return { ok: false, poiId, autoResolved: false, garrisonStrength: 0, reason: 'no_record' }
+    const sceneId = getPrimaryDockScene(poiId)
+    if (!sceneId) return { ok: false, poiId, autoResolved: false, garrisonStrength: 0, reason: 'no_scene' }
+    const w = getWorld(sceneId)
+    const garrisonStrength = computeGarrisonStrength(w, rec)
+    const cfg = colonyConfig.threats
+    const autoResolved = garrisonStrength >= cfg.autoResolveGarrisonThreshold
+
+    // Record the raid on the threat state.
+    const threat = getColonyThreatState(poiId)
+    setColonyThreatState(poiId, { ...threat, lastRaidAttemptDay: gameDay })
+
+    return { ok: true, poiId, autoResolved, garrisonStrength }
+  },
+)

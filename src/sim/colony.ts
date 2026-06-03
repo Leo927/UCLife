@@ -3,6 +3,7 @@
 // Phase 6.3.C extends with construction jobs, charter state, and establishment
 // package tracking for the build-path acquisition arc.
 // Phase 6.3.D extends with named-officer role assignments and colony detention.
+// Phase 6.3.E extends with per-colony threat state (raid cooldown + collapse grace).
 // Tracks which POIs the player-faction has claimed.
 // Keyed by poiId; each record carries the entity key of the installed admin.
 // State persists via src/boot/saveHandlers/colony.ts.
@@ -68,6 +69,9 @@ export function claimColony(poiId: string, adminEntityKey: string | null): void 
   if (!economics.has(poiId)) {
     economics.set(poiId, freshEconomicsState())
   }
+  if (!threatStates.has(poiId)) {
+    threatStates.set(poiId, freshThreatState())
+  }
 }
 
 export function isPlayerColony(poiId: string): boolean {
@@ -107,11 +111,40 @@ export function getAllColonyEconomicsEntries(): Array<{ poiId: string; state: Co
   return [...economics.entries()].map(([poiId, state]) => ({ poiId, state }))
 }
 
+// Phase 6.3.E — threat state accessors.
+
+export function getColonyThreatState(poiId: string): ColonyThreatState {
+  return threatStates.get(poiId) ?? freshThreatState()
+}
+
+export function setColonyThreatState(poiId: string, state: ColonyThreatState): void {
+  threatStates.set(poiId, state)
+}
+
+export function getAllColonyThreatEntries(): Array<{ poiId: string; state: ColonyThreatState }> {
+  return [...threatStates.entries()].map(([poiId, state]) => ({ poiId, state }))
+}
+
+// Phase 6.3.E — ownership forfeit. Removes the colony from the registry
+// (records, economics, construction, threat state) and clears officer roles +
+// detention occupants so no dangling EntityKey refs remain. Does NOT destroy
+// ECS entities inside the colony scene — the scene stays up but the POI
+// is no longer player-owned.
+export function forfeitColony(poiId: string): boolean {
+  if (!records.has(poiId)) return false
+  records.delete(poiId)
+  economics.delete(poiId)
+  constructionJobs.delete(poiId)
+  threatStates.delete(poiId)
+  return true
+}
+
 export function resetColonies(): void {
   records.clear()
   economics.clear()
   constructionJobs.clear()
   buildPathState = freshBuildPathState()
+  threatStates.clear()
 }
 
 export function restoreColonies(
@@ -119,10 +152,12 @@ export function restoreColonies(
   economicsData?: Array<{ poiId: string; state: ColonyEconomicsState }>,
   constructionData?: Array<{ poiId: string; jobs: ConstructionJob[] }>,
   buildPath?: BuildPathState,
+  threatData?: Array<{ poiId: string; state: ColonyThreatState }>,
 ): void {
   records.clear()
   economics.clear()
   constructionJobs.clear()
+  threatStates.clear()
   for (const row of data) {
     records.set(row.poiId, {
       ...freshColonyRecord(row.poiId, row.adminEntityKey),
@@ -144,6 +179,9 @@ export function restoreColonies(
     for (const { poiId, jobs } of constructionData) constructionJobs.set(poiId, jobs.map((j) => ({ ...j })))
   }
   buildPathState = buildPath ? { ...buildPath } : freshBuildPathState()
+  if (threatData) {
+    for (const { poiId, state } of threatData) threatStates.set(poiId, { ...state })
+  }
 }
 
 // Phase 6.3.C — construction job types and registry.
@@ -176,8 +214,23 @@ function freshBuildPathState(): BuildPathState {
   }
 }
 
+// Phase 6.3.E — per-colony threat state.
+// Persisted via src/boot/saveHandlers/colony.ts.
+export interface ColonyThreatState {
+  // Game-day number of the last pirate raid attempt. 0 = never.
+  lastRaidAttemptDay: number
+  // Game-day number when the stability floor was first breached.
+  // 0 = colony is not currently in a collapse grace period.
+  collapseGraceStartDay: number
+}
+
+function freshThreatState(): ColonyThreatState {
+  return { lastRaidAttemptDay: 0, collapseGraceStartDay: 0 }
+}
+
 const constructionJobs = new Map<string, ConstructionJob[]>()
 let buildPathState: BuildPathState = freshBuildPathState()
+const threatStates = new Map<string, ColonyThreatState>()
 
 export function addConstructionJob(job: ConstructionJob): void {
   const existing = constructionJobs.get(job.poiId) ?? []

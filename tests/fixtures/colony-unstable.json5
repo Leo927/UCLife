@@ -1,0 +1,22 @@
+// Phase 6.3.E fixture — chronically unstable colony for stability-collapse smoke test.
+//
+// The colony at the Mariko Refinery POI with:
+//   - Stability deliberately driven below the floor via debug handle in the test.
+//   - No garrison or barracks (does not affect collapse — that's purely stability).
+//
+// The smoke test claims the colony, drives stability below the floor, then
+// advances colonyThreats across the grace period to verify:
+//   1. Warning fires on the first day below the floor.
+//   2. Ownership is lost after collapseGraceDays.
+//   3. The POI reverts (no longer player-owned) and no dangling refs remain.
+//   4. Save/load mid-grace preserves the collapseGraceStartDay counter.
+{
+  seed: 'colony-unstable-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'marikoRefineryScene',
+
+  player: {
+    money: 500000,
+    location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
+  },
+}

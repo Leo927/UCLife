@@ -9,7 +9,9 @@ import { useUI } from '../ui/uiStore'
 import { factionsConfig, type FactionId } from '../config'
 import {
   isPlayerColony, getColonyRecord, getColonyEconomics, getDetentionOccupants, getDetentionCapacity,
+  getColonyThreatState,
   type WarehouseItem,
+  type ColonyThreatState,
 } from '../sim/colony'
 import { computeAdminLoadStatus, type AdminLoadStatus } from '../systems/colonyAdmin'
 
@@ -74,6 +76,9 @@ export interface ColonyRolesView {
   detentionCapacity: number
 }
 
+// Phase 6.3.E — colony threat state view for smoke tests.
+export type { ColonyThreatState as ColonyThreatView }
+
 export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
@@ -93,6 +98,10 @@ export interface GameStateView {
   // Phase 6.3.D — officer roles + detention state for a colony.
   // Returns null when the poiId is not a player-owned colony.
   getColonyRoles(poiId: string): ColonyRolesView | null
+  // Phase 6.3.E — threat state for a colony (raid cooldown + collapse grace).
+  // Returns a fresh (zero) state when the colony is player-owned but has no
+  // prior threat activity; returns null when the colony is not player-owned.
+  getColonyThreatState(poiId: string): ColonyThreatState | null
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -336,6 +345,10 @@ export function getGameState(): GameStateView {
         detentionOccupants: getDetentionOccupants(poiId),
         detentionCapacity: getDetentionCapacity(),
       }
+    },
+    getColonyThreatState(poiId: string): ColonyThreatState | null {
+      if (!isPlayerColony(poiId)) return null
+      return getColonyThreatState(poiId)
     },
   }
 }

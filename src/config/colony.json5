@@ -125,4 +125,50 @@
   detention: {
     defaultDetentionCapacity: 4,
   },
+
+  // Phase 6.3.E — colony threat configuration.
+  // Raid chance formula per day:
+  //   chance = clamp(0, maxRaidChancePerDay,
+  //              baseRaidChancePerDay
+  //              + raidWealthFactor * dailyIncome
+  //              - raidGarrisonFactor * garrisonStrength)
+  //   If pirateAttentionFlag is set: chance *= pirateAttentionMultiplier.
+  //
+  // Garrison strength formula:
+  //   strength = barracksCount * garrisonStrengthPerBarracks
+  //              + commanderLevel * garrisonStrengthPerCommanderSkillLevel
+  //
+  // Stability collapse: when stabilityScore drops below stabilityFloor for
+  // collapseGraceDays consecutive days the player loses colony ownership.
+  threats: {
+    // Per-day base probability of a pirate raid when garrison = 0, income = 0.
+    baseRaidChancePerDay: 0.05,
+    // Additional raid chance per credit of daily colony income.
+    raidWealthFactor: 0.00005,
+    // Raid-chance reduction per unit of garrison strength.
+    raidGarrisonFactor: 0.01,
+    // Maximum raid chance per day regardless of wealth / garrison.
+    maxRaidChancePerDay: 0.4,
+    // Multiplier applied to raid chance when the colony has pirateAttentionFlag.
+    pirateAttentionMultiplier: 2.0,
+    // Garrison strength contributed per colonyBarracks building present.
+    garrisonStrengthPerBarracks: 3,
+    // Stand-in skill id for garrison commander effectiveness (swap to Tactics
+    // when it ships — config-only change, same pattern as adminLoad.leadershipSkillStandin).
+    garrisonCommanderSkillStandin: 'piloting',
+    // Garrison strength per skill LEVEL of the assigned garrison commander.
+    garrisonStrengthPerCommanderSkillLevel: 0.5,
+    // Minimum garrison strength for the garrison to auto-resolve a raid without
+    // player involvement.
+    autoResolveGarrisonThreshold: 5,
+    // Threat level of a standard pirate raid (compared to garrison strength for
+    // auto-resolve; determines encounter difficulty if the player must defend).
+    raidThreatLevel: 4,
+    // Minimum game-days between raid attempts on the same colony.
+    raidCooldownDays: 7,
+    // Stability score at which the colony enters the collapse grace period.
+    stabilityFloor: -30,
+    // Number of consecutive days below the stability floor before ownership is lost.
+    collapseGraceDays: 3,
+  },
 }

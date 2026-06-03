@@ -33,6 +33,9 @@ import './boot/colonyEconomicsTick'
 // Phase 6.3.C — colony construction advances on the same settled event
 // so facility completions land after the economics rollup.
 import './boot/colonyConstructionTick'
+// Phase 6.3.E — pirate raid rolls + stability-collapse grace checks run
+// after construction settles so stability scores are current.
+import './boot/colonyThreatsTick'
 // Phase 6.2.B — hangar repair throughput rides the same event so the
 // repair tick lands after dailyEconomics + research settle for the day.
 import './boot/hangarRepairTick'
