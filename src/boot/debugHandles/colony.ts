@@ -1,5 +1,6 @@
 // Phase 6.3.B — colony economics debug handles.
 // Phase 6.3.C — extended with construction, charter, and establishment-package handles.
+// Phase 6.3.D — extended with admin-load, officer assignment, and detention handles.
 // Exposes per-colony state for deterministic smoke tests without going
 // through the UI. All handles are gated behind DEV mode in bootProd.tsx.
 
@@ -10,11 +11,17 @@ import {
   claimColony,
   addConstructionJob, getConstructionJobs, getAllConstructionJobEntries,
   getBuildPathState, setBuildPathState,
+  assignColonyRole, getColonyRole, getDetentionOccupants, getDetentionCapacity,
   type WarehouseItem,
   type ConstructionJob,
+  type ColonyRole,
 } from '../../sim/colony'
 import { colonyEconomicsSystem, colonyResupplyFromHangar } from '../../systems/colonyEconomics'
 import { colonyConstructionSystem, fireConstructionInterrupt } from '../../systems/colonyConstruction'
+import { computeAdminLoadStatus, computeAdminCapacity } from '../../systems/colonyAdmin'
+import { routeBrigOverflowToColonyDetention } from '../../systems/colonyDetention'
+import { useBrig } from '../../sim/brig'
+import type { PrisonerRecord } from '../../sim/brig'
 import { gameDayNumber, useClock } from '../../sim/clock'
 import { fleetConfig, recruitmentConfig, colonyConfig } from '../../config'
 import { getPrimaryDockScene } from '../../data/pois'
@@ -286,4 +293,91 @@ registerDebugHandle('getSpeed', (): number => {
 
 registerDebugHandle('colonyGetAllConstructionJobs', (): Array<{ poiId: string; jobs: ConstructionJob[] }> => {
   return getAllConstructionJobEntries()
+})
+
+// ── Phase 6.3.D — admin-load + officer assignment + detention handles ────────
+
+interface AssignRoleResult {
+  ok: boolean
+  poiId: string
+  role: ColonyRole
+  entityKey: string
+  reason?: string
+}
+
+registerDebugHandle(
+  'colonyAssignRole',
+  (poiId: string, role: ColonyRole, entityKey: string): AssignRoleResult => {
+    if (!isPlayerColony(poiId)) return { ok: false, poiId, role, entityKey, reason: 'not_a_player_colony' }
+    const ok = assignColonyRole(poiId, role, entityKey)
+    return { ok, poiId, role, entityKey }
+  },
+)
+
+registerDebugHandle(
+  'colonyGetRole',
+  (poiId: string, role: ColonyRole): string => getColonyRole(poiId, role),
+)
+
+interface AdminLoadSnapshot {
+  totalLoad: number
+  capacity: number
+  overloadAmount: number
+  isOverloaded: boolean
+  leadershipSkillStandin: string
+}
+
+registerDebugHandle('colonyGetAdminLoad', (): AdminLoadSnapshot => {
+  const status = computeAdminLoadStatus()
+  return {
+    ...status,
+    leadershipSkillStandin: colonyConfig.adminLoad.leadershipSkillStandin,
+  }
+})
+
+registerDebugHandle('colonyGetAdminCapacity', (): number => computeAdminCapacity())
+
+interface DetentionSnapshot {
+  poiId: string
+  occupants: string[]
+  capacity: number
+}
+
+registerDebugHandle('colonyGetDetention', (poiId: string): DetentionSnapshot => ({
+  poiId,
+  occupants: getDetentionOccupants(poiId),
+  capacity: getDetentionCapacity(),
+}))
+
+interface RoutingResult {
+  routed: number
+  detentionFull: boolean
+}
+
+registerDebugHandle(
+  'colonyRouteBrigOverflow',
+  (poiId: string): RoutingResult => routeBrigOverflowToColonyDetention(poiId),
+)
+
+// Force-add a prisoner to brig overflow (less-secure quarters) for testing the
+// detention routing path without staging an actual over-capacity combat.
+registerDebugHandle(
+  'brigAddOverflow',
+  (id: string, factionId: string = 'pirate'): { ok: boolean; id: string } => {
+    const rec: PrisonerRecord = {
+      id,
+      nameZh: id,
+      contextZh: '(overflow-test)',
+      factionId,
+      capturedAtMs: Date.now(),
+      entityKey: id,
+      provision: 100,
+    }
+    useBrig.getState().addToOverflow(rec)
+    return { ok: true, id }
+  },
+)
+
+registerDebugHandle('brigGetOverflow', (): PrisonerRecord[] => {
+  return useBrig.getState().overflowPrisoners.slice()
 })

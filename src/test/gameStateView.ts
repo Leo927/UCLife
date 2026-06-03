@@ -7,7 +7,11 @@ import {
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
 import { factionsConfig, type FactionId } from '../config'
-import { isPlayerColony, getColonyRecord, getColonyEconomics, type WarehouseItem } from '../sim/colony'
+import {
+  isPlayerColony, getColonyRecord, getColonyEconomics, getDetentionOccupants, getDetentionCapacity,
+  type WarehouseItem,
+} from '../sim/colony'
+import { computeAdminLoadStatus, type AdminLoadStatus } from '../systems/colonyAdmin'
 
 export interface CharacterView {
   getId(): string
@@ -61,6 +65,15 @@ export interface ColonyEconomicsView {
   lastRolloverDay: number
 }
 
+// Phase 6.3.D — colony roles + detention view.
+export interface ColonyRolesView {
+  administratorKey: string
+  leadEngineerKey: string
+  garrisonCommanderKey: string
+  detentionOccupants: string[]
+  detentionCapacity: number
+}
+
 export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
@@ -75,6 +88,11 @@ export interface GameStateView {
   // Phase 6.3.B — colony economics state query.
   // Returns null when the poiId is not a player-owned colony.
   getColonyEconomics(poiId: string): ColonyEconomicsView | null
+  // Phase 6.3.D — admin-load status across all player colonies.
+  getColonyAdminLoad(): AdminLoadStatus
+  // Phase 6.3.D — officer roles + detention state for a colony.
+  // Returns null when the poiId is not a player-owned colony.
+  getColonyRoles(poiId: string): ColonyRolesView | null
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -302,6 +320,21 @@ export function getGameState(): GameStateView {
         accumulatedIncome: econ.accumulatedIncome,
         warehouseContents: econ.warehouseContents,
         lastRolloverDay: econ.lastRolloverDay,
+      }
+    },
+    getColonyAdminLoad(): AdminLoadStatus {
+      return computeAdminLoadStatus()
+    },
+    getColonyRoles(poiId: string): ColonyRolesView | null {
+      if (!isPlayerColony(poiId)) return null
+      const rec = getColonyRecord(poiId)
+      if (!rec) return null
+      return {
+        administratorKey: rec.administratorKey,
+        leadEngineerKey: rec.leadEngineerKey,
+        garrisonCommanderKey: rec.garrisonCommanderKey,
+        detentionOccupants: getDetentionOccupants(poiId),
+        detentionCapacity: getDetentionCapacity(),
       }
     },
   }

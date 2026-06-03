@@ -2,10 +2,12 @@
 // Phase 6.3.B — extended with per-colony economics state.
 // Phase 6.3.C — extended with construction jobs and build-path state
 //               (charter grant, establishment package flag).
+// Phase 6.3.D — extended with officer role assignments and detention occupants.
 // Persists the set of player-owned colony POI records + economics state
 // across save/load. Each record carries the poiId, the installed admin's
 // EntityKey (null when no specific admin was designated in 6.3.A), plus
-// the 6.3.B stability/income/warehouse block and 6.3.C construction state.
+// the 6.3.B stability/income/warehouse block, 6.3.C construction state,
+// and 6.3.D role assignments + detention occupants.
 
 import { registerSaveHandler } from '../../save/registry'
 import {

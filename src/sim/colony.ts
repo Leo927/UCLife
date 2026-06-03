@@ -2,13 +2,25 @@
 // Phase 6.3.B extends with per-colony economics state.
 // Phase 6.3.C extends with construction jobs, charter state, and establishment
 // package tracking for the build-path acquisition arc.
+// Phase 6.3.D extends with named-officer role assignments and colony detention.
 // Tracks which POIs the player-faction has claimed.
 // Keyed by poiId; each record carries the entity key of the installed admin.
 // State persists via src/boot/saveHandlers/colony.ts.
 
+import { colonyConfig } from '../config/colony'
+
+// Phase 6.3.D — named officer roles that can be filled on a colony.
+export type ColonyRole = 'administrator' | 'leadEngineer' | 'garrisonCommander'
+
 export interface ColonyRecord {
   poiId: string
   adminEntityKey: string | null
+  // Phase 6.3.D — named-officer role assignments (EntityKey strings; '' = unassigned).
+  administratorKey: string
+  leadEngineerKey: string
+  garrisonCommanderKey: string
+  // Phase 6.3.D — EntityKey refs of prisoners held in colony detention.
+  detentionOccupants: string[]
 }
 
 // Phase 6.3.B — per-item warehouse slot. 'ms' = mobile suit entity key,
@@ -40,8 +52,19 @@ function freshEconomicsState(): ColonyEconomicsState {
 const records = new Map<string, ColonyRecord>()
 const economics = new Map<string, ColonyEconomicsState>()
 
+function freshColonyRecord(poiId: string, adminEntityKey: string | null): ColonyRecord {
+  return {
+    poiId,
+    adminEntityKey,
+    administratorKey: '',
+    leadEngineerKey: '',
+    garrisonCommanderKey: '',
+    detentionOccupants: [],
+  }
+}
+
 export function claimColony(poiId: string, adminEntityKey: string | null): void {
-  records.set(poiId, { poiId, adminEntityKey })
+  records.set(poiId, freshColonyRecord(poiId, adminEntityKey))
   if (!economics.has(poiId)) {
     economics.set(poiId, freshEconomicsState())
   }
@@ -100,7 +123,17 @@ export function restoreColonies(
   records.clear()
   economics.clear()
   constructionJobs.clear()
-  for (const row of data) records.set(row.poiId, { ...row })
+  for (const row of data) {
+    records.set(row.poiId, {
+      ...freshColonyRecord(row.poiId, row.adminEntityKey),
+      ...row,
+      // Backfill Phase 6.3.D fields absent from older save blobs.
+      administratorKey: row.administratorKey ?? '',
+      leadEngineerKey: row.leadEngineerKey ?? '',
+      garrisonCommanderKey: row.garrisonCommanderKey ?? '',
+      detentionOccupants: row.detentionOccupants ?? [],
+    })
+  }
   if (economicsData) {
     for (const { poiId, state } of economicsData) economics.set(poiId, { ...state })
   } else {
@@ -174,4 +207,54 @@ export function getBuildPathState(): BuildPathState {
 
 export function setBuildPathState(patch: Partial<BuildPathState>): void {
   buildPathState = { ...buildPathState, ...patch }
+}
+
+// Phase 6.3.D — named-officer role assignment accessors.
+
+export function assignColonyRole(poiId: string, role: ColonyRole, entityKey: string): boolean {
+  const rec = records.get(poiId)
+  if (!rec) return false
+  const updated = { ...rec }
+  if (role === 'administrator') updated.administratorKey = entityKey
+  else if (role === 'leadEngineer') updated.leadEngineerKey = entityKey
+  else if (role === 'garrisonCommander') updated.garrisonCommanderKey = entityKey
+  records.set(poiId, updated)
+  return true
+}
+
+export function getColonyRole(poiId: string, role: ColonyRole): string {
+  const rec = records.get(poiId)
+  if (!rec) return ''
+  if (role === 'administrator') return rec.administratorKey
+  if (role === 'leadEngineer') return rec.leadEngineerKey
+  if (role === 'garrisonCommander') return rec.garrisonCommanderKey
+  return ''
+}
+
+// Phase 6.3.D — colony detention occupant management.
+
+export function getDetentionCapacity(): number {
+  return colonyConfig.detention.defaultDetentionCapacity
+}
+
+export function getDetentionOccupants(poiId: string): string[] {
+  return records.get(poiId)?.detentionOccupants ?? []
+}
+
+export function addDetentionOccupant(poiId: string, entityKey: string): boolean {
+  const rec = records.get(poiId)
+  if (!rec) return false
+  if (rec.detentionOccupants.length >= getDetentionCapacity()) return false
+  if (rec.detentionOccupants.includes(entityKey)) return false
+  records.set(poiId, { ...rec, detentionOccupants: [...rec.detentionOccupants, entityKey] })
+  return true
+}
+
+export function removeDetentionOccupant(poiId: string, entityKey: string): boolean {
+  const rec = records.get(poiId)
+  if (!rec) return false
+  const next = rec.detentionOccupants.filter((k) => k !== entityKey)
+  if (next.length === rec.detentionOccupants.length) return false
+  records.set(poiId, { ...rec, detentionOccupants: next })
+  return true
 }
