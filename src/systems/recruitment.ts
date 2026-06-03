@@ -25,6 +25,7 @@ import type { Entity, World } from 'koota'
 import {
   Applicant, Building, Character, EntityKey, IsPlayer, Job,
   Position, RecruitedTo, Recruiter, Workstation, JobPerformance,
+  type RecruiterCriteria,
 } from '../ecs/traits'
 import { recruitmentConfig } from '../config'
 import { spawnNPC } from '../character/spawn'
@@ -129,11 +130,11 @@ function rollDailyApplicants(
     cumulativeNoHire = 0
     result.applicantsSpawned += 1
 
-    // Auto-accept on spawn: if the recruiter's filter is on and this
-    // applicant matches, promote them straight to faction-of-one membership.
-    if (recTrait.criteria.autoAccept && applicantMatchesCriteria(applicant, recTrait.criteria)) {
-      acceptApplicant(world, applicant, player)
-      result.applicantsAutoAccepted += 1
+    // Phase 6.4.B auto-approve with officer Leadership gate.
+    // High-skill officer: auto-accepts matching applicants only.
+    // Low-skill officer: matching accepted + mis-hire chance for off-criteria.
+    if (recTrait.criteria.autoAccept) {
+      applyOfficerAutoApprove(world, applicant, recruiter, recTrait.criteria, player, result)
     }
   }
 
@@ -235,6 +236,10 @@ function spawnApplicant(
   const expiresMs = useClock.getState().gameDate.getTime()
     + cfg.applicationLifetimeDays * 24 * 60 * 60 * 1000
 
+  // Phase 6.4.B — roll faction lean from the pool (seeded RNG for determinism).
+  const leanPool = cfg.factionLeanPool
+  const factionLean = leanPool[Math.floor(getSimRng().next() * leanPool.length)] ?? null
+
   ent.add(Applicant({
     recruiterStation: station,
     expiresMs,
@@ -242,6 +247,7 @@ function spawnApplicant(
     summary: characterizeApplicant(topSkill, topLevel),
     topSkillId: topSkill,
     topSkillLevel: topLevel,
+    factionLean,
   }))
   return ent
 }
@@ -278,11 +284,16 @@ function characterizeApplicant(skill: SkillId, level: number): string {
 
 export function applicantMatchesCriteria(
   applicant: Entity,
-  criteria: { skill: SkillId | null; minLevel: number },
+  criteria: { skill: SkillId | null; minLevel: number; factionLean?: string | null },
 ): boolean {
-  if (!criteria.skill) return true
   const a = applicant.get(Applicant)
   if (!a) return false
+
+  // Phase 6.4.B — faction lean gate. Checked before skill so a lean-only
+  // filter works (skill: null, factionLean: 'federation').
+  if (criteria.factionLean != null && a.factionLean !== criteria.factionLean) return false
+
+  if (!criteria.skill) return true
   if (a.topSkillId !== criteria.skill) {
     // Allow a lower-level skill to count if it meets minLevel even if
     // it's not the top skill — gives the player a more permissive filter
@@ -305,6 +316,36 @@ function expireApplicants(world: World, result: RecruitmentResult): void {
   for (const e of stale) {
     e.destroy()
     result.applicantsExpired += 1
+  }
+}
+
+// Phase 6.4.B — officer Leadership-gated auto-approve.
+// Called per-applicant immediately after spawn (when autoAccept is true).
+// High-skill officers accept only on-criteria applicants.
+// Low-skill officers also accept off-criteria applicants at lowSkillMishireRate.
+// Exported so the debug handle can replay the same logic on pre-existing lobby
+// applicants without re-spawning them (used by the smoke test for mis-hire).
+export function applyOfficerAutoApprove(
+  world: World,
+  applicant: Entity,
+  officer: Entity,
+  criteria: RecruiterCriteria,
+  player: Entity,
+  result: RecruitmentResult,
+): void {
+  const cfg = recruitmentConfig
+  const officerXp = getSkillXp(officer, cfg.officerAutoApprove.leadershipSkillStandin as SkillId)
+  const officerLevel = levelOf(officerXp)
+  const isHighSkill = officerLevel >= cfg.officerAutoApprove.highSkillThreshold
+  const matches = applicantMatchesCriteria(applicant, criteria)
+
+  if (matches) {
+    acceptApplicant(world, applicant, player)
+    result.applicantsAutoAccepted += 1
+  } else if (!isHighSkill && getSimRng().next() < cfg.officerAutoApprove.lowSkillMishireRate) {
+    // Mis-hire: low-skill officer accepts an off-criteria applicant.
+    acceptApplicant(world, applicant, player)
+    result.applicantsAutoAccepted += 1
   }
 }
 
@@ -334,6 +375,7 @@ export function getApplicantData(e: Entity) {
     expiresMs: a.expiresMs,
     topSkillId: a.topSkillId,
     topSkillLevel: a.topSkillLevel,
+    factionLean: a.factionLean,
   }
 }
 
@@ -401,6 +443,10 @@ export function _bumpApplicantSkill(npc: Entity, sid: SkillId, delta: number): v
   addSkillXp(npc, sid, delta)
 }
 
+// Building typeIds that host a recruiter workstation.
+// Phase 6.4.B adds colonyRecruitmentPost alongside the original recruitOffice.
+const RECRUITER_BUILDING_TYPES = new Set(['recruitOffice', 'colonyRecruitmentPost'])
+
 // Re-export so callers (RecruiterDialog) can resolve the player-owned
 // recruiter without re-walking workstations. Mirrors the secretary
 // helper in secretaryRoster.ts.
@@ -411,7 +457,7 @@ export function findOwnedRecruiterStation(
   for (const { ws, building } of playerOwnedWorkstations(world, player)) {
     const w = ws.get(Workstation)!
     if (w.specId !== 'recruiter') continue
-    if (building.get(Building)!.typeId !== 'recruitOffice') continue
+    if (!RECRUITER_BUILDING_TYPES.has(building.get(Building)!.typeId)) continue
     return ws
   }
   return null

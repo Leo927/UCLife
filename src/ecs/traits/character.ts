@@ -326,6 +326,9 @@ export const Applicant = trait(() => ({
   // already-queued applicants — the lobby reads this for display.
   topSkillId: '' as string,
   topSkillLevel: 0,
+  // Phase 6.4.B — faction lean rolled at spawn from recruitmentConfig.factionLeanPool.
+  // Matched against RecruiterCriteria.factionLean for auto-approve + player inspect.
+  factionLean: null as string | null,
 }))
 
 export const AtHelm = trait({
