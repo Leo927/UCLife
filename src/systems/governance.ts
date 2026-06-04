@@ -222,6 +222,10 @@ export function resolveCouncil(
   // Stamp or clear dissent on each attendee.
   for (const { entity, npcKey, stance } of dissentTargets) {
     if (stance === 'oppose') {
+      // koota's `.set` requires the trait to already exist on the entity;
+      // CouncilDissentMood is only ever attached here, so add-if-missing
+      // first to register it in this scene's world before writing.
+      if (!entity.has(CouncilDissentMood)) entity.add(CouncilDissentMood)
       entity.set(CouncilDissentMood, {
         moodDelta: governanceConfig.dissentMoodDelta,
         expiresDay,
