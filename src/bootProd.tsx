@@ -69,6 +69,9 @@ import './boot/commandPointsTick'
 // Phase 6.4.A — faction-tier gate check. Runs after colonies + construction
 // settle so colony count is authoritative when the gate evaluates.
 import './boot/factionTierTick'
+// Phase 6.4.D — diplomat meeting-request check. Runs after the faction-tier
+// gate so the player-faction's FactionInterRep is authoritative.
+import './boot/diplomacyTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

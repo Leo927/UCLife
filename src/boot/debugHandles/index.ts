@@ -35,3 +35,4 @@ import './colony'          // Phase 6.3.B — colony economics + stability + war
 import './factionTier'     // Phase 6.4.A — faction-tier unlock check + inter-rep + player rep setter
 import './recruitmentScale' // Phase 6.4.B — officer Leadership gate, faction lean, salary tick
 import './governance'      // Phase 6.4.C — governance council: call, resolve, policy, dissent
+import './diplomacy'       // Phase 6.4.D — diplomacy council: convene, sign, decline, meeting tick

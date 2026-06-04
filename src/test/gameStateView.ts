@@ -15,6 +15,11 @@ import {
 } from '../sim/colony'
 import { computeAdminLoadStatus, type AdminLoadStatus } from '../systems/colonyAdmin'
 import { getAllActivePolicies, getDissentRecord, type PolicyRecord, type DissentRecord } from '../sim/governance'
+import {
+  getAllDiplomaticRecords, getDiplomaticRecord, getAllMeetingRequests,
+  type DiplomaticRecord, type MeetingRequest,
+} from '../sim/diplomacy'
+import { IsPlayerFaction, FactionEffectsList } from '../ecs/traits'
 
 export interface CharacterView {
   getId(): string
@@ -118,6 +123,15 @@ export interface GameStateView {
   // Phase 6.4.C — CouncilDissentMood from the live ECS entity.
   // Returns null when the NPC entity isn't loaded or has no trait.
   getCouncilDissentTrait(npcKey: string): CouncilDissentView | null
+  // Phase 6.4.D — all signed diplomatic records (treaties per canon faction).
+  getDiplomaticRecords(): DiplomaticRecord[]
+  // Phase 6.4.D — the diplomatic record for one canon faction (null when none).
+  getDiplomaticRecord(factionId: string): DiplomaticRecord | null
+  // Phase 6.4.D — pending diplomat meeting requests.
+  getDiplomacyMeetingRequests(): MeetingRequest[]
+  // Phase 6.4.D — active FactionEffect ids on the player-faction (verifies
+  // a signed trade treaty's effect landed). Empty when no player-faction.
+  getPlayerFactionEffectIds(): string[]
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -383,6 +397,24 @@ export function getGameState(): GameStateView {
         }
       }
       return null
+    },
+    getDiplomaticRecords(): DiplomaticRecord[] {
+      return getAllDiplomaticRecords()
+    },
+    getDiplomaticRecord(factionId: string): DiplomaticRecord | null {
+      return getDiplomaticRecord(factionId as FactionId)
+    },
+    getDiplomacyMeetingRequests(): MeetingRequest[] {
+      return getAllMeetingRequests()
+    },
+    getPlayerFactionEffectIds(): string[] {
+      for (const sceneId of SCENE_IDS) {
+        const w = getWorld(sceneId)
+        for (const e of w.query(FactionEffectsList)) {
+          if (e.has(IsPlayerFaction)) return e.get(FactionEffectsList)!.list.map((eff) => eff.id)
+        }
+      }
+      return []
     },
   }
 }

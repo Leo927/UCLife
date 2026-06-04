@@ -3,12 +3,8 @@
 // Perf: O(senior officers at the colony) per call — typically < 10 entities.
 
 import type { Entity } from 'koota'
-import {
-  EntityKey, Character, Attributes, Knows, CouncilDissentMood,
-  IsPlayerFaction, IsPlayer, FactionSheet,
-} from '../ecs/traits'
+import { EntityKey, Character, CouncilDissentMood } from '../ecs/traits'
 import { addFactionEffect, removeFactionEffect } from '../ecs/factionEffects'
-import { getStat } from '../stats/sheet'
 import { getAllColonyRecords } from '../sim/colony'
 import { getPrimaryDockScene } from '../data/pois'
 import { governanceConfig } from '../config/governance'
@@ -20,9 +16,13 @@ import {
   getAllDissentRecords,
 } from '../sim/governance'
 import { getWorld, SCENE_IDS } from '../ecs/world'
+import {
+  type CouncilStance, findPlayer, findPlayerFaction, gatherAttendees, councilScore,
+} from './council'
 
-// Stance on a policy change direction.
-export type CouncilStance = 'support' | 'oppose' | 'neutral'
+// Re-exported for the council-chamber UI + governance debug handles, which
+// import the stance type from this module.
+export type { CouncilStance }
 
 export interface AttendeeView {
   npcKey: string
@@ -43,83 +43,13 @@ function policyEffectId(kind: PolicyKind): string {
   return `policy:${kind}`
 }
 
-function findPlayerFaction(): Entity | null {
-  for (const sceneId of SCENE_IDS) {
-    const w = getWorld(sceneId)
-    for (const e of w.query(FactionSheet)) {
-      if (e.has(IsPlayerFaction)) return e
-    }
-  }
-  return null
-}
-
-function findPlayer(): Entity | null {
-  for (const sceneId of SCENE_IDS) {
-    const p = getWorld(sceneId).queryFirst(IsPlayer)
-    if (p) return p
-  }
-  return null
-}
-
-// Largest player-owned colony by entity count in its scene (proxy for size).
-export function findLargestPlayerColony(): string | null {
-  const records = getAllColonyRecords()
-  if (records.length === 0) return null
-  let bestPoiId = records[0].poiId
-  let bestCount = 0
-  for (const rec of records) {
-    const sceneId = getPrimaryDockScene(rec.poiId)
-    if (!sceneId) continue
-    let count = 0
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for (const _e of getWorld(sceneId).query(EntityKey)) count++
-    if (count > bestCount) { bestCount = count; bestPoiId = rec.poiId }
-  }
-  return bestPoiId
-}
-
-function gatherAttendees(poiId: string): Array<{ entity: Entity; roleZh: string }> {
-  const out: Array<{ entity: Entity; roleZh: string }> = []
-  const seen = new Set<Entity>()
-  const records = getAllColonyRecords()
-  const record = records.find((r) => r.poiId === poiId)
-  const sceneId = getPrimaryDockScene(poiId)
-  if (!sceneId) return out
-  const w = getWorld(sceneId)
-  const byKey = new Map<string, Entity>()
-  for (const e of w.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
-
-  const addByKey = (key: string, roleZh: string) => {
-    if (!key) return
-    const e = byKey.get(key)
-    if (!e || seen.has(e)) return
-    seen.add(e)
-    out.push({ entity: e, roleZh })
-  }
-
-  if (record) {
-    addByKey(record.administratorKey, '管理官')
-    addByKey(record.leadEngineerKey, '首席工程师')
-    addByKey(record.garrisonCommanderKey, '守备指挥官')
-  }
-  return out
-}
-
 function computeStance(
   entity: Entity,
   policyKind: PolicyKind,
   proposedValue: string,
   player: Entity | null,
 ): CouncilStance {
-  const attrs = entity.get(Attributes)
-  if (!attrs) return 'neutral'
-  const intel = getStat(attrs.sheet, 'intelligence')
-  const charisma = getStat(attrs.sheet, 'charisma')
-  const w = governanceConfig.stanceWeights
-  let score = intel * w.intelligencePerLevel + charisma * w.charismaPerLevel
-  if (player && entity.has(Knows(player))) {
-    score += (entity.get(Knows(player))!.opinion) * w.opinionPerPoint
-  }
+  const score = councilScore(entity, player, governanceConfig.stanceWeights)
   const cfg = governanceConfig.policies[policyKind]
   const currentValue = getActivePolicy(policyKind)?.value ?? String(cfg.defaultValue)
   const opts = cfg.options.map(String)

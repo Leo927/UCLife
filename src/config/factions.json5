@@ -110,4 +110,56 @@
     // the war still goes the way the war goes.
     regionalPowerCeiling: 90,
   },
+
+  // Phase 6.4.D — diplomacy. Formal relations with canon factions, convened
+  // as council scenes alongside governance. Pre-war the treaty effects are
+  // low-magnitude flavor; the per-treaty `postWarEscalation` descriptor is
+  // authored INERT here and read by Phase 7 to escalate treaties into real
+  // faction-war triggers (mirrors the ambitions `warPayoff` inert-now /
+  // live-later pattern). No magic numbers: every knob lives here.
+  diplomacy: {
+    // FactionInterRep standing (toward the player-faction, as observed by a
+    // canon faction) at or above which that faction's diplomat requests a
+    // meeting on day:rollover. Checked O(canon factions) once per game-day.
+    meetingRequestThreshold: 30,
+
+    // Council attendee scoring for diplomacy debates. Same shape + tuning as
+    // the governance stanceWeights; a higher score leans toward signing.
+    stanceWeights: {
+      intelligencePerLevel: 0.5,
+      charismaPerLevel:     0.3,
+      opinionPerPoint:      0.1,
+    },
+
+    // Map a council lean (councilScore) into support / oppose / neutral:
+    // score > midpoint + band → support signing; < midpoint - band →
+    // oppose; within the band → neutral. midpoint is the 0-100 stat scale
+    // centre.
+    stanceMidpoint:   50,
+    stanceNeutralBand: 5,
+
+    // Treaty catalog. `effect` rows fold onto the player-faction
+    // FactionStatSheet via addFactionEffect (effectId 'treaty:<type>:<faction>',
+    // type 'flat' on the 1.0-base multiplier knobs). Pre-war magnitudes are
+    // intentionally small — a signed trade pact is a nudge, not a windfall.
+    treaties: {
+      nonaggression: {
+        labelZh: '互不侵犯条约',
+        // Pure on-the-books pre-war: no faction-stat effect.
+        effect: {},
+        postWarEscalation: 'breach-triggers-faction-war',
+      },
+      trade: {
+        labelZh: '贸易协定',
+        // Low-magnitude market-price / supply bump pre-war.
+        effect: { revenueMul: 0.05 },
+        postWarEscalation: 'embargo-on-war-declaration',
+      },
+      mutualDefense: {
+        labelZh: '共同防御条约',
+        effect: {},
+        postWarEscalation: 'allied-into-defenders-wars',
+      },
+    },
+  },
 }

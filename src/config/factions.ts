@@ -32,12 +32,42 @@ export interface FactionTierGateConfig {
   regionalPowerCeiling: number
 }
 
+// Phase 6.4.D — diplomacy treaty types the player can propose at a council.
+export type TreatyType = 'nonaggression' | 'trade' | 'mutualDefense'
+
+export interface TreatySpec {
+  labelZh: string
+  // FactionStatId -> additive delta on the 1.0-base multiplier knob. Typed
+  // as a string map because the config layer sits below stats/ and cannot
+  // import FactionStatId; the diplomacy system casts keys when building
+  // modifiers (the same `statId as FactionStatId` pattern governance uses).
+  effect: Record<string, number>
+  // Authored INERT in Phase 6.4.D — Phase 7 reads this to decide whether a
+  // treaty escalates into a real faction-war trigger. No consequence wired
+  // in this slice.
+  postWarEscalation: string
+}
+
+export interface DiplomacyConfig {
+  meetingRequestThreshold: number
+  stanceWeights: {
+    intelligencePerLevel: number
+    charismaPerLevel: number
+    opinionPerPoint: number
+  }
+  stanceMidpoint: number
+  stanceNeutralBand: number
+  treaties: Record<TreatyType, TreatySpec>
+}
+
 export interface FactionsConfig {
   catalog: Record<string, FactionSpec>
   // Each entry is the minimum rep value to qualify for that grade.
   tierThresholds: Record<FactionTier, number>
   // Phase 6.4.A — faction-tier gate constants.
   factionTierGate: FactionTierGateConfig
+  // Phase 6.4.D — diplomacy treaty catalog + meeting threshold.
+  diplomacy: DiplomacyConfig
 }
 
 export const factionsConfig = json5.parse(raw) as FactionsConfig

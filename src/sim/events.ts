@@ -14,6 +14,7 @@
 // worth a dep.
 
 import type { Entity } from 'koota'
+import type { FactionId } from '../config'
 
 export interface SimEventPayloads {
   // ── Lifecycle (legacy callers — `reason` only) ───────────────────────
@@ -89,6 +90,11 @@ export interface SimEventPayloads {
   // the administrator's chair in an unowned colony. `poiId` identifies
   // which colony the player is attempting to claim.
   'ui:colony-claim': { poiId: string }
+  // Phase 6.4.D — a canon faction's diplomat requests a meeting when its
+  // standing toward the player-faction crosses the configured threshold.
+  // Future newsfeed / comm consumers listen; the diplomacy registry also
+  // records a pending request for the council surface to act on.
+  'diplomacy:meeting-requested': { factionId: FactionId; gameDay: number }
 }
 
 // Exported so systems/recoverables.ts can stash + re-emit this payload
