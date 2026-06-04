@@ -359,3 +359,15 @@ export const EmployedAsCrew = trait({
 export const EmployedAsPilot = trait({
   msKey: '',
 })
+
+// Phase 6.4.C — council dissent mood penalty. Stamped on an NPC entity
+// after a council resolution they voted against. Expires after the
+// configured dissentDurationDays. The penalty is removed on day:rollover
+// when gameDayNumber > expiresDay by the governance decay tick.
+// `policyKind` identifies which decision caused the dissent so the
+// talk-verb can surface a contextual complaint.
+export const CouncilDissentMood = trait({
+  moodDelta: 0,
+  expiresDay: 0,
+  policyKind: '',
+})

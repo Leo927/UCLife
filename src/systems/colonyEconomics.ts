@@ -18,7 +18,7 @@
 // on the daily tick.
 
 import type { World } from 'koota'
-import { Building, Faction, Hangar, IsPlayerFaction } from '../ecs/traits'
+import { Building, Faction, Hangar, IsPlayerFaction, FactionSheet } from '../ecs/traits'
 import { getAllColonyRecords, getColonyEconomics, setColonyEconomics } from '../sim/colony'
 import { colonyConfig } from '../config'
 import { computeAdminLoadStatus } from './colonyAdmin'
@@ -26,6 +26,7 @@ import { getPrimaryDockScene } from '../data/pois'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim } from '../sim/events'
 import { useClock } from '../sim/clock'
+import { getStat } from '../stats/sheet'
 
 export interface ColonyEconomicsResult {
   coloniesProcessed: number
@@ -55,6 +56,19 @@ function creditFactionFundInWorld(w: World, delta: number): boolean {
   return true
 }
 
+// Read the revenueMul stat from the player-faction FactionStatSheet.
+// Returns 1.0 when no IsPlayerFaction entity is found or has no sheet.
+function getPlayerFactionRevenueMul(): number {
+  for (const id of SCENE_IDS) {
+    const faction = getWorld(id).queryFirst(IsPlayerFaction)
+    if (!faction) continue
+    const fs = faction.get(FactionSheet)
+    if (!fs) return 1.0
+    return getStat(fs.sheet, 'revenueMul')
+  }
+  return 1.0
+}
+
 // Set of typeIds that qualify as QoL facilities for stability reckoning.
 const QOL_TYPES = new Set(Object.keys(colonyConfig.stability.qolContribution))
 
@@ -67,6 +81,8 @@ export function colonyEconomicsSystem(gameDay: number): ColonyEconomicsResult {
   // Phase 6.3.D — compute admin-load status once per day-tick (O(colonies)).
   const adminLoad = computeAdminLoadStatus()
   const overloadPenaltyPerPoint = colonyConfig.adminLoad.overloadStabilityPenaltyPerPoint
+  // Phase 6.4.C — read policy revenueMul once; constant across all colonies.
+  const revenueMul = getPlayerFactionRevenueMul()
 
   for (const { poiId, administratorKey } of colonies) {
     const econ = getColonyEconomics(poiId)
@@ -113,8 +129,10 @@ export function colonyEconomicsSystem(gameDay: number): ColonyEconomicsResult {
     // Top up Hangar reserves at this colony scene.
     replenishColonyHangars(w)
 
+    const scaledIncome = Math.round(incomeToday * revenueMul)
+
     const newStability = econ.stabilityScore + stabilityDelta
-    const newAccumulated = econ.accumulatedIncome + incomeToday
+    const newAccumulated = econ.accumulatedIncome + scaledIncome
 
     setColonyEconomics(poiId, {
       ...econ,
@@ -123,9 +141,9 @@ export function colonyEconomicsSystem(gameDay: number): ColonyEconomicsResult {
       lastRolloverDay: gameDay,
     })
 
-    if (incomeToday > 0) {
-      const credited = creditFactionFundInWorld(w, incomeToday)
-      if (credited) result.totalIncomeCredit += incomeToday
+    if (scaledIncome > 0) {
+      const credited = creditFactionFundInWorld(w, scaledIncome)
+      if (credited) result.totalIncomeCredit += scaledIncome
     }
 
     if (newStability < 0) {

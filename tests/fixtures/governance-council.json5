@@ -1,0 +1,44 @@
+// Phase 6.4.C fixture — governance council smoke test.
+//
+// Player at marikoRefinery (a player colony). Two officer NPCs for council
+// attendance:
+//   - 'zhou-lin'  → assigned as colony administrator in the test
+//   - 'kai-huang' → assigned as garrison commander in the test
+//
+// Both NPCs use default attribute stats (intelligence=50, charisma=50),
+// producing a stance score of 40 which biases them to oppose increases.
+// Resolving a taxation increase triggers dissent on both.
+//
+// The test provisions faction-tier and colonies programmatically via
+// __uclife__ debug handles (deterministic rules 1+2).
+{
+  seed: 'governance-council-001',
+  startDate: '2026-06-10T08:00:00Z',
+  scene: 'marikoRefineryScene',
+
+  player: {
+    money: 5000000,
+    location: { scene: 'marikoRefineryScene', x: 170, y: 60 },
+  },
+
+  ships: [
+    { id: 'ship',   template: 'lightFreighter', name: '自由号',  dockedAt: 'marikoRefinery' },
+    { id: 'ship-2', template: 'lightFreighter', name: '希望号',  dockedAt: 'marikoRefinery' },
+    { id: 'ship-3', template: 'lightFreighter', name: '前进号',  dockedAt: 'vonBraun' },
+  ],
+
+  npcs: [
+    {
+      id: 'zhou-lin',
+      name: '周琳',
+      at: { scene: 'marikoRefineryScene', x: 172, y: 62 },
+      skills: { engineering: 3000 },
+    },
+    {
+      id: 'kai-huang',
+      name: '黄凯',
+      at: { scene: 'marikoRefineryScene', x: 174, y: 62 },
+      skills: { piloting: 2000 },
+    },
+  ],
+}

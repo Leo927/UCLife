@@ -2,7 +2,7 @@ import type { Entity } from 'koota'
 import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ecs/world'
 import {
   IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
-  EmployedAsCrew, Building, Owner, Character,
+  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood,
 } from '../ecs/traits'
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
@@ -14,6 +14,7 @@ import {
   type ColonyThreatState,
 } from '../sim/colony'
 import { computeAdminLoadStatus, type AdminLoadStatus } from '../systems/colonyAdmin'
+import { getAllActivePolicies, getDissentRecord, type PolicyRecord, type DissentRecord } from '../sim/governance'
 
 export interface CharacterView {
   getId(): string
@@ -79,6 +80,13 @@ export interface ColonyRolesView {
 // Phase 6.3.E — colony threat state view for smoke tests.
 export type { ColonyThreatState as ColonyThreatView }
 
+// Phase 6.4.C — governance council state views.
+export interface CouncilDissentView {
+  moodDelta: number
+  expiresDay: number
+  policyKind: string
+}
+
 export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
@@ -102,6 +110,14 @@ export interface GameStateView {
   // Returns a fresh (zero) state when the colony is player-owned but has no
   // prior threat activity; returns null when the colony is not player-owned.
   getColonyThreatState(poiId: string): ColonyThreatState | null
+  // Phase 6.4.C — all active faction policies.
+  getFactionPolicies(): PolicyRecord[]
+  // Phase 6.4.C — dissent state for an NPC (from registry).
+  // Returns null when the NPC has no active dissent record.
+  getCouncilDissentState(npcKey: string): DissentRecord | null
+  // Phase 6.4.C — CouncilDissentMood from the live ECS entity.
+  // Returns null when the NPC entity isn't loaded or has no trait.
+  getCouncilDissentTrait(npcKey: string): CouncilDissentView | null
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -349,6 +365,24 @@ export function getGameState(): GameStateView {
     getColonyThreatState(poiId: string): ColonyThreatState | null {
       if (!isPlayerColony(poiId)) return null
       return getColonyThreatState(poiId)
+    },
+    getFactionPolicies(): PolicyRecord[] {
+      return getAllActivePolicies()
+    },
+    getCouncilDissentState(npcKey: string): DissentRecord | null {
+      return getDissentRecord(npcKey)
+    },
+    getCouncilDissentTrait(npcKey: string): CouncilDissentView | null {
+      for (const sceneId of SCENE_IDS) {
+        const w = getWorld(sceneId)
+        for (const e of w.query(EntityKey, CouncilDissentMood)) {
+          if (e.get(EntityKey)!.key === npcKey) {
+            const d = e.get(CouncilDissentMood)!
+            return { moodDelta: d.moodDelta, expiresDay: d.expiresDay, policyKind: d.policyKind }
+          }
+        }
+      }
+      return null
     },
   }
 }

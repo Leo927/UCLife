@@ -84,3 +84,6 @@ export { msConfig } from './ms'
 
 export { colonyConfig } from './colony'
 export type { ColonyConfig, ColonyIncomeConfig, ColonyStabilityConfig, ColonyRecruitmentConfig, ColonyResupplyConfig, ColonyCharterConfig, ColonyConstructionConfig, ColonyEstablishmentPackageConfig, ColonyAdminLoadConfig, ColonyDetentionConfig } from './colony'
+
+export { governanceConfig } from './governance'
+export type { GovernanceConfig, PolicySpec, PolicyEffects, PolicyKind } from './governance'
