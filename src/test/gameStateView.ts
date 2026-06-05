@@ -19,7 +19,9 @@ import {
   getAllDiplomaticRecords, getDiplomaticRecord, getAllMeetingRequests,
   type DiplomaticRecord, type MeetingRequest,
 } from '../sim/diplomacy'
-import { IsPlayerFaction, FactionEffectsList } from '../ecs/traits'
+import { IsPlayerFaction, FactionEffectsList, FactionSheet } from '../ecs/traits'
+import { factionPerkStoreView, type FactionPerkRow } from '../systems/factionPerks'
+import type { FactionStatId } from '../stats/factionSchema'
 
 export interface CharacterView {
   getId(): string
@@ -132,6 +134,13 @@ export interface GameStateView {
   // Phase 6.4.D — active FactionEffect ids on the player-faction (verifies
   // a signed trade treaty's effect landed). Empty when no player-faction.
   getPlayerFactionEffectIds(): string[]
+  // Phase 6.4.E — faction-leader perk store rows (owned / locked / affordable),
+  // mirroring the research visible-but-locked tier view.
+  getFactionPerkStore(): FactionPerkRow[]
+  // Phase 6.4.E — read a faction-wide stat off the player-faction sheet
+  // (verifies a faction-leader perk's FactionEffect folded in). Returns the
+  // schema default (1.0) when no player-faction or no sheet is present.
+  getPlayerFactionStat(statId: string): number
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -415,6 +424,15 @@ export function getGameState(): GameStateView {
         }
       }
       return []
+    },
+    getFactionPerkStore(): FactionPerkRow[] {
+      return factionPerkStoreView()
+    },
+    getPlayerFactionStat(statId: string): number {
+      const e = findFactionEntity('player')
+      const fs = e?.get(FactionSheet)
+      if (!fs) return 1.0
+      return getStat(fs.sheet, statId as FactionStatId)
     },
   }
 }

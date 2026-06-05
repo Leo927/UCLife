@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react'
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Ambitions, type AmbitionSlot } from '../ecs/traits'
 import { ambitions, getAmbition, normalizeRequirement } from '../character/ambitions'
-import { PERKS, getPerk } from '../character/perks'
+import { PERKS } from '../character/perks'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
 import { readStageProgress } from '../systems/ambitions'
-import { syncPerkModifiers } from '../character/perkSync'
+import { purchasePerk, factionPerkStoreView } from '../systems/factionPerks'
 import { useEventLog } from './EventLog'
 import { playUi } from '../audio/player'
 
@@ -176,21 +176,13 @@ export function AmbitionPanel() {
   // ── PERK STORE MODE ───────────────────────────────────────────────
   if (perkStoreMode) {
     const purchasedSet = new Set(amb.perks)
+    // Faction-leader perks carry a visible-but-locked gate; resolve the
+    // lock + affordability state from the same spend path the buy uses.
+    const lockedById = new Map(factionPerkStoreView().map((r) => [r.id, r.locked]))
 
     const buyPerk = (perkId: string) => {
-      if (purchasedSet.has(perkId)) return
-      const def = getPerk(perkId)
-      if (!def) return
-      if (amb.apBalance < def.apCost) return
-      playUi('ui.ambition.buy-perk')
-      const newPerks = [...amb.perks, perkId]
-      player.set(Ambitions, {
-        active: amb.active, history: amb.history,
-        apBalance: amb.apBalance - def.apCost,
-        apEarned: amb.apEarned,
-        perks: newPerks,
-      })
-      syncPerkModifiers(player, newPerks)
+      const r = purchasePerk(perkId)
+      if (r.ok) playUi('ui.ambition.buy-perk')
     }
 
     const grouped = useMemo(() => {
@@ -221,21 +213,35 @@ export function AmbitionPanel() {
               {list.map((p) => {
                 const owned = purchasedSet.has(p.id)
                 const affordable = amb.apBalance >= p.apCost
+                const locked = lockedById.get(p.id) ?? false
+                const label = locked
+                  ? '未解锁'
+                  : owned ? '已拥有' : (affordable ? '购买' : '点数不足')
                 return (
-                  <div key={p.id} className="transit-terminal-row" data-perk-id={p.id}>
+                  <div
+                    key={p.id}
+                    className="transit-terminal-row"
+                    data-perk-id={p.id}
+                    data-perk-locked={locked ? 'true' : 'false'}
+                  >
                     <div className="transit-terminal-info">
                       <div className="transit-terminal-name">
                         {p.nameZh} <span className="status-meta">· {p.apCost} AP</span>
                       </div>
                       <p className="transit-terminal-desc">{p.descZh}</p>
+                      {locked && (
+                        <p className="transit-terminal-desc" style={{ color: 'var(--warn, #f59e0b)' }}>
+                          需达到势力层级后解锁
+                        </p>
+                      )}
                     </div>
                     <button
                       className="transit-terminal-go"
                       onClick={() => buyPerk(p.id)}
-                      disabled={owned || !affordable}
+                      disabled={owned || locked || !affordable}
                       data-perk-owned={owned ? 'true' : 'false'}
                     >
-                      {owned ? '已拥有' : (affordable ? '购买' : '点数不足')}
+                      {label}
                     </button>
                   </div>
                 )

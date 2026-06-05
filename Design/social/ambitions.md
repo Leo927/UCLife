@@ -133,7 +133,7 @@ Sample perk categories (final catalog is implementation-time work in
 - **Social perks** — talk-verb opinion gain +20%, faction rep gain +10%, charisma rolls +1
 - **Economic perks** — wage +10%, shop discount, rent -10%
 - **Combat perks** (unlock at Phase 6+) — flagship maneuver +5%, MS ejection survival +20%, fleet-AI quality +1
-- **Faction-leader perks** (unlock at Phase 6.4+) — colony stability +1, recruitment quality +1, fleet capacity +1 (above the skill-gated baseline)
+- **Faction-leader perks** (shipped Phase 6.4.E) — gated visible-but-locked behind the `faction-tier` unlock (6.4.A) and spent from the same AP pool, but each emits a `FactionEffect` onto the player-faction's `FactionStatSheet` rather than the character sheet: recruitment chance (`recruitChanceMul`), colony loyalty drift (`loyaltyDriftMul`), faction maintenance (`maintenanceMul`), faction revenue (`revenueMul`). Authored as `category: 'faction'` rows in `src/character/perks.json5` with a `factionModifiers` array + `requiresUnlock`.
 
 Some perks are **flavor-locked** to the ambitions that grant them — a
 "Bar Owner's Eye" perk that gives a small charisma bonus when first
