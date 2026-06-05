@@ -184,5 +184,61 @@
       category: 'combat',
       modifiers: [],
     },
+
+    // ── Faction-leader (Phase 6.4.E) ─────────────────────────────────
+    // Spend from the same AP pool, but each emits a FactionEffect onto the
+    // player-faction's FactionStatSheet (src/stats/factionSchema.ts) under
+    // `perk:<id>` instead of the character sheet — buying one runs the whole
+    // faction cheaper. Visible-but-locked behind the 'faction-tier' unlock
+    // (Phase 6.4.A): the player sees the goal before reaching it. `modifiers`
+    // stays empty; the faction-wide levers live in `factionModifiers`.
+    {
+      id: 'recruitment_network',
+      nameZh: '招募网络',
+      descZh: '势力招募成功率 +15%。建立起跨殖民地的人才输送渠道,招人更省力。',
+      apCost: 2,
+      category: 'faction',
+      requiresUnlock: 'faction-tier',
+      modifiers: [],
+      factionModifiers: [
+        { statId: 'recruitChanceMul', type: 'percentMult', value: 0.15 },
+      ],
+    },
+    {
+      id: 'colony_stewardship',
+      nameZh: '殖民善治',
+      descZh: '势力内部忠诚流失减缓 15%,殖民地更稳定。',
+      apCost: 2,
+      category: 'faction',
+      requiresUnlock: 'faction-tier',
+      modifiers: [],
+      factionModifiers: [
+        { statId: 'loyaltyDriftMul', type: 'percentMult', value: -0.15 },
+      ],
+    },
+    {
+      id: 'logistics_corps',
+      nameZh: '后勤军团',
+      descZh: '势力设施维护开支 -10%,舰队补给随之更省。',
+      apCost: 4,
+      category: 'faction',
+      requiresUnlock: 'faction-tier',
+      modifiers: [],
+      factionModifiers: [
+        { statId: 'maintenanceMul', type: 'percentMult', value: -0.10 },
+      ],
+    },
+    {
+      id: 'war_economy',
+      nameZh: '战时经济',
+      descZh: '势力营收 +10%。把整个势力转入高效运转。',
+      apCost: 4,
+      category: 'faction',
+      requiresUnlock: 'faction-tier',
+      modifiers: [],
+      factionModifiers: [
+        { statId: 'revenueMul', type: 'percentMult', value: 0.10 },
+      ],
+    },
   ],
 }

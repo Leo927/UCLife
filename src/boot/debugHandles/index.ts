@@ -36,3 +36,4 @@ import './factionTier'     // Phase 6.4.A — faction-tier unlock check + inter-
 import './recruitmentScale' // Phase 6.4.B — officer Leadership gate, faction lean, salary tick
 import './governance'      // Phase 6.4.C — governance council: call, resolve, policy, dissent
 import './diplomacy'       // Phase 6.4.D — diplomacy council: convene, sign, decline, meeting tick
+import './factionPerks'    // Phase 6.4.E — faction-leader perk spend + tier-unlock grant for smoke tests

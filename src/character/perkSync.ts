@@ -9,8 +9,11 @@
 
 import type { Entity } from 'koota'
 import { Effects } from '../ecs/traits'
-import { getPerk } from './perks'
+import { getPerk, isFactionPerk } from './perks'
 import { addEffect, removeEffect } from './effects'
+import {
+  addFactionEffect, removeFactionEffect, getFactionEffects,
+} from '../ecs/factionEffects'
 
 const PERK_PREFIX = 'perk:'
 
@@ -35,6 +38,31 @@ export function syncPerkModifiers(entity: Entity, perks: readonly string[]): voi
       originId: perkId,
       family: 'perk',
       modifiers: def.modifiers.map((m) => ({ statId: m.statId, type: m.type, value: m.value })),
+      nameZh: def.nameZh,
+      descZh: def.descZh,
+    })
+  }
+}
+
+// Phase 6.4.E — fold faction-leader perks onto the player-faction's
+// FactionStatSheet. Mirror of syncPerkModifiers for the faction side:
+// idempotent, drops every existing `perk:*` FactionEffect first and
+// re-emits from the `perks` array, so add/remove/load round-trips cleanly.
+// Perks without faction levers (vital/skill/economic/...) are skipped.
+export function syncFactionPerks(faction: Entity, perks: readonly string[]): void {
+  const existing = getFactionEffects(faction)
+    .filter((e) => e.id.startsWith(PERK_PREFIX))
+    .map((e) => e.id)
+  for (const id of existing) removeFactionEffect(faction, id)
+
+  for (const perkId of perks) {
+    const def = getPerk(perkId)
+    if (!def || !isFactionPerk(def)) continue
+    addFactionEffect(faction, {
+      id: perkEffectId(perkId),
+      originId: perkId,
+      family: 'perk',
+      modifiers: def.factionModifiers!.map((m) => ({ statId: m.statId, type: m.type, value: m.value })),
       nameZh: def.nameZh,
       descZh: def.descZh,
     })

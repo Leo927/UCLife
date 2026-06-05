@@ -1,0 +1,18 @@
+// Phase 6.4.E fixture — a player who could lead a faction (ship + money) but
+// has NOT yet crossed the faction-tier gate. The smoke test first asserts the
+// faction-leader perks are visible-but-locked here, then grants the
+// faction-tier unlock + AP via debug handles to drive the spend path.
+{
+  seed: 'faction-leader-perks-001',
+  startDate: '2026-06-01T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+
+  ships: [
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun' },
+  ],
+}

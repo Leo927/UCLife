@@ -1,6 +1,7 @@
 import json5 from 'json5'
 import raw from './perks.json5?raw'
 import { STAT_IDS, type StatId } from '../stats/schema'
+import { FACTION_STAT_IDS, type FactionStatId } from '../stats/factionSchema'
 import type { ModType } from '../stats/sheet'
 
 // Sims-style aspiration-reward catalog. Player spends Ambition Points
@@ -22,6 +23,15 @@ export interface PerkModifier {
   value: number
 }
 
+// Phase 6.4.E — faction-leader perks emit modifiers against the
+// per-faction StatSheet (src/stats/factionSchema.ts) instead of the
+// character sheet, so buying one runs the whole faction cheaper.
+export interface FactionPerkModifier {
+  statId: FactionStatId
+  type: ModType
+  value: number
+}
+
 export interface PerkDef {
   id: string
   nameZh: string
@@ -29,6 +39,13 @@ export interface PerkDef {
   apCost: number
   category: PerkCategory
   modifiers: PerkModifier[]
+  // Faction-wide levers — only faction-leader perks carry these. Folded
+  // onto the player-faction's FactionStatSheet under `perk:<id>`.
+  factionModifiers?: FactionPerkModifier[]
+  // Gate id (a FactionUnlock) that must be present before this perk is
+  // purchasable. Visible-but-locked until then. Faction-leader perks set
+  // this to 'faction-tier' (Phase 6.4.A).
+  requiresUnlock?: string
 }
 
 interface PerksFile {
@@ -41,6 +58,7 @@ const VALID_CATEGORIES: ReadonlySet<PerkCategory> = new Set<PerkCategory>([
   'vital', 'skill', 'social', 'economic', 'combat', 'faction',
 ])
 const VALID_STAT_IDS: ReadonlySet<string> = new Set<string>(STAT_IDS)
+const VALID_FACTION_STAT_IDS: ReadonlySet<string> = new Set<string>(FACTION_STAT_IDS)
 const VALID_TYPES: ReadonlySet<ModType> = new Set<ModType>([
   'flat', 'percentAdd', 'percentMult', 'floor', 'cap',
 ])
@@ -71,6 +89,25 @@ for (const p of parsed.perks) {
       throw new Error(`perks.json5: perk "${p.id}" non-finite value`)
     }
   }
+  if (p.factionModifiers !== undefined) {
+    if (!Array.isArray(p.factionModifiers)) {
+      throw new Error(`perks.json5: perk "${p.id}" factionModifiers must be an array`)
+    }
+    for (const m of p.factionModifiers) {
+      if (!VALID_FACTION_STAT_IDS.has(m.statId)) {
+        throw new Error(`perks.json5: perk "${p.id}" unknown faction statId "${m.statId}"`)
+      }
+      if (!VALID_TYPES.has(m.type)) {
+        throw new Error(`perks.json5: perk "${p.id}" unknown faction modifier type "${m.type}"`)
+      }
+      if (typeof m.value !== 'number' || !Number.isFinite(m.value)) {
+        throw new Error(`perks.json5: perk "${p.id}" non-finite faction value`)
+      }
+    }
+  }
+  if (p.requiresUnlock !== undefined && typeof p.requiresUnlock !== 'string') {
+    throw new Error(`perks.json5: perk "${p.id}" requiresUnlock must be a string`)
+  }
 }
 
 export const PERKS: readonly PerkDef[] = parsed.perks
@@ -87,4 +124,11 @@ export function isPerkId(id: string): boolean {
 
 export function perkSource(id: string): string {
   return `perk:${id}`
+}
+
+// True when a perk carries faction-wide levers (Phase 6.4.E). Such perks
+// fold onto the player-faction's FactionStatSheet rather than the
+// character sheet.
+export function isFactionPerk(def: PerkDef): boolean {
+  return Array.isArray(def.factionModifiers) && def.factionModifiers.length > 0
 }
