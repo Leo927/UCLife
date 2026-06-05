@@ -30,3 +30,4 @@ import './fleetCrewCounter' // phase: 'post' — npc-crew-<N> key counter
 import './ms'              // phase: 'post' — MS roster + parts inventory
 import './colony'          // phase: 'post' — owned colony POI records
 import './governance'      // phase: 'post' — active faction policies + dissent records
+import './diplomacy'       // phase: 'post' — signed treaties + meeting requests

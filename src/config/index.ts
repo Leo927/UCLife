@@ -30,6 +30,7 @@ export type { PopulationConfig } from './population'
 
 export { factionsConfig } from './factions'
 export type { FactionsConfig, FactionSpec, FactionId, FactionTier } from './factions'
+export type { DiplomacyConfig, TreatySpec, TreatyType } from './factions'
 
 export { ownershipConfig, isPrivateBuildingType } from './ownership'
 export type { OwnershipConfig, OwnershipDefault } from './ownership'
