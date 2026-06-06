@@ -4,6 +4,8 @@
 // then refuse. Resolution routes through systems/conscription.resolveDraft;
 // a drafted outcome fires the perspective-shift hook into Phase 7.1.
 
+import { useQueryFirst, useTrait } from 'koota/react'
+import { IsPlayer, Money } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useClock, gameDayNumber } from '../sim/clock'
 import { resolveDraft, type DraftChoice } from '../systems/conscription'
@@ -12,10 +14,14 @@ import { playUi } from '../audio/player'
 export function DraftNoticePanel() {
   const notice = useUI((s) => s.draftNotice)
   const setNotice = useUI((s) => s.setDraftNotice)
+  const player = useQueryFirst(IsPlayer, Money)
+  const money = useTrait(player, Money)
 
   if (!notice) return null
 
   const refusalPct = Math.round(notice.refusalChance * 100)
+  // Affordability checked live (money can change between issuance and decision).
+  const canBribe = (money?.amount ?? 0) >= notice.bribeCost
 
   const resolve = (choice: DraftChoice) => {
     const date = useClock.getState().gameDate
@@ -44,7 +50,7 @@ export function DraftNoticePanel() {
             <button
               className="shop-item-buy"
               data-draft-bribe
-              disabled={!notice.canBribe}
+              disabled={!canBribe}
               onClick={() => resolve('bribe')}
             >
               行贿 ¥{notice.bribeCost}

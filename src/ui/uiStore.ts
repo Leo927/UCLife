@@ -104,7 +104,7 @@ interface UIState {
   // Phase 7.0.C — draft-notice panel. Non-null while the player resolves an
   // outstanding conscription notice (accept / refuse / bribe). Set when
   // 'ui:draft-notice' fires; cleared by the panel on resolution.
-  draftNotice: { refusalChance: number; bribeCost: number; canBribe: boolean } | null
+  draftNotice: { refusalChance: number; bribeCost: number } | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -136,7 +136,7 @@ interface UIState {
   setCombatTally: (t: CombatTallyPayload | null) => void
   setRecoverables: (open: boolean) => void
   setColonyClaimPoiId: (poiId: string | null) => void
-  setDraftNotice: (notice: { refusalChance: number; bribeCost: number; canBribe: boolean } | null) => void
+  setDraftNotice: (notice: { refusalChance: number; bribeCost: number } | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void

@@ -103,12 +103,9 @@ export function conscriptionRoll(gameDay: number, gameMs: number): ConscriptionR
   ) {
     issueDraftNotice(gameDay)
     noticeIssued = true
-    const chance = currentRefusalChance(player, false)
-    const money = player.get(Money)?.amount ?? 0
     emitSim('ui:draft-notice', {
-      refusalChance: chance,
+      refusalChance: currentRefusalChance(player, false),
       bribeCost: conscriptionConfig.bribeCost,
-      canBribe: money >= conscriptionConfig.bribeCost,
     })
     emitSim('log', { textZh: '一纸征召令送到你手上。', atMs: gameMs })
   }
@@ -169,7 +166,8 @@ export function resolveDraft(choice: DraftChoice, gameDay: number, gameMs: numbe
   }
 
   if (choice === 'accept') {
-    resolveDraftNotice('drafted', cooldownUntilDay, false)
+    // The letter is filed on any resolution — consume it on accept too.
+    resolveDraftNotice('drafted', cooldownUntilDay, hasMedicalLetter())
     emitSim('conscription:drafted', { gameDay })
     emitSim('log', { textZh: '你接受了征召。视角即将转向前线。', atMs: gameMs })
     return { outcome: 'drafted', refusalChance: 0 }

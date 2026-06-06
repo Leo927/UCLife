@@ -108,8 +108,8 @@ export interface SimEventPayloads {
   // Phase 7.0.C — a draft notice has issued to the player. The UI surfaces
   // the refusal-roll decision (accept / refuse / bribe). `refusalChance` is
   // the pre-bribe odds (0–1); `bribeCost` is the wallet cost to add the bribe
-  // bonus; `canBribe` is whether the player can afford it.
-  'ui:draft-notice':           { refusalChance: number; bribeCost: number; canBribe: boolean }
+  // bonus (affordability is checked live in the panel, not snapshotted).
+  'ui:draft-notice':           { refusalChance: number; bribeCost: number }
   // Phase 7.0.C — the player was drafted (refusal failed or accepted). The
   // perspective-shift routing point into Phase 7.1 wartime deployment; this
   // slice emits it, the deployment content subscribes later.
