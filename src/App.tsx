@@ -10,6 +10,7 @@ import { InventoryPanel } from './ui/InventoryPanel'
 import { StatusBarFooter } from './ui/StatusBarFooter'
 import { ConditionStrip } from './ui/ConditionStrip'
 import { EventLogPanel } from './ui/EventLogPanel'
+import { NewsfeedJournalPanel } from './ui/NewsfeedJournalPanel'
 import { Toasts } from './ui/Toasts'
 import { DebugPanel } from './ui/DebugPanel'
 import { SystemMenu } from './ui/SystemMenu'
@@ -65,6 +66,7 @@ export function App() {
       <StatusPanel />
       <InventoryPanel />
       <EventLogPanel />
+      <NewsfeedJournalPanel />
       <DebugPanel />
       <SystemMenu />
       <AmbitionPanel />

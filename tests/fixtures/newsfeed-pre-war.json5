@@ -1,0 +1,16 @@
+// Phase 7.0.A newsfeed smoke fixture. Player in vonBraunCity, parked well
+// away from the commercial district (where the bar — and the barCounter
+// landmark — lives, tiles x:30–70 y:0–24), so nothing auto-consumes before
+// the test walks them to the counter. The game clock always starts at
+// UC 0077.04.27 09:00 in test mode (fixture startDate only moves simNow), so
+// the first reachable authored headlines are 0077.04.28 / 0077.04.29.
+{
+  seed: 'newsfeed-pre-war-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+}

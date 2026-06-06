@@ -94,6 +94,10 @@
     'ui.event-log.open':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.event-log.close':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 
+    // ── Newsfeed journal panel ──────────────────────────────────────
+    'ui.newsfeed.open':            { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.newsfeed.close':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+
     // ── Condition strip ─────────────────────────────────────────────
     'ui.condition-strip.click':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 

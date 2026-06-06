@@ -18,6 +18,7 @@ import { populationSystem } from '../systems/population'
 import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
+import { newsfeedSystem } from './newsfeed'
 import { combatSystem } from '../systems/combat'
 import { spaceSimSystem } from '../systems/spaceSim'
 import { supplyDrainSystem } from '../systems/supplyDrain'
@@ -195,6 +196,7 @@ function frame(now: number) {
       relationsSystem(world, useClock.getState().gameDate, ticks)
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
+      newsfeedSystem(world, useClock.getState().gameDate)
     }
 
     const player = world.queryFirst(IsPlayer, Action)

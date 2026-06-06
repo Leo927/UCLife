@@ -88,3 +88,6 @@ export type { ColonyConfig, ColonyIncomeConfig, ColonyStabilityConfig, ColonyRec
 
 export { governanceConfig } from './governance'
 export type { GovernanceConfig, PolicySpec, PolicyEffects, PolicyKind } from './governance'
+
+export { newsfeedConfig } from './newsfeed'
+export type { NewsfeedConfig } from './newsfeed'

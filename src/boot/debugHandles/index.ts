@@ -37,3 +37,4 @@ import './recruitmentScale' // Phase 6.4.B — officer Leadership gate, faction 
 import './governance'      // Phase 6.4.C — governance council: call, resolve, policy, dissent
 import './diplomacy'       // Phase 6.4.D — diplomacy council: convene, sign, decline, meeting tick
 import './factionPerks'    // Phase 6.4.E — faction-leader perk spend + tier-unlock grant for smoke tests
+import './newsfeed'        // Phase 7.0.A — newsfeed journal + bar-counter tile + war-day toast hook

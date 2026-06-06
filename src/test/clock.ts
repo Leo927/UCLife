@@ -46,6 +46,7 @@ import { populationSystem } from '../systems/population'
 import { relationsSystem } from '../systems/relations'
 import { activeZoneSystem } from '../systems/activeZone'
 import { ambitionsSystem } from '../systems/ambitions'
+import { newsfeedSystem } from '../sim/newsfeed'
 import { dailyEconomicsSystem } from '../systems/dailyEconomics'
 import { housingPressureSystem } from '../systems/housingPressure'
 import { recruitmentSystem } from '../systems/recruitment'
@@ -156,6 +157,7 @@ export function advanceSimByGameMs(gameMs: number): void {
     relationsSystem(world, useClock.getState().gameDate, minutesElapsed)
     ambitionsSystem(world, useClock.getState().gameDate)
     activeZoneSystem(world, useClock.getState().gameDate.getTime())
+    newsfeedSystem(world, useClock.getState().gameDate)
   }
 }
 

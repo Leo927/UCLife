@@ -1,0 +1,14 @@
+// Newsfeed tuning — Phase 7.0.A. Content lives in src/data/news.json5; this
+// file holds only the bar-TV channel knobs.
+{
+  // Player within this many px of the bar counter passively catches the day's
+  // top headline. The counter-staffed range (worldConfig.ranges.counterStaffed)
+  // is tighter (NPC must stand on the counter); the player only needs to be
+  // at the bar, so this is wider — roughly one tile.
+  barTvRangePx: 40,
+  // Bar-TV chime toast duration (ms).
+  chimeToastDurationMs: 6000,
+  // The headline the war-day force-toast (7.0.B) broadcasts. Matches the
+  // UC 0079.01.03 Operation British entry in news.json5.
+  warDayHeadlineId: 'op-british',
+}
