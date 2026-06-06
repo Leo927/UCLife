@@ -258,6 +258,8 @@ registerDebugHandle('hireBranchListing', (npcKey: string): string[] => {
       isAEVehicleSalesOnDuty: false,
       isAEPartsDealerOnDuty: false,
       ownsPrivateFacility: false,
+      isPlayerFactionLeader: false,
+      isFactionAlignedNpc: false,
       managerStation: null,
     },
   }

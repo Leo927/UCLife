@@ -1,8 +1,21 @@
 # Newsfeed
 
-*Phase 5.1.*
+*Phase 5.1 design; bar-TV slice shipped in **Phase 7.0.A** (#104) — it was never built in 5.x, and Phase 7's war content is delivered through it, so it landed as the first slice of the war event.*
 
-Date-keyed events from a hand-authored content table (`data/news.json5`). Pre-war: low-grade Zeon autonomy debates, AE contract leaks, civic items, lunar-shipping incidents. War-era: dramatic shifts. Pure flavor that contextualizes drives and seeds Phase 7's war moment with months of foreshadowing.
+Date-keyed events from a hand-authored content table (`src/data/news.json5`). Pre-war: low-grade Zeon autonomy debates, AE contract leaks, civic items, lunar-shipping incidents. War-era: dramatic shifts. Pure flavor that contextualizes drives and seeds Phase 7's war moment with months of foreshadowing.
+
+## Shipped (7.0.A)
+
+The **bar-TV channel only**, per the ship-order below. Concretely:
+
+- **Content table** `src/data/news.json5` + loader `src/data/news.ts` — ~50 entries spanning UC 0077–0079, each with a canonical `date` (`UC YYYY.MM.DD`), numeric `priority` (top-of-broadcast vs. b-roll), `tags`, and zh-CN copy. Schema validated at load; the `date` key is canonical from day one (see *Implementation flag*).
+- **Newsfeed module** `src/sim/newsfeed.ts` — availability is **date-derived** (today's headlines = entries whose `date` matches the current UC date; no separate mutable "released" set). `newsfeedSystem(world, date)` runs on the per-tick loop: when the player is within `barTvRangePx` of the bar counter and today's top headline isn't yet in the journal, it is **consumed** (recorded) and surfaced as a chime toast. Co-location is the consume trigger — passive, zero-cost. Lives in the sim layer so the loop drives it without an upward import.
+- **Journal HUD** `src/ui/NewsfeedJournalPanel.tsx` — read-only, reverse-chronological list of consumed headlines with a tag filter and a "今日头条" hint pointing the player at the bar. Missed entries are absent (missability holds).
+- **War-day force-toast hook** `fireWarDayToast()` — authored **inert** (no caller in 7.0.A); 7.0.B's war-transition orchestrator calls it on UC 0079.01.03. Mirrors the `warPayoff` / `postWarEscalation` inert-now / live-later shape.
+- **Persistence** — the consumed-headline journal + the war-day-toast flag round-trip on the `newsfeed` save handler (`src/boot/saveHandlers/newsfeed.ts`).
+- Tuning (`barTvRangePx`, chime duration, war-day headline id) in `src/config/newsfeed.json5`.
+
+Not yet shipped: the **newspaper / home-radio / NPC-gossip** channels, and an in-world Pixi "TV above the counter" render (today the headline surfaces via the consume toast + the journal's 今日头条 hint). These are subsequent slices.
 
 ## Design constraint: missability
 

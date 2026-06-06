@@ -63,6 +63,13 @@ export function getLandmark(name: LandmarkName): { x: number; y: number } {
   return pos
 }
 
+// Non-throwing variant for consumers that run across all scenes, including
+// ones that may not have the landmark (e.g. a district with no bar). Returns
+// null instead of throwing.
+export function tryGetLandmark(name: LandmarkName): { x: number; y: number } | null {
+  return landmarks.get(name) ?? null
+}
+
 export function clearLandmarks(): void {
   landmarks.clear()
   shopRect = null

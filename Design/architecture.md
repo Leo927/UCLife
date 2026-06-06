@@ -121,6 +121,7 @@ per-tick chain (while tickAccum >= 1, capped at MAX_TICKS_PER_FRAME = 200)
   14. relations
   15. ambitions
   16. activeZone
+  17. newsfeed             (bar-TV co-location consume; sim/newsfeed.ts)
 ```
 
 Day-rollover (`gameDayNumber` change after `clock.advance`) runs an inline
@@ -237,7 +238,8 @@ under `src/boot/saveHandlers/` (clock, population, ship, space, scene,
 combat, engagement, npc, relations, vitals, stress, supplyDrain,
 spaceSim, promotion, activeZone, plus the faction-management subsystems
 — colony, governance, diplomacy, recruitment, brig, dailyEconomics,
-hangars, ms, fleetPool, fleetCrewCounter — 26 handlers at HEAD), side-
+hangars, ms, fleetPool, fleetCrewCounter — plus `newsfeed` (consumed-
+headline journal + war-day-toast flag) — 26 handlers at HEAD), side-
 effect-imported from `main.tsx`. Adding a new persisted subsystem is one
 new file in `src/boot/saveHandlers/`, with **no edit** to
 `src/save/index.ts`.

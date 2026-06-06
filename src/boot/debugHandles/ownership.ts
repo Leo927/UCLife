@@ -28,6 +28,7 @@ import {
   recruitmentSystem, rejectApplicant,
 } from '../../systems/recruitment'
 import type { SkillId } from '../../character/skills'
+import type { FactionId } from '../../config'
 
 interface OwnerSummary {
   kind: 'state' | 'faction' | 'character'
@@ -322,7 +323,7 @@ registerDebugHandle('recruiterSetCriteria', (
   if (!ws) return { ok: false, reason: 'no player-owned recruit office' }
   if (!ws.has(Recruiter)) return { ok: false, reason: 'no Recruiter trait' }
   const cur = ws.get(Recruiter)!
-  ws.set(Recruiter, { ...cur, criteria: { skill, minLevel, factionLean: factionLean ?? null, autoAccept } })
+  ws.set(Recruiter, { ...cur, criteria: { skill, minLevel, factionLean: (factionLean ?? null) as FactionId | null, autoAccept } })
   return { ok: true }
 })
 

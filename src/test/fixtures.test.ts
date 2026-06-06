@@ -55,6 +55,15 @@ describe('applyFixture', () => {
     expect(player!.get(Money)!.amount).toBe(200000)
   })
 
+  it('loads newsfeed-pre-war: player parked away from the commercial district', () => {
+    applyFixture('newsfeed-pre-war')
+    const player = findPlayer()
+    expect(player).not.toBeNull()
+    const pos = player!.get(Position)!
+    expect(pos.x).toBe(8 * TILE)
+    expect(pos.y).toBe(36 * TILE)
+  })
+
   it('loads npc-transit: player + commuter NPC both land in vonBraunCity', () => {
     applyFixture('npc-transit')
     const w = getWorld('vonBraunCity')

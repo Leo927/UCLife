@@ -33,7 +33,7 @@ registerTraitSerializer<RecruiterSnap>({
   },
   write: (e, v) => {
     // Phase 6.4.B backwards compat: old saves won't have factionLean in criteria.
-    const criteria = { factionLean: null, ...v.criteria }
+    const criteria = { ...v.criteria, factionLean: v.criteria.factionLean ?? null }
     const payload = { ...v, criteria }
     if (e.has(Recruiter)) e.set(Recruiter, payload)
     else e.add(Recruiter(payload))
