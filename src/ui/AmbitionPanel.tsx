@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useQueryFirst, useTrait } from 'koota/react'
 import { IsPlayer, Ambitions, type AmbitionSlot } from '../ecs/traits'
-import { ambitions, getAmbition, normalizeRequirement } from '../character/ambitions'
+import { availableAmbitions, getAmbition, normalizeRequirement } from '../character/ambitions'
 import { PERKS } from '../character/perks'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
+import { useWarState } from '../sim/warState'
 import { readStageProgress } from '../systems/ambitions'
 import { purchasePerk, factionPerkStoreView } from '../systems/factionPerks'
 import { useEventLog } from './EventLog'
@@ -66,6 +67,10 @@ export function AmbitionPanel() {
   const amb = useTrait(player, Ambitions)
   const gameMs = useClock((s) => s.gameDate.getTime())
   const logEntries = useEventLog((s) => s.entries)
+  // Phase 7.0.D — wartime ambitions are hidden from the picker until the war
+  // fires. Subscribing to the flag re-renders the panel on the transition.
+  const wartime = useWarState((s) => s.isWartime)
+  const offeredAmbitions = useMemo(() => availableAmbitions(wartime), [wartime])
 
   const [pickerMode, setPickerMode] = useState(false)
   const [perkStoreMode, setPerkStoreMode] = useState(false)
@@ -143,7 +148,7 @@ export function AmbitionPanel() {
             </p>
           </section>
           <section className="status-section">
-            {ambitions.map((a) => {
+            {offeredAmbitions.map((a) => {
               const isActive = activeIds.has(a.id)
               const conflicts = conflictIds(a.id)
               return (

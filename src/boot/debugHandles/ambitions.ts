@@ -47,6 +47,24 @@ registerDebugHandle('pickAmbitions', (ids: string[]) => {
   return true
 })
 
+// Set active ambitions at explicit stages, preserving AP / perks / history.
+// Test-setup shortcut for scenarios (e.g. 7.0.D warPayoff) that need a player
+// mid-arc without driving every stage's requirements, and without clobbering a
+// perk granted earlier in the same test (which pickAmbitions would reset).
+registerDebugHandle('pickAmbitionsAt', (slots: { id: string; currentStage: number }[]) => {
+  const player = world.queryFirst(IsPlayer, Ambitions)
+  if (!player) return false
+  const a = player.get(Ambitions)!
+  const next: AmbitionSlot[] = slots.map((s) => ({
+    id: s.id, currentStage: s.currentStage, streakAnchorMs: null,
+  }))
+  player.set(Ambitions, {
+    active: next, history: a.history,
+    apBalance: a.apBalance, apEarned: a.apEarned, perks: a.perks,
+  })
+  return true
+})
+
 registerDebugHandle('runAmbitionsTick', () => {
   ambitionsSystem(world, useClock.getState().gameDate)
   return true

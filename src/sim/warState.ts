@@ -29,6 +29,11 @@ interface WarStateData {
   frontControl: Record<string, number>
   // War-event ids already resolved (idempotency guard for strategicWarSystem).
   resolvedEventIds: string[]
+  // Phase 7.0.D — one-shot latch: whether the war transition already resolved
+  // the player's ambition `warPayoff` routes. Guards the AP/title/flag credit
+  // against re-firing if `war:transition` is somehow re-emitted. The wartime
+  // ambition tier itself unlocks off `isWartime()`, so no separate flag.
+  warPayoffResolved: boolean
 }
 
 const EMPTY: WarStateData = {
@@ -37,6 +42,7 @@ const EMPTY: WarStateData = {
   factionStrength: {},
   frontControl: {},
   resolvedEventIds: [],
+  warPayoffResolved: false,
 }
 
 export const useWarState = create<WarStateData>(() => ({ ...EMPTY }))
@@ -59,6 +65,18 @@ export function getFrontControl(frontId: string): number {
 
 export function isWarEventResolved(id: string): boolean {
   return useWarState.getState().resolvedEventIds.includes(id)
+}
+
+export function isWarPayoffResolved(): boolean {
+  return useWarState.getState().warPayoffResolved
+}
+
+// One-shot latch the warPayoff resolution sets on the transition. Returns
+// false if it was already set (so the caller can skip a re-resolve).
+export function markWarPayoffResolved(): boolean {
+  if (useWarState.getState().warPayoffResolved) return false
+  useWarState.setState({ warPayoffResolved: true })
+  return true
 }
 
 // Flip the one-way gate and seed the strength model from config. No-op once
@@ -114,6 +132,7 @@ export interface WarStateSnapshot {
   factionStrength: Record<string, number>
   frontControl: Record<string, number>
   resolvedEventIds: string[]
+  warPayoffResolved: boolean
 }
 
 export function snapshotWarState(): WarStateSnapshot {
@@ -124,6 +143,7 @@ export function snapshotWarState(): WarStateSnapshot {
     factionStrength: { ...s.factionStrength },
     frontControl: { ...s.frontControl },
     resolvedEventIds: [...s.resolvedEventIds],
+    warPayoffResolved: s.warPayoffResolved,
   }
 }
 
@@ -134,9 +154,15 @@ export function restoreWarState(blob: WarStateSnapshot): void {
     factionStrength: { ...(blob.factionStrength ?? {}) },
     frontControl: { ...(blob.frontControl ?? {}) },
     resolvedEventIds: [...(blob.resolvedEventIds ?? [])],
+    warPayoffResolved: Boolean(blob.warPayoffResolved),
   })
 }
 
 export function resetWarState(): void {
-  useWarState.setState({ ...EMPTY, factionStrength: {}, frontControl: {}, resolvedEventIds: [] })
+  useWarState.setState({
+    ...EMPTY,
+    factionStrength: {},
+    frontControl: {},
+    resolvedEventIds: [],
+  })
 }

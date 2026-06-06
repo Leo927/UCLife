@@ -48,6 +48,7 @@ import '../boot/fleetTransitTick'
 import '../boot/commandPointsTick'
 import '../boot/diplomacyTick'
 import '../boot/warTransitionTick'
+import '../boot/warPayoffBinding'
 import '../render/portrait/__debug__/findClerk'
 import '../render/portrait/__debug__/portraitFixtures'
 

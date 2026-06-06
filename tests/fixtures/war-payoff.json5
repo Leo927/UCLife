@@ -1,0 +1,15 @@
+// Phase 7.0.D warPayoff smoke fixture. A player in vonBraunCity; the test
+// itself seeds the active ambitions (mw_pilot mid-arc + a lesser one) via the
+// pickAmbitionsAt debug handle and grants a perk via grantAp/purchasePerk, so
+// the fixture only needs a baseline player. The clock is jumped to the war
+// date with setGameDate.
+{
+  seed: 'war-payoff-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+}

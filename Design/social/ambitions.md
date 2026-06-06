@@ -176,6 +176,26 @@ Multiple ambitions in pursuit at war-day means the highest-progress one
 wins routing; other ambitions simply continue tracking AP through the
 new wartime context.
 
+### Shipped (7.0.D)
+
+The `warPayoff` field, inert since 5.0, now resolves on the war
+transition. Each ambition's `warPayoff` string is a **route id** keyed
+into `warPayoffRoutes` (in `data/ambitions.json5`) — a resolvable payoff
+of the same shape as a stage payoff (`titleZh` override, `logZh`,
+optional unlock flags, AP credit). The loader validates that every
+ambition's `warPayoff` resolves to a defined route.
+
+`src/systems/warPayoff.ts` subscribes to the 7.0.B `war:transition`
+event (binding in `boot/warPayoffBinding.ts`). On the flip it walks the
+player's active ambitions: the **most-progressed** (highest current
+stage; ties → first) claims the title spotlight, while concurrently
+active lesser ambitions resolve their log + unlocks + AP without it. The
+resolution is one-shot (the `warState.warPayoffResolved` latch) and
+preserves perks verbatim — the faction-leader / personal perks earned
+pre-war survive the flip. A starter tier of **wartime ambitions**
+(`wartime: true`) is hidden from the picker until the war fires
+(`availableAmbitions` gates on `isWartime()`).
+
 ## What ambitions are NOT
 
 - **Not quests.** No NPC hands them out. Player picks from a menu, then plays.
@@ -193,7 +213,7 @@ new wartime context.
 | **5.2** | Ambitions involving NPC friendships read from the talk-verb opinion system. |
 | **5.3** | Faction-aligned ambitions deepen as Federation/Zeon visible presence ships. |
 | **6.x** | Fleet-tier and colony-tier ambitions unlock as the corresponding faction-management features ship. New perk categories (combat, faction-leader). |
-| **7** | `warPayoff` routes wire up; war-day asymmetry resolves each ambition's climax. Wartime ambitions added to the menu. |
+| **7** | `warPayoff` routes wire up; war-day asymmetry resolves each ambition's climax. Wartime ambitions added to the menu. **Shipped in 7.0.D (#107)** — see *Shipped (7.0.D)* above. |
 
 ## Related
 

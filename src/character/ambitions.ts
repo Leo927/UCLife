@@ -53,6 +53,15 @@ export interface AmbitionStage {
   }
 }
 
+// Phase 7.0.D — the live resolution an ambition's `warPayoff` string routes
+// into when the war fires. Same payoff shape as a stage payoff.
+export interface WarPayoffRoute {
+  titleZh: string
+  logZh: string
+  unlocks?: string[]
+  ap?: number
+}
+
 export interface AmbitionDef {
   id: string
   nameZh: string
@@ -60,10 +69,14 @@ export interface AmbitionDef {
   conflicts: string[]
   stages: AmbitionStage[]
   warPayoff: string
+  // Phase 7.0.D — wartime ambitions are hidden from the picker until the war
+  // fires (availableAmbitions gates on this). Absent/false = available pre-war.
+  wartime?: boolean
 }
 
 interface AmbitionsFile {
   ambitions: AmbitionDef[]
+  warPayoffRoutes: Record<string, WarPayoffRoute>
 }
 
 const parsed = json5.parse(raw) as AmbitionsFile
@@ -94,6 +107,9 @@ function validate(file: AmbitionsFile): void {
     }
     if (typeof a.warPayoff !== 'string' || !a.warPayoff) {
       throw new Error(`[ambitions:${a.id}] missing warPayoff`)
+    }
+    if (a.wartime !== undefined && typeof a.wartime !== 'boolean') {
+      throw new Error(`[ambitions:${a.id}] wartime must be a boolean`)
     }
     if (!Array.isArray(a.stages) || a.stages.length === 0) {
       throw new Error(`[ambitions:${a.id}] must have at least one stage`)
@@ -165,14 +181,64 @@ function validate(file: AmbitionsFile): void {
       }
     }
   }
+
+  // warPayoff routes (Phase 7.0.D): each route well-formed, and every
+  // ambition's warPayoff string resolves to one (else the war transition
+  // would silently no-op that ambition's climax).
+  if (typeof file.warPayoffRoutes !== 'object' || file.warPayoffRoutes === null) {
+    throw new Error('[ambitions] missing warPayoffRoutes')
+  }
+  for (const [routeId, r] of Object.entries(file.warPayoffRoutes)) {
+    if (typeof r.titleZh !== 'string' || !r.titleZh) {
+      throw new Error(`[warPayoffRoute:${routeId}] missing titleZh`)
+    }
+    if (typeof r.logZh !== 'string' || !r.logZh) {
+      throw new Error(`[warPayoffRoute:${routeId}] missing logZh`)
+    }
+    if (r.unlocks !== undefined) {
+      if (!Array.isArray(r.unlocks)) {
+        throw new Error(`[warPayoffRoute:${routeId}] unlocks must be array`)
+      }
+      for (const u of r.unlocks) {
+        if (typeof u !== 'string' || !u) {
+          throw new Error(`[warPayoffRoute:${routeId}] unlock flag must be non-empty string`)
+        }
+      }
+    }
+    if (r.ap !== undefined && (typeof r.ap !== 'number' || r.ap < 0 || !Number.isFinite(r.ap))) {
+      throw new Error(`[warPayoffRoute:${routeId}] ap must be a non-negative finite number`)
+    }
+  }
+  for (const a of file.ambitions) {
+    if (!(a.warPayoff in file.warPayoffRoutes)) {
+      throw new Error(`[ambitions:${a.id}] warPayoff "${a.warPayoff}" has no matching warPayoffRoute`)
+    }
+  }
 }
 
 validate(parsed)
 
 export const ambitions: readonly AmbitionDef[] = parsed.ambitions
 
+export const warPayoffRoutes: Readonly<Record<string, WarPayoffRoute>> = parsed.warPayoffRoutes
+
 export function getAmbition(id: string): AmbitionDef | undefined {
   return ambitions.find((a) => a.id === id)
+}
+
+// Phase 7.0.D — the war route an ambition's `warPayoff` string resolves into.
+export function getWarPayoffRoute(routeId: string): WarPayoffRoute | undefined {
+  return warPayoffRoutes[routeId]
+}
+
+// Ambitions offerable in the picker. Wartime ambitions are hidden until the
+// war fires (the unlock hook), so pre-war the menu is the peacetime set.
+export function availableAmbitions(wartimeUnlocked: boolean): readonly AmbitionDef[] {
+  return wartimeUnlocked ? ambitions : ambitions.filter((a) => !a.wartime)
+}
+
+export function wartimeAmbitionIds(): string[] {
+  return ambitions.filter((a) => a.wartime).map((a) => a.id)
 }
 
 // Normalize a requirement value to {gte, lte}. Shorthand number → {gte: n}.

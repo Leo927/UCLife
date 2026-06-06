@@ -299,6 +299,9 @@ entries against the faction-strength model, idempotently, emitting
 (`sim/warState.ts`, mirroring `sim/newsfeed.ts`) — global, not a per-scene
 ECS trait — persisted via the `warState` save handler. The newsfeed reads
 it for its wartime tone-shift (war-tagged headlines dominate the feed).
+Phase 7.0.D's `warPayoffBinding` subscribes to `'war:transition'` and
+resolves the player's most-progressed ambition `warPayoff` route
+(`systems/warPayoff.ts`), latched once in `warState`.
 
 - **Colony** — `colonyConstruction` (build queue), `colonyEconomics`
   (revenue/upkeep/resupply from hangar stock), `colonyThreats` (garrison
