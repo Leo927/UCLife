@@ -42,6 +42,15 @@ describe('planWarPayoff', () => {
     expect(plan.totalAp).toBe(expected)
   })
 
+  it('headlines a resolvable ambition even when a higher slot has a stale id', () => {
+    // The unknown id has a higher currentStage but no catalog entry — the
+    // headline must fall to the resolvable mw_pilot, not vanish.
+    const plan = planWarPayoff([slot('mw_pilot', 4), slot('not_a_real_ambition', 9)])
+    expect(plan.entries.map((e) => e.ambitionId)).toEqual(['mw_pilot'])
+    expect(plan.headlineAmbitionId).toBe('mw_pilot')
+    expect(plan.titleZh).toBe(getWarPayoffRoute(getAmbition('mw_pilot')!.warPayoff)!.titleZh)
+  })
+
   it('collects the headline route unlock flags', () => {
     const plan = planWarPayoff([slot('mw_pilot', 4)])
     const route = getWarPayoffRoute(getAmbition('mw_pilot')!.warPayoff)!

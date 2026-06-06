@@ -56,43 +56,40 @@ export interface WarPayoffPlan {
 // ties → first), and the AP total. Reads only the module-global catalog, so
 // it unit-tests without a world.
 export function planWarPayoff(active: readonly AmbitionSlot[]): WarPayoffPlan {
-  if (active.length === 0) {
+  // First pass: keep only slots that map to a real ambition + route. Choosing
+  // the headline from the *resolved* slots (not the raw array) keeps the title
+  // payoff from being silently dropped when the most-progressed slot carries a
+  // stale id (e.g. an ambition renamed/removed since the save was written).
+  const resolved = active.flatMap((slot) => {
+    const def = getAmbition(slot.id)
+    const route = def ? getWarPayoffRoute(def.warPayoff) : undefined
+    return def && route ? [{ slot, def, route }] : []
+  })
+  if (resolved.length === 0) {
     return { entries: [], headlineAmbitionId: null, titleZh: null, totalAp: 0 }
   }
 
-  let headlineIdx = 0
-  for (let i = 1; i < active.length; i++) {
-    if (active[i].currentStage > active[headlineIdx].currentStage) headlineIdx = i
+  // Most-progressed among resolved = highest current stage (ties → first).
+  let headlineI = 0
+  for (let i = 1; i < resolved.length; i++) {
+    if (resolved[i].slot.currentStage > resolved[headlineI].slot.currentStage) headlineI = i
   }
 
-  const entries: WarPayoffEntry[] = []
-  let totalAp = 0
-  let headlineAmbitionId: string | null = null
-  let titleZh: string | null = null
+  const entries: WarPayoffEntry[] = resolved.map((r, i) => ({
+    ambitionId: r.def.id,
+    routeId: r.def.warPayoff,
+    logZh: r.route.logZh,
+    unlocks: r.route.unlocks ? [...r.route.unlocks] : [],
+    ap: r.route.ap ?? 0,
+    isHeadline: i === headlineI,
+  }))
 
-  for (let i = 0; i < active.length; i++) {
-    const def = getAmbition(active[i].id)
-    if (!def) continue
-    const route = getWarPayoffRoute(def.warPayoff)
-    if (!route) continue
-    const ap = route.ap ?? 0
-    const isHeadline = i === headlineIdx
-    entries.push({
-      ambitionId: def.id,
-      routeId: def.warPayoff,
-      logZh: route.logZh,
-      unlocks: route.unlocks ? [...route.unlocks] : [],
-      ap,
-      isHeadline,
-    })
-    totalAp += ap
-    if (isHeadline) {
-      headlineAmbitionId = def.id
-      titleZh = route.titleZh
-    }
+  return {
+    entries,
+    headlineAmbitionId: resolved[headlineI].def.id,
+    titleZh: resolved[headlineI].route.titleZh,
+    totalAp: entries.reduce((sum, e) => sum + e.ap, 0),
   }
-
-  return { entries, headlineAmbitionId, titleZh, totalAp }
 }
 
 function findPlayerWithAmbitions(): Entity | null {
