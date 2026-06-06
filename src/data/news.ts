@@ -87,3 +87,22 @@ export function ucDateKey(d: Date): string {
   const dd = d.getDate().toString().padStart(2, '0')
   return `UC ${yyyy}.${mm}.${dd}`
 }
+
+// Monotonic ordinal (YYYYMMDD) for a game Date — order-comparable without
+// JS Date math. Used by date-gated systems (the 7.0.B war trigger) to test
+// "is the clock on or after date X" by comparing integers.
+export function ucDateOrdinal(d: Date): number {
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+}
+
+// Same ordinal from a canonical `UC YYYY.MM.DD` key. Throws on a malformed
+// key so a typo'd config date fails loud rather than comparing as 0.
+export function ucDateKeyOrdinal(key: string): number {
+  if (!UC_DATE_RE.test(key)) {
+    throw new Error(`ucDateKeyOrdinal: malformed UC date key "${key}" (want "UC YYYY.MM.DD")`)
+  }
+  const yyyy = Number(key.slice(3, 7))
+  const mm = Number(key.slice(8, 10))
+  const dd = Number(key.slice(11, 13))
+  return yyyy * 10000 + mm * 100 + dd
+}

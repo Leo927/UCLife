@@ -2,7 +2,7 @@
 // seeds a world with a player at a position, sets the barCounter landmark, and
 // drives newsfeedSystem for an authored UC date.
 
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { createWorld } from 'koota'
 import { IsPlayer, Position, Character, EntityKey } from '../ecs/traits'
 import { setLandmark, clearLandmarks } from '../data/landmarks'
@@ -10,7 +10,10 @@ import {
   newsfeedSystem, fireWarDayToast, topHeadlineToday,
   resetNewsfeed, getNewsJournal, isHeadlineConsumed, wasWarDayToastFired,
   snapshotNewsfeed, restoreNewsfeed,
+  rankTopHeadline, newsfeedMode, type NewsfeedMode,
 } from './newsfeed'
+import type { NewsEntry } from '../data/news'
+import { flipToWartime, resetWarState } from './warState'
 
 const COUNTER = { x: 100, y: 100 }
 
@@ -109,6 +112,46 @@ describe('war-day toast hook (inert in 7.0.A)', () => {
     expect(fireWarDayToast()).toBe(true)
     expect(wasWarDayToastFired()).toBe(true)
     expect(isHeadlineConsumed('op-british')).toBe(true)
+    // Idempotent — a second call is a no-op (returns false), no re-broadcast.
+    expect(fireWarDayToast()).toBe(false)
+  })
+})
+
+describe('wartime tone-shift (7.0.B)', () => {
+  afterEach(() => resetWarState())
+
+  const entry = (id: string, priority: number, tags: NewsEntry['tags']): NewsEntry => ({
+    id, date: 'UC 0079.01.02', priority, tags, headlineZh: id, bodyZh: id,
+  })
+
+  it('rankTopHeadline keeps priority order pre-war', () => {
+    const list = [entry('civic-top', 50, ['civic']), entry('war-low', 40, ['war'])]
+    expect(rankTopHeadline(list, false)?.id).toBe('civic-top')
+  })
+
+  it('rankTopHeadline promotes the first war-tagged entry in wartime', () => {
+    const list = [entry('civic-top', 50, ['civic']), entry('war-low', 40, ['war'])]
+    expect(rankTopHeadline(list, true)?.id).toBe('war-low')
+  })
+
+  it('rankTopHeadline falls back to priority order when no war entry exists', () => {
+    const list = [entry('civic-top', 50, ['civic']), entry('ae-mid', 40, ['ae'])]
+    expect(rankTopHeadline(list, true)?.id).toBe('civic-top')
+  })
+
+  it('newsfeedMode + topHeadlineToday flip with the war flag on a mixed-tag date', () => {
+    // UC 0079.01.02 has a non-war top (fed-emergency-session, p46) and a
+    // war-tagged entry below (fed-airspace-closure, p40).
+    const jan2 = (() => { const d = new Date(); d.setFullYear(79, 0, 2); d.setHours(12, 0, 0, 0); return d })()
+
+    expect(newsfeedMode() as NewsfeedMode).toBe('prewar')
+    const prewarTop = topHeadlineToday(jan2)
+    expect(prewarTop?.tags.includes('war')).toBe(false)
+
+    flipToWartime(616)
+    expect(newsfeedMode() as NewsfeedMode).toBe('wartime')
+    const wartimeTop = topHeadlineToday(jan2)
+    expect(wartimeTop?.tags.includes('war')).toBe(true)
   })
 })
 

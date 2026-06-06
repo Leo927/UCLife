@@ -24,9 +24,10 @@ import { create } from 'zustand'
 import type { World } from 'koota'
 import { IsPlayer, Position } from '../ecs/traits'
 import { tryGetLandmark } from '../data/landmarks'
-import { topHeadlineForDate, ucDateKey, getNewsEntry, type NewsEntry } from '../data/news'
+import { getHeadlinesForDate, ucDateKey, getNewsEntry, type NewsEntry } from '../data/news'
 import { gameDayNumber, useClock } from './clock'
 import { emitSim } from './events'
+import { isWartime } from './warState'
 import { newsfeedConfig } from '../config'
 
 export interface ConsumedHeadline {
@@ -70,16 +71,40 @@ export function wasWarDayToastFired(): boolean {
 
 // ── Bar-TV channel ───────────────────────────────────────────────────────
 
-// Today's top-of-broadcast headline for the given clock date, or null.
+export type NewsfeedMode = 'prewar' | 'wartime'
+
+// Phase 7.0.B newsfeed tone-shift. Pre-war the feed is plain priority order
+// (the data layer pre-sorts by descending priority). Once wartime, war-tagged
+// entries dominate the broadcast — the first war-tagged entry becomes the
+// day's top headline, dropping to priority order only when no war entry is
+// authored for the date. Pure over its inputs so it unit-tests without the
+// clock or the global war flag.
+export function rankTopHeadline(
+  list: readonly NewsEntry[],
+  wartime: boolean,
+): NewsEntry | null {
+  if (list.length === 0) return null
+  if (!wartime) return list[0]
+  return list.find((e) => e.tags.includes('war')) ?? list[0]
+}
+
+// Whether the feed is in wartime mode — the diegetic consequence of the
+// 7.0.B transition flag flip.
+export function newsfeedMode(): NewsfeedMode {
+  return isWartime() ? 'wartime' : 'prewar'
+}
+
+// Today's top-of-broadcast headline for the given clock date, or null. Honors
+// the wartime tone-shift.
 export function topHeadlineToday(date: Date): NewsEntry | null {
-  return topHeadlineForDate(ucDateKey(date))
+  return rankTopHeadline(getHeadlinesForDate(ucDateKey(date)), isWartime())
 }
 
 export function newsfeedSystem(world: World, date: Date): void {
   const counter = tryGetLandmark('barCounter')
   if (!counter) return // scene has no bar — nothing to surface
 
-  const top = topHeadlineForDate(ucDateKey(date))
+  const top = rankTopHeadline(getHeadlinesForDate(ucDateKey(date)), isWartime())
   if (!top || isHeadlineConsumed(top.id)) return
 
   const player = world.queryFirst(IsPlayer, Position)
@@ -105,8 +130,10 @@ export function newsfeedSystem(world: World, date: Date): void {
 // headline to every screen in the city regardless of player location — the one
 // time the missability rule breaks. No caller exists in 7.0.A; this mirrors the
 // inert-now / live-later shape of ambitions `warPayoff` and diplomacy
-// `postWarEscalation`. Calling it twice is a no-op after the first fire.
+// `postWarEscalation`. Idempotent: calling it after the first fire is a no-op
+// (returns false), so the broadcast — and its toast — happen exactly once.
 export function fireWarDayToast(): boolean {
+  if (wasWarDayToastFired()) return false
   const entry = getNewsEntry(newsfeedConfig.warDayHeadlineId)
   if (!entry) return false
   useNewsfeed.setState({ warDayToastFired: true })

@@ -1,0 +1,52 @@
+// Date-keyed strategic-war events (Phase 7.0.B). Once the IsWartime gate
+// flips (UC 0079.01.03), strategicWarSystem resolves the events whose `date`
+// matches the current UC date on the day:rollover tick, applying their deltas
+// to the warState faction-strength model and theater fronts. Outcomes are
+// published on the event bus for downstream consumers (7.0.C/D/E) to react to.
+//
+// Each event resolves at most once (idempotent — warState tracks resolved
+// ids), so a forced re-tick on the same date is a no-op.
+//
+// `strengthDelta` keys are faction ids (must exist in
+// config/warTransition.json5 initialFactionStrength). `frontShift` keys are
+// front ids (must exist in config/warTransition.json5 fronts); positive =
+// toward Federation, negative = toward Zeon.
+{
+  events: [
+    {
+      // The opening blow — Operation British. Zeon gasses Side 5 colonies and
+      // drops the cylinder; the Battle of Loum's opening tilts hard to Zeon.
+      id: 'op-british-strike',
+      date: 'UC 0079.01.03',
+      headlineZh: '不列颠作战:吉翁奇袭得手',
+      strengthDelta: { federation: -5, zeon: 3 },
+      frontShift: { side5: -20 },
+    },
+    {
+      // Battle of Loum proper — the Federation fleet is gutted.
+      id: 'battle-of-loum',
+      date: 'UC 0079.01.04',
+      headlineZh: '卢姆会战:联邦舰队损失惨重',
+      strengthDelta: { federation: -12, zeon: 4 },
+      frontShift: { side5: -15, earthOrbit: -8 },
+    },
+    {
+      // Zeon's drive toward Earth pressures lunar supply lines; AE quietly
+      // profits as both sides scramble for materiel.
+      id: 'zeon-earth-drive',
+      date: 'UC 0079.01.10',
+      headlineZh: '吉翁挺进地球圈,月面补给线告急',
+      strengthDelta: { zeon: 2, anaheim: 6 },
+      frontShift: { earthOrbit: -10, lunar: -5 },
+    },
+    {
+      // The Antarctic Treaty pauses the worst of it; the Federation begins to
+      // claw back as Operation V (the Gundam project) spins up.
+      id: 'antarctic-treaty',
+      date: 'UC 0079.02.01',
+      headlineZh: '《南极条约》签署,战线暂时稳定',
+      strengthDelta: { federation: 4 },
+      frontShift: { earthOrbit: 6 },
+    },
+  ],
+}

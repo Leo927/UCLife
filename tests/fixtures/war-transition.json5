@@ -1,0 +1,15 @@
+// Phase 7.0.B war-transition smoke fixture. Player in vonBraunCity, parked
+// well away from the bar counter (commercial district, x:30–70 y:0–24) so the
+// war-day force-toast firing "regardless of player location" is a meaningful
+// assertion — the player is nowhere near the TV. The game clock always starts
+// UC 0077.04.27 in test mode; the test jumps it to the brink via setGameDate.
+{
+  seed: 'war-transition-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+}
