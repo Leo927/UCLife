@@ -5,9 +5,10 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { useClock, gameDayNumber } from '../../sim/clock'
-import { snapshotWarState } from '../../sim/warState'
+import { snapshotWarState, isWartime } from '../../sim/warState'
 import { newsfeedMode } from '../../sim/newsfeed'
 import { ucDateKey } from '../../data/news'
+import { availableAmbitions, wartimeAmbitionIds } from '../../character/ambitions'
 import { warTransitionSystem } from '../../systems/warTransition'
 import { strategicWarSystem } from '../../systems/strategicWar'
 
@@ -22,9 +23,19 @@ registerDebugHandle('getWarState', () => {
     factionStrength: { ...s.factionStrength },
     frontControl: { ...s.frontControl },
     resolvedEventIds: [...s.resolvedEventIds],
+    warPayoffResolved: s.warPayoffResolved,
     newsfeedMode: newsfeedMode(),
   }
 })
+
+// Phase 7.0.D — the wartime-ambition unlock surface: whether the warPayoff
+// routes resolved, the wartime-only ambition ids, and the ids currently
+// offered in the picker (gated on isWartime()).
+registerDebugHandle('getWarPayoffState', () => ({
+  warPayoffResolved: snapshotWarState().warPayoffResolved,
+  wartimeAmbitionIds: wartimeAmbitionIds(),
+  offeredAmbitionIds: availableAmbitions(isWartime()).map((a) => a.id),
+}))
 
 // Run the transition orchestrator + strategic-war resolution once against the
 // current clock date — the day:rollover:settled path. Day-scale war tests jump

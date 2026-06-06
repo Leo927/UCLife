@@ -20,7 +20,12 @@
 //       logZh       : zh-CN one-line entry pushed to the in-game event log
 //       unlocks?    : array of string flags written to the player's Flags
 //                     trait (no consumers wired in 5.0; phase 5.2 reads them)
-//   warPayoff    : free-form string that phase 7's UC 0079.01.03 trigger reads
+//   warPayoff    : route id (key in warPayoffRoutes) that phase 7's
+//                  UC 0079.01.03 trigger resolves for this ambition
+//   wartime?     : when true, hidden from the picker until the war fires
+//
+// warPayoffRoutes : map of route id → { titleZh, logZh, unlocks?, ap? }, the
+//                   live war-day climax each ambition's warPayoff resolves into
 //
 // Requirement-key allow-list (validator throws on anything else):
 //   attributes : strength endurance charisma intelligence reflex resolve
@@ -339,5 +344,125 @@
       ],
       warPayoff: 'dropout_invisible',
     },
+
+    // ── Wartime ambitions (Phase 7.0.D) ────────────────────────────────────
+    // Gated on IsWartime: they only appear in the picker once the war fires
+    // (availableAmbitions filters them out pre-war). Same schema as the
+    // peacetime arcs; their warPayoff routes are already "at war" climaxes.
+    {
+      id: 'war_volunteer_pilot',
+      nameZh: '战时志愿驾驶员',
+      blurbZh: '战争已经爆发。与其等一纸征召令,不如主动走进征兵处——把驾驶舱变成你自己的选择。',
+      conflicts: [],
+      wartime: true,
+      stages: [
+        {
+          stageNameZh: '报名',
+          requirements: { reflex: 40, federation: 20 },
+          payoff: {
+            titleZh: '志愿兵',
+            logZh: '你在征兵处的名册上签下名字。手没有抖。',
+            ap: 1,
+          },
+        },
+        {
+          stageNameZh: '编入中队',
+          requirements: { piloting: 4000, federation: 40 },
+          payoff: {
+            titleZh: '前线候补',
+            logZh: '中队长把一枚旧识别牌塞进你手里:"活着戴回来。"',
+            unlocks: ['war_volunteer_squadron'],
+            ap: 2,
+          },
+        },
+      ],
+      warPayoff: 'war_volunteer_committed',
+    },
+
+    {
+      id: 'war_profiteer',
+      nameZh: '战时投机商',
+      blurbZh: '配给、封锁、短缺——对大多数人是灾难,对你是机会。在别人囤粮的时候,囤渠道。',
+      conflicts: [],
+      wartime: true,
+      stages: [
+        {
+          stageNameZh: '第一笔黑市交易',
+          requirements: { money: 50000, charisma: 30 },
+          payoff: {
+            titleZh: '门路',
+            logZh: '一箱"来路不明"的罐头换来三倍的价钱。没人问你从哪弄的。',
+            ap: 1,
+          },
+        },
+        {
+          stageNameZh: '把持渠道',
+          requirements: { money: 200000, charisma: 50 },
+          payoff: {
+            titleZh: '战时巨贾',
+            logZh: '半条街的配给票都要经你的手。你开始雇人替你数钱。',
+            unlocks: ['war_profiteer_network'],
+            ap: 2,
+          },
+        },
+      ],
+      warPayoff: 'war_profiteer_entrenched',
+    },
   ],
+
+  // ── warPayoff routes (Phase 7.0.D) ───────────────────────────────────────
+  // The live resolution each ambition's `warPayoff` string routes into when
+  // the war fires (UC 0079.01.03). Same payoff shape as a stage payoff
+  // (titleZh override, logZh, optional unlock flags, AP credit). The
+  // most-progressed active ambition's route claims the title spotlight; the
+  // others resolve their log + unlocks + AP without it. Every ambition's
+  // `warPayoff` must reference a key here (validated at load).
+  warPayoffRoutes: {
+    drafted_as_mw_operator: {
+      titleZh: '机动工兵·战时征召',
+      logZh: '战争来了。你的训练有了去处——一份盖着联邦印章的征召令递到手上。',
+      unlocks: ['war_route_mw_pilot'],
+      ap: 3,
+    },
+    ae_chief_drafted: {
+      titleZh: '阿纳海姆·军需主任',
+      logZh: '公司一夜转入军需。你的工位被划进了"战略人才",不许辞职。',
+      unlocks: ['war_route_ae_chief'],
+      ap: 3,
+    },
+    civilian_bar_owner: {
+      titleZh: '拉兹洛的守夜人',
+      logZh: '配给制下,酒吧还得开。你成了这条街战时仅存的灯火。',
+      unlocks: ['war_route_bar_owner'],
+      ap: 2,
+    },
+    zeon_volunteer_active: {
+      titleZh: '吉翁·志愿兵',
+      logZh: '你等的这一天到了。志愿兵的通道为你敞开,没有回头路。',
+      unlocks: ['war_route_zeon_volunteer'],
+      ap: 3,
+    },
+    earth_migrant_offworld: {
+      titleZh: '末班船的乘客',
+      logZh: '地球的门正在关上。你攥着那张越来越贵的船票,窗口只剩最后一道缝。',
+      unlocks: ['war_route_earth_migration'],
+      ap: 3,
+    },
+    dropout_invisible: {
+      titleZh: '战时的隐形人',
+      logZh: '全城戒严,可没人来查一个早已不存在的人。混乱反倒成了你的掩护。',
+      unlocks: ['war_route_dropout'],
+      ap: 2,
+    },
+    war_volunteer_committed: {
+      titleZh: '前线驾驶员',
+      logZh: '你主动走进了征兵处。这一次,是你选择了战争。',
+      ap: 2,
+    },
+    war_profiteer_entrenched: {
+      titleZh: '战时巨贾',
+      logZh: '别人怕配给,你靠它发家。账本一天比一天厚。',
+      ap: 2,
+    },
+  },
 }

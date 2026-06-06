@@ -6,6 +6,7 @@ import { warTransitionConfig } from '../config'
 import {
   isWartime, getTransitionDay, getFactionStrength, getFrontControl,
   isWarEventResolved, flipToWartime, applyStrengthDelta, markWarEventResolved,
+  isWarPayoffResolved, markWarPayoffResolved,
   snapshotWarState, restoreWarState, resetWarState,
 } from './warState'
 
@@ -61,6 +62,14 @@ describe('strength deltas', () => {
     expect(getFrontControl('lunar')).toBe(100)
   })
 
+  it('latches warPayoff resolution exactly once', () => {
+    expect(isWarPayoffResolved()).toBe(false)
+    expect(markWarPayoffResolved()).toBe(true)
+    expect(isWarPayoffResolved()).toBe(true)
+    // A second mark is a no-op (returns false) — the one-shot guard.
+    expect(markWarPayoffResolved()).toBe(false)
+  })
+
   it('guards war-event resolution against double-apply', () => {
     expect(isWarEventResolved('op-british-strike')).toBe(false)
     markWarEventResolved('op-british-strike')
@@ -76,10 +85,12 @@ describe('persistence', () => {
     flipToWartime(616)
     applyStrengthDelta({ federation: -5 }, { side5: -20 })
     markWarEventResolved('op-british-strike')
+    markWarPayoffResolved()
     const snap = snapshotWarState()
 
     resetWarState()
     expect(isWartime()).toBe(false)
+    expect(isWarPayoffResolved()).toBe(false)
 
     restoreWarState(snap)
     expect(isWartime()).toBe(true)
@@ -88,5 +99,6 @@ describe('persistence', () => {
       .toBe(warTransitionConfig.initialFactionStrength.federation - 5)
     expect(getFrontControl('side5')).toBe(SIDE5_SEED - 20)
     expect(isWarEventResolved('op-british-strike')).toBe(true)
+    expect(isWarPayoffResolved()).toBe(true)
   })
 })

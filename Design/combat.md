@@ -402,10 +402,16 @@ Steps 1–2 plus the structural pivot. Concretely:
   `warState` save handler; a post-flip save loads wartime, a pre-flip save
   loads pre-war.
 
-Not yet wired: steps 3–9 (conscription → 7.0.C, `warPayoff` → 7.0.D,
-economy/refugee/facility content → 7.0.E, hostile expeditions → 7.1). They
-subscribe to `'war:transition'` / `'war:event-resolved'`; this slice ships
-the dispatch + the model, not the subscribers.
+Not yet wired by 7.0.B: steps 3–9 (conscription → 7.0.C, `warPayoff` →
+7.0.D, economy/refugee/facility content → 7.0.E, hostile expeditions →
+7.1). They subscribe to `'war:transition'` / `'war:event-resolved'`; that
+slice ships the dispatch + the model, not the subscribers.
+
+**Step 4 shipped in 7.0.D (#107):** `src/systems/warPayoff.ts` subscribes
+to `'war:transition'` and resolves each active ambition's `warPayoff`
+route (most-progressed claims the title spotlight); wartime ambitions
+unlock (step 5, gated on `isWartime()`); pre-war perks survive the flip.
+See `social/ambitions.md § Shipped (7.0.D)`.
 
 ## Permadeath and combat
 
