@@ -5,7 +5,7 @@
 // catch-up. Toggled from a self-contained button, mirroring EventLogPanel.
 
 import { useState } from 'react'
-import { useNewsfeed } from '../sim/newsfeed'
+import { useNewsfeed, isHeadlineConsumed } from '../sim/newsfeed'
 import { useClock } from '../sim/clock'
 import { topHeadlineForDate, ucDateKey, getNewsEntry, type NewsTag } from '../data/news'
 import { playUi } from '../audio/player'
@@ -47,6 +47,7 @@ export function NewsfeedJournalPanel() {
   }
 
   const today = topHeadlineForDate(ucDateKey(new Date(gameMs)))
+  const todayCaught = today ? isHeadlineConsumed(today.id) : false
   // Newest consumed first.
   const rows = [...journal].reverse()
     .map((c) => ({ consumed: c, entry: getNewsEntry(c.id) }))
@@ -74,7 +75,9 @@ export function NewsfeedJournalPanel() {
 
       {today && (
         <div style={{ marginBottom: 10, padding: '6px 8px', background: '#16203a', borderRadius: 4, fontSize: 12 }}>
-          <div style={{ color: '#7c9', marginBottom: 2 }}>今日头条 · 前往酒吧收看</div>
+          <div style={{ color: todayCaught ? '#789' : '#7c9', marginBottom: 2 }}>
+            {todayCaught ? '今日头条 · 已收看' : '今日头条 · 前往酒吧收看'}
+          </div>
           <div>{today.headlineZh}</div>
         </div>
       )}

@@ -5,8 +5,9 @@
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import { IsPlayer, Position, MoveTarget, Money, Road, Building, Wall, Path } from '../../ecs/traits'
+import { worldConfig } from '../../config'
 
-const TILE = 32
+const TILE = worldConfig.tilePx
 
 registerDebugHandle('world', world)
 
