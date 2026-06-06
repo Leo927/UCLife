@@ -44,4 +44,6 @@ export function bindUi(): void {
   onSim('ui:open-recoverables', () => useUI.getState().setRecoverables(true))
   // Phase 6.3.A — colony claim panel.
   onSim('ui:colony-claim', ({ poiId }) => useUI.getState().setColonyClaimPoiId(poiId))
+  // Phase 7.0.C — conscription draft-notice panel.
+  onSim('ui:draft-notice', (payload) => useUI.getState().setDraftNotice(payload))
 }

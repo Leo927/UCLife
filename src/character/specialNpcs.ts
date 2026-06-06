@@ -38,6 +38,10 @@ export interface SpecialNpc {
   // Pre-assign at world-init (specId match) so AE board / manager NPCs
   // populate immediately rather than waiting on natural job-seeking.
   workstation?: string
+  // Phase 7.0.C — a combatant-eligible backstory (ex-military / ace). Once
+  // wartime, the conscription draft roll may pull these named NPCs out of the
+  // city. Background civilians are never eligible.
+  combatantEligible?: boolean
 }
 
 interface SpecialNpcsFile {

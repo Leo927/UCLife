@@ -49,6 +49,7 @@ import '../boot/commandPointsTick'
 import '../boot/diplomacyTick'
 import '../boot/warTransitionTick'
 import '../boot/warPayoffBinding'
+import '../boot/conscriptionTick'
 import '../render/portrait/__debug__/findClerk'
 import '../render/portrait/__debug__/portraitFixtures'
 

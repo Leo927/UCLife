@@ -1,0 +1,13 @@
+// Phase 7.0.C conscription smoke — a player running the mw_pilot ambition, who
+// WANTS to be drafted (the refusal roll is biased hard toward acceptance). The
+// test seeds the active ambition via pickAmbitionsAt.
+{
+  seed: 'conscription-pilot-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+}

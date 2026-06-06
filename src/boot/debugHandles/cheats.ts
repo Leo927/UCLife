@@ -13,6 +13,7 @@ import { STAT_IDS } from '../../stats/schema'
 import { applyBackground, removeBackground } from '../../character/backgrounds'
 import type { FactionId } from '../../data/factions'
 import { setSkillXp, type SkillId } from '../../character/skills'
+import { setSimRngSeed } from '../../sim/rng'
 
 const STAT_ID_SET = new Set<string>(STAT_IDS)
 
@@ -64,6 +65,13 @@ registerDebugHandle('getPlayerReputation', (factionId: string) => {
   const r = p.get(Reputation)
   if (!r) return 0
   return r.rep[factionId as FactionId] ?? 0
+})
+
+// Reseed the singleton sim RNG so a test can make the next roll deterministic
+// (e.g. pin a conscription refusal-roll outcome). Pure test setup.
+registerDebugHandle('seedSimRng', (seed: string) => {
+  setSimRngSeed(seed)
+  return true
 })
 
 registerDebugHandle('cheatMoney', (n: number) => {

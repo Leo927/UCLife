@@ -39,3 +39,4 @@ import './diplomacy'       // Phase 6.4.D — diplomacy council: convene, sign, 
 import './factionPerks'    // Phase 6.4.E — faction-leader perk spend + tier-unlock grant for smoke tests
 import './newsfeed'        // Phase 7.0.A — newsfeed journal + bar-counter tile + war-day toast hook
 import './warState'        // Phase 7.0.B — war-transition gate + strategic-war model + force-tick
+import './conscription'    // Phase 7.0.C — draft roll + resolution + medical letter

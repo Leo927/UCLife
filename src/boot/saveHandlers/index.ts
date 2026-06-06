@@ -33,3 +33,4 @@ import './governance'      // phase: 'post' — active faction policies + dissen
 import './diplomacy'       // phase: 'post' — signed treaties + meeting requests
 import './newsfeed'        // phase: 'post' — consumed-headline journal + war-day flag
 import './warState'        // phase: 'post' — IsWartime gate + strategic-war model
+import './conscription'    // phase: 'post' — draft-notice lifecycle + medical letter
