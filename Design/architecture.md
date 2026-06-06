@@ -47,7 +47,8 @@ data          static content (scenes, jobs, ships, special-npcs, …)
 procgen       pure, seeded — roads → blocks → cells
 ecs           koota traits + Map<SceneId, World>
 sim, ai       clock / scene / loop / ship / transition; mistreevous trees + agent
-systems       28 files (vitals, work, npc, combat, …)
+systems       70 files (vitals, work, npc, combat, colony*, governance,
+              diplomacy, recruitment, fleet*, …)
 save, render  idb-keyval + superjson; pixi + sprite + portrait
 ui            React DOM + zustand stores
 boot          main.tsx :: ScopedRoot — composition root only
@@ -101,29 +102,39 @@ every frame, when effectiveSpeed > 0
   3. movementSystem
   4. npcSystem
   5. interactionSystem
+  6. talkSystem
 
 per-tick chain (while tickAccum >= 1, capped at MAX_TICKS_PER_FRAME = 200)
   1.  clock.advance
-  2.  supplyDrain
-  3.  vitals
-  4.  action
-  5.  rent
-  6.  work
-  7.  stress              (after vitals — saturation reads fresh values)
-  8.  releaseStaleBarSeats
-  9.  releaseStaleRoughSpots
-  10. attributes
-  11. population
-  12. relations
-  13. ambitions
-  14. activeZone
+  2.  (day-rollover chain — see below, only when the day number changes)
+  3.  supplyDrain
+  4.  vitals
+  5.  action
+  6.  rent
+  7.  work
+  8.  stress              (after vitals — saturation reads fresh values)
+  9.  releaseStaleBarSeats
+  10. releaseStaleRoughSpots
+  11. attributes
+  12. population          (per replenishment region, active micro-scene only)
+  13. syncShipMarkers     (mirror docked ships as hangar interactables)
+  14. relations
+  15. ambitions
+  16. activeZone
 ```
 
-Day-rollover (`gameDayNumber` change after `clock.advance`) emits
-`'day:rollover'` to `sim/events.ts`. **Hyperspeed ("committed" mode)**
-auto-engages during a long player action when no vital is in danger;
-the leading edge emits `'hyperspeed:start'`. The player can force
-hyperspeed through danger via a toast button.
+Day-rollover (`gameDayNumber` change after `clock.advance`) runs an inline
+settlement chain — `dailyEconomicsSystem` (every scene world) →
+`housingPressureSystem` → `recruitmentSystem` (active scene) — then emits
+`'day:rollover'` and, once the chain settles, `'day:rollover:settled'` to
+`sim/events.ts`. The faction-management layer (colony, governance,
+diplomacy, fleet, research, …) hangs entirely off these two events via
+the `src/boot/*Tick.ts` subscribers — see *Faction management* below.
+
+**Hyperspeed ("committed" mode)** auto-engages during a long player
+action when no vital is in danger; the leading edge emits
+`'hyperspeed:start'`. The player can force hyperspeed through danger via
+a toast button.
 
 Do **not** throttle `tree.step()` in `npcSystem` — skipping BT frames
 breaks drive-interrupt reactivity. The system already throttles via 60
@@ -224,9 +235,11 @@ state the entity overlay depends on — currently just active scene id;
 `'post'` for everything else). Each persisted subsystem owns a file
 under `src/boot/saveHandlers/` (clock, population, ship, space, scene,
 combat, engagement, npc, relations, vitals, stress, supplyDrain,
-spaceSim, promotion, activeZone — 16 handlers at HEAD), side-effect-
-imported from `main.tsx`. Adding a new persisted subsystem is one new
-file in `src/boot/saveHandlers/`, with **no edit** to
+spaceSim, promotion, activeZone, plus the faction-management subsystems
+— colony, governance, diplomacy, recruitment, brig, dailyEconomics,
+hangars, ms, fleetPool, fleetCrewCounter — 26 handlers at HEAD), side-
+effect-imported from `main.tsx`. Adding a new persisted subsystem is one
+new file in `src/boot/saveHandlers/`, with **no edit** to
 `src/save/index.ts`.
 
 See `arch/current/004_save_load_roundtrip.puml`.
@@ -256,6 +269,41 @@ The pathfinder treats them as plain non-wall walkable space.
 `src/save/index.ts` reloads via `resetWorld()` → patch — saves carry
 **only** dynamic state, never procgen output.
 
+## Faction management (Phases 6.3–6.4)
+
+Once the player founds a faction, a colony/governance/diplomacy/fleet
+layer comes online. It is deliberately **decoupled from the frame loop**:
+every system in it is a daily reckoning, so it subscribes to the
+`'day:rollover'` / `'day:rollover:settled'` events rather than being
+called inline from `sim/loop.ts`. Each subscriber is one file under
+`src/boot/*Tick.ts` (colonyConstructionTick, colonyEconomicsTick,
+colonyThreatsTick, diplomacyTick, commandPointsTick, factionSalaryTick,
+factionTierTick, fleetSupplyTick, fleetTransitTick, researchTick,
+ms/shipDeliveryTick, hangarRepairTick, brigConditionTick, …) wrapping a
+pure system in `src/systems/`. Adding a daily faction mechanic == one new
+`*Tick.ts` subscriber + its system; the loop is never touched.
+
+- **Colony** — `colonyConstruction` (build queue), `colonyEconomics`
+  (revenue/upkeep/resupply from hangar stock), `colonyThreats` (garrison
+  strength vs. raids), `colonyAdmin` (admin-capacity load), and
+  `colonyDetention` (brig-overflow routing). State persists via the
+  `colony` save handler.
+- **Governance** — `governance.ts :: callCouncil` opens a policy session
+  at a council POI; policies are diegetic council scenes, not menu
+  toggles. Faction-leader perks unlock from an AP pool and apply
+  faction-wide stat modifiers through the standard `StatSheet` channel.
+- **Diplomacy** — formal relations with canon UC factions, brokered
+  through council scenes; persisted via the `diplomacy` handler.
+- **Fleet** — `fleetPool` (shared fuel/supply pool), `fleetSupplyDrain`
+  / `fleetSupplyDelivery`, `fleetTransit`, `fleetCrew`. Mobile suits are
+  the customization/retrofit focus (`ms*` systems + `hangars`); ships are
+  sideline content with no retrofit/loadout system.
+
+The whole layer reads and writes character/faction stats through
+`src/stats/sheet.ts` — there is no second modifier engine — and saves
+through per-subsystem handlers (see above). See
+`Design/social/faction-management.md` for the design model.
+
 ## Config
 
 `src/config/*.json5` are parsed once at module import via `?raw` +
@@ -282,4 +330,6 @@ real time; seeded determinism only.
 - [time.md](time.md) — tick loop and speeds
 - [npc-ai.md](npc-ai.md) — utility AI + BT
 - [combat.md](combat.md) — combat / space bridge
+- [social/faction-management.md](social/faction-management.md) — colony / governance / diplomacy / fleet
+- [social/research.md](social/research.md) — research progression
 - `arch/current/*.puml` — current de-facto component / sequence diagrams

@@ -987,7 +987,7 @@ function spawnAeWorkforce(): void {
 // staffed standing population instead of an empty room slowly trickling
 // in immigrants. The population system in src/systems/population.ts then
 // maintains the count from there.
-function spawnReplenishmentSeed(scene: MicroSceneConfig, fromRegion = 0): void {
+function spawnReplenishmentSeed(scene: MicroSceneConfig, rng: SeededRng, fromRegion = 0): void {
   const regions = scene.replenishments ?? []
   for (let ri = fromRegion; ri < regions.length; ri++) {
     const region = regions[ri]
@@ -999,14 +999,14 @@ function spawnReplenishmentSeed(scene: MicroSceneConfig, fromRegion = 0): void {
         title: '市民',
         x: TILE * tile.x,
         y: TILE * tile.y,
-        money: 50 + Math.floor(Math.random() * 100),
+        money: 50 + Math.floor(rng.uniform() * 100),
         key: `npc-seed-${scene.id}-${ri}-${i + 1}`,
       })
     }
   }
 }
 
-function spawnFoundingCivilians(scene: MicroSceneConfig): void {
+function spawnFoundingCivilians(scene: MicroSceneConfig, rng: SeededRng): void {
   // Drop the founders at the player's spawn tile so the city's "first day"
   // crowd reads as arriving together.
   const spawn = scene.playerSpawnTile ?? { x: 0, y: 0 }
@@ -1020,11 +1020,11 @@ function spawnFoundingCivilians(scene: MicroSceneConfig): void {
     thirst?: () => number
     skills?: () => NPCSpec['skills']
   }> = [
-    { count: 2, money: () => 700 + Math.floor(Math.random() * 100), fatigue: () => 20 + Math.floor(Math.random() * 30), skills: () => ({ mechanics: 1500 + Math.floor(Math.random() * 2000) }) },
-    { count: 3, money: () => 200 + Math.floor(Math.random() * 70),  fatigue: () => 10 + Math.floor(Math.random() * 15) },
-    { count: 6, money: () => 80 + Math.floor(Math.random() * 70),   fatigue: () => 20 + Math.floor(Math.random() * 20) },
-    { count: 3, money: () => 40 + Math.floor(Math.random() * 30),   fatigue: () => 35 + Math.floor(Math.random() * 15) },
-    { count: 3, money: () => 5 + Math.floor(Math.random() * 15),    fatigue: () => 50 + Math.floor(Math.random() * 15), hunger: () => 50 + Math.floor(Math.random() * 15), thirst: () => 20 + Math.floor(Math.random() * 30) },
+    { count: 2, money: () => 700 + Math.floor(rng.uniform() * 100), fatigue: () => 20 + Math.floor(rng.uniform() * 30), skills: () => ({ mechanics: 1500 + Math.floor(rng.uniform() * 2000) }) },
+    { count: 3, money: () => 200 + Math.floor(rng.uniform() * 70),  fatigue: () => 10 + Math.floor(rng.uniform() * 15) },
+    { count: 6, money: () => 80 + Math.floor(rng.uniform() * 70),   fatigue: () => 20 + Math.floor(rng.uniform() * 20) },
+    { count: 3, money: () => 40 + Math.floor(rng.uniform() * 30),   fatigue: () => 35 + Math.floor(rng.uniform() * 15) },
+    { count: 3, money: () => 5 + Math.floor(rng.uniform() * 15),    fatigue: () => 50 + Math.floor(rng.uniform() * 15), hunger: () => 50 + Math.floor(rng.uniform() * 15), thirst: () => 20 + Math.floor(rng.uniform() * 30) },
   ]
   let counter = 0
   for (const tier of tiers) {
@@ -1111,15 +1111,18 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
   // spawn in the initial scene only; other scenes with replenishment seed
   // up to target so their first visit reads as staffed rather than empty.
   spawnSpecialNpcs(scene.id)
+  // Civilian seeding gets its own per-scene RNG so the starting population is
+  // reproducible for a given scene and isolated from procgen-zone re-rolls.
+  const civilianRng = SeededRng.fromString(`${scene.id}:civilians`)
   if (scene.id === initialSceneId) {
     spawnAeWorkforce()
-    spawnFoundingCivilians(scene)
+    spawnFoundingCivilians(scene, civilianRng)
     // Founding civilians cover the first replenishment region (the city core,
     // seeded at the player spawn). Seed the remaining regions (the drydock)
     // up to target so the orbital concourse reads as staffed on first visit.
-    spawnReplenishmentSeed(scene, 1)
+    spawnReplenishmentSeed(scene, civilianRng, 1)
   } else {
-    spawnReplenishmentSeed(scene)
+    spawnReplenishmentSeed(scene, civilianRng)
   }
 
   // Now that the candidate NPC pool exists, re-stamp every 'private' building

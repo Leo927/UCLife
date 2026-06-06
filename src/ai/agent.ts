@@ -8,6 +8,7 @@ import { tierOf } from '../systems/relations'
 import { pickChatLine } from '../character/chatLines'
 import { getLandmark, getNearestRoughSource, getRoughSources, isInsideShop } from '../data/landmarks'
 import { useClock } from '../sim/clock'
+import { getSimRng } from '../sim/rng'
 import { isShopOpen, isBarOpen } from '../systems/shop'
 import {
   findBestOpenJob, claimJob, isWorkstationOpen,
@@ -858,12 +859,12 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
 
       const candidates = pool.filter((p) => Math.hypot(p.x - myPos.x, p.y - myPos.y) > 50)
       const choices = candidates.length > 0 ? candidates : pool
-      const target = choices[Math.floor(Math.random() * choices.length)]
+      const target = choices[Math.floor(getSimRng().next() * choices.length)]
 
       releaseCommitted()
       setMoveTarget(target.x, target.y)
 
-      const intervalMin = 20 + Math.random() * 20
+      const intervalMin = 20 + getSimRng().next() * 20
       const next = nowMs + intervalMin * 60 * 1000
       try {
         if (entity.has(WanderState)) entity.set(WanderState, { nextPickMs: next })
