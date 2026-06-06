@@ -130,8 +130,10 @@ export function newsfeedSystem(world: World, date: Date): void {
 // headline to every screen in the city regardless of player location — the one
 // time the missability rule breaks. No caller exists in 7.0.A; this mirrors the
 // inert-now / live-later shape of ambitions `warPayoff` and diplomacy
-// `postWarEscalation`. Calling it twice is a no-op after the first fire.
+// `postWarEscalation`. Idempotent: calling it after the first fire is a no-op
+// (returns false), so the broadcast — and its toast — happen exactly once.
 export function fireWarDayToast(): boolean {
+  if (wasWarDayToastFired()) return false
   const entry = getNewsEntry(newsfeedConfig.warDayHeadlineId)
   if (!entry) return false
   useNewsfeed.setState({ warDayToastFired: true })

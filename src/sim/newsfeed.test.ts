@@ -112,6 +112,8 @@ describe('war-day toast hook (inert in 7.0.A)', () => {
     expect(fireWarDayToast()).toBe(true)
     expect(wasWarDayToastFired()).toBe(true)
     expect(isHeadlineConsumed('op-british')).toBe(true)
+    // Idempotent — a second call is a no-op (returns false), no re-broadcast.
+    expect(fireWarDayToast()).toBe(false)
   })
 })
 

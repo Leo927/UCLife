@@ -11,6 +11,10 @@ import {
 
 beforeEach(() => resetWarState())
 
+// Initial seed of the side5 front, sourced from config so the assertions
+// track tuning rather than hardcoding the seeded value.
+const SIDE5_SEED = warTransitionConfig.fronts.find((f) => f.id === 'side5')!.control
+
 describe('warState gate', () => {
   it('starts pre-war with an empty model', () => {
     expect(isWartime()).toBe(false)
@@ -48,7 +52,7 @@ describe('strength deltas', () => {
       .toBe(warTransitionConfig.initialFactionStrength.federation - 5)
     expect(getFactionStrength('zeon'))
       .toBe(warTransitionConfig.initialFactionStrength.zeon + 3)
-    expect(getFrontControl('side5')).toBe(50 - 20)
+    expect(getFrontControl('side5')).toBe(SIDE5_SEED - 20)
   })
 
   it('floors faction strength at 0 and clamps front control to 0–100', () => {
@@ -82,7 +86,7 @@ describe('persistence', () => {
     expect(getTransitionDay()).toBe(616)
     expect(getFactionStrength('federation'))
       .toBe(warTransitionConfig.initialFactionStrength.federation - 5)
-    expect(getFrontControl('side5')).toBe(30)
+    expect(getFrontControl('side5')).toBe(SIDE5_SEED - 20)
     expect(isWarEventResolved('op-british-strike')).toBe(true)
   })
 })
