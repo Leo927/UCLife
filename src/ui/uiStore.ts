@@ -101,6 +101,10 @@ interface UIState {
   // resolving the claim for the POI identified by the string. Cleared
   // by the panel on cancel or successful claim.
   colonyClaimPoiId: string | null
+  // Phase 7.0.C — draft-notice panel. Non-null while the player resolves an
+  // outstanding conscription notice (accept / refuse / bribe). Set when
+  // 'ui:draft-notice' fires; cleared by the panel on resolution.
+  draftNotice: { refusalChance: number; bribeCost: number; canBribe: boolean } | null
   enlargedPortrait: Entity | null
   toasts: Toast[]
   toggleStatus: () => void
@@ -132,6 +136,7 @@ interface UIState {
   setCombatTally: (t: CombatTallyPayload | null) => void
   setRecoverables: (open: boolean) => void
   setColonyClaimPoiId: (poiId: string | null) => void
+  setDraftNotice: (notice: { refusalChance: number; bribeCost: number; canBribe: boolean } | null) => void
   setEnlargedPortrait: (e: Entity | null) => void
   showToast: (text: string, durationMs?: number, action?: Toast['action']) => void
   dismissToast: (id: number) => void
@@ -169,6 +174,7 @@ export const useUI = create<UIState>((set) => ({
   combatTally: null,
   recoverablesOpen: false,
   colonyClaimPoiId: null,
+  draftNotice: null,
   enlargedPortrait: null,
   toasts: [],
   toggleStatus: () => set((s) => ({ statusOpen: !s.statusOpen })),
@@ -200,6 +206,7 @@ export const useUI = create<UIState>((set) => ({
   setCombatTally: (t) => set({ combatTally: t }),
   setRecoverables: (open) => set({ recoverablesOpen: open }),
   setColonyClaimPoiId: (poiId) => set({ colonyClaimPoiId: poiId }),
+  setDraftNotice: (notice) => set({ draftNotice: notice }),
   setEnlargedPortrait: (e) => set({ enlargedPortrait: e }),
   showToast: (text, durationMs = 4000, action) => {
     const id = ++toastCounter

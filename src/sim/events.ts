@@ -105,6 +105,15 @@ export interface SimEventPayloads {
   // faction-strength model. Published for downstream consumers (newsfeed
   // entries, economy shocks, NPC drives). `id` is the war-events.json5 id.
   'war:event-resolved':        { id: string; gameDay: number }
+  // Phase 7.0.C — a draft notice has issued to the player. The UI surfaces
+  // the refusal-roll decision (accept / refuse / bribe). `refusalChance` is
+  // the pre-bribe odds (0–1); `bribeCost` is the wallet cost to add the bribe
+  // bonus; `canBribe` is whether the player can afford it.
+  'ui:draft-notice':           { refusalChance: number; bribeCost: number; canBribe: boolean }
+  // Phase 7.0.C — the player was drafted (refusal failed or accepted). The
+  // perspective-shift routing point into Phase 7.1 wartime deployment; this
+  // slice emits it, the deployment content subscribes later.
+  'conscription:drafted':      { gameDay: number }
 }
 
 // Exported so systems/recoverables.ts can stash + re-emit this payload

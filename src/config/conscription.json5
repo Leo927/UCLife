@@ -1,0 +1,45 @@
+// Phase 7.0.C — conscription tuning. Once wartime (the 7.0.B IsWartime gate),
+// a periodic draft roll may issue the player a draft notice with a
+// stat-checked refusal roll, and named combatant-eligible NPCs churn out of
+// the city. All knobs live here (no magic numbers in *.ts).
+{
+  // Days between draft rolls (the cadence). The roll only fires once the
+  // cooldown from the previous notice has elapsed.
+  rollCadenceDays: 7,
+  // Cooldown after a notice resolves before another can issue.
+  cooldownDays: 30,
+  // Chance (0–1) a given draft roll issues the player a notice.
+  noticeChance: 0.6,
+
+  // ── Refusal roll ─────────────────────────────────────────────────────────
+  // Refusal success probability = base + Σ modifiers, clamped to [floor, ceil].
+  // Higher = more likely to dodge the draft. mw_pilot/zeon_volunteer players
+  // want IN, so an active such ambition applies a large negative bias.
+  refusal: {
+    base: 0.30,
+    // Per-point Federation-rep contribution (rep is -100..100). At +60 rep
+    // this adds 0.18.
+    federationRepWeight: 0.003,
+    // Per-point Charisma contribution (charisma is 0..100). At 70 adds 0.21.
+    charismaWeight: 0.003,
+    // Flat bonus for holding a clinic medical letter (consumed on use).
+    medicalLetterBonus: 0.25,
+    // Flat bonus for paying the bribe.
+    bribeBonus: 0.30,
+    // Applied when the player has an active mw_pilot / zeon_volunteer ambition
+    // (they want to be drafted) — drives the roll toward acceptance.
+    proPilotAmbitionBias: -0.80,
+    floor: 0.02,
+    ceil: 0.95,
+  },
+
+  // Cost of the draft bribe (deducted from the player's wallet on use).
+  bribeCost: 50000,
+  // Fee for a clinic medical letter.
+  medicalLetterFee: 200,
+
+  // ── NPC population churn ──────────────────────────────────────────────────
+  // Per combatant-eligible named NPC, the chance (0–1) they are drafted out of
+  // the city on each draft roll.
+  npcDraftChance: 0.5,
+}

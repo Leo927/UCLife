@@ -239,9 +239,10 @@ combat, engagement, npc, relations, vitals, stress, supplyDrain,
 spaceSim, promotion, activeZone, plus the faction-management subsystems
 — colony, governance, diplomacy, recruitment, brig, dailyEconomics,
 hangars, ms, fleetPool, fleetCrewCounter — plus `newsfeed` (consumed-
-headline journal + war-day-toast flag) and `warState` (the Phase 7.0.B
-IsWartime gate + strategic-war faction-strength model) — 27 handlers at
-HEAD), side-
+headline journal + war-day-toast flag), `warState` (the Phase 7.0.B
+IsWartime gate + strategic-war faction-strength model), and
+`conscription` (the Phase 7.0.C draft-notice lifecycle + held medical
+letter) — 28 handlers at HEAD), side-
 effect-imported from `main.tsx`. Adding a new persisted subsystem is one
 new file in `src/boot/saveHandlers/`, with **no edit** to
 `src/save/index.ts`.
@@ -301,7 +302,12 @@ ECS trait — persisted via the `warState` save handler. The newsfeed reads
 it for its wartime tone-shift (war-tagged headlines dominate the feed).
 Phase 7.0.D's `warPayoffBinding` subscribes to `'war:transition'` and
 resolves the player's most-progressed ambition `warPayoff` route
-(`systems/warPayoff.ts`), latched once in `warState`.
+(`systems/warPayoff.ts`), latched once in `warState`. Phase 7.0.C's
+`conscriptionTick` subscribes to `'day:rollover:settled'` and, once
+wartime, runs the draft roll (`systems/conscription.ts`) — issuing the
+player a stat-checked refusal notice and churning combatant-eligible
+named NPCs out of the city; draft state lives in the `conscriptionState`
+module store.
 
 - **Colony** — `colonyConstruction` (build queue), `colonyEconomics`
   (revenue/upkeep/resupply from hangar stock), `colonyThreats` (garrison

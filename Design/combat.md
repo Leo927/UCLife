@@ -413,6 +413,21 @@ route (most-progressed claims the title spotlight); wartime ambitions
 unlock (step 5, gated on `isWartime()`); pre-war perks survive the flip.
 See `social/ambitions.md § Shipped (7.0.D)`.
 
+**Step 3 shipped in 7.0.C (#106):** `src/systems/conscription.ts` runs a
+periodic draft roll on `day:rollover:settled` once wartime (cadence +
+cooldown in `config/conscription.json5`). A draft notice issues the
+player a stat-checked refusal roll (pure `refusalChance`: Federation rep
++ Charisma + a clinic medical letter + a cash bribe; an active
+`mw_pilot` / `zeon_volunteer` ambition floors the odds toward
+acceptance). The `DraftNoticePanel` resolves it (accept / refuse /
+bribe); failure or acceptance fires the `'conscription:drafted'`
+perspective-shift routing point (the Phase 7.1 deployment hook — entry
+only). Combatant-eligible named NPCs (`combatantEligible` in
+`special-npcs.json5`) churn out of the city on the same roll. State
+(notice / cooldown / resolution / held letter) persists on the
+`conscription` save handler. The clinic dialogue issues the medical
+letter in wartime.
+
 ## Permadeath and combat
 
 Combat must work under both settings:

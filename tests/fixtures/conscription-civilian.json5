@@ -1,0 +1,24 @@
+// Phase 7.0.C conscription smoke — civilian player who can dodge the draft.
+// Parked away from the bar. A combatant-eligible named NPC (加图 / Gato) is
+// placed in the city so the NPC-churn path has a target. The test sets the
+// player's Federation rep + Charisma + grants a medical letter via debug
+// handles, jumps the clock to the war date, and reseeds the sim RNG to pin the
+// roll outcomes.
+{
+  seed: 'conscription-civilian-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 100000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+
+  npcs: [
+    {
+      id: 'gato',
+      name: '阿纳贝尔·加图',
+      at: { scene: 'vonBraunCity', x: 12, y: 36 },
+    },
+  ],
+}

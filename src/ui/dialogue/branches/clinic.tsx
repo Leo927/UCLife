@@ -9,6 +9,9 @@ import { emitSim } from '../../../sim/events'
 import { playUi } from '../../../audio/player'
 import { dialogueText } from '../../../data/dialogueText'
 import { FIRST_CLINIC_COUPON_FLAG, consumeFirstClinicCoupon } from '../../../character/firstClinicCoupon'
+import { useWarState } from '../../../sim/warState'
+import { useConscription, grantMedicalLetter } from '../../../sim/conscriptionState'
+import { conscriptionConfig } from '../../../config'
 import type { DialogueCtx, DialogueNode } from '../types'
 
 const DIAGNOSIS_FEE = 8
@@ -31,6 +34,10 @@ function ClinicPanel() {
   const conditions = useTrait(player, Conditions)
   const flags = useTrait(player, Flags)
   const [tier, setTier] = useState<number>(1)
+  // Phase 7.0.C — wartime: the clinic issues a medical letter that tilts the
+  // conscription refusal roll. One per draft; consumed when used.
+  const wartime = useWarState((s) => s.isWartime)
+  const medicalLetterHeld = useConscription((s) => s.medicalLetterHeld)
 
   if (!player) return null
 
@@ -73,6 +80,15 @@ function ClinicPanel() {
     for (const inst of diagnosed) commitTreatment(player, inst.instanceId, tier, day + 5)
     if (cost > 0) emitSim('toast', { textZh: `治疗已支付 ¥${cost}` })
     useUI.getState().setDialogNPC(null)
+  }
+
+  const letterFee = conscriptionConfig.medicalLetterFee
+  const requestLetter = () => {
+    if (!money || money.amount < letterFee || medicalLetterHeld) return
+    playUi('ui.clinic.confirm')
+    player.set(Money, { amount: money.amount - letterFee })
+    grantMedicalLetter()
+    emitSim('toast', { textZh: `医学证明已开具 ¥${letterFee}` })
   }
 
   return (
@@ -139,6 +155,28 @@ function ClinicPanel() {
               确认治疗
             </button>
           </div>
+        </div>
+      )}
+
+      {wartime && (
+        <div style={{ marginTop: 12 }} data-clinic-medical-letter>
+          <h3>战时医学证明</h3>
+          {medicalLetterHeld ? (
+            <p className="status-muted" style={{ marginTop: 4 }}>你已持有一份医学证明。</p>
+          ) : (
+            <>
+              <p className="status-muted" style={{ marginBottom: 8 }}>
+                一份盖章的医学证明，可在征召时作为缓役依据。
+              </p>
+              <button
+                className="shop-item-buy"
+                disabled={(money?.amount ?? 0) < letterFee}
+                onClick={requestLetter}
+              >
+                申请医学证明 (¥{letterFee})
+              </button>
+            </>
+          )}
         </div>
       )}
     </>

@@ -77,6 +77,8 @@ import './boot/diplomacyTick'
 import './boot/warTransitionTick'
 // Phase 7.0.D — resolves ambition warPayoff routes on the war transition.
 import './boot/warPayoffBinding'
+// Phase 7.0.C — wartime conscription draft roll + NPC churn on the daily tick.
+import './boot/conscriptionTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'
