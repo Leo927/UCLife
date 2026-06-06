@@ -72,6 +72,9 @@ import './boot/factionTierTick'
 // Phase 6.4.D — diplomat meeting-request check. Runs after the faction-tier
 // gate so the player-faction's FactionInterRep is authoritative.
 import './boot/diplomacyTick'
+// Phase 7.0.B — war-transition gate + strategic-war model. Flips IsWartime on
+// UC 0079.01.03 and resolves date-keyed war events on the daily tick.
+import './boot/warTransitionTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

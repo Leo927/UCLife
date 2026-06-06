@@ -95,6 +95,16 @@ export interface SimEventPayloads {
   // Future newsfeed / comm consumers listen; the diplomacy registry also
   // records a pending request for the council surface to act on.
   'diplomacy:meeting-requested': { factionId: FactionId; gameDay: number }
+  // Phase 7.0.B — the one-way war transition fires (UC 0079.01.03). The
+  // orchestrator emits this AFTER flipping IsWartime + seeding the strategic
+  // war model, so subscribers (7.0.C conscription, 7.0.D warPayoff, 7.0.E
+  // civilian-war content) read a fully-wartime world. `gameDay` is the day
+  // the flip landed.
+  'war:transition':            { gameDay: number }
+  // Phase 7.0.B — a date-keyed strategic-war event resolved against the
+  // faction-strength model. Published for downstream consumers (newsfeed
+  // entries, economy shocks, NPC drives). `id` is the war-events.json5 id.
+  'war:event-resolved':        { id: string; gameDay: number }
 }
 
 // Exported so systems/recoverables.ts can stash + re-emit this payload

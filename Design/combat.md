@@ -379,6 +379,34 @@ Single hard global flag flip. On transition:
 There is no rolling back. Saves before are pre-war runs; saves after are
 wartime runs.
 
+### Shipped (7.0.B)
+
+Steps 1–2 plus the structural pivot. Concretely:
+
+- **One-way `IsWartime` gate + strategic-war model** in `src/sim/warState.ts`
+  — a sim-layer module store (global, not a per-scene ECS trait), seeded
+  from `src/config/warTransition.json5` (trigger date, initial Federation /
+  Zeon / Anaheim strengths, theater fronts). Flips exactly once on or after
+  UC 0079.01.03 and never rolls back.
+- **Transition orchestrator** `src/systems/warTransition.ts` — on the flip,
+  runs the ordered steps: seed the model, fire the 7.0.A war-day
+  force-toast, emit `'war:transition'` for the downstream slices
+  (7.0.C/D/E subscribe). Wired to `'day:rollover:settled'` via
+  `src/boot/warTransitionTick.ts`.
+- **Strategic-war resolution** `src/systems/strategicWar.ts` — resolves the
+  date-keyed `src/data/war-events.json5` entries against the strength model
+  each wartime day (idempotent), emitting `'war:event-resolved'`.
+- **Newsfeed wartime mode** — `rankTopHeadline` promotes war-tagged
+  headlines once wartime (`social/newsfeed.md`).
+- **Persistence** — gate + model + resolved-event ids round-trip on the
+  `warState` save handler; a post-flip save loads wartime, a pre-flip save
+  loads pre-war.
+
+Not yet wired: steps 3–9 (conscription → 7.0.C, `warPayoff` → 7.0.D,
+economy/refugee/facility content → 7.0.E, hostile expeditions → 7.1). They
+subscribe to `'war:transition'` / `'war:event-resolved'`; this slice ships
+the dispatch + the model, not the subscribers.
+
 ## Permadeath and combat
 
 Combat must work under both settings:

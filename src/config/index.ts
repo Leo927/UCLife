@@ -91,3 +91,6 @@ export type { GovernanceConfig, PolicySpec, PolicyEffects, PolicyKind } from './
 
 export { newsfeedConfig } from './newsfeed'
 export type { NewsfeedConfig } from './newsfeed'
+
+export { warTransitionConfig } from './warTransition'
+export type { WarTransitionConfig, WarFrontSpec } from './warTransition'

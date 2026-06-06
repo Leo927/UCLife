@@ -1,0 +1,24 @@
+{
+  // Phase 7.0.B — the single hard date the One Year War begins (Operation
+  // British). The IsWartime gate flips the first day:rollover on or after this
+  // date and never rolls back. Canonical UC date, format "UC YYYY.MM.DD".
+  triggerDateKey: 'UC 0079.01.03',
+
+  // Strategic-war faction-strength seed (Design/combat.md § Strategic war).
+  // The small numeric model the date-keyed war events resolve against once
+  // wartime. Federation / Zeon / Anaheim. Seeded onto warState at the flip.
+  initialFactionStrength: {
+    federation: 100,
+    zeon: 90,
+    anaheim: 40,
+  },
+
+  // Theater fronts the strategic war is fought across. `control` is the
+  // Federation-vs-Zeon tug-of-war seed on a 0–100 axis (0 = Zeon-held,
+  // 100 = Federation-held, 50 = contested). War events shift it.
+  fronts: [
+    { id: 'side5', nameZh: 'Side 5(卢姆)', control: 50 },
+    { id: 'earthOrbit', nameZh: '地球轨道', control: 50 },
+    { id: 'lunar', nameZh: '月面战区', control: 60 },
+  ],
+}

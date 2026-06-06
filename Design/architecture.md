@@ -239,7 +239,9 @@ combat, engagement, npc, relations, vitals, stress, supplyDrain,
 spaceSim, promotion, activeZone, plus the faction-management subsystems
 — colony, governance, diplomacy, recruitment, brig, dailyEconomics,
 hangars, ms, fleetPool, fleetCrewCounter — plus `newsfeed` (consumed-
-headline journal + war-day-toast flag) — 26 handlers at HEAD), side-
+headline journal + war-day-toast flag) and `warState` (the Phase 7.0.B
+IsWartime gate + strategic-war faction-strength model) — 27 handlers at
+HEAD), side-
 effect-imported from `main.tsx`. Adding a new persisted subsystem is one
 new file in `src/boot/saveHandlers/`, with **no edit** to
 `src/save/index.ts`.
@@ -281,9 +283,22 @@ called inline from `sim/loop.ts`. Each subscriber is one file under
 `src/boot/*Tick.ts` (colonyConstructionTick, colonyEconomicsTick,
 colonyThreatsTick, diplomacyTick, commandPointsTick, factionSalaryTick,
 factionTierTick, fleetSupplyTick, fleetTransitTick, researchTick,
-ms/shipDeliveryTick, hangarRepairTick, brigConditionTick, …) wrapping a
-pure system in `src/systems/`. Adding a daily faction mechanic == one new
-`*Tick.ts` subscriber + its system; the loop is never touched.
+ms/shipDeliveryTick, hangarRepairTick, brigConditionTick,
+warTransitionTick, …) wrapping a pure system in `src/systems/`. Adding a
+daily faction mechanic == one new `*Tick.ts` subscriber + its system; the
+loop is never touched.
+
+The Phase 7.0.B **war transition** rides the same rail: `warTransitionTick`
+subscribes to `'day:rollover:settled'` and runs `warTransitionSystem`
+(flip the one-way `IsWartime` gate on UC 0079.01.03 — seed the
+strategic-war model from `config/warTransition.json5`, fire the 7.0.A
+war-day force-toast, emit `'war:transition'` for the downstream slices)
+followed by `strategicWarSystem` (resolve that day's `data/war-events.json5`
+entries against the faction-strength model, idempotently, emitting
+`'war:event-resolved'`). The war state is a sim-layer module store
+(`sim/warState.ts`, mirroring `sim/newsfeed.ts`) — global, not a per-scene
+ECS trait — persisted via the `warState` save handler. The newsfeed reads
+it for its wartime tone-shift (war-tagged headlines dominate the feed).
 
 - **Colony** — `colonyConstruction` (build queue), `colonyEconomics`
   (revenue/upkeep/resupply from hangar stock), `colonyThreats` (garrison
