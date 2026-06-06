@@ -50,6 +50,8 @@ jobs:
 
       - run: npm run lint:arch
 
+      - run: npm run lint:determinism
+
   test:
     runs-on: ubuntu-latest
     steps:
