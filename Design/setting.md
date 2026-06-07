@@ -14,6 +14,11 @@
 - **Anaheim Electronics** — neutral mercenary corporate
 - **Civilian/Independent** — most NPCs
 
+> **Establishment ownership.** The bar (`酒吧`) is a **civilian**
+> establishment — it is *not* Anaheim Electronics property, even when a
+> generated layout places it adjacent to AE buildings. AE employees may
+> patronize the bar; AE does not own or run it.
+
 ## Timeline as state
 
 The world clock is `UC YYYY.MM.DD HH:MM`. Setting events are scripted against dates (Operation British: 0079.01.03; etc.). When the player reaches them through normal play or saves over years, the world *changes*. This is a Phase 5+ payoff but the mechanism (date-keyed event triggers) exists from Phase 0.

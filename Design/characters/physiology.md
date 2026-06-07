@@ -410,6 +410,17 @@ Even with permadeath off, severe failures **bite**. The `talentCap`
 reduction is the teeth; the chronic-condition row is the story.
 Reload-as-undo is no longer free.
 
+### Shipped state (Phase 4.1)
+
+The table above is the eventual design. The **shipped build wires only the
+permadeath-ON death branch**: a condition reaching severity 100 sets
+`Health.dead` and emits the death event. The OFF / near-death-respawn
+branch is **deferred** until the character-creator UI exists to host the
+lock-at-creation toggle — so in the current build permadeath is effectively
+**ON by default**, with no settings flag, creator toggle, or respawn path.
+The body-part-fatal flag is also not yet required: any severity → 100 ends
+the character. Revisit when the creator lands (see [phasing.md](../phasing.md)).
+
 ## Integration with shipped systems
 
 | System | What physiology adds |
