@@ -459,14 +459,30 @@ split into four independently-shippable sub-slices:
   converted to months — faction-cumulative, reusing the `work.ts` shift
   hook, distinct from per-rank `JobTenure`. Needs a save handler for
   runtime-spawned workstations (they are not re-derived from the seed).
-- **7.0.E.4 consulates + guards (#118)** — two consulate buildings (Zeon
-  + Federation). Facility restriction is enforced by **hostile guard
-  NPCs** that detect the player by **zone + range** and eject them (warn +
-  force-walk to exit, no combat) — *not* locked doors. Access is gated by
-  faction reputation. This is the **first ground-hostility subsystem** (no
-  ground combat / detection exists today — tactical combat is space-only),
-  a precursor to ground combat. **Hard dependency:** rep-gated access
-  needs Zeon / Federation rep-gain paths, which barely exist yet.
+- **7.0.E.4 consulates + guards (#118)** — facility access is built on
+  **emergent diplomatic slots**, not hand-authored per-faction buildings.
+  Each walkable city authors **≥3 generic diplomatic slots** at worldgen
+  (outside `procgen.rect`), empty by default. **Faction strength is a
+  continuous quantity** — seeded at game start from config peacetime
+  baselines (this extends the `warState.ts` model, which today only seeds
+  at the war flip) and modified by war events. A faction whose strength
+  clears `consulateThreshold` **claims a free slot**; if it drops below it
+  **vacates** (staff depart via the airport, mirroring arrival), so the
+  war turning reshuffles presence for free. **Any faction, incl. the
+  player-faction**, is eligible. **Slot identity derives from the
+  occupant** — Zeon → consulate, Federation → garrison / HQ, player → own
+  posting — so the consulate-vs-garrison naming asymmetry resolves itself.
+  On occupancy, **staff (incl. guards) spawn at the airport arrival tile**
+  (reuse `airportPlacements` + the flight-migration spawn) and walk to the
+  slot, pretending to have arrived by flight (needs the scene to have an
+  airport — `vonBraunCity` does, `zumCity` stub may not). Restriction is
+  enforced by **hostile guard NPCs** that detect the player by **zone +
+  range** and eject them (warn + force-walk to exit, no combat) — *not*
+  locked doors; access gated by player rep with the occupying faction.
+  This is the **first ground-hostility subsystem** (no ground combat /
+  detection exists today — tactical combat is space-only), a precursor to
+  ground combat. **Remaining open decision:** rep-gated access needs
+  Zeon / Federation rep-gain paths, which barely exist yet.
 
 **Economy shocks are cut** from 7.0.E (see the *Economy deferred* note
 under *Civilian war*) — deferred to the demand-driven economy.
