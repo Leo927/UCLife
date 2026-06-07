@@ -350,16 +350,27 @@ For the player who never trained piloting and never bought a ship, war
 is delivered through:
 
 - **Lazlo's TV** — newsfeed wartime mode; headlines change tone
-- **Job market shifts** — AE pivots to military contracts; civilian-track positions thin; military-track positions surge
+- **Job market shifts** — military job postings appear (ordinary
+  `jobs.json5` specs spawned as runtime workstations); higher military
+  ranks gate on a faction service record. Civilian-track thinning waits
+  on the demand-driven economy (see the note below).
 - **Friends disappear** — named NPCs drafted, fled, or killed (offscreen, surfaced via newsfeed / log)
 - **Refugees arrive** — new procedural NPCs in flop-tier housing
-- **Facility access changes** — consulates restricted, zones locked
+- **Facility access changes** — Zeon + Federation consulates guarded by
+  hostile NPCs; access gated by faction reputation (not locked doors)
 - **Conscription** — draft notice with stat-checked refusal roll
 - **Ambitions adapt** — `earth_migration` harder, `lazlos_owner`
-  becomes about staying open under rationing, etc.
+  becomes about staying open under rationing (deferred with the economy)
 
 This is where the writing budget for war content lives. Hair complexity:
 flavor without systemic entanglement.
+
+> **Economy deferred.** Rationing / price + wage shifts are *not* part of
+> the 7.0.E civilian-war slice. They fold into a future **demand-driven
+> economy** (goods cost driven by production jobs + demand; wages driven
+> by demand on produced items). Do not add a stopgap `war:` price/wage
+> modifier — the civilian-war slice only *adds* military job postings, it
+> does not shift prices or thin civilian jobs.
 
 ## The Phase 7 transition (UC 0079.01.03)
 
@@ -370,7 +381,8 @@ Single hard global flag flip. On transition:
 3. Conscription rolls activate
 4. Active ambitions resolve `warPayoff`
 5. Wartime ambitions unlock (deferred — Phase 7+ design)
-6. Economy parameters shift
+6. Economy parameters shift (deferred to the demand-driven economy —
+   see *Civilian war*; 7.0.E adds military job postings only)
 7. NPCs with combatant backstories leave; refugees spawn
 8. Some facilities transition state
 9. Player-faction colonies become target-eligible for hostile
@@ -427,6 +439,37 @@ only). Combatant-eligible named NPCs (`combatantEligible` in
 (notice / cooldown / resolution / held letter) persists on the
 `conscription` save handler. The clinic dialogue issues the medical
 letter in wartime.
+
+### Planned (7.0.E — steps 6–8, split into #115–#118)
+
+Reshaped in a 2026-06 design pass with the owner. The umbrella #108 is
+split into four independently-shippable sub-slices:
+
+- **7.0.E.1 refugees (#115)** — procedural NPCs spawn into flop-tier
+  housing via `populationSystem` (spawn-trap-safe, replenishment-capped).
+- **7.0.E.2 friends fled / killed (#116)** — non-`combatantEligible`
+  named NPCs churn out (fled or killed offscreen), reusing the 7.0.C
+  churn pattern with the eligibility filter **inverted** so a given NPC
+  leaves once, not twice.
+- **7.0.E.3 military jobs (#117)** — no job classification: military jobs
+  are ordinary `jobs.json5` specs. A "posting" appearing / disappearing =
+  runtime **spawn / despawn of `Workstation` entities**; wartime *adds*
+  military postings only (civilian thinning waits on the economy). Higher
+  military ranks gate on a **service record** measured as completed shifts
+  converted to months — faction-cumulative, reusing the `work.ts` shift
+  hook, distinct from per-rank `JobTenure`. Needs a save handler for
+  runtime-spawned workstations (they are not re-derived from the seed).
+- **7.0.E.4 consulates + guards (#118)** — two consulate buildings (Zeon
+  + Federation). Facility restriction is enforced by **hostile guard
+  NPCs** that detect the player by **zone + range** and eject them (warn +
+  force-walk to exit, no combat) — *not* locked doors. Access is gated by
+  faction reputation. This is the **first ground-hostility subsystem** (no
+  ground combat / detection exists today — tactical combat is space-only),
+  a precursor to ground combat. **Hard dependency:** rep-gated access
+  needs Zeon / Federation rep-gain paths, which barely exist yet.
+
+**Economy shocks are cut** from 7.0.E (see the *Economy deferred* note
+under *Civilian war*) — deferred to the demand-driven economy.
 
 ## Permadeath and combat
 
@@ -515,7 +558,7 @@ The Starsector-shape calls are now locked. Specifically:
 | **6.2.7** | Command points + deployment points wired into tactical. Doctrine sliders fully active; out-of-CP standing-orders behavior. |
 | **6.3** | Colony establishment. Player can claim an asteroid POI or build a new colony from scratch. Walkable colony scenes (smaller than cities, reusing scene/facility/cell procgen with industrial pool, plus colony-only classes — warship slipway, large MS factory). **Recoverables dialogue full** (capture / salvage / scuttle); **salvaged-hull-in-flight pattern**; **`WasCaptured` faction-relation hooks**; **colony detention** as brig-overflow target. See [social/faction-management.md](social/faction-management.md), [post-combat.md](post-combat.md). |
 | **6.4** | Faction-tier features: large-scale recruitment, governance choices, faction reputation as actor (player-faction has its own faction rep with NPC factions). Phase 7 hostile-expedition mechanic foundations. |
-| **7.0** | Phase 7 trigger fires. Strategic war model goes live. Newsfeed wartime mode. Conscription. Wartime ambitions. Civilian-war content (TV, prices, refugees, departing friends). |
+| **7.0** | Phase 7 trigger fires. Strategic war model goes live. Newsfeed wartime mode. Conscription. Wartime ambitions. Civilian-war content (TV, military job postings, refugees, departing friends, guarded consulates; rationing deferred). |
 | **7.1** | Wartime deployment: `mw_pilot` / `zeon_volunteer` players assigned to NPC-captained ships. Sector-based campaign structure. Real MS combat under real stakes. Player-faction colonies become target-eligible for hostile expeditions. |
 | **7.2** | Mind-control / Newtype systems. Late-war fronts. Player can rise to command of their assigned ship. |
 | **8+** | LLM-driven battle chatter, surrender attempts, post-engagement debrief. |
