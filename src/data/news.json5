@@ -425,5 +425,22 @@
       headlineZh: '联邦发布志愿入伍号召',
       bodyZh: '联邦宇宙军发布志愿入伍号召,承诺加速培训与晋升通道。征募站前出现长队,也有人沉默离去。',
     },
+    // ── Phase 7.0.E.2 — civilians the player knew start disappearing ──
+    {
+      id: 'war-civilians-fleeing',
+      date: 'UC 0079.01.10',
+      priority: 55,
+      tags: ['war', 'civic'],
+      headlineZh: '冯·布劳恩居民外流加剧',
+      bodyZh: '随着战事蔓延,越来越多市民收拾行装离开冯·布劳恩,转往后方殖民地。熟悉的面孔在街角、酒馆与工位上接连消失。',
+    },
+    {
+      id: 'war-civilian-casualties',
+      date: 'UC 0079.01.12',
+      priority: 53,
+      tags: ['war', 'civic'],
+      headlineZh: '前线外围混乱波及平民',
+      bodyZh: '军方证实,前线外围的若干次交火与事故已造成平民伤亡。市政呼吁居民避开未设防区域,并为失联者设立登记处。',
+    },
   ],
 }

@@ -100,3 +100,6 @@ export type { ConscriptionConfig, ConscriptionRefusalConfig } from './conscripti
 
 export { refugeesConfig } from './refugees'
 export type { RefugeesConfig } from './refugees'
+
+export { civilianChurnConfig } from './civilianChurn'
+export type { CivilianChurnConfig } from './civilianChurn'

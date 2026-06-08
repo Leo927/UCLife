@@ -34,3 +34,4 @@ import './diplomacy'       // phase: 'post' — signed treaties + meeting reques
 import './newsfeed'        // phase: 'post' — consumed-headline journal + war-day flag
 import './warState'        // phase: 'post' — IsWartime gate + strategic-war model
 import './conscription'    // phase: 'post' — draft-notice lifecycle + medical letter
+import './civilianChurn'   // phase: 'post' — churned non-combatant names + cadence
