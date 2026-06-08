@@ -161,17 +161,23 @@ export function populationSystem(
 
 const REFUGEE_KEY_PREFIX = 'npc-ref-'
 
-// Count the live refugees currently inside a region's rect. Refugees are
-// bounded by their own cap (refugeesConfig.regionRefugeeCap) rather than the
-// replenishment `target`: a city boots well above that target (it is an
-// emergency floor, not the live headcount), so the target leaves no headroom.
-// O(N) per roll on the daily tick; negligible against the BT / vitals work.
-function aliveRefugeesInRegion(world: World, regionRect: ReplenishmentConfig['regionRect']): number {
+// Count the live refugees whose *home* is this region. Mirrors aliveInRegion's
+// home-based accounting (not a point-in-rect test) so a refugee that roams out
+// of the rect still counts against its home cap — keeping the cap robust if a
+// future movement path lets NPCs leave the region. Liveness comes from the
+// world scan; home comes from the persisted homeRegionByKey set at spawn. A
+// dead/absent refugee's stale map entry is harmless (no matching live entity).
+// Refugees are bounded by their own cap (refugeesConfig.regionRefugeeCap)
+// rather than the replenishment `target`: a city boots well above that target
+// (it is an emergency floor, not the live headcount), so the target leaves no
+// headroom. O(N) per roll on the daily tick; negligible against the BT work.
+function aliveRefugeesInRegion(world: World, regionKey: string): number {
   let alive = 0
-  for (const e of world.query(Character, Health, Position, EntityKey, Not(IsPlayer))) {
+  for (const e of world.query(Character, Health, EntityKey, Not(IsPlayer))) {
     if (e.get(Health)!.dead) continue
-    if (!e.get(EntityKey)!.key.startsWith(REFUGEE_KEY_PREFIX)) continue
-    if (inRect(e.get(Position)!, regionRect)) alive += 1
+    const key = e.get(EntityKey)!.key
+    if (!key.startsWith(REFUGEE_KEY_PREFIX)) continue
+    if (homeRegionByKey.get(key) === regionKey) alive += 1
   }
   return alive
 }
@@ -211,7 +217,7 @@ export function refugeeSpawnRoll(
 
   for (const { config, key: regionKey } of regions) {
     if (!config.refugeeIntake) continue
-    const aliveBefore = aliveRefugeesInRegion(world, config.regionRect)
+    const aliveBefore = aliveRefugeesInRegion(world, regionKey)
     const headroom = cap - aliveBefore
     const spawned: string[] = []
     const n = Math.max(0, Math.min(refugeesConfig.batchMax, headroom))
@@ -241,7 +247,7 @@ export function refugeeSpawnRoll(
       regionKey,
       cap,
       aliveBefore,
-      aliveAfter: aliveRefugeesInRegion(world, config.regionRect),
+      aliveAfter: aliveRefugeesInRegion(world, regionKey),
       spawned: spawned.length,
       tile: { x: config.arrivalTile.x, y: config.arrivalTile.y },
       keys: spawned,
