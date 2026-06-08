@@ -1,0 +1,23 @@
+// Phase 7.0.E.4 consulate / hostile-guard smoke fixture.
+//
+// Two zeon-aligned NPCs placed in vonBraunCity so zeon's living-member count
+// (2) meets the consulate threshold once the occupancy tick runs. The player
+// starts inside slot-a's restricted rect (rect x12..17 / y10..15, anchor
+// {15,13}) so the guard's detection rect/radius covers them after the staff +
+// guard walk in from the airport. Player alignment is neutral at boot (no
+// FactionRole) — the smoke flips it to federation to trigger the eject.
+{
+  seed: 'civilian-war-consulate-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 15, y: 13 },
+  },
+
+  npcs: [
+    { id: 'zeon-1', name: '吉翁市民甲', at: { scene: 'vonBraunCity', x: 22, y: 16 }, faction: 'zeon' },
+    { id: 'zeon-2', name: '吉翁市民乙', at: { scene: 'vonBraunCity', x: 23, y: 16 }, faction: 'zeon' },
+  ],
+}

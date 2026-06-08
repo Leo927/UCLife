@@ -1,0 +1,49 @@
+// Phase 7.0.E.4 — wartime diplomatic-slot occupancy + hostile-guard tuning.
+// During wartime, a faction whose living-member count crosses
+// `consulateThreshold` occupies a free generic city "diplomatic slot": staff +
+// a guard spawn at the airport and walk to the slot anchor. A guard ejects a
+// player who is BOTH inside the slot's restricted rect AND aligned with a
+// faction the guard's faction is hostile to. Below threshold → vacate.
+//
+// Slot geometry (rect / anchorTile / exitTile) is authored per-scene in
+// scenes.json5 — it is world layout, not tuning. All knobs live here (no magic
+// numbers in *.ts).
+{
+  // Strength a faction needs to claim a slot. Strength = (living NPC members) ×
+  // memberCountScalar (see below). With scalar 1, this is "≥ N living members".
+  consulateThreshold: 2,
+
+  // Multiplier applied to a faction's living-member count to derive its
+  // strength. 1 = raw member count.
+  memberCountScalar: 1,
+
+  // How many staff NPCs to spawn per occupied slot (non-guard diplomatic
+  // personnel — they just walk to the anchor and hold).
+  staffPerSlot: 2,
+
+  // How many guards to spawn per occupied slot. Each guard carries the Guard
+  // trait and runs the eject branch of the NPC behavior tree.
+  guardsPerSlot: 1,
+
+  // Detection radius for staff (non-guard) personnel. 0 = staff never eject;
+  // they carry the Guard trait only so the `holdPost` branch pins them to the
+  // anchor (a non-zero radius would make them eject like guards).
+  staffDetectRadiusPx: 0,
+
+  // A guard detects a hostile player only when the player is within this many
+  // pixels of the guard (in addition to being inside the slot rect). Tuned to
+  // roughly the slot's diagonal so a guard at the anchor covers the rect.
+  guardDetectRadiusPx: 320,
+
+  // Factions eligible to occupy diplomatic slots in wartime. Civilians and the
+  // player faction never occupy.
+  eligibleFactions: ['zeon', 'federation'],
+
+  // Hostility table: factionId → list of factions it is hostile to. A guard of
+  // faction F ejects a player aligned with any faction in enmity[F]. Symmetric
+  // by authoring (zeon ⟷ federation); omitted factions are neutral to all.
+  enmity: {
+    zeon: ['federation'],
+    federation: ['zeon'],
+  },
+}

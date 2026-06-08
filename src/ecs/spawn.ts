@@ -1,7 +1,7 @@
 import type { Entity, World } from 'koota'
 import { world, setActiveSceneId, getWorld, SCENE_IDS, type SceneId } from './world'
 import {
-  scenes, initialSceneId, isInHiddenRegion,
+  scenes, initialSceneId, isInHiddenRegion, getDiplomaticSlots,
   type SceneConfig, type MicroSceneConfig, type ShipSceneConfig,
 } from '../data/scenes'
 import {
@@ -14,6 +14,7 @@ import {
   Hangar, OrbitalLift, TemplateRef,
   type InteractableKind,
   Ms, PlayerPartsInventory, MsRef,
+  DiplomaticSlot,
 } from './traits'
 import { getMsClass, defaultMountedWeapons } from '../data/ms'
 import { attachMsStatSheet } from './msEffects'
@@ -1129,6 +1130,29 @@ function bootstrapMicroScene(scene: MicroSceneConfig, opts: SetupWorldOpts): voi
   // with a named owner so the realtor has private-inventory listings from
   // day one. Civic and faction-owned buildings stay untouched.
   seedPrivateOwners(world, scene.id)
+
+  // Phase 7.0.E.4 — one DiplomaticSlot anchor entity per scenes.json5 slot.
+  // Free (occupantFaction='') until the wartime occupancy system claims it.
+  spawnDiplomaticSlotAnchors(scene)
+}
+
+// Phase 7.0.E.4 — spawn the slot anchor entities. Tile-space config →
+// pixel-space anchor/exit; rect stays in tile-space (guards read it for the
+// restricted-area test). Stable EntityKey so the anchor survives save/load.
+function spawnDiplomaticSlotAnchors(scene: MicroSceneConfig): void {
+  for (const slot of getDiplomaticSlots(scene.id)) {
+    world.spawn(
+      Position({ x: TILE * slot.anchorTile.x, y: TILE * slot.anchorTile.y }),
+      DiplomaticSlot({
+        slotId: slot.id,
+        occupantFaction: '',
+        rectX: slot.rect.x, rectY: slot.rect.y, rectW: slot.rect.w, rectH: slot.rect.h,
+        anchorX: TILE * slot.anchorTile.x, anchorY: TILE * slot.anchorTile.y,
+        exitX: TILE * slot.exitTile.x, exitY: TILE * slot.exitTile.y,
+      }),
+      EntityKey({ key: `slot-${scene.id}-${slot.id}` }),
+    )
+  }
 }
 
 // Ship interior bootstrap. Spawns the walkable flagship: Ship instance

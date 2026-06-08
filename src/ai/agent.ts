@@ -1,10 +1,14 @@
 import type { Entity, TraitInstance, World } from 'koota'
 import { State } from 'mistreevous'
 import type { Agent, ActionResult } from 'mistreevous/dist/Agent'
-import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows } from '../ecs/traits'
+import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard, IsPlayer, FactionRole } from '../ecs/traits'
 import { isPointInActiveZone } from '../systems/activeZone'
 import type { ActionKind, RoughKind } from '../ecs/traits'
 import { tierOf } from '../systems/relations'
+import { isHostile } from './hostility'
+import { diplomacySlotsConfig } from '../config'
+import { emitSim } from '../sim/events'
+import { recordEjection } from '../sim/diplomaticSlotState'
 import { pickChatLine } from '../character/chatLines'
 import { getLandmark, getNearestRoughSource, getRoughSources, isInsideShop } from '../data/landmarks'
 import { useClock } from '../sim/clock'
@@ -56,6 +60,12 @@ export type NPCAgent = Agent & {
   // trait and Vitals is read by 5 conditions per step — dedup-on-step is
   // worth ~5× for hot traits at the cost of a single small refresh.
   refreshContext: () => void
+  // Phase 7.0.E.4 — guard-duty branch (gated on isGuardOnDuty so non-guards
+  // never reach the rest).
+  isGuardOnDuty: () => boolean
+  detectsHostilePlayer: () => boolean
+  ejectPlayer: () => ActionResult
+  holdPost: () => ActionResult
   isExhausted: () => boolean
   isHungry: () => boolean
   isThirsty: () => boolean
@@ -215,8 +225,81 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
     return path.waypoints.length === 0
   }
 
+  // Phase 7.0.E.4 — the player in this world (guards only run in micro scenes
+  // that contain the player), and the player's faction alignment. Neutral
+  // (no FactionRole) reads as null and is never hostile.
+  const findPlayerHere = (): Entity | null => world.queryFirst(IsPlayer) ?? null
+  const playerAlignmentOf = (player: Entity): string | null => {
+    const fr = player.get(FactionRole)
+    return fr ? fr.faction : null
+  }
+
   return {
     refreshContext,
+
+    isGuardOnDuty() {
+      return entity.has(Guard)
+    },
+
+    // Detection: the player is inside the guard's restricted rect AND within
+    // detectRadiusPx of the guard AND aligned with a faction the guard faction
+    // is hostile to. Reads the rect/radius/faction off the Guard trait so the
+    // BT never reaches into the systems layer.
+    detectsHostilePlayer() {
+      const g = entity.get(Guard)
+      if (!g) return false
+      const player = findPlayerHere()
+      if (!player) return false
+      const pp = player.get(Position)
+      if (!pp) return false
+      const tile = worldConfig.tilePx
+      const inRect =
+        pp.x >= g.rectX * tile && pp.x < (g.rectX + g.rectW) * tile &&
+        pp.y >= g.rectY * tile && pp.y < (g.rectY + g.rectH) * tile
+      if (!inRect) return false
+      const gp = entity.get(Position)
+      if (!gp) return false
+      if (Math.hypot(gp.x - pp.x, gp.y - pp.y) > g.detectRadiusPx) return false
+      return isHostile(g.faction, playerAlignmentOf(player), diplomacySlotsConfig.enmity)
+    },
+
+    // Eject: set the player's MoveTarget to the slot exit (player movement is
+    // MoveTarget-driven, so this force-walks them out) and warn once per
+    // detection episode. The `ejecting` latch debounces the toast so it fires
+    // only on entry, not every tick the player lingers.
+    ejectPlayer() {
+      const g = entity.get(Guard)
+      if (!g) return State.FAILED
+      const player = findPlayerHere()
+      if (!player) return State.FAILED
+      if (player.has(MoveTarget)) player.set(MoveTarget, { x: g.exitX, y: g.exitY })
+      else player.add(MoveTarget({ x: g.exitX, y: g.exitY }))
+      if (!g.ejecting) {
+        entity.set(Guard, { ...g, ejecting: true })
+        emitSim('toast', { textZh: '此处为外交管制区,闲杂人等请立即离开。' })
+        recordEjection()
+      }
+      return State.SUCCEEDED
+    },
+
+    // Hold post: clear the ejection latch (the hostile player has left or none
+    // is present), and aim the guard at the anchor if it drifted off it. ALWAYS
+    // returns SUCCEEDED — never RUNNING — so the guard branch's selector resets
+    // every tick and `detectsHostilePlayer` is re-checked each step (a RUNNING
+    // walk-back would pin the mistreevous selector and the guard would stop
+    // detecting). The actual walk is driven by movementSystem off the
+    // MoveTarget; the BT doesn't need to stay RUNNING to make it happen.
+    holdPost() {
+      const g = entity.get(Guard)
+      if (!g) return State.SUCCEEDED
+      if (g.ejecting) entity.set(Guard, { ...g, ejecting: false })
+      releaseCommitted()
+      const d = distTo({ x: g.anchorX, y: g.anchorY })
+      if (d > ARRIVE_DIST) setMoveTarget(g.anchorX, g.anchorY)
+      else setActionKind('idle')
+      return State.SUCCEEDED
+    },
+
     isExhausted() {
       const v = ctx.vitals
       return !!v && v.fatigue >= FATIGUE_GO_HOME

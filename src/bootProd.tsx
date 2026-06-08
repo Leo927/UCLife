@@ -83,6 +83,8 @@ import './boot/conscriptionTick'
 import './boot/refugeeTick'
 // Phase 7.0.E.2 — wartime non-combatant churn on the daily tick.
 import './boot/civilianChurnTick'
+// Phase 7.0.E.4 — wartime diplomatic-slot occupancy on the daily tick.
+import './boot/diplomaticSlotsTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

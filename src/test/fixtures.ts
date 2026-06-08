@@ -8,7 +8,7 @@ import { Faction, EntityKey, Workstation, Job } from '../ecs/traits'
 import { bootstrapFactions } from '../ecs/ownership'
 import { setSimRngSeed } from '../sim/rng'
 import { setSimNow } from '../sim/time'
-import { worldConfig, factionsConfig, skillsConfig, type SkillId as ConfigSkillId } from '../config'
+import { worldConfig, factionsConfig, skillsConfig, type SkillId as ConfigSkillId, type FactionId } from '../config'
 import { isSceneId } from '../data/scenes'
 import { isShipClassId, getShipClass } from '../data/ship-classes'
 import { Ship, IsFlagshipMark, Owner } from '../ecs/traits'
@@ -47,6 +47,8 @@ interface FixtureNpc {
   at: FixtureLocation
   skills?: Record<string, number>
   workstation?: string
+  // Phase 7.0.E.4 — faction alignment (sets FactionRole). Defaults to civilian.
+  faction?: string
 }
 
 interface Fixture {
@@ -69,7 +71,7 @@ const LOCATION_KEYS: ReadonlySet<string> = new Set(['scene', 'x', 'y'])
 const FACTION_KEYS: ReadonlySet<string> = new Set(['id', 'money'])
 const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt'])
 const NPC_KEYS: ReadonlySet<string> = new Set([
-  'id', 'name', 'at', 'skills', 'workstation',
+  'id', 'name', 'at', 'skills', 'workstation', 'faction',
 ])
 
 const TILE = worldConfig.tilePx
@@ -237,6 +239,13 @@ function validate(name: string, raw: unknown): Fixture {
       const n: FixtureNpc = { id, name: nm, at }
       if (r.skills !== undefined) n.skills = validateSkills(name, `npcs[${i}].skills`, r.skills)
       if (r.workstation !== undefined) n.workstation = asString(name, `npcs[${i}].workstation`, r.workstation)
+      if (r.faction !== undefined) {
+        const fid = asString(name, `npcs[${i}].faction`, r.faction)
+        if (!VALID_FACTION_IDS.has(fid)) {
+          fail(name, `npcs[${i}].faction`, `references unknown faction id "${fid}" (valid: ${[...VALID_FACTION_IDS].join(', ')})`)
+        }
+        n.faction = fid
+      }
       return n
     })
   }
@@ -407,6 +416,9 @@ function applyNpcs(name: string, fx: Fixture): void {
       y: n.at.y * TILE,
       key: n.id,
       skills: n.skills as Partial<Record<ConfigSkillId, number>> | undefined,
+      factionRole: n.faction !== undefined
+        ? { faction: n.faction as FactionId, role: 'staff' }
+        : undefined,
     })
     if (n.workstation !== undefined) {
       let matched = false
