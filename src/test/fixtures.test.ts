@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -73,6 +73,20 @@ describe('applyFixture', () => {
       if (e.get(EntityKey)!.key === 'commuter') commuterFound = true
     }
     expect(commuterFound).toBe(true)
+  })
+
+  it('loads civilian-war-consulate: zeon NPCs carry the fixture FactionRole', () => {
+    applyFixture('civilian-war-consulate')
+    const w = getWorld('vonBraunCity')
+    const zeon: string[] = []
+    for (const e of w.query(EntityKey, FactionRole)) {
+      const key = e.get(EntityKey)!.key
+      if (key === 'zeon-1' || key === 'zeon-2') {
+        expect(e.get(FactionRole)!.faction).toBe('zeon')
+        zeon.push(key)
+      }
+    }
+    expect(zeon.sort()).toEqual(['zeon-1', 'zeon-2'])
   })
 
   it('loads cp-dp: three-ship fleet + piloting=50 + dpCost projects onto ship sheets', () => {

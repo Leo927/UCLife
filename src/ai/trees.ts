@@ -18,6 +18,30 @@ export const NPC_TREE: RootNodeDefinition = {
   child: {
     type: 'selector',
     children: [
+      // Phase 7.0.E.4 — guard duty. Gated FIRST on isGuardOnDuty (returns
+      // entity.has(Guard)), so every ordinary NPC fails immediately and falls
+      // through to the drives below unchanged — the whole branch can never
+      // affect a non-guard. A guard either ejects a detected hostile player or
+      // holds its post; it never runs the survival/work drives.
+      {
+        type: 'sequence',
+        children: [
+          { type: 'condition', call: 'isGuardOnDuty' },
+          {
+            type: 'selector',
+            children: [
+              {
+                type: 'sequence',
+                children: [
+                  { type: 'condition', call: 'detectsHostilePlayer' },
+                  { type: 'action', call: 'ejectPlayer' },
+                ],
+              },
+              { type: 'action', call: 'holdPost' },
+            ],
+          },
+        ],
+      },
       // Sleep — bed first, then try to rent if homeless, bench as last resort.
       {
         type: 'sequence',

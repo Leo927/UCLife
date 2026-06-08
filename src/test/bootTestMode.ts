@@ -52,6 +52,7 @@ import '../boot/warPayoffBinding'
 import '../boot/conscriptionTick'
 import '../boot/refugeeTick'
 import '../boot/civilianChurnTick'
+import '../boot/diplomaticSlotsTick'
 import '../render/portrait/__debug__/findClerk'
 import '../render/portrait/__debug__/portraitFixtures'
 

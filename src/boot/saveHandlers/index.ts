@@ -35,3 +35,4 @@ import './newsfeed'        // phase: 'post' — consumed-headline journal + war-
 import './warState'        // phase: 'post' — IsWartime gate + strategic-war model
 import './conscription'    // phase: 'post' — draft-notice lifecycle + medical letter
 import './civilianChurn'   // phase: 'post' — churned non-combatant names + cadence
+import './diplomaticSlots'  // phase: 'post' — slot occupancy + re-spawned staff/guards

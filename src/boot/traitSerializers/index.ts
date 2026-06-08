@@ -26,3 +26,4 @@ import './progression'  // Ambitions (depends on Attributes), Flags
 import './recruitment'  // Recruiter (workstation), Applicant (character)
 import './research'     // FactionSheet, FactionEffectsList, FactionUnlocks, FactionResearch
 import './fleetCrew'    // EmployedAsCrew (captain / crew marker)
+import './diplomatic'   // DiplomaticSlot (occupancy), Guard (slot guard)

@@ -134,6 +134,24 @@ export interface ReplenishmentConfig {
   refugeeIntake?: boolean
 }
 
+// Phase 7.0.E.4 — a generic city diplomatic slot (tile-space). During wartime
+// a faction above the consulate threshold occupies a free slot; its staff +
+// guard spawn at the airport and walk to `anchorTile`. A guard ejects a player
+// who is inside `rect` and aligned with an enemy faction, force-walking them to
+// `exitTile`. Slot identity is purely the occupant's — there is no per-faction
+// building.
+//   id         — stable slot id, unique within the scene.
+//   rect       — restricted area the guard watches.
+//   anchorTile — where staff + guard hold (must sit inside `rect`).
+//   exitTile   — where an ejected hostile player is sent (typically just
+//                outside `rect`, on a walkable road-connected tile).
+export interface DiplomaticSlotConfig {
+  id: string
+  rect: TileRect
+  anchorTile: { x: number; y: number }
+  exitTile: { x: number; y: number }
+}
+
 // Camera clamp region (tile-space). The camera clamps to whichever region
 // contains the player, so spatially-disconnected regions never bleed into one
 // another's view. `hidden` regions are additionally dropped from the world map.
@@ -166,6 +184,7 @@ export interface MicroSceneConfig {
   walls?: TileRect[]
   cameraRegions?: CameraRegionConfig[]
   replenishments?: ReplenishmentConfig[]
+  diplomaticSlots?: DiplomaticSlotConfig[]
 }
 
 export interface ShipSceneConfig {
@@ -313,6 +332,35 @@ for (const s of parsed.scenes) {
       }
     }
   }
+  if (s.sceneType === 'micro' && s.diplomaticSlots) {
+    const slotIds = new Set<string>()
+    const inEnvelope = (x: number, y: number) => x >= 0 && y >= 0 && x < s.tilesX && y < s.tilesY
+    for (let si = 0; si < s.diplomaticSlots.length; si++) {
+      const slot = s.diplomaticSlots[si]
+      if (slotIds.has(slot.id)) {
+        throw new Error(`scenes.json5: scene "${s.id}" duplicate diplomaticSlots id "${slot.id}"`)
+      }
+      slotIds.add(slot.id)
+      const rc = slot.rect
+      if (rc.w <= 0 || rc.h <= 0 || !inEnvelope(rc.x, rc.y) || !inEnvelope(rc.x + rc.w - 1, rc.y + rc.h - 1)) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" diplomaticSlots["${slot.id}"].rect is outside the ${s.tilesX}x${s.tilesY} envelope`,
+        )
+      }
+      const a = slot.anchorTile
+      if (!pointInRect(a.x, a.y, rc)) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" diplomaticSlots["${slot.id}"].anchorTile (${a.x},${a.y}) must sit inside its rect`,
+        )
+      }
+      const e = slot.exitTile
+      if (!inEnvelope(e.x, e.y)) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" diplomaticSlots["${slot.id}"].exitTile (${e.x},${e.y}) is outside the ${s.tilesX}x${s.tilesY} envelope`,
+        )
+      }
+    }
+  }
 }
 
 // Suppress "unused" for DoorSide; it's re-exported for downstream consumers.
@@ -345,6 +393,13 @@ export function getCameraRegions(id: string): readonly CameraRegionConfig[] {
   const c = byId.get(id)
   if (!c || c.sceneType !== 'micro') return []
   return c.cameraRegions ?? []
+}
+
+// Diplomatic slots for a micro scene (empty otherwise). Phase 7.0.E.4.
+export function getDiplomaticSlots(id: string): readonly DiplomaticSlotConfig[] {
+  const c = byId.get(id)
+  if (!c || c.sceneType !== 'micro') return []
+  return c.diplomaticSlots ?? []
 }
 
 // True when (tileX, tileY) falls inside a `hidden` camera region of the scene

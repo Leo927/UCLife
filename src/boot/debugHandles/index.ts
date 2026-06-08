@@ -42,3 +42,4 @@ import './warState'        // Phase 7.0.B — war-transition gate + strategic-wa
 import './conscription'    // Phase 7.0.C — draft roll + resolution + medical letter
 import './refugees'        // Phase 7.0.E.1 — wartime refugee intake roll + bookkeeping
 import './civilianChurn'   // Phase 7.0.E.2 — wartime non-combatant churn roll + bookkeeping
+import './diplomaticSlots'  // Phase 7.0.E.4 — slot occupancy tick + state + player alignment + eject count

@@ -108,6 +108,37 @@
         },
       ],
 
+      // Phase 7.0.E.4 — generic diplomatic slots. During wartime a faction
+      // above the consulate threshold occupies a free slot; its staff + guard
+      // spawn at the airport and walk to the slot anchor. Slot identity is the
+      // occupant's (zeon→consulate, federation→garrison, player→posting), not a
+      // per-faction building. Placed on the open walkable plain WEST of the
+      // central procgen rect (x≥40), in the same road-connected band as the
+      // city arrivalTile {20,16} and the player spawn {20,50}, so the road
+      // carver never collides with them and staff can path in from the airport.
+      // anchorTile sits inside rect; exitTile sits just outside toward the
+      // arrival corridor.
+      diplomaticSlots: [
+        {
+          id: 'slot-a',
+          rect: { x: 12, y: 10, w: 6, h: 6 },
+          anchorTile: { x: 15, y: 13 },
+          exitTile: { x: 20, y: 16 },
+        },
+        {
+          id: 'slot-b',
+          rect: { x: 12, y: 20, w: 6, h: 6 },
+          anchorTile: { x: 15, y: 23 },
+          exitTile: { x: 20, y: 16 },
+        },
+        {
+          id: 'slot-c',
+          rect: { x: 12, y: 30, w: 6, h: 6 },
+          anchorTile: { x: 15, y: 33 },
+          exitTile: { x: 20, y: 50 },
+        },
+      ],
+
       // Drydock hull ring (tile-space, 1 tile thick). Seals the drydock
       // concourse off from the city's walkable plain so it is its own
       // walkable pathfinding component — no foot route connects the two; the

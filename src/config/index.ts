@@ -103,3 +103,6 @@ export type { RefugeesConfig } from './refugees'
 
 export { civilianChurnConfig } from './civilianChurn'
 export type { CivilianChurnConfig } from './civilianChurn'
+
+export { diplomacySlotsConfig } from './diplomacySlots'
+export type { DiplomacySlotsConfig } from './diplomacySlots'

@@ -471,6 +471,38 @@ churned-name set + cadence roll-day persist on the `civilianChurn` save handler
 existing save-diff (`src/save/index.ts` destroys any reset-spawned entity the
 snapshot doesn't expect), so no re-removal hook is needed.
 
+**Step 8 (guarded consulates) shipped in 7.0.E.4 (#118):** facility access is
+**emergent diplomatic slots**, not per-faction buildings.
+`scenes.json5` authors `diplomaticSlots[]` per micro scene (≥3 for
+`vonBraunCity`, on the walkable plain outside `procgen.rect`); each is
+`{ id, rect, anchorTile, exitTile }` validated in `data/scenes.ts`, spawned as a
+`DiplomaticSlot` anchor entity in `ecs/spawn.ts` (`bootstrapMicroScene`) with a
+stable `slot-<scene>-<id>` key. `src/systems/diplomaticSlots.ts` runs on
+`day:rollover:settled` (gated on `isWartime()`, `boot/diplomaticSlotsTick.ts`):
+a faction's **strength = living-member count × `memberCountScalar`** (counted
+over every scene world, excluding slot personnel); when it clears
+`consulateThreshold` and a slot is free the faction **occupies** it —
+`staffPerSlot` staff + `guardsPerSlot` guard NPCs spawn at the **city arrival
+point** (the scene's first replenishment `arrivalTile` — the road-connected
+immigrant/flight spill tile; airport fly-in as fallback) and walk to the
+anchor; below threshold it
+**vacates** (personnel despawn, slot frees). Both staff and guards carry the
+`Guard` trait so the BT pins them on-post (`holdPost`); only guards get a
+non-zero `detectRadiusPx`. The **guard branch is the highest-priority NPC_TREE
+child**, gated FIRST on `isGuardOnDuty` (= `has(Guard)`) so ordinary NPCs fall
+through unchanged. Detection (`src/ai/agent.ts`, hostility in `src/ai/hostility.ts`):
+player inside the slot rect **and** within `detectRadiusPx` **and** aligned
+(via `FactionRole`) with a faction in the guard faction's `enmity` row →
+**eject** = set the player's `MoveTarget` to the slot `exitTile` (force-walk,
+no combat) + a one-shot warn toast (debounced by an `ejecting` latch). Neutral
+(no `FactionRole`) players pass freely. All knobs live in
+`config/diplomacySlots.json5`; a `GUARD`-equivalent profiler is unnecessary
+(O(guards) per tick, see perf note). Occupancy (slot→faction + staff/guard
+keys) persists on the `diplomaticSlots` save handler, which **re-spawns the
+slot personnel at their anchors on load** (the save-diff would otherwise drop
+the `dipl-*` NPCs); the player-alignment `FactionRole` round-trips on its
+existing serializer. Smoke: `tests/smoke/civilian-war-consulate.spec.ts`.
+
 ### Planned (7.0.E — steps 6–8, split into #115–#118)
 
 Reshaped in a 2026-06 design pass with the owner. The umbrella #108 is
@@ -488,7 +520,9 @@ split into four independently-shippable sub-slices:
   converted to months — faction-cumulative, reusing the `work.ts` shift
   hook, distinct from per-rank `JobTenure`. Needs a save handler for
   runtime-spawned workstations (they are not re-derived from the seed).
-- **7.0.E.4 consulates + guards (#118)** — facility access is built on
+- **7.0.E.4 consulates + guards (#118)** — ✅ shipped; see the *Step 8
+  (guarded consulates) shipped in 7.0.E.4* note above. Original design intent
+  below. Facility access is built on
   **emergent diplomatic slots**, not hand-authored per-faction buildings.
   Each walkable city authors **≥3 generic diplomatic slots** at worldgen
   (outside `procgen.rect`), empty by default. **Faction strength** drives
