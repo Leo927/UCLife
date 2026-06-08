@@ -7,6 +7,7 @@ export interface DiplomacySlotsConfig {
   staffPerSlot: number
   guardsPerSlot: number
   guardDetectRadiusPx: number
+  staffDetectRadiusPx: number
   eligibleFactions: string[]
   enmity: Record<string, string[]>
 }

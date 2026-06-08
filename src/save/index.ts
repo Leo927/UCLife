@@ -400,6 +400,11 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     // respawn path: a fresh NPC is spawned with the saved key, then the
     // EmployedAsCrew + RecruitedTo + Money serializers overlay the
     // hire-side state.
+    // Phase 7.0.E.4 — diplomatic-slot personnel (`dipl-staff-`/`dipl-guard-`)
+    // are re-materialized from the persisted occupancy map by the
+    // diplomaticSlots post-phase save handler, not through this respawn path.
+    // Skip them here silently so they don't trip the unknown-key warning.
+    if (snap.key.startsWith('dipl-staff-') || snap.key.startsWith('dipl-guard-')) continue
     if (!snap.key.startsWith('npc-imm-') && !snap.key.startsWith('npc-crew-')) {
       // Unknown key not produced by setupWorld — likely a future-version
       // entity. Skip rather than crash.

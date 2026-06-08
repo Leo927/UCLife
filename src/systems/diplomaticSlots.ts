@@ -168,7 +168,7 @@ function occupySlot(world: World, sceneId: string, anchor: SlotAnchorView, facti
   const staffKeys: string[] = []
   for (let i = 0; i < cfg.staffPerSlot; i++) {
     const key = `${STAFF_KEY_PREFIX}${seqs[seqIdx++]}`
-    spawnSlotPersonnel(world, anchor, factionId, key, arrival, 0, '外交人员', '#8aa0c0')
+    spawnSlotPersonnel(world, anchor, factionId, key, arrival, cfg.staffDetectRadiusPx, '外交人员', '#8aa0c0')
     staffKeys.push(key)
   }
 
@@ -193,15 +193,13 @@ function findByKey(world: World, key: string): Entity | null {
   return null
 }
 
-// Destroy the slot's staff + guards and free the slot. (We aim them back at the
-// city arrival point first only conceptually — at the day-scale cadence the
-// despawn is immediate; the MoveTarget set is for the visible-departure case.)
-function vacateSlot(world: World, sceneId: string, occ: SlotOccupancy): void {
-  const arrival = arrivalPointFor(world, sceneId, 0, 0)
+// Destroy the slot's staff + guards and free the slot. At the day-scale cadence
+// the departure is immediate (an entity walked-then-destroyed in the same tick
+// never renders the walk), so we just despawn — no cosmetic pre-destroy walk.
+function vacateSlot(world: World, occ: SlotOccupancy): void {
   for (const key of [...occ.staffKeys, ...occ.guardKeys]) {
     const ent = findByKey(world, key)
     if (!ent) continue
-    if (ent.has(MoveTarget)) ent.set(MoveTarget, { x: arrival.x, y: arrival.y })
     ent.destroy()
   }
   for (const anchor of slotAnchors(world)) {
@@ -226,7 +224,7 @@ export function rematerializeOccupancies(): void {
     const anchorPos = { x: anchor.anchorX, y: anchor.anchorY }
     for (const key of occ.staffKeys) {
       if (findByKey(world, key)) continue
-      spawnSlotPersonnel(world, anchor, occ.factionId, key, anchorPos, 0, '外交人员', '#8aa0c0')
+      spawnSlotPersonnel(world, anchor, occ.factionId, key, anchorPos, cfg.staffDetectRadiusPx, '外交人员', '#8aa0c0')
     }
     for (const key of occ.guardKeys) {
       if (findByKey(world, key)) continue
@@ -251,7 +249,7 @@ export function occupancyTick(): void {
       if (free) occupySlot(world, sceneId, free, factionId)
     } else if (!strong && occupies) {
       for (const occ of allOccupancies()) {
-        if (occ.factionId === factionId) vacateSlot(world, sceneId, occ)
+        if (occ.factionId === factionId) vacateSlot(world, occ)
       }
     }
   }

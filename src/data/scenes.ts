@@ -359,6 +359,13 @@ for (const s of parsed.scenes) {
           `scenes.json5: scene "${s.id}" diplomaticSlots["${slot.id}"].exitTile (${e.x},${e.y}) is outside the ${s.tilesX}x${s.tilesY} envelope`,
         )
       }
+      // The exit must sit OUTSIDE the restricted rect, or ejecting a player to
+      // it re-triggers detection on arrival → an every-tick eject loop.
+      if (pointInRect(e.x, e.y, rc)) {
+        throw new Error(
+          `scenes.json5: scene "${s.id}" diplomaticSlots["${slot.id}"].exitTile (${e.x},${e.y}) must sit outside its rect`,
+        )
+      }
     }
   }
 }

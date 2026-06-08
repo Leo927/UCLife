@@ -25,6 +25,11 @@
   // trait and runs the eject branch of the NPC behavior tree.
   guardsPerSlot: 1,
 
+  // Detection radius for staff (non-guard) personnel. 0 = staff never eject;
+  // they carry the Guard trait only so the `holdPost` branch pins them to the
+  // anchor (a non-zero radius would make them eject like guards).
+  staffDetectRadiusPx: 0,
+
   // A guard detects a hostile player only when the player is within this many
   // pixels of the guard (in addition to being inside the slot rect). Tuned to
   // roughly the slot's diagonal so a guard at the anchor covers the rect.
