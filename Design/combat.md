@@ -462,11 +462,13 @@ split into four independently-shippable sub-slices:
 - **7.0.E.4 consulates + guards (#118)** — facility access is built on
   **emergent diplomatic slots**, not hand-authored per-faction buildings.
   Each walkable city authors **≥3 generic diplomatic slots** at worldgen
-  (outside `procgen.rect`), empty by default. **Faction strength is a
-  continuous quantity** — seeded at game start from config peacetime
-  baselines (this extends the `warState.ts` model, which today only seeds
-  at the war flip) and modified by war events. A faction whose strength
-  clears `consulateThreshold` **claims a free slot**; if it drops below it
+  (outside `procgen.rect`), empty by default. **Faction strength** drives
+  occupancy, but there is no good metric yet — for now it is **abstracted
+  as the faction's living-member count** (× a config scalar), derived at
+  runtime. No boot seeding needed: member counts exist from the start and
+  move on their own with conscription churn / refugees / recruitment, so
+  occupancy stays emergent. A faction whose strength clears
+  `consulateThreshold` **claims a free slot**; if it drops below it
   **vacates** (staff depart via the airport, mirroring arrival), so the
   war turning reshuffles presence for free. **Any faction, incl. the
   player-faction**, is eligible. **Slot identity derives from the
@@ -478,11 +480,14 @@ split into four independently-shippable sub-slices:
   airport — `vonBraunCity` does, `zumCity` stub may not). Restriction is
   enforced by **hostile guard NPCs** that detect the player by **zone +
   range** and eject them (warn + force-walk to exit, no combat) — *not*
-  locked doors; access gated by player rep with the occupying faction.
-  This is the **first ground-hostility subsystem** (no ground combat /
-  detection exists today — tactical combat is space-only), a precursor to
-  ground combat. **Remaining open decision:** rep-gated access needs
-  Zeon / Federation rep-gain paths, which barely exist yet.
+  locked doors. Access is **hostility-based**: guards admit anyone
+  *except* players aligned with an enemy faction (read player alignment
+  via `FactionRole` / `RecruitedTo`; faction enmity from config — e.g.
+  Zeon ⟷ Federation, sharper in wartime). Neutral / unaligned players —
+  most playthroughs — pass freely. No reputation system. This is the
+  **first ground-hostility subsystem** (no ground combat / detection
+  exists today — tactical combat is space-only), a precursor to ground
+  combat.
 
 **Economy shocks are cut** from 7.0.E (see the *Economy deferred* note
 under *Civilian war*) — deferred to the demand-driven economy.
