@@ -1,0 +1,26 @@
+// Phase 7.0.E.1 — wartime refugee intake. Once the war fires, procedural
+// refugee NPCs arrive into the city on a daily cadence (see Design/combat.md
+// § Civilian war). They are poor, so they gravitate to flop-tier beds via the
+// normal bed-seeking behavior.
+//
+// Refugees are bounded by their OWN per-region cap rather than the region's
+// replenishment `target`: the city already boots well above that target (it is
+// an emergency floor, not the live headcount), so binding refugees to it would
+// let none in. `regionRefugeeCap` caps how many live refugees a region holds at
+// once, so the wartime influx swells flop housing but stays bounded.
+{
+  // Game-days between refugee-spawn rolls. 1 = a batch may arrive each day the
+  // region sits below its refugee cap.
+  spawnCadenceDays: 1,
+  // Max live refugees a region holds at once. The intake fills toward this and
+  // then halts; deaths / departures free room for fresh arrivals.
+  regionRefugeeCap: 12,
+  // Upper bound on refugees spawned per region per roll, capped further by the
+  // region's remaining headroom. Kept single-digit to honor the perf budget.
+  batchMax: 3,
+  // Money a refugee arrives with (inclusive range). Lower than an ordinary
+  // immigrant (50–149) — refugees fled with little, so they seek the cheapest
+  // flop beds.
+  moneyMin: 5,
+  moneyMax: 40,
+}

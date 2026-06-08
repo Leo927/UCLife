@@ -79,6 +79,8 @@ import './boot/warTransitionTick'
 import './boot/warPayoffBinding'
 // Phase 7.0.C — wartime conscription draft roll + NPC churn on the daily tick.
 import './boot/conscriptionTick'
+// Phase 7.0.E.1 — wartime refugee intake on the daily tick.
+import './boot/refugeeTick'
 // Side-effect imports: install dev-only window.uclifeFindClerk /
 // window.uclifePinClerk for Playwright fixtures.
 import './render/portrait/__debug__/findClerk'

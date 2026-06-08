@@ -440,13 +440,30 @@ only). Combatant-eligible named NPCs (`combatantEligible` in
 `conscription` save handler. The clinic dialogue issues the medical
 letter in wartime.
 
+**Step 6 (refugees) shipped in 7.0.E.1 (#115):** `src/systems/population.ts`
+runs a wartime refugee intake on `day:rollover:settled` (gated on
+`isWartime()` + a daily cadence in `config/refugees.json5`). A replenishment
+region opts in via `refugeeIntake` (only the Von Braun city region does);
+refugees spawn at that region's safe `arrivalTile` — never a locked cell —
+carry the distinct `npc-ref-` EntityKey prefix and a low starting purse, so
+the normal bed-seeking behavior settles them into flop-tier beds. Arrivals
+surface via `emitSim('log')`. Refugees are bounded by their **own**
+`regionRefugeeCap`, *not* the replenishment `target`: a city boots well above
+that target (it is an emergency floor, not the live headcount — Von Braun
+seeds ~52 against a target of 30), so binding refugees to the target would let
+none in. The cap bounds how many live refugees a region holds at once; the
+intake fills toward it and halts, and deaths / departures free room for fresh
+arrivals — so 7.0.E.2 churn compounds the turnover. The intake bookkeeping
+(counter + last-spawn-day) persists on the existing `population` save handler;
+the refugee entities re-derive from the seed like all procedural NPCs.
+
 ### Planned (7.0.E — steps 6–8, split into #115–#118)
 
 Reshaped in a 2026-06 design pass with the owner. The umbrella #108 is
 split into four independently-shippable sub-slices:
 
-- **7.0.E.1 refugees (#115)** — procedural NPCs spawn into flop-tier
-  housing via `populationSystem` (spawn-trap-safe, replenishment-capped).
+- **7.0.E.1 refugees (#115)** — ✅ shipped; see the *Step 6 (refugees)
+  shipped in 7.0.E.1* note above.
 - **7.0.E.2 friends fled / killed (#116)** — non-`combatantEligible`
   named NPCs churn out (fled or killed offscreen), reusing the 7.0.C
   churn pattern with the eligibility filter **inverted** so a given NPC
