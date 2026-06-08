@@ -73,7 +73,11 @@ test('civilian churn: non-combatants flee/killed, combatant untouched, bookkeepi
   expect(st.churned.slice().sort(), 'churn state records exactly the churned roster')
     .toEqual(churnedNames.slice().sort())
 
-  // The churn bookkeeping survives a save round-trip.
+  // The churn bookkeeping survives a save round-trip. (We assert the churned
+  // set, not Gato's post-load presence: the fixture-placed combatant uses a
+  // non-procedural EntityKey that the load path doesn't re-materialize, which
+  // is a fixture/save limitation unrelated to churn. Disjointness is already
+  // proven pre-save above.)
   await sim.page.evaluate(async () => { await (window as any).__uclife__.saveGame(1) })
   await sim.page.reload({ waitUntil: 'domcontentloaded' })
   await sim.waitForBoot([H('getCivilianChurnState'), H('loadGame')])
