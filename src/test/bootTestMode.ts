@@ -50,6 +50,7 @@ import '../boot/diplomacyTick'
 import '../boot/warTransitionTick'
 import '../boot/warPayoffBinding'
 import '../boot/conscriptionTick'
+import '../boot/refugeeTick'
 import '../render/portrait/__debug__/findClerk'
 import '../render/portrait/__debug__/portraitFixtures'
 

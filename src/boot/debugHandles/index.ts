@@ -40,3 +40,4 @@ import './factionPerks'    // Phase 6.4.E — faction-leader perk spend + tier-u
 import './newsfeed'        // Phase 7.0.A — newsfeed journal + bar-counter tile + war-day toast hook
 import './warState'        // Phase 7.0.B — war-transition gate + strategic-war model + force-tick
 import './conscription'    // Phase 7.0.C — draft roll + resolution + medical letter
+import './refugees'        // Phase 7.0.E.1 — wartime refugee intake roll + bookkeeping

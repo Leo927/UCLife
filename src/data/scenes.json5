@@ -95,6 +95,8 @@
           target: 30,
           arrivalTile: { x: 20, y: 16 },
           regionRect: { x: 0, y: 0, w: 800, h: 520 },
+          // Wartime refugees arrive here (Phase 7.0.E.1) and seek flop beds.
+          refugeeIntake: true,
         },
         // Drydock: manager (1) + hangar workers (8) + crew-rotation headroom,
         // counted only inside the hull ring. arrivalTile is a clean concourse

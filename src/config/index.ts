@@ -97,3 +97,6 @@ export type { WarTransitionConfig, WarFrontSpec } from './warTransition'
 
 export { conscriptionConfig } from './conscription'
 export type { ConscriptionConfig, ConscriptionRefusalConfig } from './conscription'
+
+export { refugeesConfig } from './refugees'
+export type { RefugeesConfig } from './refugees'

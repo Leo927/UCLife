@@ -121,11 +121,17 @@ export type TileRect = { x: number; y: number; w: number; h: number }
 //   arrivalTile — where each new immigrant spawns, in this scene's tile-space.
 //                 Must be a walkable tile inside `regionRect`.
 //   regionRect  — tile-space bounds the alive-count is taken over.
+//   refugeeIntake — opt in this region to wartime refugee arrivals (Phase
+//                 7.0.E.1). Refugees spawn at `arrivalTile` (a safe walkable
+//                 tile by construction, never a locked cell) and fill toward
+//                 `target` like immigrants. Omit/false to take no refugees
+//                 (e.g. the sealed drydock crew region).
 // Throttle (replenishIntervalMin) stays global — see config/population.json5.
 export interface ReplenishmentConfig {
   target: number
   arrivalTile: { x: number; y: number }
   regionRect: TileRect
+  refugeeIntake?: boolean
 }
 
 // Camera clamp region (tile-space). The camera clamps to whichever region

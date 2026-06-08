@@ -1,0 +1,15 @@
+// Phase 7.0.E.1 refugee-intake smoke. Player parked away from the city
+// arrival tile in vonBraunCity. The test jumps the clock to the war date,
+// flips IsWartime, then force-runs the refugee intake roll (bypassing the
+// daily cadence) over the city's replenishment regions. No named NPCs are
+// needed — refugees are procedural.
+{
+  seed: 'civilian-war-refugees-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+}
