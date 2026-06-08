@@ -1,0 +1,24 @@
+// Phase 7.0.E.2 non-combatant-churn smoke. Player parked away from the city
+// arrival tile in vonBraunCity, where ~17 non-combatant named NPCs (AE board /
+// managers / receptionist / dealers) auto-spawn. A combatant-eligible named NPC
+// (加图 / Gato) is placed so the test can assert the churn leaves it alone
+// (conscription's to draft, not this path's to churn). The test jumps the clock
+// to the war date, flips IsWartime, then force-runs the churn roll.
+{
+  seed: 'civilian-war-churn-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 8, y: 36 },
+  },
+
+  npcs: [
+    {
+      id: 'gato',
+      name: '阿纳贝尔·加图',
+      at: { scene: 'vonBraunCity', x: 12, y: 36 },
+    },
+  ],
+}

@@ -41,3 +41,4 @@ import './newsfeed'        // Phase 7.0.A — newsfeed journal + bar-counter til
 import './warState'        // Phase 7.0.B — war-transition gate + strategic-war model + force-tick
 import './conscription'    // Phase 7.0.C — draft roll + resolution + medical letter
 import './refugees'        // Phase 7.0.E.1 — wartime refugee intake roll + bookkeeping
+import './civilianChurn'   // Phase 7.0.E.2 — wartime non-combatant churn roll + bookkeeping

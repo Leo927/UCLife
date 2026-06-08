@@ -457,6 +457,20 @@ arrivals — so 7.0.E.2 churn compounds the turnover. The intake bookkeeping
 (counter + last-spawn-day) persists on the existing `population` save handler;
 the refugee entities re-derive from the seed like all procedural NPCs.
 
+**Step 7 (friends gone) shipped in 7.0.E.2 (#116):** `src/systems/civilianChurn.ts`
+runs a wartime churn on `day:rollover:settled` (gated on `isWartime()` + a
+cadence in `config/civilianChurn.json5`) that removes the **non-combatant**
+named NPCs the player knows — each either *fled* the colony or *killed
+offscreen* (a seeded fate split, distinct log copy). It is **disjoint from
+conscription by construction**: 7.0.C drafts the `combatantEligible` named
+roster, this churns the rest, so the two filters partition the roster and a
+given NPC leaves exactly once. Arrivals of the news surface via
+`emitSim('log')` plus war-tagged `news.json5` headlines on the bar-TV. The
+churned-name set + cadence roll-day persist on the `civilianChurn` save handler
+(idempotency + round-trip); the destroyed NPCs stay gone after load via the
+existing save-diff (`src/save/index.ts` destroys any reset-spawned entity the
+snapshot doesn't expect), so no re-removal hook is needed.
+
 ### Planned (7.0.E — steps 6–8, split into #115–#118)
 
 Reshaped in a 2026-06 design pass with the owner. The umbrella #108 is
@@ -464,10 +478,8 @@ split into four independently-shippable sub-slices:
 
 - **7.0.E.1 refugees (#115)** — ✅ shipped; see the *Step 6 (refugees)
   shipped in 7.0.E.1* note above.
-- **7.0.E.2 friends fled / killed (#116)** — non-`combatantEligible`
-  named NPCs churn out (fled or killed offscreen), reusing the 7.0.C
-  churn pattern with the eligibility filter **inverted** so a given NPC
-  leaves once, not twice.
+- **7.0.E.2 friends fled / killed (#116)** — ✅ shipped; see the *Step 7
+  (friends gone) shipped in 7.0.E.2* note above.
 - **7.0.E.3 military jobs (#117)** — no job classification: military jobs
   are ordinary `jobs.json5` specs. A "posting" appearing / disappearing =
   runtime **spawn / despawn of `Workstation` entities**; wartime *adds*

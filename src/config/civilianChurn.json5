@@ -1,0 +1,16 @@
+// Phase 7.0.E.2 — wartime non-combatant churn. Once the war fires, named
+// civilians the player knows start disappearing — fled the colony or killed
+// offscreen — on a periodic seeded roll (mirrors the 7.0.C conscription
+// cadence). This path churns the NON-combatant named NPCs; conscription
+// (config/conscription.json5 npcDraftChance) churns the combatant-eligible
+// ones, so the two filters are disjoint and an NPC leaves exactly once.
+// See Design/combat.md § Civilian war.
+{
+  // Game-days between churn rolls. Independent of the conscription cadence.
+  rollCadenceDays: 5,
+  // Per non-combatant named NPC, chance (0–1) they churn out on a given roll.
+  npcChurnChance: 0.25,
+  // Of the churned, the share that fled the colony (vs. killed offscreen).
+  // Drives which log copy + which fate is recorded.
+  fledChance: 0.6,
+}
