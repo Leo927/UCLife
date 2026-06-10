@@ -2,7 +2,7 @@
 // koota createWorld() rather than the live game world, mirroring the
 // recruitment / secretaryRoster / housingPressure test patterns.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createWorld } from 'koota'
 import {
   Building, Character, EntityKey, Faction, FactionResearch, FactionSheet,
@@ -16,12 +16,24 @@ import {
   researchSystem, findFactionForResearcherStation,
 } from './research'
 import { worldConfig, researchConfig } from '../config'
-import { hasFactionUnlock } from '../ecs/factionEffects'
+import { getFactionEffects, hasFactionUnlock } from '../ecs/factionEffects'
+import { researchCatalog, getResearchSpec } from '../data/research'
+import { FACTION_STAT_IDS, type FactionStatId } from '../stats/factionSchema'
+import { getStat } from '../stats/sheet'
 
 const TILE = worldConfig.tilePx
 
+// Koota caps live worlds at 16 per process; destroy after each test so the
+// per-catalog-row suites can grow past that bound (same pattern as
+// aeClinic.test.ts).
+const createdWorlds: ReturnType<typeof createWorld>[] = []
+afterEach(() => {
+  while (createdWorlds.length) createdWorlds.pop()!.destroy()
+})
+
 function makeWorld() {
   const world = createWorld()
+  createdWorlds.push(world)
   // Bootstrap a 'civilian' Faction with the research traits attached.
   const civ = world.spawn(
     Faction({ id: 'civilian', fund: 0 }),
@@ -227,9 +239,20 @@ describe('plannerView', () => {
     enqueueResearch(civ, 'factory-tier-2')
     const view = plannerView(civ)!
     expect(view.queue.map((r) => r.id)).toEqual(['factory-tier-2'])
-    // No other catalog rows in 5.5.6, so available + locked + done are all empty.
-    expect(view.available.length).toBe(0)
-    expect(view.locked.length).toBe(0)
+    // Derive expectations from the catalog so authoring passes don't
+    // invalidate this test: rows with no prereqs are available (minus the
+    // queued one); rows with unmet prereqs are locked with the gate named.
+    const availableIds = researchCatalog
+      .filter((s) => s.prereqs.length === 0 && s.id !== 'factory-tier-2')
+      .map((s) => s.id).sort()
+    expect(view.available.map((r) => r.id).sort()).toEqual(availableIds)
+    const gatedIds = researchCatalog
+      .filter((s) => s.prereqs.length > 0)
+      .map((s) => s.id).sort()
+    expect(view.locked.map((r) => r.id).sort()).toEqual(gatedIds)
+    for (const row of view.locked) {
+      expect(row.missingPrereqIds.length).toBeGreaterThan(0)
+    }
     expect(view.done.length).toBe(0)
   })
 
@@ -250,5 +273,166 @@ describe('findFactionForResearcherStation', () => {
     spawnPlayerOwnedLab(world, player)
     const station = spawnResearcherStation(world)
     expect(findFactionForResearcherStation(world, station)).toBe(civ)
+  })
+})
+
+// ── Phase 5.5.7 catalog authoring pass ──────────────────────────────────
+
+const VALID_CATEGORIES = ['economy', 'military', 'colony', 'quality-of-life']
+const VALID_MOD_TYPES = ['flat', 'percentAdd', 'percentMult', 'floor', 'cap']
+const FACTION_LEVERS = [
+  'revenueMul', 'recruitChanceMul', 'researchSpeedMul', 'loyaltyDriftMul',
+] as const
+
+describe('research catalog validation', () => {
+  it('holds at least 10 economy / quality-of-life entries', () => {
+    const econQol = researchCatalog.filter(
+      (s) => s.category === 'economy' || s.category === 'quality-of-life',
+    )
+    expect(econQol.length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('moves every FactionStatSheet lever with at least one research', () => {
+    for (const lever of FACTION_LEVERS) {
+      const movers = researchCatalog.filter((s) =>
+        s.effects.some((e) => e.statId === lever))
+      expect(movers.length, `no research moves faction stat '${lever}'`)
+        .toBeGreaterThan(0)
+    }
+  })
+
+  it.each(researchCatalog.map((s) => [s.id, s] as const))(
+    'row %s is well-formed',
+    (_id, spec) => {
+      expect(spec.cost, `cost of ${spec.id} must be a positive number`)
+        .toBeGreaterThan(0)
+      expect(Number.isFinite(spec.cost)).toBe(true)
+      expect(spec.nameZh.trim().length, `${spec.id} needs nameZh`).toBeGreaterThan(0)
+      expect(spec.descZh.trim().length, `${spec.id} needs descZh`).toBeGreaterThan(0)
+      expect(VALID_CATEGORIES, `${spec.id} category '${spec.category}' unknown`)
+        .toContain(spec.category)
+      expect(typeof spec.significant).toBe('boolean')
+      for (const p of spec.prereqs) {
+        expect(getResearchSpec(p), `${spec.id} prereq '${p}' not in catalog`)
+          .not.toBeNull()
+      }
+      for (const e of spec.effects) {
+        expect(FACTION_STAT_IDS, `${spec.id} effect statId '${e.statId}' invalid`)
+          .toContain(e.statId)
+        expect(VALID_MOD_TYPES, `${spec.id} effect type '${e.type}' invalid`)
+          .toContain(e.type)
+        expect(Number.isFinite(e.value), `${spec.id} effect value must be finite`)
+          .toBe(true)
+        expect(e.value, `${spec.id} authors a no-op modifier`).not.toBe(0)
+      }
+      for (const u of spec.unlocks) {
+        expect(u.trim().length, `${spec.id} has an empty unlock id`).toBeGreaterThan(0)
+      }
+    },
+  )
+
+  it('has no prereq cycles', () => {
+    const visiting = new Set<string>()
+    const cleared = new Set<string>()
+    const visit = (id: string): void => {
+      if (cleared.has(id)) return
+      expect(visiting.has(id), `prereq cycle through '${id}'`).toBe(false)
+      visiting.add(id)
+      for (const p of getResearchSpec(id)?.prereqs ?? []) visit(p)
+      visiting.delete(id)
+      cleared.add(id)
+    }
+    for (const s of researchCatalog) visit(s.id)
+  })
+})
+
+describe('authored rows complete and fold onto the faction', () => {
+  it.each(researchCatalog.map((s) => [s.id, s] as const))(
+    'completing %s applies its effects and unlocks',
+    (_id, spec) => {
+      const { world, civ } = makeWorld()
+      const player = spawnPlayer(world)
+      spawnPlayerOwnedLab(world, player)
+      const station = spawnResearcherStation(world)
+      spawnSeatedResearcher(world, station)
+
+      // Seed prereqs as already-completed, then park accumulated at cost so
+      // the next rollover completes the head regardless of yield.
+      const fr0 = civ.get(FactionResearch)!
+      civ.set(FactionResearch, { ...fr0, completed: spec.prereqs.slice() })
+      expect(enqueueResearch(civ, spec.id)).toBe(true)
+      civ.set(FactionResearch, {
+        ...civ.get(FactionResearch)!, accumulated: spec.cost,
+      })
+
+      const result = researchSystem(world, 1)
+      expect(result.completed).toContain(spec.id)
+      expect(civ.get(FactionResearch)!.completed).toContain(spec.id)
+
+      for (const u of spec.unlocks) {
+        expect(hasFactionUnlock(civ, u), `unlock '${u}' not stamped`).toBe(true)
+      }
+
+      if (spec.effects.length === 0) return
+      const eff = getFactionEffects(civ).find((e) => e.id === `research:${spec.id}`)
+      expect(eff, `FactionEffect research:${spec.id} missing`).toBeDefined()
+      expect(eff!.modifiers).toHaveLength(spec.effects.length)
+
+      // Every touched stat must fold to the value the modifier formula
+      // predicts from the 1.0 default base:
+      //   val = (base + Σflat) × (1 + ΣpctAdd) × Π(1 + pctMult)
+      const sheet = civ.get(FactionSheet)!.sheet
+      const touched = new Set(spec.effects.map((e) => e.statId))
+      for (const statId of touched) {
+        let flat = 0; let pctAdd = 0; let pctMul = 1
+        for (const e of spec.effects) {
+          if (e.statId !== statId) continue
+          if (e.type === 'flat') flat += e.value
+          else if (e.type === 'percentAdd') pctAdd += e.value
+          else if (e.type === 'percentMult') pctMul *= 1 + e.value
+        }
+        const expected = (1.0 + flat) * (1 + pctAdd) * pctMul
+        expect(getStat(sheet, statId as FactionStatId)).toBeCloseTo(expected, 5)
+      }
+    },
+  )
+})
+
+describe('prereq gating', () => {
+  it('enqueueResearch refuses a prereq-gated row until the prereq completes', () => {
+    const { civ } = makeWorld()
+    const gated = researchCatalog.find((s) => s.prereqs.length > 0)!
+    expect(enqueueResearch(civ, gated.id)).toBe(false)
+    const fr = civ.get(FactionResearch)!
+    civ.set(FactionResearch, { ...fr, completed: gated.prereqs.slice() })
+    expect(enqueueResearch(civ, gated.id)).toBe(true)
+  })
+})
+
+describe('researchSpeedMul live consumer', () => {
+  it('a completed speed research raises the next day\'s yield', () => {
+    const { world, civ } = makeWorld()
+    const player = spawnPlayer(world)
+    spawnPlayerOwnedLab(world, player)
+    const station = spawnResearcherStation(world)
+    spawnSeatedResearcher(world, station)
+
+    const speedSpec = researchCatalog.find((s) =>
+      s.effects.some((e) => e.statId === 'researchSpeedMul' && e.type === 'percentAdd')
+      && s.prereqs.length === 0)!
+    civ.set(FactionResearch, {
+      ...civ.get(FactionResearch)!, queue: [speedSpec.id], accumulated: speedSpec.cost,
+    })
+    researchSystem(world, 1)
+    expect(civ.get(FactionResearch)!.completed).toContain(speedSpec.id)
+
+    // Next rollover: yield must scale by the researched multiplier.
+    enqueueResearch(civ, 'factory-tier-2')
+    const result = researchSystem(world, 2)
+    const pctAdd = speedSpec.effects
+      .filter((e) => e.statId === 'researchSpeedMul' && e.type === 'percentAdd')
+      .reduce((acc, e) => acc + e.value, 0)
+    const expected = researchConfig.baseResearchPerShift * (1 + pctAdd)
+    expect(result.progressGenerated).toBeCloseTo(expected, 5)
   })
 })

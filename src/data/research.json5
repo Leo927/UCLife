@@ -38,5 +38,141 @@
       category: 'economy',
       significant: false,
     },
+
+    // ── Phase 5.5.7 authoring pass: economy ─────────────────────────────
+    // revenueMul chain — standardize the line, win the contracts, pass the
+    // Anaheim audit. Depth-3 prereq chain so the planner tree has shape.
+    'assembly-line-standards': {
+      nameZh: '流水线标准化',
+      descZh: '统一工位规程与零件公差，减少返工。旗下设施的日营收提升 5%。',
+      flavorZh: '把三个班组的土办法订成一本手册，居然没人打起来。',
+      cost: 350,
+      prereqs: [],
+      effects: [
+        { statId: 'revenueMul', type: 'percentAdd', value: 0.05 },
+      ],
+      unlocks: [],
+      category: 'economy',
+      significant: false,
+    },
+    'lunar-supply-contracts': {
+      nameZh: '月面供货合同',
+      descZh: '与冯·布劳恩市政及周边企业签订长期供货协议，稳定销路。日营收提升 8%。',
+      flavorZh: '市政厅的采购科第一次主动打来了电话。',
+      cost: 500,
+      prereqs: ['assembly-line-standards'],
+      effects: [
+        { statId: 'revenueMul', type: 'percentAdd', value: 0.08 },
+      ],
+      unlocks: [],
+      category: 'economy',
+      significant: false,
+    },
+    'ae-vendor-audit': {
+      nameZh: '阿纳海姆供应商资质',
+      descZh: '通过阿纳海姆电子的供应商审核，进入其月面采购名录。日营收提升 10%。',
+      flavorZh: '审核员临走时说："在冯·布劳恩，拿到这张纸的小厂不超过一打。"',
+      cost: 800,
+      prereqs: ['lunar-supply-contracts'],
+      effects: [
+        { statId: 'revenueMul', type: 'percentAdd', value: 0.10 },
+      ],
+      unlocks: [],
+      category: 'economy',
+      significant: true,
+    },
+    'preventive-maintenance': {
+      nameZh: '预防性维护规程',
+      descZh: '按周期保养设备而不是等它坏。旗下设施的日维护开销降低 5%。',
+      cost: 400,
+      prereqs: ['assembly-line-standards'],
+      effects: [
+        { statId: 'maintenanceMul', type: 'percentAdd', value: -0.05 },
+      ],
+      unlocks: [],
+      category: 'economy',
+      significant: false,
+    },
+    // researchSpeedMul pair — the lab improves itself.
+    'lab-equipment-upgrade': {
+      nameZh: '实验室设备更新',
+      descZh: '替换老旧的分析仪与终端，研究员不再排队等机器。研究速度提升 10%。',
+      cost: 450,
+      prereqs: [],
+      effects: [
+        { statId: 'researchSpeedMul', type: 'percentAdd', value: 0.10 },
+      ],
+      unlocks: [],
+      category: 'economy',
+      significant: false,
+    },
+    'research-methodology': {
+      nameZh: '标准化研究方法',
+      descZh: '建立课题立项、文献复用与同行评审流程，少走弯路。研究速度提升 15%。',
+      cost: 700,
+      prereqs: ['lab-equipment-upgrade'],
+      effects: [
+        { statId: 'researchSpeedMul', type: 'percentAdd', value: 0.15 },
+      ],
+      unlocks: [],
+      category: 'economy',
+      significant: false,
+    },
+
+    // ── Phase 5.5.7 authoring pass: quality of life ─────────────────────
+    // loyaltyDriftMul + recruitChanceMul — treat people better, word gets
+    // around the colony.
+    'staff-canteen': {
+      nameZh: '员工食堂',
+      descZh: '在设施里开伙，热饭热菜管够。员工忠诚度流失放缓 10%。',
+      flavorZh: '月面合成米做的咖喱，居然有人添了三次。',
+      cost: 300,
+      prereqs: [],
+      effects: [
+        { statId: 'loyaltyDriftMul', type: 'percentAdd', value: -0.10 },
+      ],
+      unlocks: [],
+      category: 'quality-of-life',
+      significant: false,
+    },
+    'worker-housing-subsidy': {
+      nameZh: '员工住房补贴',
+      descZh: '为员工分担舱室租金，住得安稳的人不琢磨跳槽。忠诚度流失放缓 15%，招募成功率提升 5%。',
+      cost: 600,
+      prereqs: ['staff-canteen'],
+      effects: [
+        { statId: 'loyaltyDriftMul', type: 'percentAdd', value: -0.15 },
+        { statId: 'recruitChanceMul', type: 'percentAdd', value: 0.05 },
+      ],
+      unlocks: [],
+      category: 'quality-of-life',
+      significant: false,
+    },
+    'hiring-network': {
+      nameZh: '同乡介绍网络',
+      descZh: '老员工介绍同乡入职发介绍费，比贴招工启事管用。招募成功率提升 10%。',
+      cost: 350,
+      prereqs: [],
+      effects: [
+        { statId: 'recruitChanceMul', type: 'percentAdd', value: 0.10 },
+      ],
+      unlocks: [],
+      category: 'quality-of-life',
+      significant: false,
+    },
+    'employer-reputation': {
+      nameZh: '雇主口碑工程',
+      descZh: '准时发薪、工伤全赔的名声在码头区传开。招募成功率提升 10%，忠诚度流失放缓 5%。',
+      flavorZh: '酒馆里有人说："那家厂子，进去了就没人想走。"',
+      cost: 550,
+      prereqs: ['hiring-network'],
+      effects: [
+        { statId: 'recruitChanceMul', type: 'percentAdd', value: 0.10 },
+        { statId: 'loyaltyDriftMul', type: 'percentAdd', value: -0.05 },
+      ],
+      unlocks: [],
+      category: 'quality-of-life',
+      significant: false,
+    },
   },
 }
