@@ -379,6 +379,12 @@
       algorithm: 'open_floor',
       items: [
         { template: 'workstation-bartender', role: 'supervisor' },
+        // Issue #142 — the world's lone Tutor seat (skill-perk respec).
+        // Sparse by design (Design/characters/skills.md § Respec): not
+        // every bar hosts one; the drydock bar is the bar that does, so
+        // discovery means riding the orbital lift. The respec verb lives
+        // on the on-duty tutor NPC, never on the desk.
+        { template: 'workstation-tutor', role: 'worker' },
         { template: 'bar-seat', role: 'customer_row', count: 5 },
         { template: 'queue-point-bar', role: 'queue' },
       ],

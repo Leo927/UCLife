@@ -6,7 +6,11 @@
  */
 import { test, expect } from './_fixtures'
 
-const MINUTES_ADVANCED = 60
+// Kept small on purpose: the invariant is "the clock moved, load put it
+// back", and every simulated minute here ticks the full default city.
+// At 60 minutes this spec ran at 45s of its 60s budget on CI — one
+// worker-scheduling shift away from a spurious red.
+const MINUTES_ADVANCED = 5
 const SAVE_SLOT = 1
 
 test('save → advance → load restores the clock', async ({ sim }) => {

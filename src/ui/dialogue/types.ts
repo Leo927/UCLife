@@ -53,6 +53,9 @@ export type DialogueRoles = {
   isAEVehicleSalesOnDuty: boolean
   // Issue #64 — AE MS-parts broker at the VB spaceport (weapons + frame mods).
   isAEPartsDealerOnDuty: boolean
+  // Issue #142 — skill-perk respec verb on the on-duty Tutor (sparse bar
+  // seat; worker-not-workstation).
+  isTutorOnDuty: boolean
   ownsPrivateFacility: boolean
   managerStation: Entity | null
   // Phase 6.4.A — player holds faction-tier unlock (player-faction is a

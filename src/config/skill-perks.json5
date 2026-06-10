@@ -1,0 +1,270 @@
+{
+  // Skill Perks — Design/characters/skills.md § Skill Perks (issue #142).
+  // At each tier level the player picks one of N mutually-exclusive
+  // options per skill, free (no AP). Authoring contract: every tier must
+  // offer ≥2 options and ≥1 option carrying `unlocks` or `abilities` —
+  // enforced by a data-validation unit test (skillPerks.test.ts).
+  //
+  // `unlocks` flags are forward contracts: consumers (recipe registry,
+  // verb menus, dialogue gates) read them via hasUnlock() as they ship.
+  // `abilities` rows are reserved data (no consumer until the
+  // active-abilities subsystem lands with combat).
+
+  // Milestone levels, ascending. Level 90 is reserved (not authored).
+  tiers: [30, 60],
+
+  // Respec at a staffed Tutor seat. money = moneyBase × moneyGrowth^n,
+  // days = daysBase + daysPerRespec × n, where n = the player's prior
+  // respec count. First reroll is forgiving; compulsive rerolling stings.
+  respec: {
+    moneyBase: 500,
+    moneyGrowth: 2,
+    daysBase: 2,
+    daysPerRespec: 1,
+  },
+
+  catalog: {
+    cooking: {
+      '30': [
+        {
+          id: 'meal_prep',
+          nameZh: '备餐高手',
+          descZh: '一次烹饪动作产出两份饭菜。',
+          unlocks: ['cook:double_batch'],
+        },
+        {
+          id: 'gourmand',
+          nameZh: '美食家',
+          descZh: '可以从普通食材做出高级套餐。',
+          unlocks: ['recipe:premium_meal'],
+        },
+      ],
+      '60': [
+        {
+          id: 'batch_feast',
+          nameZh: '流水后厨',
+          descZh: '解锁宴席级批量备餐。',
+          unlocks: ['cook:batch_feast'],
+        },
+        {
+          id: 'thrifty_chef',
+          nameZh: '节俭主厨',
+          descZh: '自己做的饭更顶饿——饥饿积累减慢 15%。',
+          modifiers: [{ statId: 'hungerDrainMul', type: 'percentMult', value: -0.15 }],
+        },
+      ],
+    },
+
+    bartending: {
+      '30': [
+        {
+          id: 'signature_drink',
+          nameZh: '招牌特饮',
+          descZh: '调出一款只属于你的招牌酒。',
+          unlocks: ['recipe:signature_drink'],
+        },
+        {
+          id: 'tabkeeper',
+          nameZh: '吧台老练',
+          descZh: '吧台后的日子让你不易烦闷——烦闷积累减慢 20%。',
+          modifiers: [{ statId: 'boredomDrainMul', type: 'percentMult', value: -0.20 }],
+        },
+      ],
+      '60': [
+        {
+          id: 'comp_drink',
+          nameZh: '请客一杯',
+          descZh: '可以请客人喝一杯自己调的酒。',
+          unlocks: ['verb:comp_drink'],
+        },
+        {
+          id: 'night_owl',
+          nameZh: '夜场常青',
+          descZh: '熬夜成了本能——疲劳积累减慢 15%。',
+          modifiers: [{ statId: 'fatigueDrainMul', type: 'percentMult', value: -0.15 }],
+        },
+      ],
+    },
+
+    medicine: {
+      '30': [
+        {
+          id: 'triage',
+          nameZh: '分诊',
+          descZh: '诊断他人时一次看清全部病情。',
+          unlocks: ['diagnose:reveal_all'],
+        },
+        {
+          id: 'field_dressing',
+          nameZh: '急救包扎',
+          descZh: '自我恢复速度提升 25%。',
+          modifiers: [{ statId: 'hpRegenMul', type: 'percentMult', value: 0.25 }],
+        },
+      ],
+      '60': [
+        {
+          id: 'attending',
+          nameZh: '主治医师',
+          descZh: '可以为自己施行住院级治疗。',
+          unlocks: ['treat:tier2_self'],
+        },
+        {
+          id: 'iron_constitution',
+          nameZh: '强健体魄',
+          descZh: '生命值上限 +10。',
+          modifiers: [{ statId: 'hpMax', type: 'flat', value: 10 }],
+        },
+      ],
+    },
+
+    mechanics: {
+      '30': [
+        {
+          id: 'salvager',
+          nameZh: '拾荒者',
+          descZh: '报废的工位在你眼里是零件来源。',
+          unlocks: ['verb:salvage_workstation'],
+        },
+        {
+          id: 'tinkerer',
+          nameZh: '修补匠',
+          descZh: '手上的活更快——作业动作提速 15%。',
+          modifiers: [{ statId: 'workingSpeed', type: 'percentMult', value: 0.15 }],
+        },
+      ],
+      '60': [
+        {
+          id: 'field_engineer',
+          nameZh: '战地工程师',
+          descZh: 'MS 子系统应急修复（待战斗系统启用）。',
+          abilities: [{ id: 'ms_emergency_repair', cooldownSec: 259200 }],
+        },
+        {
+          id: 'master_mechanic',
+          nameZh: '老练技师',
+          descZh: '工作产出提升 10%。',
+          modifiers: [{ statId: 'workPerfMul', type: 'percentMult', value: 0.10 }],
+        },
+      ],
+    },
+
+    engineering: {
+      '30': [
+        {
+          id: 'fault_preview',
+          nameZh: '系统诊断',
+          descZh: '一眼看出设施的故障隐患。',
+          unlocks: ['facility:fault_preview'],
+        },
+        {
+          id: 'efficient_hands',
+          nameZh: '高效作业',
+          descZh: '作业动作提速 10%。',
+          modifiers: [{ statId: 'workingSpeed', type: 'percentMult', value: 0.10 }],
+        },
+      ],
+      '60': [
+        {
+          id: 'overdrive',
+          nameZh: '总工程师',
+          descZh: '懂得让设施短时超频运转。',
+          unlocks: ['facility:overdrive'],
+        },
+        {
+          id: 'systems_thinker',
+          nameZh: '系统思维',
+          descZh: '工作产出提升 15%。',
+          modifiers: [{ statId: 'workPerfMul', type: 'percentMult', value: 0.15 }],
+        },
+      ],
+    },
+
+    computers: {
+      '30': [
+        {
+          id: 'archive_access',
+          nameZh: '信息掮客',
+          descZh: '能翻出过期的新闻档案。',
+          unlocks: ['news:archive_access'],
+        },
+        {
+          id: 'speed_reader',
+          nameZh: '快速检索',
+          descZh: '阅读提速 20%。',
+          modifiers: [{ statId: 'readingSpeed', type: 'percentMult', value: 0.20 }],
+        },
+      ],
+      '60': [
+        {
+          id: 'intrusion',
+          nameZh: '黑客',
+          descZh: '懂得绕过终端的门禁授权。',
+          unlocks: ['terminal:intrusion'],
+        },
+        {
+          id: 'deal_hunter',
+          nameZh: '网购达人',
+          descZh: '总能找到折扣——商店价格降低 10%。',
+          modifiers: [{ statId: 'shopMul', type: 'percentMult', value: -0.10 }],
+        },
+      ],
+    },
+
+    athletics: {
+      '30': [
+        {
+          id: 'jog_commute',
+          nameZh: '晨跑通勤',
+          descZh: '把通勤变成锻炼。',
+          unlocks: ['verb:jog_commute'],
+        },
+        {
+          id: 'brisk_walker',
+          nameZh: '健步如飞',
+          descZh: '步行提速 15%。',
+          modifiers: [{ statId: 'walkingSpeed', type: 'percentMult', value: 0.15 }],
+        },
+      ],
+      '60': [
+        {
+          id: 'sprint_burst',
+          nameZh: '冲刺爆发',
+          descZh: '短距离冲刺的本事。',
+          unlocks: ['verb:sprint_burst'],
+        },
+        {
+          id: 'endurance_training',
+          nameZh: '耐力训练',
+          descZh: '疲劳积累减慢 20%。',
+          modifiers: [{ statId: 'fatigueDrainMul', type: 'percentMult', value: -0.20 }],
+        },
+      ],
+    },
+
+    // Placeholder rows — marksmanship / piloting have no shipped consumer
+    // (combat / mobile-worker). They exercise the UI + data model
+    // end-to-end without locking in flavor; picking one still consumes
+    // the milestone slot (respec to reclaim once real perks ship).
+    marksmanship: {
+      '30': [
+        { id: 'ph30a', nameZh: '未授权占位 A', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:marksmanship:30:a'] },
+        { id: 'ph30b', nameZh: '未授权占位 B', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:marksmanship:30:b'] },
+      ],
+      '60': [
+        { id: 'ph60a', nameZh: '未授权占位 A', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:marksmanship:60:a'] },
+        { id: 'ph60b', nameZh: '未授权占位 B', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:marksmanship:60:b'] },
+      ],
+    },
+
+    piloting: {
+      '30': [
+        { id: 'ph30a', nameZh: '未授权占位 A', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:piloting:30:a'] },
+        { id: 'ph30b', nameZh: '未授权占位 B', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:piloting:30:b'] },
+      ],
+      '60': [
+        { id: 'ph60a', nameZh: '未授权占位 A', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:piloting:60:a'] },
+        { id: 'ph60b', nameZh: '未授权占位 B', descZh: '该位置的训练科目尚未获得授权。', unlocks: ['placeholder:piloting:60:b'] },
+      ],
+    },
+  },
+}

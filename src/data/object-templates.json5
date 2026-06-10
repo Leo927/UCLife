@@ -62,6 +62,9 @@
     'workstation-secretary':           { kind: 'workstation', specId: 'secretary',           labelZh: '秘书办公桌',   interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
     'workstation-civilian-doctor':     { kind: 'workstation', specId: 'civilian_doctor',     labelZh: '诊台',         interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
     'workstation-civilian-pharmacist': { kind: 'workstation', specId: 'civilian_pharmacist', labelZh: '药品柜台',     interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
+    // Issue #142 — Tutor seat (skill-perk respec). Worker-not-workstation:
+    // the desk is scenery; the respec verb lives on the on-duty tutor NPC.
+    'workstation-tutor':               { kind: 'workstation', specId: 'tutor',               labelZh: '导师席',       interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
     'workstation-shop-clerk-morning':  { kind: 'workstation', specId: 'shop_morning_clerk',  labelZh: '柜台',         interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
     'workstation-shop-clerk-afternoon':{ kind: 'workstation', specId: 'shop_afternoon_clerk',                         interactableKind: null,   visual: { w: 28, h: 28, fill: 0x3b1e7a, stroke: 0xa855f7 } },
 

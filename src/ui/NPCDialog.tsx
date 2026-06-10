@@ -119,6 +119,7 @@ export function NPCDialog() {
     isDoctorOnDuty: specId === 'civilian_doctor' && onShift,
     isAEDoctorOnDuty: specId === 'ae_doctor' && onShift,
     isPharmacistOnDuty: specId === 'civilian_pharmacist' && onShift,
+    isTutorOnDuty: specId === 'tutor' && onShift,
     isCashierOnDuty: onShift && (CASHIER_SPEC_IDS as readonly string[]).includes(specId),
     isSecretaryOnDuty: specId === 'secretary' && onShift,
     isRecruiterOnDuty: specId === 'recruiter' && onShift,

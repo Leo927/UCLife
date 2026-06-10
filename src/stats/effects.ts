@@ -18,7 +18,16 @@ import { type StatSheet, addModifier, removeBySource } from './sheet'
 import type { StatId } from './schema'
 
 export type EffectFamily =
-  | 'background' | 'perk' | 'condition' | 'gear' | 'research' | 'psychology'
+  | 'background' | 'perk' | 'skill_perk' | 'condition' | 'gear' | 'research' | 'psychology'
+
+// Reserved payload shape for active abilities (Design/characters/skills.md
+// § Data, payload kind 3). Authored in data from day one so perk rows don't
+// churn when the consumer (hotkeys, cooldown ticker, HUD) lands with combat;
+// nothing reads it yet.
+export interface AbilityGrant {
+  id: string
+  cooldownSec: number
+}
 
 export interface Effect<S extends string = StatId> {
   // Unique within a character's Effects list. Upstream owners pick the
@@ -32,6 +41,12 @@ export interface Effect<S extends string = StatId> {
   originId: string
   family: EffectFamily
   modifiers: { statId: S; type: Modifier<S>['type']; value: number }[]
+  // Non-stat payloads (Design/characters/effects.md § Unlocks and
+  // Abilities). `unlocks` are passive flag strings consumed by upstream
+  // systems (recipe registry, dialogue gates, verb menus); possessing a
+  // flag is binary and idempotent across sources. The fold ignores both.
+  unlocks?: string[]
+  abilities?: AbilityGrant[]
   // Display metadata — none of these participate in the fold.
   nameZh?: string
   descZh?: string

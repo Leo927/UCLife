@@ -7,7 +7,7 @@ import type { Entity, World } from 'koota'
 import {
   Character, Position, MoveTarget, Vitals, Health, Action, Money,
   Inventory, Job, JobPerformance, Attributes, Effects, Conditions, Reputation, JobTenure,
-  Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance, Psyche,
+  Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance, Psyche, SkillPerkState,
   type Gender,
 } from '../ecs/traits'
 import { ambitions as ambitionDefs } from './ambitions'
@@ -126,6 +126,7 @@ export function spawnPlayer(world: World, spec: PlayerSpec): Entity {
       perks: [],
     }),
     Flags,
+    SkillPerkState,
     EntityKey({ key: 'player' }),
   )
   setupAppearance(ent, name)

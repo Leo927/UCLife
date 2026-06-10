@@ -339,6 +339,14 @@ export const Flags = trait(() => ({
   flags: {} as Record<string, boolean>,
 }))
 
+// Issue #142 — Skill Perks respec bookkeeping (player-only). The picks
+// themselves live as `skill_perk` Effects on the Effects trait (single
+// source of truth); this only counts prior respecs so the Tutor's cost
+// curve can scale per character.
+export const SkillPerkState = trait({
+  respecCount: 0,
+})
+
 // Marks an actor (player or crew NPC) currently manning a station. Cleared
 // when they leave the room. `roomEntity` is the ShipRoom entity they're at.
 export const CrewStation = trait(() => ({

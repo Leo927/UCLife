@@ -4,7 +4,10 @@
 
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
-import { IsPlayer, Position, MoveTarget, Money, Road, Building, Wall, Path } from '../../ecs/traits'
+import {
+  IsPlayer, Position, MoveTarget, Money, Road, Building, Wall, Path,
+  Character, EntityKey, Action, Job, Workstation,
+} from '../../ecs/traits'
 import { worldConfig } from '../../config'
 
 const TILE = worldConfig.tilePx
@@ -34,6 +37,28 @@ registerDebugHandle('setMoveTarget', (target: { x: number; y: number }) => {
   if (!player) return false
   player.set(MoveTarget, target)
   return true
+})
+
+// NPC introspection by EntityKey — action / position / move target /
+// linked workstation. The smoke suite waits on these instead of reading
+// the DOM (deterministic-tests rule 1).
+registerDebugHandle('characterSnapshot', (npcKey: string) => {
+  for (const e of world.query(Character, EntityKey)) {
+    if (e.get(EntityKey)!.key !== npcKey) continue
+    const pos = e.get(Position)
+    const mt = e.get(MoveTarget)
+    const ws = e.get(Job)?.workstation ?? null
+    const wsTrait = ws?.get(Workstation) ?? null
+    const wsPos = ws?.get(Position) ?? null
+    return {
+      action: e.get(Action)?.kind ?? null,
+      pos: pos ? { x: pos.x, y: pos.y } : null,
+      moveTarget: mt ? { x: mt.x, y: mt.y } : null,
+      jobSpecId: wsTrait?.specId ?? null,
+      workstationPos: wsPos ? { x: wsPos.x, y: wsPos.y } : null,
+    }
+  }
+  return null
 })
 
 registerDebugHandle('playerSnapshot', () => {

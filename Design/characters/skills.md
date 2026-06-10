@@ -181,11 +181,18 @@ can aim. When a tier unlocks, the row becomes a forced-pick modal that
 must be resolved before the panel closes — same shape as the Ambition
 picker's "at least one required" gate.
 
+### Shipped (#142)
+
+- **Data.** `Effect.family = 'skill_perk'` + `unlocks: string[]` + reserved `abilities: AbilityGrant[]` on the Effect shape (`src/stats/effects.ts`); catalog + tier levels + respec curve in `src/config/skill-perks.json5`. The authoring contract (≥2 options per tier, ≥1 unlocks/abilities-bearing) is enforced by a data-validation unit test.
+- **State.** A pick is the Effect `skill_perk:<skill>:<tier>` (originId = option id) — pending tiers are *derived* (level reached, no pick Effect), so milestone state has no second bookkeeping. `hasUnlock()` scans all Effects, idempotent across sources. Respec count on the player-only `SkillPerkState` trait; everything rides the existing serializers.
+- **UI.** Skill panel rows carry a perk-preview line per tier (grayed until reached, committed pick marked); a reached-but-unpicked tier renders the forced-pick section and blocks panel close until resolved.
+- **Respec.** The Tutor is a real worker role (`tutor` JobSpec) at the world's lone tutor seat — the drydock bar (sparse by authoring; discovery = ride the orbital lift, evening shifts on sparse workdays). The respec verb lives on the on-duty tutor's talk-verb; cost = money (geometric) + lost days (linear) per the config curve, clock-advanced in one committed block.
+
 ### Phasing
 
 | Phase | Scope |
 |---|---|
-| **5.0** (alongside Ambition Perks) | Skill Perks data schema, `Effect.family = 'skill_perk'` + `unlocks` field on Effect, picker UI in skill panel, real perks for the 7 authored skills, placeholder rows for marksmanship / piloting, retraining verb at a placeholder NPC |
+| **5.0** (alongside Ambition Perks) | Skill Perks data schema, `Effect.family = 'skill_perk'` + `unlocks` field on Effect, picker UI in skill panel, real perks for the 7 authored skills, placeholder rows for marksmanship / piloting, retraining verb at a placeholder NPC — **shipped, #142** |
 | **6.x** | `abilities` field consumers — active-abilities subsystem (hotkey binding, cooldown ticker, HUD button) lands with tactical combat; first real `AbilityGrant` rows for Mechanics 60, Marksmanship 60, Piloting 60 |
 | **6.4+** | Faction-management consumers for Engineering / Computers tier-60 unlocks (e.g. "decrypt one enemy comms packet per intel cycle") |
 
