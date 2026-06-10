@@ -33,6 +33,7 @@
     // ── Status panel ────────────────────────────────────────────────
     'ui.status.close':             { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.status.open-ambitions':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.status.skill-perk-pick':   { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.status.walk-home':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.status.walk-job':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 

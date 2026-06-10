@@ -93,6 +93,8 @@ export function StatusPanel() {
     setOpen(false)
   }
   const openAmbitions = () => {
+    // The ambitions hop closes this panel — same forced-pick gate as close().
+    if (forcedPick) return
     playUi('ui.status.open-ambitions')
     setOpen(false)
     useUI.getState().setAmbitions(true)
@@ -119,7 +121,7 @@ export function StatusPanel() {
                 className="dialog-option"
                 data-testid={`skill-perk-option-${o.id}`}
                 onClick={() => {
-                  playUi('ui.status.open-ambitions')
+                  playUi('ui.status.skill-perk-pick')
                   pickSkillPerk(player, forcedPick.skill, forcedPick.tier, o.id)
                 }}
               >
