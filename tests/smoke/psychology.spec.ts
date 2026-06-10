@@ -115,13 +115,12 @@ test('psychology: spawn coverage, stance reaction, daily progressive reveal, sav
   // psychology is authored in special-npcs.json5 (pragmatic, AE 0.9).
   const CHAIR = 'npc-spec-米利亚·卡里'
   await openDialog(sim, CHAIR)
-  await sim.page.evaluate(
-    (k: string) => {
-      const c = (window as any).__uclife__.getGameState().getCharacter(k)
-      if (!c?.getPsyche()) throw new Error(`special NPC ${k} must carry a Psyche before save`)
-    },
-    CHAIR,
-  )
+  // The reveal happens in the dialog's mount effect — wait for its DOM
+  // section before reading psyche state, as in the kai sections above.
+  await expect(
+    revealSection,
+    'first talk with the AE chair must voice her strongest authored sympathy',
+  ).toContainText('AE 实用主义')
   let chair = await sim.page.evaluate(psyche, CHAIR)
   expect(
     chair.revealed,
