@@ -100,6 +100,9 @@ export interface TierRowView {
   downtimeDays?: number
   daysRemaining?: number
   affordable?: boolean
+  // jobSiteCount rows: how many seats this tier adds (drives test
+  // assertions and future panel copy without duplicating the data).
+  addStationsCount?: number
 }
 
 export function tierPanelView(world: World, building: Entity): TierRowView[] {
@@ -146,6 +149,7 @@ export function tierPanelView(world: World, building: Entity): TierRowView[] {
         ...base, state: 'available',
         creditCost: row.creditCost, downtimeDays: row.downtimeDays,
         affordable: ownerCanPay(building, row.creditCost ?? 0),
+        addStationsCount: row.addStations?.length,
       })
     }
   }
@@ -255,6 +259,14 @@ function spawnTierSeats(world: World, building: Entity, row: TierRow): void {
   }
   const stations = row.addStations ?? []
   const spots = findOpenSeatTiles(world, building, stations.length)
+  if (spots.length < stations.length) {
+    // Partial install must never pass silently — a future tier row on a
+    // cramped building would otherwise ship under-equipped with no signal.
+    emitSim('log', {
+      textZh: `「${building.get(Building)?.label ?? '设施'}」升级工位放置不全：仅找到 ${spots.length}/${stations.length} 个空位`,
+      atMs: useClock.getState().gameDate.getTime(),
+    })
+  }
   for (let i = 0; i < stations.length; i++) {
     const key = tierSeatKey(buildingKey, row.tier, i)
     if (existing.has(key)) continue

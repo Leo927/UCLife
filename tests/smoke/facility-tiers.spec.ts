@@ -27,20 +27,14 @@ const REQUIRED_HANDLES = [
 ]
 
 const FACTORY_T2_UNLOCK = 'upgrade:factory-tier-2'
-const UPGRADE_BUDGET = 500000
 const SAVE_SLOT = 7
 
 test('facility tiers: locked → available → credit + downtime → seats live', async ({ sim }) => {
   await sim.boot({ requireHandles: REQUIRED_HANDLES })
 
   // ── Take ownership of a factory ────────────────────────────────────
-  // Upgrade credits come from the player's wallet (character owner);
-  // ownership itself is granted directly — the realtor/foreclosure
-  // acquisition loops are covered by daily-economics.spec.
-  await sim.page.evaluate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (n) => (window as any).__uclife__.cheatMoney(n), UPGRADE_BUDGET,
-  )
+  // Ownership is granted directly — the realtor/foreclosure acquisition
+  // loops are covered by daily-economics.spec.
   const facilities = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.facilitySnapshot(),
@@ -88,6 +82,14 @@ test('facility tiers: locked → available → credit + downtime → seats live'
   expect(availRow.state).toBe('available')
   expect(availRow.creditCost).toBeGreaterThan(0)
   expect(availRow.downtimeDays).toBeGreaterThan(0)
+  expect(availRow.addStationsCount).toBeGreaterThan(0)
+
+  // Fund the wallet with exactly the authored credit cost — the upgrade
+  // charges the character owner, so no literal budget is needed.
+  await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (n) => (window as any).__uclife__.cheatMoney(n), availRow.creditCost,
+  )
 
   // ── Start the upgrade: credits out, downtime on ────────────────────
   const stateBefore = await sim.page.evaluate(
@@ -162,7 +164,7 @@ test('facility tiers: locked → available → credit + downtime → seats live'
   expect(completed.inDowntime).toBe(false)
   expect(completed.tiers.jobSiteCount).toBe(2)
   expect(completed.stationsInside, 'tier-2 must add its authored seats')
-    .toBe(stateBefore.stationsInside + 2)
+    .toBe(stateBefore.stationsInside + availRow.addStationsCount)
 
   // Panel shows the row done.
   const donePanel = await sim.page.evaluate(
