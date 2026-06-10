@@ -68,4 +68,42 @@
       fuelStorage: 200,
     },
   },
+
+  // ── Phase 5.5.6 — facility tiers (Design/social/facility-tiers.md) ──────
+  // Per-class tier ladders for the four universal knobs. Keyed by
+  // building-type id. Tier 1 is always the existing baseline (layout seats,
+  // mul 1.0, per-job-spec hours) so a facility with no FacilityTiers trait
+  // behaves exactly as before. Tier-N rows (N>1) carry:
+  //   requiresUnlock — FactionUnlocks string a research must emit first;
+  //                    the row stays visible-but-locked until then.
+  //   creditCost     — paid from the owner's fund/wallet at install.
+  //   downtimeDays   — whole facility offline (no output, no salary;
+  //                    maintenance still applies) until installed.
+  //   addStations    — (jobSiteCount only) object-template ids spawned as
+  //                    new seats on completion.
+  //   mul            — (efficiency / loyaltyDrift) multiplier at this tier.
+  // The 5.5.7 authoring pass adds tier-2/3 rows for the other classes and
+  // knobs; 5.5.6 ships the factory job-site ladder the research spine's
+  // first unlock (upgrade:factory-tier-2) gates.
+  tiers: {
+    factory: {
+      jobSiteCount: [
+        { tier: 1 },
+        { tier: 2,
+          addStations: ['workstation-factory-worker-morning', 'workstation-factory-worker-day'],
+          requiresUnlock: 'upgrade:factory-tier-2',
+          creditCost: 12000,
+          downtimeDays: 3 },
+      ],
+      efficiency: [
+        { tier: 1, mul: 1.0 },
+      ],
+      operatingHours: [
+        { tier: 1 },
+      ],
+      loyaltyDrift: [
+        { tier: 1, mul: 1.0 },
+      ],
+    },
+  },
 }

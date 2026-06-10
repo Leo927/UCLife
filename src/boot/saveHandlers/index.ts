@@ -36,3 +36,4 @@ import './warState'        // phase: 'post' — IsWartime gate + strategic-war m
 import './conscription'    // phase: 'post' — draft-notice lifecycle + medical letter
 import './civilianChurn'   // phase: 'post' — churned non-combatant names + cadence
 import './diplomaticSlots'  // phase: 'post' — slot occupancy + re-spawned staff/guards
+import './facilityTiers'    // phase: 'post' — per-Building tier knobs + in-flight downtime

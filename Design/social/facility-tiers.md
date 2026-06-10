@@ -40,31 +40,43 @@ shifts, every facility has loyalty. Magnitudes differ per class
 (loyalty drift on a research lab matters less than on a bar); the
 *channels* are the same.
 
-The data shape per facility class:
+The data shape per facility class (shipped in `facility-types.json5`
+under `tiers`, keyed by building-type id; tier 1 is always the existing
+baseline — layout seats, mul 1.0, per-job-spec hours — so it carries no
+payload):
 
 ```js
-{
-  facilityClass: 'factory',
-  tiers: {
+tiers: {
+  factory: {
     jobSiteCount: [
-      { tier: 1, sites: 4 },
-      { tier: 2, sites: 6, requiresUnlock: 'upgrade:factory-tier-2', creditCost: 12000, downtimeDays: 3 },
+      { tier: 1 },
+      // addStations names the object-template seats spawned on completion —
+      // more direct than a target count diffed against the layout.
+      { tier: 2, addStations: ['workstation-factory-worker-morning', 'workstation-factory-worker-day'],
+        requiresUnlock: 'upgrade:factory-tier-2', creditCost: 12000, downtimeDays: 3 },
     ],
     efficiency: [
       { tier: 1, mul: 1.00 },
       { tier: 2, mul: 1.15, requiresUnlock: 'upgrade:factory-eff-2', creditCost: 8000, downtimeDays: 2 },
     ],
     operatingHours: [
-      { tier: 1, hours: [8, 18] },
+      { tier: 1 },
       { tier: 2, hours: [7, 19], requiresUnlock: 'upgrade:longer-shifts', creditCost: 4000, downtimeDays: 1 },
     ],
     loyaltyDrift: [
       { tier: 1, mul: 1.00 },
       { tier: 2, mul: 1.20, requiresUnlock: 'upgrade:culture', creditCost: 6000, downtimeDays: 0 },
     ],
-  }
+  },
 }
 ```
+
+At 5.5.6 only the factory `jobSiteCount` ladder has a tier-2 row (the
+one `upgrade:factory-tier-2` gates); efficiency is folded into the work
+revenue + research progress formulas and reads 1.0 until 5.5.7 authors
+higher rows. The operating-hours and loyalty-drift knobs are authored
+tier-1 slots — their formula folds land with the 5.5.7 rows that give
+them content.
 
 Each tier-N row requires both the research-issued unlock string and
 the credit spend. Locked tiers stay **visible** on the

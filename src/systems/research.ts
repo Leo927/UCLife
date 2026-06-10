@@ -30,6 +30,7 @@ import { getStat } from '../stats/sheet'
 import {
   addFactionEffect, addFactionUnlock, type FactionEffect,
 } from '../ecs/factionEffects'
+import { facilityEfficiencyMul, isFacilityInDowntime } from './facilityTiers'
 import { emitSim } from '../sim/events'
 import { useClock } from '../sim/clock'
 
@@ -86,9 +87,11 @@ export function researchSystem(
     result.labsChecked += 1
 
     // Closed-on-insolvency labs produce nothing today (consistent with
-    // workSystem skipping closed facilities for revenue).
+    // workSystem skipping closed facilities for revenue). Tier-upgrade
+    // downtime takes the lab offline the same way.
     const fac = lab.get(Facility)!
     if (fac.closedSinceDay > 0) continue
+    if (isFacilityInDowntime(lab)) continue
 
     const labYield = computeLabYield(world, lab, factionEnt, result)
     if (labYield <= 0) continue
@@ -148,7 +151,7 @@ function computeLabYield(
     if (!job || job.workstation !== ws) continue
 
     const perf = clampPerf(occ, cfg.perfMin, cfg.perfMax)
-    const efficiency = 1.0  // facility-tier knob, defaults to 1.0 in 5.5.6
+    const efficiency = facilityEfficiencyMul(lab)
     const yieldFromSeat = cfg.baseResearchPerShift * perf * efficiency * speedMul
     total += yieldFromSeat
     result.researchersWorked += 1

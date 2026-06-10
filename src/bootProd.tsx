@@ -27,6 +27,9 @@ import './boot/traitSerializers'
 // Phase 5.5.6 — research progress fires off `day:rollover:settled`.
 // The subscription lives in boot/ so the loop doesn't import systems/.
 import './boot/researchTick'
+// Phase 5.5.6 — facility-tier downtime countdown, same event + same
+// boot-layer-subscription rationale.
+import './boot/facilityTierTick'
 // Phase 6.3.B — colony income + stability accrual rides the same event
 // so it lands after the dailyEconomics → recruitment rollup settles.
 import './boot/colonyEconomicsTick'
