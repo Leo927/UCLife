@@ -21,6 +21,8 @@ import {
 import { useUI } from '../../uiStore'
 import { recruitmentConfig, colonyConfig } from '../../../config'
 import { getRep } from '../../../systems/reputation'
+import { applyOpinionDelta } from '../../../systems/relations'
+import { useClock } from '../../../sim/clock'
 import { isPlayerOwnedBuilding } from '../../../ecs/playerFaction'
 import { world, getActiveSceneId } from '../../../ecs/world'
 import { playUi } from '../../../audio/player'
@@ -122,15 +124,14 @@ export function talkHireBranch(ctx: DialogueCtx): DialogueNode | null {
     else target.add(RecruitedTo({ owner: player }))
 
     // Colony pre-loyal: add loyalty bonus to opinion on hire.
-    const baseOpinionBonus = 10
     const opinionBonus = inPlayerColony
-      ? baseOpinionBonus + colonyConfig.recruitment.colonyLoyaltyBonus
-      : baseOpinionBonus
-
-    if (target.has(Knows(player))) {
-      const e = target.get(Knows(player))!
-      target.set(Knows(player), { ...e, opinion: Math.min(100, e.opinion + opinionBonus) })
-    }
+      ? gates.hireOpinionBonus + colonyConfig.recruitment.colonyLoyaltyBonus
+      : gates.hireOpinionBonus
+    applyOpinionDelta(
+      target, player, opinionBonus,
+      { actorName: player.get(Character)?.name ?? '玩家', deedZh: '把我招进了队伍' },
+      useClock.getState().gameDate.getTime(),
+    )
 
     const ch = target.get(Character)
     useUI.getState().showToast(t.toastAccepted.replace('{name}', ch?.name ?? '对方'))

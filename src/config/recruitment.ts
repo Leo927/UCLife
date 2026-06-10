@@ -19,6 +19,7 @@ export interface RecruitmentConfig {
     factionRepGate: { faction: FactionId; min: number }
     opinionGate: { min: number }
     signingBonus: number
+    hireOpinionBonus: number
   }
   // Phase 6.4.B — faction lean pool and officer auto-approve config.
   factionLeanPool: FactionId[]

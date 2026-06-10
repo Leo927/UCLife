@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import type { Entity } from 'koota'
 import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building, Conditions, Faction, FactionRole } from '../ecs/traits'
@@ -10,7 +10,10 @@ import { actionLabel } from '../data/actions'
 import { getJobSpec } from '../data/jobs'
 import { DEBUG_AVAILABLE } from '../debug/store'
 import { fleetConfig } from '../config'
-import { tierOf, TIER_LABEL_ZH, topRelationsFor } from '../systems/relations'
+import {
+  tierOf, TIER_LABEL_ZH, topRelationsFor, drainAcknowledgements, type AckLine,
+} from '../systems/relations'
+import { useClock } from '../sim/clock'
 import { Portrait } from '../render/portrait/react/Portrait'
 import { DialogueRunner } from './dialogue/runner'
 import { buildNpcDialogue } from './dialogue/builder'
@@ -36,6 +39,25 @@ export function NPCDialog() {
   // Subscribe to Owner so the seller branch refreshes after a transaction.
   const allBuildings = useQuery(Building, Owner)
   const [showDebug, setShowDebug] = useState(false)
+
+  // Lazy reveal (Design/social/relationships.md): on open, the NPC settles
+  // any unacknowledged grievances/credits — voices each deed + swing, then
+  // clears the queue. The drain is guarded on non-empty so StrictMode's
+  // double-effect (second drain returns []) can't wipe the surfaced lines,
+  // and the lines are bound to the entity they were drained from so a
+  // dialog retarget never shows another NPC's settlement.
+  const [acks, setAcks] = useState<{ of: Entity | null; lines: AckLine[] }>({ of: null, lines: [] })
+  useEffect(() => {
+    if (!target) {
+      // Dialog closed — drop settled lines so a reopen never re-voices them.
+      setAcks({ of: null, lines: [] })
+      return
+    }
+    if (!player) return
+    const lines = drainAcknowledgements(target, player, useClock.getState().gameDate.getTime())
+    if (lines.length > 0) setAcks({ of: target, lines })
+  }, [target, player])
+  const ackLines = acks.of === target ? acks.lines : []
 
   if (!target || !info) return null
 
@@ -135,6 +157,13 @@ export function NPCDialog() {
             </div>
           </div>
         </section>
+        {ackLines.length > 0 && (
+          <section className="status-section" data-testid="relation-acks">
+            {ackLines.map((l, i) => (
+              <p key={i} className="dialog-response">「{l.textZh}」</p>
+            ))}
+          </section>
+        )}
         <NPCHealthSection target={target} />
         <DialogueRunner root={root} />
         {DEBUG_AVAILABLE && (

@@ -1,0 +1,18 @@
+// Issue #144 — grievance/credit lazy-reveal smoke. One NPC standing right
+// next to the player so the talk verb resolves without a long walk.
+// Coordinates are tile-space.
+{
+  seed: 'grievance-144',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 32, y: 18 },
+  },
+
+  npcs: [
+    { id: 'kai', name: '凯·西登',
+      at: { scene: 'vonBraunCity', x: 33, y: 18 } },
+  ],
+}

@@ -4,7 +4,10 @@
 
 import { trait } from 'koota'
 import type { Entity, World } from 'koota'
-import { Active, Character, Position, Health, Knows, EntityKey, Action, ChatTarget } from '../ecs/traits'
+import {
+  Active, Character, Position, Health, Knows, EntityKey, Action, ChatTarget,
+  type AckRecord, type OpinionCause,
+} from '../ecs/traits'
 import { aiConfig, actionsConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { formatUC } from '../sim/clock'
@@ -248,6 +251,80 @@ export function resetRelationsClock(world: World): void {
   s.isoCacheVal.clear()
 }
 
+// ── Shared opinion-write path + lazy-reveal acknowledgement queue ───────
+// (Design/social/relationships.md § Lazy reveal — eager state, lazy
+// acknowledgement.) Every event-shaped opinion delta — a favor, a hire,
+// housing neglect, future stance reactions / propagation / wartime events —
+// goes through applyOpinionDelta so the grievance/credit bookkeeping comes
+// for free. The per-tick proximity drift above stays inline on purpose:
+// its deltas are orders of magnitude below ackThresholdAbs and the hot
+// loop must not pay a function-call + queue check per pair per tick.
+
+// Apply `delta` to holder's opinion of `about`, eagerly and clamped.
+// If the |applied| portion reaches ackThresholdAbs, queue an AckRecord on
+// the edge for the next-talk reveal (grievance when negative, credit when
+// positive). Returns the applied (post-clamp) delta — callers surfacing
+// the swing must show this, never the requested delta.
+export function applyOpinionDelta(
+  holder: Entity,
+  about: Entity,
+  delta: number,
+  cause: OpinionCause,
+  nowMs: number,
+): number {
+  if (!holder.has(Knows(about))) holder.add(Knows(about))
+  const e = holder.get(Knows(about))!
+  const next = clamp(e.opinion + delta, R.opinionMin, R.opinionMax)
+  const applied = next - e.opinion
+  let grievances = e.grievances
+  let credits = e.credits
+  if (Math.abs(applied) >= R.ackThresholdAbs) {
+    const rec: AckRecord = { cause, delta: applied, whenMs: nowMs }
+    if (applied < 0) grievances = [...grievances, rec].slice(-R.ackQueueMax)
+    else credits = [...credits, rec].slice(-R.ackQueueMax)
+  }
+  holder.set(Knows(about), { ...e, opinion: next, grievances, credits })
+  return applied
+}
+
+export interface AckLine {
+  textZh: string
+  delta: number
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function daysAgoZh(whenMs: number, nowMs: number): string {
+  const days = Math.floor(nowMs / DAY_MS) - Math.floor(whenMs / DAY_MS)
+  if (days <= 0) return '今天'
+  if (days === 1) return '昨天'
+  return `${days} 天前`
+}
+
+function formatAckLine(rec: AckRecord, nowMs: number): string {
+  const n = Math.round(rec.delta)
+  const sign = n > 0 ? '+' : ''
+  return `你${daysAgoZh(rec.whenMs, nowMs)}${rec.cause.deedZh}。（关系 ${sign}${n}）`
+}
+
+// Settle every unacknowledged record `npc` holds against `player`: return
+// the in-character zh lines (oldest deed first) and clear both queues.
+// The opinion itself moved at action-time — this only settles awareness.
+export function drainAcknowledgements(
+  npc: Entity,
+  player: Entity,
+  nowMs: number,
+): AckLine[] {
+  if (!npc.has(Knows(player))) return []
+  const e = npc.get(Knows(player))!
+  if (e.grievances.length === 0 && e.credits.length === 0) return []
+  const lines = [...e.grievances, ...e.credits]
+    .sort((a, b) => a.whenMs - b.whenMs)
+    .map((rec) => ({ textZh: formatAckLine(rec, nowMs), delta: rec.delta }))
+  npc.set(Knows(player), { ...e, grievances: [], credits: [] })
+  return lines
+}
+
 export type RelationTier = 'stranger' | 'acquaintance' | 'friend' | 'rival' | 'enemy'
 
 // Tier derived on read; avoids hysteresis if BT branches on transitions.
@@ -314,6 +391,8 @@ export function topRelationsFor(
 }
 
 // EntityKey is required — edges between unkeyed entities can't survive a load.
+// grievances/credits are optional so pre-#144 save blobs restore cleanly
+// (missing fields → empty queues).
 export interface RelationSnap {
   srcKey: string
   tgtKey: string
@@ -321,6 +400,8 @@ export interface RelationSnap {
   familiarity: number
   lastSeenMs: number
   meetCount: number
+  grievances?: AckRecord[]
+  credits?: AckRecord[]
 }
 
 export function snapshotRelations(world: World): RelationSnap[] {
@@ -338,6 +419,8 @@ export function snapshotRelations(world: World): RelationSnap[] {
         familiarity: d.familiarity,
         lastSeenMs: d.lastSeenMs,
         meetCount: d.meetCount,
+        grievances: d.grievances,
+        credits: d.credits,
       })
     }
   }
@@ -359,6 +442,8 @@ export function restoreRelations(
       familiarity: s.familiarity,
       lastSeenMs: s.lastSeenMs,
       meetCount: s.meetCount,
+      grievances: s.grievances ?? [],
+      credits: s.credits ?? [],
     })
   }
   void world

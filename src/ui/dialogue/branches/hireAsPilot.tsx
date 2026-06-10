@@ -17,6 +17,8 @@ import {
 import { useUI } from '../../uiStore'
 import { recruitmentConfig, fleetConfig } from '../../../config'
 import { getRep } from '../../../systems/reputation'
+import { applyOpinionDelta } from '../../../systems/relations'
+import { useClock } from '../../../sim/clock'
 import { isPlayerOwnedBuilding } from '../../../ecs/playerFaction'
 import { world, getWorld } from '../../../ecs/world'
 import { playUi } from '../../../audio/player'
@@ -123,10 +125,11 @@ export function hireAsPilotBranch(ctx: DialogueCtx): DialogueNode | null {
       target.add(EmployedAsPilot({ msKey: '' }))
     }
 
-    if (target.has(Knows(player))) {
-      const e = target.get(Knows(player))!
-      target.set(Knows(player), { ...e, opinion: Math.min(100, e.opinion + 10) })
-    }
+    applyOpinionDelta(
+      target, player, gates.hireOpinionBonus,
+      { actorName: player.get(Character)?.name ?? '玩家', deedZh: '聘了我当机师' },
+      useClock.getState().gameDate.getTime(),
+    )
 
     const ch = target.get(Character)
     useUI.getState().showToast(t.toastAccepted.replace('{name}', ch?.name ?? '对方'))

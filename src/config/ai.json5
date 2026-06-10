@@ -87,5 +87,16 @@
     // multiplier on positive boredom drift when isolated.
     lonelyWindowMin: 1440,
     lonelyBoredomMult: 1.4,
+
+    // Lazy-reveal acknowledgement queue (grievances / credits). An opinion
+    // write through applyOpinionDelta() whose |applied delta| reaches
+    // ackThresholdAbs queues an unacknowledged record on the relation edge;
+    // the NPC voices it in-character on the next talk and clears it.
+    // Greet bumps (1–3) and co-location drift sit below the threshold by
+    // design — only event-shaped deltas (a favor, a hire, an injury) queue.
+    ackThresholdAbs: 5,
+    // Per-direction cap on each queue; oldest records drop first. Bounds
+    // edge size for save payloads and keeps the reveal moment readable.
+    ackQueueMax: 8,
   },
 }
