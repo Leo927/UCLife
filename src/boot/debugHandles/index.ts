@@ -46,3 +46,4 @@ import './diplomaticSlots'  // Phase 7.0.E.4 — slot occupancy tick + state + p
 import './relations'        // Issue #144 — shared opinion-delta write + grievance/credit queue inspection
 import './facilityTiers'    // Issue #141 — tier panel view + upgrade start + downtime/seat state + unlock grant
 import './psychology'       // Phase 5.3 — cause-event stance trigger + psyche inspection
+import './skillPerks'       // Issue #142 — milestone/pick/respec state + unlock flags + NPC action kind

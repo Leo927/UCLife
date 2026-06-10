@@ -129,6 +129,24 @@
       playerHireable: true,
     },
 
+    // Issue #142 — the rare Tutor (skill-perk respec). NPC-only role at the
+    // drydock bar's tutor seat; the respec verb renders on the on-duty
+    // tutor's talk-verb (tutor dialogue branch). Evening shift matching the
+    // bar; sparse workDays — not staffed every day, discovery is part of
+    // the loop (Design/characters/skills.md § Respec).
+    tutor: {
+      jobTitle: '导师',
+      wage: 150,
+      skillXp: 0,
+      skill: null,
+      shiftStart: 18,
+      shiftEnd: 24,
+      workDays: [1, 3, 5],
+      requirements: {},
+      description: '在吧台一角接受技能转科咨询。',
+      playerHireable: false,
+    },
+
     // NPC-only role. The desk in the city HR office; the player walks here
     // to apply for OTHER jobs through the HR modal.
     city_hr_clerk: {

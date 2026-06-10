@@ -11,7 +11,7 @@
 
 import { registerTraitSerializer } from '../../save/traitRegistry'
 import {
-  Ambitions, Attributes, Flags,
+  Ambitions, Attributes, Flags, SkillPerkState,
   type AmbitionHistoryEntry, type AmbitionSlot,
 } from '../../ecs/traits'
 import { syncPerkModifiers } from '../../character/perkSync'
@@ -52,6 +52,21 @@ registerTraitSerializer<AmbitionsSnap>({
     if (e.has(Attributes)) syncPerkModifiers(e, payload.perks)
   },
   reset: (e) => { if (e.has(Ambitions)) e.remove(Ambitions) },
+})
+
+// Issue #142 — skill-perk respec count. The picks themselves ride the
+// Effects serializer; only the cost-curve counter needs its own field.
+interface SkillPerkSnap { respecCount: number }
+registerTraitSerializer<SkillPerkSnap>({
+  id: 'skillPerkState',
+  trait: SkillPerkState,
+  read: (e) => ({ respecCount: e.get(SkillPerkState)!.respecCount }),
+  write: (e, v) => {
+    const payload = { respecCount: v.respecCount ?? 0 }
+    if (e.has(SkillPerkState)) e.set(SkillPerkState, payload)
+    else e.add(SkillPerkState(payload))
+  },
+  reset: (e) => { if (e.has(SkillPerkState)) e.remove(SkillPerkState) },
 })
 
 interface FlagsSnap { flags: Record<string, boolean> }

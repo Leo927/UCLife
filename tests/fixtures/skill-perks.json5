@@ -1,0 +1,23 @@
+// Issue #142 — skill-perk smoke scenario. Player sits one level under the
+// first milestone (cooking 29) outside the drydock bar; the tutor NPC is
+// pinned to the bar's tutor seat. The game clock (which gates the tutor's
+// sparse workdays + evening shift) boots at its campaign default — the
+// spec jumps it onto a tutor workday via setGameDate before the respec leg.
+{
+  seed: 'skill-perks-142',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000,
+    location: { scene: 'vonBraunCity', x: 20, y: 557 },
+    skills: { cooking: 2900 },
+  },
+
+  npcs: [
+    {
+      id: 'tutor-rena', name: '蕾娜·桐生',
+      at: { scene: 'vonBraunCity', x: 19, y: 553 },
+      workstation: 'tutor',
+    },
+  ],
+}

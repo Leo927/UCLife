@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -96,6 +96,27 @@ describe('applyFixture', () => {
     const miraSym = (['zeonismSym', 'federation_orderSym', 'ae_pragmatismSym', 'pacifismSym'] as const)
       .map((id) => getStat(miraSheet, id))
     expect(miraSym.some((v) => v !== 0), 'procgen NPC must hold ≥1 nonzero sympathy').toBe(true)
+  })
+
+  it('loads skill-perks: player one level under the milestone, tutor NPC seated', () => {
+    // The unit world skips setupWorld, so the drydock bar's tutor seat
+    // doesn't exist — pre-spawn a free one for the fixture's
+    // workstation link to bind against (in the browser boot the seat
+    // comes from building-types.json5's drydockBar layout).
+    const w = getWorld('vonBraunCity')
+    const seat = w.spawn(
+      Workstation({ specId: 'tutor', occupant: null, managerStation: null }),
+    )
+    applyFixture('skill-perks')
+    const player = findPlayer()
+    expect(player).not.toBeNull()
+    expect(getStat(player!.get(Attributes)!.sheet, 'cooking')).toBe(2900)
+    let tutor = null
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === 'tutor-rena') tutor = e
+    }
+    expect(tutor, 'tutor NPC must spawn').not.toBeNull()
+    expect(seat.get(Workstation)!.occupant, 'fixture links the tutor onto the seat').toBe(tutor)
   })
 
   it('loads npc-transit: player + commuter NPC both land in vonBraunCity', () => {

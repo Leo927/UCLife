@@ -1,5 +1,5 @@
 import { useQueryFirst, useTrait } from 'koota/react'
-import { IsPlayer, Vitals, Health, Money, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, QueuedTalk, Reputation, Character, Ambitions, Conditions } from '../ecs/traits'
+import { IsPlayer, Vitals, Health, Money, Job, Home, JobPerformance, Workstation, Bed, Attributes, Position, MoveTarget, QueuedInteract, QueuedTalk, Reputation, Character, Ambitions, Conditions, Effects } from '../ecs/traits'
 import {
   getConditionTemplate, severityTier,
   SEVERITY_TIER_ZH, SEVERITY_TIER_COLOR, TREATMENT_TIER_ZH,
@@ -9,7 +9,10 @@ import { Portrait } from '../render/portrait/react/Portrait'
 import type { BedTier } from '../ecs/traits'
 import { useUI } from './uiStore'
 import { useClock } from '../sim/clock'
-import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP, getSkillXp } from '../character/skills'
+import { SKILL_ORDER, SKILLS, levelOf, progressInLevel, BOOK_CAP_XP, getSkillXp, type SkillId } from '../character/skills'
+import { pendingTiers, pickSkillPerk, pickedOptionId, tierOptions } from '../character/skillPerks'
+import { skillPerksConfig } from '../config/skill-perks'
+import type { Entity } from 'koota'
 import { selfTreatCondition } from '../systems/physiology'
 import { labelForBodyPart } from '../character/bodyParts'
 import { BodyDoll } from './BodyDoll'
@@ -51,6 +54,9 @@ export function StatusPanel() {
   const character = useTrait(player, Character)
   const ambitions = useTrait(player, Ambitions)
   const conditions = useTrait(player, Conditions)
+  // Subscribe to Effects so committing a skill-perk pick (an Effects-list
+  // write) re-renders the modal/preview immediately.
+  const playerEffects = useTrait(player, Effects)
   // Subscribe to gameDate so the rent countdown ticks live.
   const gameMs = useClock((s) => s.gameDate.getTime())
 
@@ -76,7 +82,16 @@ export function StatusPanel() {
     setOpen(false)
   }
 
-  const close = () => { playUi('ui.status.close'); setOpen(false) }
+  // Forced-pick gate (Design/characters/skills.md § Discoverability): a
+  // reached-but-unpicked tier must be resolved before the panel closes.
+  const pendingPerkTiers = player && playerEffects ? pendingTiers(player) : []
+  const forcedPick = pendingPerkTiers.length > 0 ? pendingPerkTiers[0] : null
+
+  const close = () => {
+    if (forcedPick) return
+    playUi('ui.status.close')
+    setOpen(false)
+  }
   const openAmbitions = () => {
     playUi('ui.status.open-ambitions')
     setOpen(false)
@@ -90,6 +105,29 @@ export function StatusPanel() {
           <h2>状态</h2>
           <button className="status-close" onClick={close} aria-label="关闭">✕</button>
         </header>
+
+        {forcedPick && player && (
+          <section className="status-section" data-testid="skill-perk-modal">
+            <h3>技能突破 — {SKILLS[forcedPick.skill].label} Lv {forcedPick.tier}</h3>
+            <p className="status-muted">
+              你的{SKILLS[forcedPick.skill].label}已臻新境。选择一项专精方可继续（不可跳过）。
+            </p>
+            {forcedPick.options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                className="dialog-option"
+                data-testid={`skill-perk-option-${o.id}`}
+                onClick={() => {
+                  playUi('ui.status.open-ambitions')
+                  pickSkillPerk(player, forcedPick.skill, forcedPick.tier, o.id)
+                }}
+              >
+                <strong>{o.nameZh}</strong> — {o.descZh}
+              </button>
+            ))}
+          </section>
+        )}
 
         <div className="status-body">
         <section className="status-section status-identity status-section--full">
@@ -343,13 +381,16 @@ export function StatusPanel() {
             const meta = SKILLS[id]
             const atBookCap = xp >= BOOK_CAP_XP
             return (
-              <div key={id} className="skill-row">
-                <span className="skill-name">{meta.label}</span>
-                <span className="skill-level">Lv {lvl}</span>
-                <div className="skill-track">
-                  <div className="skill-fill" style={{ width: `${prog * 100}%` }} />
+              <div key={id}>
+                <div className="skill-row">
+                  <span className="skill-name">{meta.label}</span>
+                  <span className="skill-level">Lv {lvl}</span>
+                  <div className="skill-track">
+                    <div className="skill-fill" style={{ width: `${prog * 100}%` }} />
+                  </div>
+                  <span className="skill-cap" title="书籍封顶">{atBookCap ? '书读尽' : ''}</span>
                 </div>
-                <span className="skill-cap" title="书籍封顶">{atBookCap ? '书读尽' : ''}</span>
+                {player && <SkillPerkPreviewRow player={player} skill={id} level={lvl} />}
               </div>
             )
           })}
@@ -387,6 +428,39 @@ export function StatusPanel() {
         </section>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Perk-preview row (Design/characters/skills.md § Discoverability):
+// both tiers' options visible from level 1 so the player can aim —
+// grayed until the tier level is reached, the committed pick marked.
+function SkillPerkPreviewRow({ player, skill, level }: {
+  player: Entity; skill: SkillId; level: number
+}) {
+  const rows = skillPerksConfig.tiers
+    .map((tier) => ({ tier, options: tierOptions(skill, tier) }))
+    .filter((r) => r.options.length > 0)
+  if (rows.length === 0) return null
+  return (
+    <div className="skill-perk-preview" data-testid={`skill-perk-preview-${skill}`}>
+      {rows.map(({ tier, options }) => {
+        const reached = level >= tier
+        const picked = pickedOptionId(player, skill, tier)
+        return (
+          <div key={tier} className={reached ? 'status-meta' : 'status-meta status-muted'}>
+            <span title={options.map((o) => `${o.nameZh}：${o.descZh}`).join('\n')}>
+              Lv{tier} ·{' '}
+              {options.map((o, i) => (
+                <span key={o.id}>
+                  {i > 0 && ' / '}
+                  {picked === o.id ? <strong data-picked={o.id}>✓{o.nameZh}</strong> : o.nameZh}
+                </span>
+              ))}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
