@@ -2,8 +2,9 @@ import type { Entity } from 'koota'
 import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ecs/world'
 import {
   IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
-  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows,
+  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche,
 } from '../ecs/traits'
+import { temperamentOf, sympathiesOf } from '../character/psychology'
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
 import { factionsConfig, type FactionId } from '../config'
@@ -36,6 +37,15 @@ export interface CharacterView {
   // Issue #144 — unacknowledged grievance/credit records on this
   // character's edge to the player, awaiting the next-talk reveal.
   getPendingAcks(): { grievances: number; credits: number }
+  // Phase 5.3 — psychology: temperament, nonzero cause sympathies, and
+  // which sympathies the player has learned (reveal order). Null when
+  // the character carries no Psyche (the player, pre-5.3 entities).
+  getPsyche(): {
+    temperament: string | null
+    sympathies: Record<string, number>
+    revealed: string[]
+    lastRevealDay: number
+  } | null
 }
 
 export interface ShipView {
@@ -222,6 +232,16 @@ function makeCharacterView(entity: Entity, sceneId: string): CharacterView {
       if (!p || !entity.has(Knows(p.entity))) return { grievances: 0, credits: 0 }
       const e = entity.get(Knows(p.entity))!
       return { grievances: e.grievances.length, credits: e.credits.length }
+    },
+    getPsyche() {
+      if (!entity.has(Psyche) || !entity.has(Attributes)) return null
+      const p = entity.get(Psyche)!
+      return {
+        temperament: temperamentOf(entity),
+        sympathies: sympathiesOf(entity.get(Attributes)!.sheet) as Record<string, number>,
+        revealed: [...p.revealed],
+        lastRevealDay: p.lastRevealDay,
+      }
     },
   }
 }

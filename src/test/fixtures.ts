@@ -9,6 +9,9 @@ import { bootstrapFactions } from '../ecs/ownership'
 import { setSimRngSeed } from '../sim/rng'
 import { setSimNow } from '../sim/time'
 import { worldConfig, factionsConfig, skillsConfig, type SkillId as ConfigSkillId, type FactionId } from '../config'
+import {
+  isCauseId, isTemperamentId, type CauseTags, type TemperamentId,
+} from '../config/psychology'
 import { isSceneId } from '../data/scenes'
 import { isShipClassId, getShipClass } from '../data/ship-classes'
 import { Ship, IsFlagshipMark, Owner } from '../ecs/traits'
@@ -49,6 +52,11 @@ interface FixtureNpc {
   workstation?: string
   // Phase 7.0.E.4 — faction alignment (sets FactionRole). Defaults to civilian.
   faction?: string
+  // Phase 5.3 — pinned psychology (vocabulary mirrors
+  // getGameState().getCharacter(id).getPsyche()). Omitted fields fall
+  // back to name-seeded procgen.
+  temperament?: TemperamentId
+  sympathies?: CauseTags
 }
 
 interface Fixture {
@@ -71,7 +79,7 @@ const LOCATION_KEYS: ReadonlySet<string> = new Set(['scene', 'x', 'y'])
 const FACTION_KEYS: ReadonlySet<string> = new Set(['id', 'money'])
 const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt'])
 const NPC_KEYS: ReadonlySet<string> = new Set([
-  'id', 'name', 'at', 'skills', 'workstation', 'faction',
+  'id', 'name', 'at', 'skills', 'workstation', 'faction', 'temperament', 'sympathies',
 ])
 
 const TILE = worldConfig.tilePx
@@ -246,6 +254,28 @@ function validate(name: string, raw: unknown): Fixture {
         }
         n.faction = fid
       }
+      if (r.temperament !== undefined) {
+        const t = asString(name, `npcs[${i}].temperament`, r.temperament)
+        if (!isTemperamentId(t)) {
+          fail(name, `npcs[${i}].temperament`, `is not a known temperament id (see config/psychology.ts)`)
+        }
+        n.temperament = t
+      }
+      if (r.sympathies !== undefined) {
+        const o = asObject(name, `npcs[${i}].sympathies`, r.sympathies)
+        const sym: CauseTags = {}
+        for (const [k, v] of Object.entries(o)) {
+          if (!isCauseId(k)) {
+            fail(name, `npcs[${i}].sympathies.${k}`, `is not a known cause id (see config/psychology.ts)`)
+          }
+          const w = asNumber(name, `npcs[${i}].sympathies.${k}`, v)
+          if (Math.abs(w) > 1) {
+            fail(name, `npcs[${i}].sympathies.${k}`, `must be in [-1, 1], got ${w}`)
+          }
+          sym[k] = w
+        }
+        n.sympathies = sym
+      }
       return n
     })
   }
@@ -419,6 +449,8 @@ function applyNpcs(name: string, fx: Fixture): void {
       factionRole: n.faction !== undefined
         ? { faction: n.faction as FactionId, role: 'staff' }
         : undefined,
+      temperament: n.temperament,
+      sympathies: n.sympathies,
     })
     if (n.workstation !== undefined) {
       let matched = false

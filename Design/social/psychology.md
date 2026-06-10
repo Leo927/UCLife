@@ -57,6 +57,16 @@ Perf: aggregation is a per-district reduce over residents, computed **lazily** (
 
 Temperament and sympathy `Effect`s serialize with the `StatSheet` (`serializeSheet` strips formulas, `attachFormulas` re-seeds on load). Cause tags are static data. Revealed-to-player flags live per character and round-trip via `EntityKey`.
 
+## Shipped (Phase 5.3 · #143)
+
+- **Data model.** Cause + temperament catalogs in `src/config/psychology.json5` (ids pinned in `src/config/psychology.ts`); per-cause sympathy stats (`${cause}Sym`, base 0) and the temperament-driven `reactionScale` stat (base 1) on the character StatSheet; psychology lives as `family: 'psychology'` Effects (`temperament:<id>`, `sym:<cause>`) — single channel.
+- **Assignment.** Every `spawnNPC` gets psychology: authored values from `special-npcs.json5` by name, else name-seeded procgen (`psychologyForName`, FNV-1a → mulberry32, the appearance-gen pattern). Fixtures can pin both fields per NPC.
+- **Reaction formula.** `applyCauseEvent` in `src/systems/psychology.ts` — every Psyche-carrying character shifts opinion of the actor by `dot × reactionScale × opinionScale` through `applyOpinionDelta` (grievance/credit queue rides free). Producer wired: governance policy options with `causeTags` (alignment, tradePriority) are public stances by the player. Event-driven only; no per-tick work.
+- **Reveal.** First dialog-open of the game day reveals the next unknown sympathy, highest |weight| first (`revealNextSympathy`); revealed tags render in the NPC inspector (心性 row); reveal state on the `Psyche` trait round-trips via its trait serializer.
+- **Shared vocabulary.** `NewsEntry.causeTags` authored on the chronicle's ideological entries.
+
+Deferred: news-driven *mood* (no mood system yet — tags are authored and waiting), temperament-phrased dialogue tone (content pass), aggregation → district lean (Phase 6.4, below).
+
 ## Related
 
 - [relationships.md](relationships.md) — the per-pair machinery temperament + causes color

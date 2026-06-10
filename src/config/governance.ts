@@ -1,5 +1,6 @@
 import json5 from 'json5'
 import raw from './governance.json5?raw'
+import type { CauseTags } from './psychology'
 
 export interface PolicyEffects {
   revenueMul?: number
@@ -15,6 +16,12 @@ export interface PolicySpec {
   options: Array<string | number>
   labelZh: string
   effects: Record<string, PolicyEffects>
+  // Phase 5.3 — options that constitute a public stance carry cause tags
+  // (psychology.json5 vocabulary) + the zh deed phrase for the
+  // grievance/credit reveal line. Options absent from these maps are not
+  // stances and trigger no reaction.
+  causeTags?: Record<string, CauseTags>
+  stanceDeedZh?: Record<string, string>
 }
 
 export interface GovernanceConfig {

@@ -178,6 +178,16 @@ export const Knows = relation({
   },
 })
 
+// Phase 5.3 psychology — player-knowledge reveal state (Design/social/
+// psychology.md § Reveal). The psychology itself (temperament + cause
+// sympathies) lives as Effects on the StatSheet; this trait only tracks
+// which sympathies the player has learned and the once-per-game-day talk
+// gate. NPC-only; the player carries no Psyche.
+export const Psyche = trait(() => ({
+  revealed: [] as string[],
+  lastRevealDay: 0,
+}))
+
 export const Action = trait({
   kind: 'idle' as ActionKind,
   remaining: 0,

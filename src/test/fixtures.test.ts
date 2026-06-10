@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -73,6 +73,29 @@ describe('applyFixture', () => {
       if (e.get(EntityKey)!.key === 'kai') kaiFound = true
     }
     expect(kaiFound).toBe(true)
+  })
+
+  it('loads psychology-talk: pinned psychology folds onto the NPC sheet, unpinned NPC gets procgen', () => {
+    applyFixture('psychology-talk')
+    const w = getWorld('vonBraunCity')
+    let kai = null, mira = null
+    for (const e of w.query(EntityKey, Attributes, Psyche)) {
+      if (e.get(EntityKey)!.key === 'kai') kai = e
+      if (e.get(EntityKey)!.key === 'mira') mira = e
+    }
+    expect(kai, 'fixture NPC kai must spawn with Attributes + Psyche').not.toBeNull()
+    expect(mira, 'fixture NPC mira must spawn with Attributes + Psyche').not.toBeNull()
+    const kaiSheet = kai!.get(Attributes)!.sheet
+    expect(getStat(kaiSheet, 'zeonismSym')).toBeCloseTo(0.8)
+    expect(getStat(kaiSheet, 'pacifismSym')).toBeCloseTo(-0.4)
+    // proud temperament: reactionScale base 1 + the configured flat delta.
+    expect(getStat(kaiSheet, 'reactionScale')).toBeGreaterThan(1)
+    // mira pins nothing — name-seeded procgen still lands at least one
+    // nonzero sympathy.
+    const miraSheet = mira!.get(Attributes)!.sheet
+    const miraSym = (['zeonismSym', 'federation_orderSym', 'ae_pragmatismSym', 'pacifismSym'] as const)
+      .map((id) => getStat(miraSheet, id))
+    expect(miraSym.some((v) => v !== 0), 'procgen NPC must hold ≥1 nonzero sympathy').toBe(true)
   })
 
   it('loads npc-transit: player + commuter NPC both land in vonBraunCity', () => {

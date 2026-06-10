@@ -19,6 +19,8 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import {
   type CouncilStance, findPlayer, findPlayerFaction, gatherAttendees, councilScore,
 } from './council'
+import { applyCauseEvent } from './psychology'
+import { useClock } from '../sim/clock'
 
 // Re-exported for the council-chamber UI + governance debug handles, which
 // import the stance type from this module.
@@ -148,6 +150,19 @@ export function resolveCouncil(
 
   // Now commit the new policy to the registry.
   setActivePolicy({ kind: session.policyKind, value: newValue, decidedDay: gameDay })
+
+  // Phase 5.3 — enacting a cause-tagged policy option is a public stance:
+  // every sympathizing character shifts opinion of the player per the
+  // psychology reaction formula (Design/social/psychology.md).
+  const stanceTags = policyCfg.causeTags?.[newValue]
+  if (player && stanceTags && Object.keys(stanceTags).length > 0) {
+    applyCauseEvent({
+      actor: player,
+      causeTags: stanceTags,
+      deedZh: policyCfg.stanceDeedZh?.[newValue] ?? `调整了${policyCfg.labelZh}`,
+      nowMs: useClock.getState().gameDate.getTime(),
+    })
+  }
 
   // Stamp or clear dissent on each attendee.
   for (const { entity, npcKey, stance } of dissentTargets) {

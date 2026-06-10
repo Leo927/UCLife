@@ -38,6 +38,10 @@
       date: 'UC 0077.04.29',
       priority: 25,
       tags: ['zeon'],
+      // Phase 5.3 — shared cause vocabulary (psychology.json5). The mood
+      // consumer is deferred with the mood system; tags author now so the
+      // chronicle is ready when it lands.
+      causeTags: { zeonism: 0.6, federation_order: -0.3 },
       headlineZh: '吉翁自治派再提"殖民地议席"动议',
       bodyZh: '联邦议会中,来自Side 3的代表第三次提交扩大殖民地自治权的动议。地球出身议员普遍持保留态度,辩论持续至深夜。',
     },
@@ -46,6 +50,7 @@
       date: 'UC 0077.05.03',
       priority: 15,
       tags: ['ae', 'civic'],
+      causeTags: { ae_pragmatism: 0.5 },
       headlineZh: '阿纳海姆电子中标月面民用管线升级',
       bodyZh: '阿纳海姆电子公司宣布中标冯·布劳恩民用循环管线升级项目,工期预计一年。公司称将优先雇佣本地技工。',
     },
@@ -62,6 +67,7 @@
       date: 'UC 0077.06.11',
       priority: 22,
       tags: ['zeon'],
+      causeTags: { zeonism: 0.8 },
       headlineZh: 'Side 3集会规模创新高',
       bodyZh: '据转播画面,Side 3首府举行的自治集会聚集了数十万人。演讲者呼吁"宇宙居民应主宰自己的命运",联邦驻地未予置评。',
     },
@@ -86,6 +92,7 @@
       date: 'UC 0077.09.09',
       priority: 20,
       tags: ['federation'],
+      causeTags: { federation_order: 0.5, pacifism: -0.4 },
       headlineZh: '联邦年度预算辩论聚焦"宇宙军扩编"',
       bodyZh: '联邦政府提交的年度预算中,宇宙军经费占比再创新高。反对派质疑"在和平年代为何持续扩军"。',
     },
@@ -112,6 +119,7 @@
       date: 'UC 0078.01.15',
       priority: 30,
       tags: ['zeon'],
+      causeTags: { zeonism: 0.9, federation_order: -0.5 },
       headlineZh: '吉翁公国领袖发表新年演说',
       bodyZh: '吉翁·兹姆·戴肯之后,公国领袖发表强硬新年演说,重申"宇宙居民的独立诉求不可阻挡"。联邦官方称之为"地方政治表演"。',
     },

@@ -34,7 +34,9 @@ export function hashSeed(s: string): number {
 }
 
 // mulberry32. Same PRNG family FC uses, so portrait output stays comparable.
-function mulberry32(seed: number): () => number {
+// Exported for character/psychology.ts, which derives per-name psychology
+// the same way appearance is derived.
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0

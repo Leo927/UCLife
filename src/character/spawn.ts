@@ -7,14 +7,16 @@ import type { Entity, World } from 'koota'
 import {
   Character, Position, MoveTarget, Vitals, Health, Action, Money,
   Inventory, Job, JobPerformance, Attributes, Effects, Conditions, Reputation, JobTenure,
-  Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance,
+  Ambitions, Flags, IsPlayer, EntityKey, FactionRole, Appearance, Psyche,
   type Gender,
 } from '../ecs/traits'
 import { ambitions as ambitionDefs } from './ambitions'
 import type { FactionId } from '../data/factions'
+import type { TemperamentId, CauseTags } from '../config/psychology'
 import { setSkillXp, type SkillId } from './skills'
 import { getAppearanceOverride } from './appearance'
 import { generateAppearanceForName } from './appearanceGen'
+import { applyPsychology, psychologyForName } from './psychology'
 
 function applySkillSpec(ent: Entity, spec: Partial<Record<SkillId, number>> | undefined): void {
   if (!spec) return
@@ -37,6 +39,11 @@ export interface NPCSpec {
   key?: string
   factionRole?: { faction: FactionId; role: 'staff' | 'manager' | 'board' }
   gender?: Gender
+  // Phase 5.3 psychology overrides (fixtures pin these for deterministic
+  // smoke tests). Defaults: authored special-npcs.json5 values by name,
+  // else seeded procgen — see psychologyForName.
+  temperament?: TemperamentId
+  sympathies?: CauseTags
 }
 
 export interface PlayerSpec {
@@ -78,10 +85,16 @@ export function spawnNPC(world: World, spec: NPCSpec): Entity {
     Effects,
     Conditions,
     FactionRole({ faction: fr.faction, role: fr.role }),
+    Psyche,
     EntityKey({ key: spec.key ?? `npc-anon-${Math.random().toString(36).slice(2, 8)}` }),
   )
   applySkillSpec(ent, spec.skills)
   setupAppearance(ent, spec.name, spec.gender)
+  const psy = psychologyForName(spec.name)
+  applyPsychology(ent, {
+    temperament: spec.temperament ?? psy.temperament,
+    sympathies: spec.sympathies ?? psy.sympathies,
+  })
   return ent
 }
 

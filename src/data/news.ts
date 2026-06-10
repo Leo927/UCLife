@@ -7,6 +7,7 @@
 
 import json5 from 'json5'
 import raw from './news.json5?raw'
+import { isCauseId, type CauseTags } from '../config/psychology'
 
 export type NewsTag = 'war' | 'civic' | 'ae' | 'zeon' | 'federation' | 'lunar'
 
@@ -21,6 +22,11 @@ export interface NewsEntry {
   // highest-priority entry on that date; lower entries are b-roll.
   priority: number
   tags: NewsTag[]
+  // Phase 5.3 — which ideological causes the event advances (+) or
+  // antagonizes (-), -1..+1 per cause. Shared vocabulary with character
+  // sympathies + faction alignment (Design/social/psychology.md); the
+  // news-driven mood consumer lands with the mood system.
+  causeTags?: CauseTags
   headlineZh: string
   bodyZh: string
 }
@@ -50,6 +56,16 @@ for (const e of parsed.entries) {
   }
   for (const t of e.tags) {
     if (!VALID_TAGS.has(t)) throw new Error(`news.json5: entry "${e.id}" has unknown tag "${t}"`)
+  }
+  if (e.causeTags !== undefined) {
+    for (const [cause, w] of Object.entries(e.causeTags)) {
+      if (!isCauseId(cause)) {
+        throw new Error(`news.json5: entry "${e.id}" has unknown causeTag "${cause}"`)
+      }
+      if (typeof w !== 'number' || !Number.isFinite(w) || Math.abs(w) > 1) {
+        throw new Error(`news.json5: entry "${e.id}" causeTags.${cause} must be a number in [-1, 1]`)
+      }
+    }
   }
   byId.set(e.id, e)
   const list = byDate.get(e.date) ?? []
