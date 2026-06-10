@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import type { Entity } from 'koota'
-import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building, Conditions, Faction, FactionRole } from '../ecs/traits'
+import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Inventory, Job, Home, Workstation, Bed, IsPlayer, Knows, Appearance, Owner, Building, Conditions, Faction, FactionRole, Psyche } from '../ecs/traits'
 import type { ActionKind, Gender } from '../ecs/traits'
 import { hasFactionUnlock } from '../ecs/factionEffects'
 import { FACTION_TIER_UNLOCK_ID } from '../systems/factionTier'
@@ -13,6 +13,9 @@ import { fleetConfig } from '../config'
 import {
   tierOf, TIER_LABEL_ZH, topRelationsFor, drainAcknowledgements, type AckLine,
 } from '../systems/relations'
+import { revealNextSympathy, revealedSympathyTags } from '../systems/psychology'
+import { temperamentOf } from '../character/psychology'
+import { psychologyConfig } from '../config/psychology'
 import { useClock } from '../sim/clock'
 import { Portrait } from '../render/portrait/react/Portrait'
 import { DialogueRunner } from './dialogue/runner'
@@ -58,6 +61,23 @@ export function NPCDialog() {
     if (lines.length > 0) setAcks({ of: target, lines })
   }, [target, player])
   const ackLines = acks.of === target ? acks.lines : []
+
+  // Deterministic-progressive sympathy reveal (Design/social/psychology.md
+  // § Reveal): the first conversation of the game day surfaces the next
+  // unknown cause-sympathy. Same StrictMode guard as the ack drain — the
+  // second effect run returns null (the day gate already advanced) and
+  // must not wipe the surfaced line.
+  const [reveal, setReveal] = useState<{ of: Entity | null; lineZh: string | null }>({ of: null, lineZh: null })
+  useEffect(() => {
+    if (!target) {
+      setReveal({ of: null, lineZh: null })
+      return
+    }
+    if (!player) return
+    const r = revealNextSympathy(target, useClock.getState().gameDate.getTime())
+    if (r) setReveal({ of: target, lineZh: r.lineZh })
+  }, [target, player])
+  const revealLineZh = reveal.of === target ? reveal.lineZh : null
 
   if (!target || !info) return null
 
@@ -162,6 +182,11 @@ export function NPCDialog() {
             {ackLines.map((l, i) => (
               <p key={i} className="dialog-response">「{l.textZh}」</p>
             ))}
+          </section>
+        )}
+        {revealLineZh && (
+          <section className="status-section" data-testid="psyche-reveal">
+            <p className="dialog-response">（{revealLineZh}）</p>
           </section>
         )}
         <NPCHealthSection target={target} />
@@ -314,7 +339,27 @@ function NPCDebugView({ entity }: { entity: Entity }) {
       <div className="dev-row"><span className="dev-key">工作</span><span>{wsSpec ? `${wsSpec.jobTitle} @(${wsPos?.x.toFixed(0)}, ${wsPos?.y.toFixed(0)}) · ${wsSpec.shiftStart}:00 – ${wsSpec.shiftEnd}:00 · ¥${wsSpec.wage}` : '无业'}</span></div>
       <div className="dev-row"><span className="dev-key">家</span><span>{bedPos ? `${bedTier} @(${bedPos.x.toFixed(0)}, ${bedPos.y.toFixed(0)})` : '无家'}</span></div>
       <NPCAppearanceBlock entity={entity} />
+      <NPCPsycheBlock entity={entity} />
       <NPCRelationsBlock entity={entity} />
+    </div>
+  )
+}
+
+// Inspector psyche tags (Design/social/psychology.md § Reveal): the
+// temperament reads always-on (it phrases every line anyway); cause
+// sympathies appear only once revealed through the daily talk loop.
+function NPCPsycheBlock({ entity }: { entity: Entity }) {
+  const psyche = useTrait(entity, Psyche)
+  if (!psyche) return null
+  const temperament = temperamentOf(entity)
+  const tags = revealedSympathyTags(entity)
+  return (
+    <div className="dev-row" data-testid="psyche-tags">
+      <span className="dev-key">心性</span>
+      <span>
+        {temperament ? psychologyConfig.temperaments[temperament].nameZh : '—'}
+        {tags.map((t) => ` · ${t.nameZh} ${t.weight > 0 ? '+' : ''}${t.weight.toFixed(1)}`).join('')}
+      </span>
     </div>
   )
 }

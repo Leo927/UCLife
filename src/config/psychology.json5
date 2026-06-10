@@ -1,0 +1,59 @@
+{
+  // Phase 5.3 — character psychology (Design/social/psychology.md).
+  // No magic numbers: every numerical knob lives here.
+
+  // Cause catalog — the shared ideological vocabulary. The id set is
+  // mirrored by CAUSE_IDS in psychology.ts (compile-time stat ids); the
+  // loader throws if the two drift. News entries and faction alignment
+  // tag events with these ids.
+  causes: {
+    zeonism: { nameZh: '吉翁主义' },
+    federation_order: { nameZh: '联邦秩序' },
+    ae_pragmatism: { nameZh: 'AE 实用主义' },
+    pacifism: { nameZh: '和平主义' },
+  },
+
+  // Temperament catalog — CK-trait-sized, deliberately small. Each row
+  // shifts the character's reactionScale stat (base 1.0) by a flat
+  // delta: proud characters take slights harder (×1.5), timid ones
+  // barely react (×0.5).
+  temperaments: {
+    proud: { nameZh: '高傲', reactionScaleDelta: 0.5 },
+    idealistic: { nameZh: '理想主义', reactionScaleDelta: 0.3 },
+    loyal: { nameZh: '重情义', reactionScaleDelta: 0.15 },
+    pragmatic: { nameZh: '务实', reactionScaleDelta: -0.2 },
+    self_interested: { nameZh: '利己', reactionScaleDelta: -0.35 },
+    timid: { nameZh: '怯懦', reactionScaleDelta: -0.5 },
+  },
+
+  // Procgen assignment for background NPCs. Deterministic per name
+  // (FNV-1a hash → mulberry32, same pattern as appearanceGen) so the
+  // same NPC rolls the same psychology across reloads and saves.
+  procgen: {
+    sympathyCountMin: 1,
+    sympathyCountMax: 3,
+    // |weight| rolled on [magnitudeMin, magnitudeMax] snapped to
+    // magnitudeStep — most people are lukewarm on most causes.
+    magnitudeMin: 0.2,
+    magnitudeMax: 1.0,
+    magnitudeStep: 0.1,
+    // Chance a rolled sympathy is an antipathy (negative weight).
+    negativeChance: 0.4,
+  },
+
+  // Reaction formula scaling:
+  //   opinionDelta = dot(event.causeTags, sympathies) × reactionScale × opinionScale
+  // A full-sympathy (1.0) full-tag (1.0) hit on a neutral temperament
+  // moves opinion by opinionScale. Deltas under minAbsOpinionDelta are
+  // dropped (lukewarm characters don't react to tangential events).
+  reaction: {
+    opinionScale: 12,
+    minAbsOpinionDelta: 1,
+  },
+
+  // Reveal line phrasing — |weight| at or above this reads as strong
+  // (深恶痛绝 / 满腔热忱), below as mild.
+  reveal: {
+    strongAbsThreshold: 0.6,
+  },
+}

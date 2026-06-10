@@ -38,6 +38,19 @@
         neutral:    { recruitChanceMul: 0.00, loyaltyDriftMul:  0.00 },
         zeon:       { recruitChanceMul: 0.10, loyaltyDriftMul: -0.05 },
       },
+      // Phase 5.3 — enacting an alignment is a public stance: every
+      // character with sympathies on the tagged causes reacts toward the
+      // player (Design/social/psychology.md § Reaction formula). Keys are
+      // cause ids from psychology.json5; weights -1..+1 per cause.
+      causeTags: {
+        federation: { federation_order: 1, zeonism: -1 },
+        zeon:       { zeonism: 1, federation_order: -1 },
+      },
+      stanceDeedZh: {
+        federation: '公开宣布支持联邦的立场',
+        neutral:    '公开宣布保持中立',
+        zeon:       '公开宣布支持吉翁的立场',
+      },
     },
 
     tradePriority: {
@@ -48,6 +61,14 @@
         commerce:  { revenueMul: 0.15, maintenanceMul: -0.05, researchSpeedMul: -0.05 },
         balanced:  { revenueMul: 0.00, maintenanceMul:  0.00, researchSpeedMul:  0.00 },
         military:  { revenueMul: -0.05, maintenanceMul: 0.10, researchSpeedMul:  0.10 },
+      },
+      causeTags: {
+        military: { pacifism: -0.5 },
+        commerce: { ae_pragmatism: 0.3 },
+      },
+      stanceDeedZh: {
+        military: '把贸易重心转向军需',
+        commerce: '把贸易重心转向民用商业',
       },
     },
   },

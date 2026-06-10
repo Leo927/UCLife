@@ -29,6 +29,9 @@
     // relationReq) to reach AE rank 4. Each occupies one of the 5 board
     // offices and holds a board-tier workstation with massive paychecks.
 
+    // Phase 5.3 — board psychology is authored (temperament + sympathies,
+    // Design/social/psychology.md): the corporate leadership leans AE
+    // pragmatism hard, with individual color on the war question.
     {
       name: '米利亚·卡里',
       color: '#f59e0b',
@@ -39,6 +42,8 @@
       skills: { mechanics: 5500, computers: 4000 },
       factionRole: { faction: 'anaheim', role: 'board' },
       workstation: 'ae_board_chair',
+      temperament: 'pragmatic',
+      sympathies: { ae_pragmatism: 0.9, pacifism: 0.3 },
     },
     {
       name: '乔治·米格尔',
@@ -50,6 +55,8 @@
       skills: { mechanics: 4500, computers: 3200 },
       factionRole: { faction: 'anaheim', role: 'board' },
       workstation: 'ae_board_cfo',
+      temperament: 'self_interested',
+      sympathies: { ae_pragmatism: 0.8, federation_order: 0.3 },
     },
     {
       name: '安娜海姆·世津',
@@ -61,6 +68,8 @@
       skills: { mechanics: 3200, computers: 5500 },
       factionRole: { faction: 'anaheim', role: 'board' },
       workstation: 'ae_board_cto',
+      temperament: 'idealistic',
+      sympathies: { ae_pragmatism: 0.6, zeonism: 0.4, pacifism: -0.2 },
     },
     {
       name: '凯瑟琳·卡里',
@@ -72,6 +81,8 @@
       skills: { mechanics: 3000, computers: 3500 },
       factionRole: { faction: 'anaheim', role: 'board' },
       workstation: 'ae_board_coo',
+      temperament: 'proud',
+      sympathies: { ae_pragmatism: 0.7, federation_order: 0.4 },
     },
     {
       name: '林·特拉维斯',
@@ -83,6 +94,8 @@
       skills: { mechanics: 1500, computers: 2500 },
       factionRole: { faction: 'anaheim', role: 'board' },
       workstation: 'ae_board_cmo',
+      temperament: 'loyal',
+      sympathies: { ae_pragmatism: 0.8, pacifism: 0.5 },
     },
 
     // === Anaheim Electronics 中层管理 (Managers) ===
@@ -292,6 +305,8 @@
       // pre-capture identity stays "pirate" through the combat layer.
       // Phase 7.0.C — ex-military ace: eligible for the wartime draft churn.
       combatantEligible: true,
+      temperament: 'proud',
+      sympathies: { zeonism: 1.0, federation_order: -0.8 },
     },
     {
       id: 'gato-0077-corp-raider',
@@ -300,6 +315,8 @@
       title: '原吉翁少校 · 现身于雇佣兵船团',
       contextZh: '退役军官出身的雇佣兵 — 行事讲究规矩，但下手毫不留情',
       combatantEligible: true,
+      temperament: 'loyal',
+      sympathies: { zeonism: 0.9, pacifism: -0.5 },
     },
     {
       id: 'ramba-ral-0077-corp-raider',
@@ -308,6 +325,8 @@
       title: '"蓝色巨人" · 企业雇佣兵',
       contextZh: '军礼周正的硬汉 — 据说他妻子哈蒙也在某条海盗船上做副官',
       combatantEligible: true,
+      temperament: 'proud',
+      sympathies: { zeonism: 0.7, pacifism: 0.3 },
     },
   ],
 }

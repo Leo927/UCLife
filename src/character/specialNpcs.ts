@@ -2,6 +2,7 @@ import json5 from 'json5'
 import raw from './special-npcs.json5?raw'
 import type { FactionId } from '../data/factions'
 import type { SkillId } from './skills'
+import type { TemperamentId, CauseTags } from '../config/psychology'
 
 // A named NPC. Tile coords are optional — entries without them are
 // virtual: not placed in any city tilemap, but referenced by stable
@@ -42,6 +43,11 @@ export interface SpecialNpc {
   // wartime, the conscription draft roll may pull these named NPCs out of the
   // city. Background civilians are never eligible.
   combatantEligible?: boolean
+  // Phase 5.3 psychology — authored temperament + cause sympathies
+  // (Design/social/psychology.md). Either field may be omitted; procgen
+  // fills the gap (see character/psychology.ts psychologyForName).
+  temperament?: TemperamentId
+  sympathies?: CauseTags
 }
 
 interface SpecialNpcsFile {

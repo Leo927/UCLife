@@ -17,7 +17,8 @@ import type { Modifier } from './sheet'
 import { type StatSheet, addModifier, removeBySource } from './sheet'
 import type { StatId } from './schema'
 
-export type EffectFamily = 'background' | 'perk' | 'condition' | 'gear' | 'research'
+export type EffectFamily =
+  | 'background' | 'perk' | 'condition' | 'gear' | 'research' | 'psychology'
 
 export interface Effect<S extends string = StatId> {
   // Unique within a character's Effects list. Upstream owners pick the

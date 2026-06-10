@@ -5,6 +5,7 @@
 
 import { type FormulaTable, identityFormulas, createSheet } from './sheet'
 import { SKILL_IDS, type SkillId } from '../config/skills'
+import { CAUSE_IDS, type CauseId } from '../config/psychology'
 
 // Re-exports — keeps callers' `import { SKILL_IDS, SkillStatId } from
 // '../stats/schema'` paths intact. SKILL_IDS lives canonically in
@@ -68,6 +69,18 @@ export const VERB_SPEED_IDS = [
 ] as const
 export type VerbSpeedId = typeof VERB_SPEED_IDS[number]
 
+// Phase 5.3 psychology (Design/social/psychology.md). One sympathy stat
+// per cause (base 0, weight in [-1, +1] folded in by `sym:<cause>`
+// Effects) plus the temperament-driven reaction multiplier (base 1,
+// shifted by the character's `temperament:<id>` Effect). Keeping these
+// on the StatSheet honors the single-channel rule — no second modifier
+// engine for psychology.
+const SYMPATHY_IDS = CAUSE_IDS.map((c) => `${c}Sym` as const)
+type SympathyStatId = `${CauseId}Sym`
+
+export const PSYCHE_IDS = ['reactionScale'] as const
+export type PsycheStatId = typeof PSYCHE_IDS[number]
+
 export type StatId =
   | AttributeId
   | VitalMaxId
@@ -78,6 +91,8 @@ export type StatId =
   | EconomicStatId
   | WorkPerfStatId
   | VerbSpeedId
+  | SympathyStatId
+  | PsycheStatId
 
 export const STAT_IDS: readonly StatId[] = [
   ...ATTRIBUTE_IDS,
@@ -89,6 +104,8 @@ export const STAT_IDS: readonly StatId[] = [
   ...ECONOMIC_IDS,
   ...WORK_PERF_IDS,
   ...VERB_SPEED_IDS,
+  ...SYMPATHY_IDS,
+  ...PSYCHE_IDS,
 ]
 
 export const STAT_FORMULAS: FormulaTable<StatId> = identityFormulas(STAT_IDS)
@@ -111,6 +128,8 @@ export const STAT_DEFAULTS: Partial<Record<StatId, number>> = (() => {
   for (const id of ECONOMIC_IDS) out[id] = 1
   for (const id of WORK_PERF_IDS) out[id] = 1
   for (const id of VERB_SPEED_IDS) out[id] = 1
+  for (const id of SYMPATHY_IDS) out[id] = 0
+  for (const id of PSYCHE_IDS) out[id] = 1
   return out
 })()
 
@@ -126,6 +145,9 @@ export function vitalDrainMulStat(v: VitalId): VitalDrainMulId {
 }
 export function skillXpMulStat(s: SkillStatId): SkillXpMulId {
   return `${s}XpMul`
+}
+export function sympathyStat(c: CauseId): SympathyStatId {
+  return `${c}Sym`
 }
 
 const VERB_SPEED_BY_KIND: Partial<Record<string, VerbSpeedId>> = {

@@ -45,3 +45,4 @@ import './civilianChurn'   // Phase 7.0.E.2 — wartime non-combatant churn roll
 import './diplomaticSlots'  // Phase 7.0.E.4 — slot occupancy tick + state + player alignment + eject count
 import './relations'        // Issue #144 — shared opinion-delta write + grievance/credit queue inspection
 import './facilityTiers'    // Issue #141 — tier panel view + upgrade start + downtime/seat state + unlock grant
+import './psychology'       // Phase 5.3 — cause-event stance trigger + psyche inspection

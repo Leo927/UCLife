@@ -1,0 +1,26 @@
+// Issue #143 — psychology smoke scenario: kai carries pinned sympathies +
+// temperament (reaction formula + reveal order are exactly computable);
+// mira pins nothing so the spec can assert name-seeded procgen coverage.
+{
+  seed: 'psychology-143',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 1000,
+    location: { scene: 'vonBraunCity', x: 32, y: 18 },
+  },
+
+  npcs: [
+    {
+      id: 'kai', name: '凯·西登',
+      at: { scene: 'vonBraunCity', x: 33, y: 18 },
+      temperament: 'proud',
+      sympathies: { zeonism: 0.8, pacifism: -0.4 },
+    },
+    {
+      id: 'mira', name: '米拉·诺顿',
+      at: { scene: 'vonBraunCity', x: 34, y: 18 },
+    },
+  ],
+}
