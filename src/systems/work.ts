@@ -14,6 +14,7 @@ import { checkPromotionEligibility } from './promotion'
 import { getStat } from '../stats/sheet'
 import { skillXpMulStat, type SkillStatId } from '../stats/schema'
 import { findFacilityForPosition } from '../ecs/ownership'
+import { facilityEfficiencyMul, isFacilityInDowntime } from './facilityTiers'
 
 function wageMul(entity: Entity): number {
   const a = entity.get(Attributes)
@@ -99,7 +100,10 @@ function processMinute(
     // workers stop showing up for an unpaid boss.
     const facilityEnt = findFacilityFor(world, ws)
     const closedFacility = facilityEnt?.get(Facility)?.closedSinceDay ?? 0
+    // Tier-upgrade downtime behaves like a closure for the shift payout:
+    // no output, no salary; maintenance still applies at the rollover.
     const facilityClosed = closedFacility > 0
+      || (facilityEnt !== null && isFacilityInDowntime(facilityEnt))
 
     if (todayPerf > 0 && spec.wage > 0 && !facilityClosed) {
       const npcBonus = isPlayer ? 1.0 : economyConfig.wage.npcBonus
@@ -214,8 +218,10 @@ function accrueShiftEconomics(facility: Entity, todayPerf: number, wage: number)
     }
   }
   const perf01 = Math.max(0, Math.min(1, todayPerf / 100))
+  // Facility-tier efficiency knob — 1.0 at tier 1 / no trait.
+  const tierEff = facilityEfficiencyMul(facility)
   const revenue = Math.round(
-    baseRevenue * perf01 * economicsConfig.global.revenueMul * ownerKindMul * factionMul,
+    baseRevenue * perf01 * economicsConfig.global.revenueMul * ownerKindMul * factionMul * tierEff,
   )
   facility.set(Facility, {
     ...fac,

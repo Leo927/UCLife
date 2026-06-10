@@ -401,3 +401,23 @@ export const Facility = trait({
   closedSinceDay: 0,
   closedReason: null as FacilityClosedReason | null,
 })
+
+// Phase 5.5.6 — facility-tier state (Design/social/facility-tiers.md).
+// Four universal knobs, each a tier integer defaulting 1 (tier 1 = the
+// pre-tier baseline, so a Building without this trait behaves identically
+// to one carrying the defaults). `upgrade` is the at-most-one in-flight
+// install: while daysRemaining > 0 the facility is in downtime (no output,
+// no salary; maintenance still applies). Attached lazily on first upgrade.
+export interface FacilityTierUpgrade {
+  knob: 'jobSiteCount' | 'efficiency' | 'operatingHours' | 'loyaltyDrift'
+  toTier: number
+  daysRemaining: number
+}
+
+export const FacilityTiers = trait(() => ({
+  jobSiteCount: 1,
+  efficiency: 1,
+  operatingHours: 1,
+  loyaltyDrift: 1,
+  upgrade: null as FacilityTierUpgrade | null,
+}))
