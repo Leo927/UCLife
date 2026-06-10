@@ -9,13 +9,14 @@
 // formal MemberOf relation in 5.5.5.
 
 import type { World, Entity } from 'koota'
-import { Knows } from '../ecs/traits'
+import { Character, Knows } from '../ecs/traits'
 import {
   findPlayer,
   unhousedPlayerFactionMembers,
 } from '../ecs/playerFaction'
 import { economicsConfig } from '../config'
 import { useClock } from '../sim/clock'
+import { applyOpinionDelta } from './relations'
 
 export interface HousingPressureResult {
   unhousedCount: number
@@ -42,27 +43,24 @@ export function housingPressureSystem(world: World): HousingPressureResult {
   return result
 }
 
+// Routed through the shared opinion-write path (applyOpinionDelta lazily
+// seeds the edge), with the housing-specific floor applied by trimming the
+// requested delta — pressure alone can't push a member below the floor.
+// The per-day decrement sits below relations.ackThresholdAbs, so chronic
+// shortfall drifts silently by design; a future high-weight housing event
+// would queue its grievance for free.
 function decayMemberOpinion(
   member: Entity,
   player: Entity,
   delta: number,
   floor: number,
 ): void {
-  if (!member.has(Knows(player))) {
-    // Seed an edge so the drift surfaces in talk-verb tier-of(); zero
-    // familiarity is fine — the relations system fills that in on
-    // co-presence.
-    member.add(Knows(player))
-    member.set(Knows(player), {
-      opinion: Math.max(floor, delta),
-      familiarity: 0,
-      lastSeenMs: useClock.getState().gameDate.getTime(),
-      meetCount: 0,
-    })
-    return
-  }
-  const e = member.get(Knows(player))!
-  const next = Math.max(floor, e.opinion + delta)
-  if (next === e.opinion) return
-  member.set(Knows(player), { ...e, opinion: next })
+  const cur = member.has(Knows(player)) ? member.get(Knows(player))!.opinion : 0
+  const next = Math.max(floor, cur + delta)
+  if (next === cur) return
+  applyOpinionDelta(
+    member, player, next - cur,
+    { actorName: player.get(Character)?.name ?? '玩家', deedZh: '让我无处可住' },
+    useClock.getState().gameDate.getTime(),
+  )
 }

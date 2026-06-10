@@ -146,10 +146,36 @@ export const QueuedTalk = trait(() => ({ target: null as Entity | null }))
 // The player always carries Active.
 export const Active = trait()
 
+// Structured cause carried by an acknowledgement record so the surfaced
+// line can name the actual deed ("你打断了我弟弟的胳膊"), never a generic
+// "你做了对不起我的事".
+export interface OpinionCause {
+  // Display name of the character who did the deed (the player, for every
+  // direct-action source shipped today; propagation will widen this).
+  actorName: string
+  // zh-CN predicate phrase completing "你<deedZh>。" in the reveal line.
+  deedZh: string
+}
+
+// One unacknowledged opinion swing awaiting in-character reveal on talk.
+export interface AckRecord {
+  cause: OpinionCause
+  delta: number
+  whenMs: number
+}
+
 // Asymmetric on purpose — A.Knows(B) does not imply B.Knows(A). Unrequited
 // crushes / one-sided grudges must be expressible.
+// grievances / credits are the lazy-reveal acknowledgement queues
+// (Design/social/relationships.md § Lazy reveal): opinion state moves
+// eagerly at action-time; awareness settles on the next talk. Function
+// initializers give every edge its own fresh array.
 export const Knows = relation({
-  store: { opinion: 0, familiarity: 0, lastSeenMs: 0, meetCount: 0 },
+  store: {
+    opinion: 0, familiarity: 0, lastSeenMs: 0, meetCount: 0,
+    grievances: () => [] as AckRecord[],
+    credits: () => [] as AckRecord[],
+  },
 })
 
 export const Action = trait({

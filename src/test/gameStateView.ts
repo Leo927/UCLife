@@ -2,7 +2,7 @@ import type { Entity } from 'koota'
 import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ecs/world'
 import {
   IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
-  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood,
+  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows,
 } from '../ecs/traits'
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
@@ -30,6 +30,12 @@ export interface CharacterView {
   getPosition(): { scene: string; x: number; y: number }
   getHiredRole(): string | null
   getAssignedShipId(): string | null
+  // Issue #144 — this character's (eagerly-moved) opinion of the player;
+  // null when no Knows edge exists yet.
+  getOpinionOfPlayer(): number | null
+  // Issue #144 — unacknowledged grievance/credit records on this
+  // character's edge to the player, awaiting the next-talk reveal.
+  getPendingAcks(): { grievances: number; credits: number }
 }
 
 export interface ShipView {
@@ -205,6 +211,17 @@ function makeCharacterView(entity: Entity, sceneId: string): CharacterView {
     getAssignedShipId(): string | null {
       const emp = entity.get(EmployedAsCrew)
       return emp && emp.shipKey ? emp.shipKey : null
+    },
+    getOpinionOfPlayer(): number | null {
+      const p = findPlayerEntity()
+      if (!p || !entity.has(Knows(p.entity))) return null
+      return entity.get(Knows(p.entity))!.opinion
+    },
+    getPendingAcks(): { grievances: number; credits: number } {
+      const p = findPlayerEntity()
+      if (!p || !entity.has(Knows(p.entity))) return { grievances: 0, credits: 0 }
+      const e = entity.get(Knows(p.entity))!
+      return { grievances: e.grievances.length, credits: e.credits.length }
     },
   }
 }

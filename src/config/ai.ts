@@ -40,6 +40,8 @@ export interface AIConfig {
     logCooldownMin: number
     lonelyWindowMin: number
     lonelyBoredomMult: number
+    ackThresholdAbs: number
+    ackQueueMax: number
   }
 }
 

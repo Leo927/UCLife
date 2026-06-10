@@ -94,6 +94,11 @@
     // Signing-bonus baseline — passed through Money.amount on accept and
     // credited to the new hire's wallet.
     signingBonus: 200,
+    // Opinion bump the new hire gets toward the player on accept (both the
+    // faction talk-verb hire and the pilot hire). Routed through
+    // applyOpinionDelta, so a bump at/above relations.ackThresholdAbs also
+    // queues a credit the NPC thanks the player for on the next talk.
+    hireOpinionBonus: 10,
   },
 
   // Phase 6.4.B — faction lean pool.

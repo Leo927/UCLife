@@ -64,6 +64,17 @@ describe('applyFixture', () => {
     expect(pos.y).toBe(36 * TILE)
   })
 
+  it('loads grievance-talk: player + adjacent kai NPC land in vonBraunCity', () => {
+    applyFixture('grievance-talk')
+    const w = getWorld('vonBraunCity')
+    expect(w.queryFirst(IsPlayer)).not.toBeNull()
+    let kaiFound = false
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === 'kai') kaiFound = true
+    }
+    expect(kaiFound).toBe(true)
+  })
+
   it('loads npc-transit: player + commuter NPC both land in vonBraunCity', () => {
     applyFixture('npc-transit')
     const w = getWorld('vonBraunCity')
