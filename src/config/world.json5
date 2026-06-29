@@ -92,6 +92,16 @@
     snapMaxRing: 6,
   },
 
+  // A click onto a target sealed behind a per-requester door (locked, faction-
+  // gated, or another tenant's cell) shares the start's wall component, so the
+  // wall-component fast-fail can't catch it and the uncapped HPA* search would
+  // exhaust the graph (~360ms). A bounded bidirectional BFS proves (un)reach-
+  // ability first; only regions under this many half-tile cells get the fast-
+  // fail (an apartment/room, with margin), larger ones fall through.
+  pathfinding: {
+    reachabilityGateCellCap: 8192,
+  },
+
   // Active-zone optimization. NPCs whose Position lies within the player's
   // active half-extents are "Active": rendered, BT at full cadence, vitals
   // at full per-tick rate. Outside, they're "Inactive": no graphics, BT at
