@@ -47,3 +47,4 @@ import './relations'        // Issue #144 — shared opinion-delta write + griev
 import './facilityTiers'    // Issue #141 — tier panel view + upgrade start + downtime/seat state + unlock grant
 import './psychology'       // Phase 5.3 — cause-event stance trigger + psyche inspection
 import './skillPerks'       // Issue #142 — milestone/pick/respec state + unlock flags + NPC action kind
+import './pfDiag'           // click-to-navigate pathfinding probes (reachability gate)

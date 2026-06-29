@@ -28,6 +28,9 @@ export interface WorldConfig {
     boardDistPx: number
     snapMaxRing: number
   }
+  pathfinding: {
+    reachabilityGateCellCap: number
+  }
   activeZone: {
     activeRadiusTiles: number
     viewportBleedTiles: number

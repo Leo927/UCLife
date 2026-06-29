@@ -50,6 +50,8 @@ const CH = Math.ceil(ROWS / CLUSTER_SUB)
 // explored frontier. Threshold in 10/14 octile cost units (200 cells × 10).
 const HPA_MIN_COST = 2000
 
+const REACH_GATE_CELL_CAP = worldConfig.pathfinding.reachabilityGateCellCap
+
 interface Cluster {
   id: number
   cx: number; cy: number
@@ -142,6 +144,7 @@ export const hpaStats = {
   abstractFailures: 0,
   abstractSuccess: 0,
   componentFastFail: 0,
+  reachabilityGateFail: 0,
 }
 export function resetHpaStats(): void {
   hpaStats.queries = 0
@@ -161,6 +164,7 @@ export function resetHpaStats(): void {
   hpaStats.abstractFailures = 0
   hpaStats.abstractSuccess = 0
   hpaStats.componentFastFail = 0
+  hpaStats.reachabilityGateFail = 0
 }
 
 function clusterIdOfCell(cellIdx: number): number {
@@ -368,6 +372,63 @@ export function consumePortalDestCells(): ReadonlySet<number> {
 // current for `requester`. `allowTransit` is set only for NPC pathfinds — the
 // player never auto-routes through a transit portal (the fare gate would be
 // bypassed; the player rides transit via the fare-gated kiosk interaction).
+// The wall-component fast-fail can't prove a target unreachable when only a
+// per-requester door overlay seals it (same wall component), and abstractAStar
+// has no node cap — so it would exhaust the graph. This bounded bidirectional
+// BFS on the door-aware grid bails first. 4-connected is sound: a no-corner-cut
+// diagonal needs both orthogonals free, so it never under-reports reachability.
+const _reachStamp = new Int32Array(COLS * ROWS)
+const _reachSide = new Uint8Array(COLS * ROWS)
+let _reachGen = 0
+const _reachQA: number[] = []
+const _reachQB: number[] = []
+
+// → 0 newly claimed (enqueue); opposite side id on a meet; -1 blocked/own (skip).
+function touchReach(blocked: Uint8Array, idx: number, gen: number, side: number): number {
+  if (blocked[idx] === 1) return -1
+  if (_reachStamp[idx] === gen) {
+    const s = _reachSide[idx]
+    return s === side ? -1 : s
+  }
+  _reachStamp[idx] = gen
+  _reachSide[idx] = side
+  return 0
+}
+
+function reachableBounded(blocked: Uint8Array, sIdx: number, tIdx: number, cap: number): boolean {
+  if (sIdx === tIdx) return true
+  _reachGen++
+  const gen = _reachGen
+  _reachQA.length = 0
+  _reachQB.length = 0
+  _reachStamp[sIdx] = gen; _reachSide[sIdx] = 1; _reachQA.push(sIdx)
+  _reachStamp[tIdx] = gen; _reachSide[tIdx] = 2; _reachQB.push(tIdx)
+  let ha = 0, hb = 0
+  let popped = 0
+  // Either frontier draining before they meet ⇒ different regions ⇒ no path.
+  // Over cap ⇒ region too big to prove cheaply; fall through to abstractAStar.
+  while (ha < _reachQA.length && hb < _reachQB.length) {
+    if (popped > cap) return true
+    {
+      const idx = _reachQA[ha++]; popped++
+      const x = idx % COLS, y = (idx / COLS) | 0
+      if (x > 0)        { const n = idx - 1;    const r = touchReach(blocked, n, gen, 1); if (r === 2) return true; if (r === 0) _reachQA.push(n) }
+      if (x < COLS - 1) { const n = idx + 1;    const r = touchReach(blocked, n, gen, 1); if (r === 2) return true; if (r === 0) _reachQA.push(n) }
+      if (y > 0)        { const n = idx - COLS; const r = touchReach(blocked, n, gen, 1); if (r === 2) return true; if (r === 0) _reachQA.push(n) }
+      if (y < ROWS - 1) { const n = idx + COLS; const r = touchReach(blocked, n, gen, 1); if (r === 2) return true; if (r === 0) _reachQA.push(n) }
+    }
+    {
+      const idx = _reachQB[hb++]; popped++
+      const x = idx % COLS, y = (idx / COLS) | 0
+      if (x > 0)        { const n = idx - 1;    const r = touchReach(blocked, n, gen, 2); if (r === 1) return true; if (r === 0) _reachQB.push(n) }
+      if (x < COLS - 1) { const n = idx + 1;    const r = touchReach(blocked, n, gen, 2); if (r === 1) return true; if (r === 0) _reachQB.push(n) }
+      if (y > 0)        { const n = idx - COLS; const r = touchReach(blocked, n, gen, 2); if (r === 1) return true; if (r === 0) _reachQB.push(n) }
+      if (y < ROWS - 1) { const n = idx + COLS; const r = touchReach(blocked, n, gen, 2); if (r === 1) return true; if (r === 0) _reachQB.push(n) }
+    }
+  }
+  return false
+}
+
 export function hpaFind(world: World, sIdx: number, tIdx: number, allowTransit = false): number[] | null {
   _portalDestCells.clear()
   if (sIdx === tIdx) return [sIdx]
@@ -487,6 +548,12 @@ export function hpaFind(world: World, sIdx: number, tIdx: number, allowTransit =
         r = aStarOnIdx(blocked, sIdx, tIdx, bMinX, bMinY, bMaxX, bMaxY)
       }
       if (r && r.length > 0) return r
+    }
+
+    // Skip for transit pathfinds — portals bridge regions a grid BFS can't see.
+    if (!allowTransit && !reachableBounded(blocked, sIdx, tIdx, REACH_GATE_CELL_CAP)) {
+      if (PROF) hpaStats.reachabilityGateFail++
+      return null
     }
 
     if (PROF && sCluster !== tCluster) hpaStats.crossCluster++
