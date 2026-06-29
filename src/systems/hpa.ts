@@ -105,6 +105,12 @@ interface SceneHpa {
 // own walls + door layout). Map<SceneId, SceneHpa> is the canonical shape.
 const sceneHpa = new Map<SceneId, SceneHpa>()
 
+// Incremented each time the cluster graph is actually rebuilt. Read by the
+// debug handle / smoke tests to assert the pre-warm eliminated first-click
+// rebuilds: the count must not change during an interactive pathfind.
+export let clusterBuildCount = 0
+export function resetClusterBuildCount(): void { clusterBuildCount = 0 }
+
 function getSceneHpa(id: SceneId): SceneHpa {
   let h = sceneHpa.get(id)
   if (!h) {
@@ -112,6 +118,14 @@ function getSceneHpa(id: SceneId): SceneHpa {
     sceneHpa.set(id, h)
   }
   return h
+}
+
+// Pre-build the cluster graph for the currently active scene so the first
+// interactive pathfind reads a warm graph rather than paying the build cost
+// on the click frame. Call after markPathfindingDirty settles for the active
+// scene (setActive in scene.ts, boot loop in spawn.ts).
+export function warmHpa(world: World): void {
+  buildClustersIfNeeded(world)
 }
 
 export function markHpaDirty(sceneId?: SceneId): void {
@@ -176,6 +190,7 @@ function clusterIdOfCell(cellIdx: number): number {
 function buildClustersIfNeeded(world: World): SceneHpa {
   const h = getSceneHpa(getActiveSceneId())
   if (!h.dirty && h.clusters.length > 0) return h
+  clusterBuildCount++
   const wall = getWallGrid(world)
   const clusters: Cluster[] = []
   for (let cy = 0; cy < CH; cy++) {

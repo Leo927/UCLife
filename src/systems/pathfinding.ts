@@ -10,7 +10,7 @@ import { worldConfig } from '../config'
 import { maxSceneTilesX, maxSceneTilesY } from '../data/scenes'
 import { getActiveSceneId, type SceneId } from '../ecs/world'
 import { isAffiliated } from './factionAccess'
-import { hpaFind, markHpaDirty, consumePortalDestCells } from './hpa'
+import { hpaFind, markHpaDirty, consumePortalDestCells, warmHpa } from './hpa'
 import { markTransitNavDirty } from './transitNav'
 
 const TILE = worldConfig.tilePx
@@ -62,6 +62,16 @@ export function markPathfindingDirty(sceneId?: SceneId) {
   sc.componentsDirty = true
   markHpaDirty(id)
   markTransitNavDirty(id)
+}
+
+// Pre-warm the active scene's wall grid, component grid, and HPA* cluster
+// graph so the first interactive pathfind reads all caches warm. Call
+// synchronously right after markPathfindingDirty settles for the active
+// scene — the player isn't clicking yet, so the ~135 ms build cost is paid
+// at scene-load time rather than on the first click frame.
+export function warmPathfinding(world: World): void {
+  getActiveCacheRebuilt(world)
+  warmHpa(world)
 }
 
 function blockRect(g: Uint8Array, x: number, y: number, w: number, h: number) {

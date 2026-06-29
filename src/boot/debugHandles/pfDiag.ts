@@ -8,7 +8,7 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import { IsPlayer, Position, Door } from '../../ecs/traits'
 import { findPath } from '../../systems/pathfinding'
-import { hpaStats, resetHpaStats } from '../../systems/hpa'
+import { hpaStats, resetHpaStats, clusterBuildCount, resetClusterBuildCount } from '../../systems/hpa'
 import { worldConfig } from '../../config'
 
 const TILE = worldConfig.tilePx
@@ -27,6 +27,9 @@ function probe(player: Entity, from: { x: number; y: number }, target: { x: numb
   hpaStats.enabled = false
   return { pathLen: wps.length, reachabilityGateFail, targetPx: target }
 }
+
+registerDebugHandle('getClusterBuildCount', () => clusterBuildCount)
+registerDebugHandle('resetClusterBuildCount', () => { resetClusterBuildCount() })
 
 registerDebugHandle('pfDiagSealedProbe', () => {
   const player = world.queryFirst(IsPlayer, Position)
