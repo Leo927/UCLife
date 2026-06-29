@@ -67,6 +67,7 @@ import { setViewportHint } from '../systems/activeZone'
 import { getJobSpec } from '../data/jobs'
 import { MapWarnings } from '../ui/MapWarnings'
 import { useClock } from '../sim/clock'
+import { frameStats, recordStage, markFrame } from '../sim/frameProfiler'
 import { worldConfig } from '../config'
 import { getObjectTemplate, type DoorVariant } from '../data/objectTemplates'
 import { getActiveSceneDimensions, getActiveSceneId, getWorld, world } from '../ecs/world'
@@ -213,10 +214,20 @@ export function Game() {
     }
 
     const loop = () => {
+      if (frameStats.enabled) markFrame(performance.now())
       const r = rendererRef.current
       if (r) {
-        const snap = buildSnapshot(canvasRef.current, camRef.current, facingRef.current, onNpcClick, onInteractableClick)
-        if (snap) r.update(snap)
+        if (frameStats.enabled) {
+          const t0 = performance.now()
+          const snap = buildSnapshot(canvasRef.current, camRef.current, facingRef.current, onNpcClick, onInteractableClick)
+          const t1 = performance.now()
+          if (snap) r.update(snap)
+          recordStage('snapshot', t1 - t0)
+          recordStage('pixiUpdate', performance.now() - t1)
+        } else {
+          const snap = buildSnapshot(canvasRef.current, camRef.current, facingRef.current, onNpcClick, onInteractableClick)
+          if (snap) r.update(snap)
+        }
       }
       raf = requestAnimationFrame(loop)
     }

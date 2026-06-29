@@ -106,3 +106,6 @@ export type { CivilianChurnConfig } from './civilianChurn'
 
 export { diplomacySlotsConfig } from './diplomacySlots'
 export type { DiplomacySlotsConfig } from './diplomacySlots'
+
+export { frameProfConfig } from './frameProf'
+export type { FrameProfConfig } from './frameProf'

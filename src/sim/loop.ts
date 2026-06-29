@@ -28,6 +28,7 @@ import { recruitmentSystem } from '../systems/recruitment'
 import { syncShipMarkers } from '../systems/shipMarkers'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
+import { frameStats, recordStage } from './frameProfiler'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
@@ -81,6 +82,8 @@ function effectiveSpeed(): number {
 function frame(now: number) {
   const dt = Math.min(now - lastFrame, 100)
   lastFrame = now
+
+  const profT0 = frameStats.enabled ? performance.now() : 0
 
   const world = getWorld(getActiveSceneId())
 
@@ -293,6 +296,8 @@ function frame(now: number) {
       }
     }
   }
+
+  if (frameStats.enabled) recordStage('sim', performance.now() - profT0)
 
   if (running) raf = requestAnimationFrame(frame)
 }

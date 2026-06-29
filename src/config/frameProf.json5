@@ -1,0 +1,16 @@
+// Frame-time profiler tuning. The profiler decomposes each animation frame
+// into named stages (sim, snapshot, pixiUpdate, frame-interval) so a
+// "noticeable FPS drop" can be attributed to the loop that owns it.
+{
+  // Rolling window of recent per-frame samples kept per stage for the tail
+  // percentile. 240 ≈ 4 seconds at 60fps — long enough to capture a hitch,
+  // short enough to stay "recent". count/total/max stay cumulative since
+  // the last reset; only the tail percentile is windowed.
+  windowSize: 240,
+  // Tail percentile reported per stage. The hitch is a tail-latency event,
+  // so this matters more than the mean.
+  percentile: 0.99,
+  // 60fps frame budget (ms). A stage whose tail crosses this is flagged
+  // overBudget in the report (1000 / 60 ≈ 16.7).
+  budgetMs: 16.7,
+}
