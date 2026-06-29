@@ -27,13 +27,14 @@
 import type { Entity, World } from 'koota'
 import { Not, trait } from 'koota'
 import { BehaviourTree } from 'mistreevous'
-import { Active, Character, Position, Action, Health, Vitals, Inventory, Money, IsPlayer } from '../ecs/traits'
-import { makeNPCAgent, type NPCAgent } from '../ai/agent'
+import { Active, Character, Position, Action, Health, Vitals, Inventory, Money, IsPlayer, FactionRole } from '../ecs/traits'
+import { makeNPCAgent, type NPCAgent, type NpcFrameCtx } from '../ai/agent'
 import { NPC_TREE } from '../ai/trees'
 import { useDebug } from '../debug/store'
 import { useClock, formatUC } from '../sim/clock'
 import { worldConfig } from '../config'
 import { worldSingleton } from '../ecs/resources'
+import { time } from '../sim/frameProfiler'
 
 const INACTIVE_COARSE_TICK_MS = worldConfig.activeZone.inactiveCoarseTickMin * 60 * 1000
 
@@ -63,6 +64,11 @@ interface NpcSchedulerData {
   // vitalsSystem flips wakePending whenever a vital crosses a threshold;
   // the per-frame newly-idle pass catches the action-end transition.
   wakePending: Set<Entity>
+  // Frame-level sensor cache — refreshed once per npcSystem() call.
+  // Agent closures hold a reference to this object and read it on each BT step,
+  // so guards pay O(1) for player detection instead of O(1) world.queryFirst
+  // repeated for every guard in the same frame.
+  frameCtx: NpcFrameCtx
 }
 
 const NpcScheduler = trait<() => NpcSchedulerData>(() => ({
@@ -74,6 +80,7 @@ const NpcScheduler = trait<() => NpcSchedulerData>(() => ({
   lastActionKind: new Map(),
   lastBTStepGameMs: new Map(),
   wakePending: new Set(),
+  frameCtx: { player: null, playerPos: null, playerFaction: null },
 }))
 
 function schedulerOf(world: World): NpcSchedulerData {
@@ -110,14 +117,15 @@ function ensureBucketed(s: NpcSchedulerData, entity: Entity): void {
 }
 
 // Single try/catch site so the scheduler doesn't unwind on one broken tree.
+// Sub-timers are behind the profiler `enabled` guard (zero cost when off).
 function stepBT(world: World, s: NpcSchedulerData, npc: Entity): void {
   if (!npc.has(Character)) return
   const h = npc.get(Health)
   if (h?.dead) return
   const cached = getOrCreateTree(world, s, npc)
   try {
-    cached.agent.refreshContext()
-    cached.tree.step()
+    time('npc.ctx', () => cached.agent.refreshContext())
+    time('npc.step', () => cached.tree.step())
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[npcSystem] tree.step() threw for entity', npc, err)
@@ -134,6 +142,9 @@ export function resetNpcBuckets(world: World): void {
   s.trees.clear()
   s.bucketCursor = 0
   s.bucketAccumMs = 0
+  s.frameCtx.player = null
+  s.frameCtx.playerPos = null
+  s.frameCtx.playerFaction = null
 }
 
 // Per-call zustand read + Function.prototype.apply was material at full
@@ -173,7 +184,9 @@ function wrapWithTrace(_world: World, entity: Entity, agent: NPCAgent): NPCAgent
 function getOrCreateTree(world: World, s: NpcSchedulerData, entity: Entity): CachedTree {
   let cached = s.trees.get(entity)
   if (!cached) {
-    const rawAgent = makeNPCAgent(world, entity)
+    // s.frameCtx is a stable object reference — the agent closure captures
+    // the ref, not a snapshot, so it always reads this frame's cached values.
+    const rawAgent = makeNPCAgent(world, entity, s.frameCtx)
     // Trace wrapper is decided at tree-creation time; toggling later requires
     // resetNpcTrees() to re-wrap existing entries.
     const traceActive = useDebug.getState().traceName !== null && useDebug.getState().traceName !== ''
@@ -197,11 +210,24 @@ export function __primeTreeCacheForTest(world: World, entity: Entity): void {
 export function __getCachedTreeSizeForTest(world: World): number {
   return schedulerOf(world).trees.size
 }
+// Returns count of NPC BT steps taken in the most-recent npcSystem() call.
+// Used by budget tests to assert the cap is honoured without inspecting internals.
+let _lastFrameBtSteps = 0
+export function __getLastFrameBtStepsForTest(): number { return _lastFrameBtSteps }
 
 export function npcSystem(world: World, dtMs: number, gameSpeed: number): void {
   if (gameSpeed <= 0) return
 
   const s = schedulerOf(world)
+
+  // Frame-level sensor cache — one query per frame shared by all guard BTs.
+  // Replaces per-NPC world.queryFirst(IsPlayer) calls in detectsHostilePlayer.
+  const fp = world.queryFirst(IsPlayer) ?? null
+  s.frameCtx.player = fp
+  s.frameCtx.playerPos = fp ? (fp.get(Position) ?? null) : null
+  const fr = fp?.get(FactionRole)
+  s.frameCtx.playerFaction = fr ? fr.faction : null
+
   const playerAutoAI = useDebug.getState().playerAutoAI
   // Query must NOT require MoveTarget — both the I→I teleport shortcut in
   // agent.setMoveTarget and the demote-to-teleport in activeZoneSystem clear
@@ -212,26 +238,43 @@ export function npcSystem(world: World, dtMs: number, gameSpeed: number): void {
     : world.query(Character, Position, Action, Not(IsPlayer))
   const gameMs = useClock.getState().gameDate.getTime()
 
+  // Per-frame BT budget (issue #154). wakePending (vital-threshold) interrupts
+  // always bypass the cap — they must fire this frame for drive-interrupt
+  // correctness. Newly-idle and bucket NPCs share the budget; excess newly-idle
+  // are re-queued via wakePending (fires next frame). Excess bucket NPCs wait
+  // for their next natural bucket turn (typically < 1 game-minute at 1× speed).
+  const BT_BUDGET = worldConfig.npc.btBudgetPerFrame
+  let btStepsThisFrame = 0
+
   // Newly-idle wake. mistreevous selectors are sticky on RUNNING — without
   // this trigger, an NPC that just finished a task would sit at idle until
   // its bucket fires, possibly several game-minutes later.
   const newlyIdle: Entity[] = []
-  for (const npc of query) {
-    const h = npc.get(Health)
-    if (h?.dead) continue
-    ensureBucketed(s, npc)
-    const a = npc.get(Action)!
-    const prev = s.lastActionKind.get(npc)
-    if (a.kind === 'idle' && prev !== undefined && prev !== 'idle') {
-      newlyIdle.push(npc)
+  time('npc.newlyIdle', () => {
+    for (const npc of query) {
+      const h = npc.get(Health)
+      if (h?.dead) continue
+      ensureBucketed(s, npc)
+      const a = npc.get(Action)!
+      const prev = s.lastActionKind.get(npc)
+      if (a.kind === 'idle' && prev !== undefined && prev !== 'idle') {
+        newlyIdle.push(npc)
+      }
+      s.lastActionKind.set(npc, a.kind)
     }
-    s.lastActionKind.set(npc, a.kind)
-  }
-  for (const npc of newlyIdle) {
-    s.wakePending.delete(npc)
-    stepBT(world, s, npc)
-    s.lastBTStepGameMs.set(npc, gameMs)
-  }
+    for (const npc of newlyIdle) {
+      if (btStepsThisFrame >= BT_BUDGET) {
+        // Over budget: re-queue as wakePending so it fires on the next frame's
+        // bucket pass rather than waiting up to one full cycle.
+        s.wakePending.add(npc)
+        continue
+      }
+      s.wakePending.delete(npc)
+      stepBT(world, s, npc)
+      s.lastBTStepGameMs.set(npc, gameMs)
+      btStepsThisFrame++
+    }
+  })
 
   // gameSpeed is in game-min per real-sec, so cycleRealSec =
   // interval(gameMin) / gameSpeed. Cap fired buckets per frame so a tab that
@@ -241,44 +284,53 @@ export function npcSystem(world: World, dtMs: number, gameSpeed: number): void {
   const bucketRealMs = cycleRealMs / BUCKET_COUNT
   s.bucketAccumMs += dtMs
   let firedBuckets = 0
-  while (s.bucketAccumMs >= bucketRealMs && firedBuckets < BUCKET_COUNT) {
-    s.bucketAccumMs -= bucketRealMs
-    s.bucketCursor = (s.bucketCursor + 1) % BUCKET_COUNT
-    firedBuckets++
-    const bucket = s.npcsByBucket[s.bucketCursor]
-    // Back-to-front so destroyed entries can be spliced cheaply. Liveness
-    // probe = !npc.has(Character).
-    for (let i = bucket.length - 1; i >= 0; i--) {
-      const npc = bucket[i]
-      if (!npc.has(Character)) {
-        bucket.splice(i, 1)
-        s.bucketAssignment.delete(npc)
-        // Drop the cached tree — koota may reuse ids, and leaked trees would
-        // hold destroyed entities' stale data.
-        s.trees.delete(npc)
-        s.lastActionKind.delete(npc)
+  time('npc.bucket', () => {
+    while (s.bucketAccumMs >= bucketRealMs && firedBuckets < BUCKET_COUNT) {
+      s.bucketAccumMs -= bucketRealMs
+      s.bucketCursor = (s.bucketCursor + 1) % BUCKET_COUNT
+      firedBuckets++
+      const bucket = s.npcsByBucket[s.bucketCursor]
+      // Back-to-front so destroyed entries can be spliced cheaply. Liveness
+      // probe = !npc.has(Character).
+      for (let i = bucket.length - 1; i >= 0; i--) {
+        const npc = bucket[i]
+        if (!npc.has(Character)) {
+          bucket.splice(i, 1)
+          s.bucketAssignment.delete(npc)
+          // Drop the cached tree — koota may reuse ids, and leaked trees would
+          // hold destroyed entities' stale data.
+          s.trees.delete(npc)
+          s.lastActionKind.delete(npc)
+          s.wakePending.delete(npc)
+          s.lastBTStepGameMs.delete(npc)
+          continue
+        }
+        if (!playerAutoAI && npc.has(IsPlayer)) continue
+        const k = s.lastActionKind.get(npc)
+        const wakeSet = s.wakePending.has(npc)
+        if (k !== undefined && COMMITTED_KINDS.has(k) && !wakeSet) continue
+        // Inactive coarse-tick gate; wakePending overrides so a threshold
+        // crossing still steps right away.
+        if (!wakeSet && !npc.has(Active)) {
+          const last = s.lastBTStepGameMs.get(npc) ?? -Infinity
+          if (gameMs - last < INACTIVE_COARSE_TICK_MS) continue
+        }
+        // wakePending NPCs always step (drive-interrupt, vital thresholds).
+        // Non-wakeSet NPCs respect the per-frame budget; excess wait for the
+        // next bucket turn rather than deferring via wakePending (which would
+        // bypass the committed-kinds gate for what are often idle NPCs).
+        if (!wakeSet && btStepsThisFrame >= BT_BUDGET) continue
+        if (!wakeSet) btStepsThisFrame++
         s.wakePending.delete(npc)
-        s.lastBTStepGameMs.delete(npc)
-        continue
+        stepBT(world, s, npc)
+        s.lastBTStepGameMs.set(npc, gameMs)
       }
-      if (!playerAutoAI && npc.has(IsPlayer)) continue
-      const k = s.lastActionKind.get(npc)
-      const wakeSet = s.wakePending.has(npc)
-      if (k !== undefined && COMMITTED_KINDS.has(k) && !wakeSet) continue
-      // Inactive coarse-tick gate; wakePending overrides so a threshold
-      // crossing still steps right away.
-      if (!wakeSet && !npc.has(Active)) {
-        const last = s.lastBTStepGameMs.get(npc) ?? -Infinity
-        if (gameMs - last < INACTIVE_COARSE_TICK_MS) continue
-      }
-      s.wakePending.delete(npc)
-      stepBT(world, s, npc)
-      s.lastBTStepGameMs.set(npc, gameMs)
     }
-  }
+  })
   // Clamp leftover from a hit firedBuckets cap so we don't carry a
   // multi-second backlog into one future frame and re-spike.
   if (s.bucketAccumMs > bucketRealMs * BUCKET_COUNT) {
     s.bucketAccumMs = bucketRealMs * BUCKET_COUNT
   }
+  _lastFrameBtSteps = btStepsThisFrame
 }

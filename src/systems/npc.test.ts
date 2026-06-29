@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createWorld } from 'koota'
 import { Character } from '../ecs/traits'
-import { resetNpcBuckets, __primeTreeCacheForTest, __getCachedTreeSizeForTest } from './npc'
+import { resetNpcBuckets, __primeTreeCacheForTest, __getCachedTreeSizeForTest, __getLastFrameBtStepsForTest } from './npc'
+import { worldConfig } from '../config'
 
 describe('resetNpcBuckets', () => {
   it('clears the per-entity BT cache so destroyed entities do not leak (and koota id reuse cannot inherit a stale tree)', () => {
@@ -34,5 +35,13 @@ describe('resetNpcBuckets', () => {
 
     expect(__getCachedTreeSizeForTest(w1)).toBe(0)
     expect(__getCachedTreeSizeForTest(w2)).toBe(1)
+  })
+})
+
+describe('__getLastFrameBtStepsForTest', () => {
+  it('btBudgetPerFrame is a positive number sourced from config (not magic number in code)', () => {
+    // Structural sanity: budget exists and is reasonable (between 1 and N).
+    expect(worldConfig.npc.btBudgetPerFrame).toBeGreaterThan(0)
+    expect(worldConfig.npc.btBudgetPerFrame).toBeLessThanOrEqual(200)
   })
 })

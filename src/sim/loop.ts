@@ -29,6 +29,7 @@ import { syncShipMarkers } from '../systems/shipMarkers'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
+import { time } from './frameProfiler'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
 const HP_DANGER = timeConfig.dangerThresholds.hp
@@ -113,8 +114,8 @@ function frame(now: number) {
       ? (dt / 1000) * sp / 60
       : (dt / 1000) * sp
 
-    movementSystem(world, minutesThisFrame)
-    npcSystem(world, dt, sp)
+    time('sim.movement', () => movementSystem(world, minutesThisFrame))
+    time('sim.npc', () => npcSystem(world, dt, sp))
     interactionSystem(world)
     talkSystem(world)
 

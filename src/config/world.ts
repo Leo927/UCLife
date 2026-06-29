@@ -32,6 +32,9 @@ export interface WorldConfig {
     reachabilityGateCellCap: number
     npcRepathBudgetPerFrame: number
   }
+  npc: {
+    btBudgetPerFrame: number
+  }
   activeZone: {
     activeRadiusTiles: number
     viewportBleedTiles: number
