@@ -10,7 +10,7 @@ import { worldConfig } from '../config'
 import { maxSceneTilesX, maxSceneTilesY } from '../data/scenes'
 import { getActiveSceneId, type SceneId } from '../ecs/world'
 import { isAffiliated } from './factionAccess'
-import { hpaFind, markHpaDirty, consumePortalDestCells } from './hpa'
+import { hpaFind, markHpaDirty, warmHpa, consumePortalDestCells } from './hpa'
 import { markTransitNavDirty } from './transitNav'
 
 const TILE = worldConfig.tilePx
@@ -229,6 +229,15 @@ export function getWallGrid(world: World): Uint8Array {
 // cross a locked door for the current requester.
 export function getDoorBlockedGrid(): Uint8Array {
   return blocked!
+}
+
+// Pre-build the wall grid, component grid, and HPA cluster graph for the
+// currently active scene. Call synchronously after scene activation or
+// procgen so the one-time build cost is paid during scene-load, not on
+// the player's first click. No-op when all caches are already current.
+export function warmPathfinding(world: World): void {
+  getActiveCacheRebuilt(world)
+  warmHpa(world)
 }
 
 // If the cell is blocked, BFS outward — lets endpoints inside a wall

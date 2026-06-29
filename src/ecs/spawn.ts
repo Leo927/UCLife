@@ -44,7 +44,7 @@ import { defaultShipName } from '../data/shipNaming'
 import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
-import { markPathfindingDirty } from '../systems/pathfinding'
+import { markPathfindingDirty, warmPathfinding } from '../systems/pathfinding'
 import { worldConfig, economyConfig, fleetConfig } from '../config'
 import {
   SeededRng, generateCells, maxHorizontalCells, maxVerticalCells,
@@ -1575,6 +1575,7 @@ export function setupWorld(opts: SetupWorldOpts = { skipDefaultPlayer: false }) 
   }
 
   setActiveSceneId(initialSceneId)
+  warmPathfinding(getWorld(initialSceneId))
 }
 
 // World-reset fans out to every registered SaveHandler via the

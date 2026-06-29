@@ -105,6 +105,13 @@ interface SceneHpa {
 // own walls + door layout). Map<SceneId, SceneHpa> is the canonical shape.
 const sceneHpa = new Map<SceneId, SceneHpa>()
 
+// Incremented each time buildClustersIfNeeded actually rebuilds the graph
+// (i.e. the dirty path is taken). Stays 0 on a cache hit. Exposed via the
+// __uclife__.hpaBuildCount debug handle so smoke tests can assert that the
+// pre-warm fires exactly once at scene-activation time and the first player
+// pathfind does not trigger a second rebuild.
+export let hpaBuildCount = 0
+
 function getSceneHpa(id: SceneId): SceneHpa {
   let h = sceneHpa.get(id)
   if (!h) {
@@ -120,6 +127,15 @@ export function markHpaDirty(sceneId?: SceneId): void {
   h.dirty = true
   h.clusters = []
   h.portalUnion = null
+}
+
+// Pre-build the cluster graph for the currently active scene. Call this
+// synchronously after scene activation / procgen to move the one-time
+// ~135 ms rebuild off the first player pathfind and onto the scene-load
+// frame where the player is not yet interacting. Only builds when dirty;
+// a no-op if the graph is already current.
+export function warmHpa(world: World): void {
+  buildClustersIfNeeded(world)
 }
 
 // Flip `enabled` on from devtools (`__uclife__.world` won't reach this; do
@@ -176,6 +192,7 @@ function clusterIdOfCell(cellIdx: number): number {
 function buildClustersIfNeeded(world: World): SceneHpa {
   const h = getSceneHpa(getActiveSceneId())
   if (!h.dirty && h.clusters.length > 0) return h
+  hpaBuildCount++
   const wall = getWallGrid(world)
   const clusters: Cluster[] = []
   for (let cy = 0; cy < CH; cy++) {

@@ -8,7 +8,7 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import { IsPlayer, Position, Door } from '../../ecs/traits'
 import { findPath } from '../../systems/pathfinding'
-import { hpaStats, resetHpaStats } from '../../systems/hpa'
+import { hpaStats, resetHpaStats, hpaBuildCount } from '../../systems/hpa'
 import { worldConfig } from '../../config'
 
 const TILE = worldConfig.tilePx
@@ -69,3 +69,9 @@ registerDebugHandle('pfDiagOpenProbe', () => {
   }
   return { found: false }
 })
+
+// Returns the number of times the HPA cluster graph has been (re)built
+// since module init. Smoke tests use this to verify pre-warm fires at
+// scene-activation time and the first pathfind does not trigger a second
+// build.
+registerDebugHandle('hpaBuildCount', () => hpaBuildCount)
