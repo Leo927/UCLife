@@ -100,6 +100,10 @@
   // fail (an apartment/room, with margin), larger ones fall through.
   pathfinding: {
     reachabilityGateCellCap: 8192,
+    // Max NPC findPath calls per movementSystem() invocation. The player always
+    // repaths regardless of this cap. NPCs beyond the cap are deferred one frame
+    // (they keep their MoveTarget and idle until the next tick gives them a slot).
+    npcRepathBudgetPerFrame: 8,
   },
 
   // Active-zone optimization. NPCs whose Position lies within the player's
