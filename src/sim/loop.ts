@@ -28,7 +28,7 @@ import { recruitmentSystem } from '../systems/recruitment'
 import { syncShipMarkers } from '../systems/shipMarkers'
 import { timeConfig } from '../config'
 import { useDebug } from '../debug/store'
-import { frameStats, recordStage } from './frameProfiler'
+import { frameStats, recordStage, time } from './frameProfiler'
 import { IsPlayer, Action, Vitals, Health, ShipBody, Conditions, type ActionKind } from '../ecs/traits'
 
 const VITAL_DANGER = timeConfig.dangerThresholds.vital
@@ -116,10 +116,10 @@ function frame(now: number) {
       ? (dt / 1000) * sp / 60
       : (dt / 1000) * sp
 
-    movementSystem(world, minutesThisFrame)
-    npcSystem(world, dt, sp)
-    interactionSystem(world)
-    talkSystem(world)
+    time('sim.movement', () => movementSystem(world, minutesThisFrame))
+    time('sim.npc', () => npcSystem(world, dt, sp))
+    time('sim.interaction', () => interactionSystem(world))
+    time('sim.talk', () => talkSystem(world))
 
     tickAccum += minutesThisFrame
     let ticks = 0
@@ -130,7 +130,7 @@ function frame(now: number) {
     // Expose the sub-minute remainder so visualization code (orbit positions)
     // can advance smoothly between integer-minute clock ticks.
     setPartialMinute(tickAccum)
-    if (ticks > 0) {
+    if (ticks > 0) time('sim.tick', () => {
       useClock.getState().advance(ticks)
       // A single tick can span midnight, so compare day numbers rather than
       // doing minute math.
@@ -200,7 +200,7 @@ function frame(now: number) {
       ambitionsSystem(world, useClock.getState().gameDate)
       activeZoneSystem(world, useClock.getState().gameDate.getTime())
       newsfeedSystem(world, useClock.getState().gameDate)
-    }
+    })
 
     const player = world.queryFirst(IsPlayer, Action)
     if (player) {

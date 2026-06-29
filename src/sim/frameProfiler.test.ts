@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   recordStage,
   markFrame,
+  time,
+  frameStats,
   getFrameStats,
   resetFrameStats,
 } from './frameProfiler'
@@ -62,6 +64,20 @@ describe('sim/frameProfiler — per-stage frame-time aggregation', () => {
     // After reset the next markFrame is a fresh first call → seeds no sample.
     markFrame(6000)
     expect(getFrameStats().stages.frame).toBeUndefined()
+  })
+
+  it('time() returns the callee result and records a sample only when enabled', () => {
+    frameStats.enabled = false
+    expect(time('work', () => 7)).toBe(7)
+    expect(getFrameStats().stages.work).toBeUndefined() // disabled → no sample
+
+    frameStats.enabled = true
+    try {
+      expect(time('work', () => 7)).toBe(7)
+      expect(getFrameStats().stages.work.count).toBe(1)
+    } finally {
+      frameStats.enabled = false
+    }
   })
 
   it('echoes the configured percentile and budget in the report header', () => {

@@ -63,6 +63,16 @@ export function markFrame(nowMs: number): void {
   lastFrameTs = nowMs
 }
 
+// Time a synchronous call under a named stage. No-op wrapper (just calls fn)
+// when disabled, so it's safe to leave in hot paths.
+export function time<T>(name: string, fn: () => T): T {
+  if (!frameStats.enabled) return fn()
+  const t0 = performance.now()
+  const r = fn()
+  recordStage(name, performance.now() - t0)
+  return r
+}
+
 function tailOf(s: Stage): number {
   if (s.filled === 0) return 0
   const sorted = Array.from(s.ring.subarray(0, s.filled)).sort((a, b) => a - b)
