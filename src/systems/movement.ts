@@ -16,10 +16,18 @@ const NPC_REPATH_BUDGET = worldConfig.pathfinding.npcRepathBudgetPerFrame
 const BODY_RADIUS_PX = 9
 const MIN_GAP_PX = BODY_RADIUS_PX * 2
 
-// Per-frame repath budget counters. Toggle `enabled` from devtools or tests to
-// collect them; overhead is a single boolean check per entity per frame when off.
-// `lastXxx` fields are overwritten at the top of each movementSystem() call — they
-// always reflect the most-recent invocation's counts, never accumulate.
+// Repath budget counters. Toggle `enabled` via enableRepathStats() (debug handle).
+// Overhead is a single boolean check per entity per frame when disabled.
+//
+// Reset semantics (designed for test isolation):
+//   - `lastPlayerRepaths`    — cumulative since last enableRepathStats(true)
+//   - `lastNpcRepathsRun`    — peak per-frame NPC repath count since enable
+//                              (invariant: no single frame exceeded budgetK)
+//   - `lastNpcRepathsDeferred` — cumulative since last enableRepathStats(true)
+//
+// Call enableRepathStats(true) to reset all counters before a test window.
+// Do NOT reset inside movementSystem() — that would lose the player's repath
+// from the first frame when multiple frames elapse between enable and read.
 export const movementStats = {
   enabled: false,
   lastPlayerRepaths: 0,
@@ -29,11 +37,6 @@ export const movementStats = {
 
 export function movementSystem(world: World, gameMinutes: number) {
   const PROF = movementStats.enabled
-  if (PROF) {
-    movementStats.lastPlayerRepaths = 0
-    movementStats.lastNpcRepathsRun = 0
-    movementStats.lastNpcRepathsDeferred = 0
-  }
   let npcRepathsThisFrame = 0
 
   for (const entity of world.query(Position, MoveTarget, Action)) {
@@ -89,7 +92,9 @@ export function movementSystem(world: World, gameMinutes: number) {
           }
         } else {
           npcRepathsThisFrame++
-          if (PROF) movementStats.lastNpcRepathsRun++
+          if (PROF && npcRepathsThisFrame > movementStats.lastNpcRepathsRun) {
+            movementStats.lastNpcRepathsRun = npcRepathsThisFrame
+          }
         }
       }
     }

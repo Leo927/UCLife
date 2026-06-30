@@ -41,7 +41,10 @@ test('NPC repath budget caps per-frame pathfinds; player is never deferred', asy
   )
   expect(playerDriven, 'player should exist in the fixture scene').toBe(true)
 
-  // Advance one game minute — runs movementSystem() exactly once.
+  // Advance one game minute so deferred NPCs and the player both have time to
+  // repath. Stats accumulate since enableRepathStats(true) — playerRepaths is
+  // cumulative (expects 1), npcRepathsRun is the peak per-frame count (must
+  // not exceed budgetK), and npcRepathsDeferred is cumulative.
   await sim.stepFor(1)
 
   const stats: {

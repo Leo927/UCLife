@@ -13,6 +13,11 @@ const TILE = worldConfig.tilePx
 
 registerDebugHandle('enableRepathStats', (enabled: boolean): void => {
   movementStats.enabled = enabled
+  if (enabled) {
+    movementStats.lastPlayerRepaths = 0
+    movementStats.lastNpcRepathsRun = 0
+    movementStats.lastNpcRepathsDeferred = 0
+  }
 })
 
 // Returns the per-frame counts from the most-recent movementSystem() call, plus
