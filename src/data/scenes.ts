@@ -440,6 +440,18 @@ export function regionPoiAt(id: string, tileX: number, tileY: number): string | 
   return null
 }
 
+// The camera-region rect (tile-space) owned by `poiId`, or null when the scene
+// declares no region for it. Lets the fleet layer bound a hangar's boarding
+// bridge to its own region edge — a hidden interior region (the orbital
+// drydock) is nowhere near the scene envelope's edge, so a bridge anchored to
+// the scene edge would drop the boarding pad in the sealed void.
+export function regionRectForPoi(id: string, poiId: string): TileRect | null {
+  for (const region of getCameraRegions(id)) {
+    if (region.poiId === poiId) return region.rect
+  }
+  return null
+}
+
 // The surface (visible) and orbital (hidden) region poiIds of a scene, for the
 // starmap to draw the elevator line of a same-world lift between its two POIs.
 export function regionPoiIds(id: string): { visible: string | null; hidden: string | null } {

@@ -10,9 +10,10 @@
 // capital tonnage in orbit outside the building, so their gates flank
 // the building's west / east walls as external concourse booths and the
 // boarding pad sits at the far end of a walled boarding bridge that
-// extends from the booth out to the scene's edge. A door at the bridge
-// mouth gates passage — locked when the bound ship isn't player-owned,
-// open when it is.
+// extends from the booth out to the hangar region's outer edge (the drydock
+// hull ring — NOT the whole scene envelope; the drydock is a small hidden
+// region embedded deep in the city scene). A door at the bridge mouth gates
+// passage — locked when the bound ship isn't player-owned, open when it is.
 
 import type { World, Entity, TraitInstance } from 'koota'
 import {
@@ -27,7 +28,7 @@ import { getShipClass } from '../data/ship-classes'
 import type { HangarSlotClass, HangarTier } from '../data/facilityTypes'
 import { worldConfig, fleetConfig } from '../config'
 import type { FloorGateLayout, WallGateLayout, GateLayout } from '../config/fleet'
-import { getSceneConfig } from '../data/scenes'
+import { getSceneConfig, regionRectForPoi } from '../data/scenes'
 import { markPathfindingDirty } from './pathfinding'
 
 const TILE = worldConfig.tilePx
@@ -76,7 +77,7 @@ function wallSlots(
 ): MarkerSlot[] {
   // Anchor at the wall tile so the booth offsets place sign / kiosk on
   // the outside; the boarding pad lands at the far end of the bridge
-  // extending from the booth to the scene's edge.
+  // extending from the booth to the hangar region's outer edge.
   const anchorX = layout.side === 'w' ? building.x : building.x + building.w
   const slots: MarkerSlot[] = []
   for (const rowOffsetTiles of layout.rowOffsetsTiles) {
@@ -125,7 +126,7 @@ function gateNumberFor(slotClass: LaidOutSlotClass, indexInClass: number): strin
 // flank a 2*LANE_HALF tall lane (a 1-tile walkway with half-tile margins
 // that smallCraft corridors share with their neighbours). Door sits at
 // the corridor mouth (the booth side) and the boarding pad lands a half
-// tile in from the scene edge so the player can stand on it.
+// tile in from the hangar region's outer edge so the player can stand on it.
 interface BridgeGeometry {
   wallTop:    { x: number; y: number; w: number; h: number }
   wallBottom: { x: number; y: number; w: number; h: number }
@@ -133,12 +134,17 @@ interface BridgeGeometry {
   padCenter:  { x: number; y: number }
 }
 
+// `regionEdgeX` is the px x-coordinate of the hangar region's outer wall on
+// the gate's side — the drydock hull ring, not the whole scene envelope. The
+// drydock is a small hidden region embedded deep in the 800-tile city scene;
+// anchoring to the scene edge instead sends the bridge (and pad) hundreds of
+// tiles across the map into the sealed orbital void.
 function computeBridgeGeometry(
   slot: MarkerSlot,
   layout: WallGateLayout,
-  sceneTilesX: number,
+  regionEdgeX: number,
 ): BridgeGeometry {
-  const sceneEdgeX = layout.side === 'w' ? 0 : sceneTilesX * TILE
+  const sceneEdgeX = regionEdgeX
   const signX = slot.x + layout.signOffsetTiles.x * TILE
 
   let corridorStartX: number
@@ -194,6 +200,14 @@ function ensureGates(world: World, sceneId: string): void {
     // start their numbering at C1 / S1, kept distinct by the POI prefix.
     const poiId = hangar.poiId
 
+    // Boarding bridges anchor to this hangar's own region edge (the drydock
+    // hull ring), not the scene envelope. Fall back to the scene edge for a
+    // hangar whose region isn't declared (surface hangars use floor gates
+    // anyway, so no bridge geometry is computed for them).
+    const region = regionRectForPoi(sceneId, poiId)
+    const regionMinXpx = region ? region.x * TILE : 0
+    const regionMaxXpx = region ? (region.x + region.w) * TILE : sceneTilesX * TILE
+
     for (const slotClass of ['capital', 'smallCraft'] as LaidOutSlotClass[]) {
       const layout = tierLayout[slotClass]
       if (!layout) continue
@@ -234,12 +248,13 @@ function ensureGates(world: World, sceneId: string): void {
           TemplateRef({ id: 'gate-kiosk' }),
         )
 
-        // Boarding pad — sits at the far end of the bridge near the scene
-        // edge. The sync pass toggles its Interactable + ShipMarker +
+        // Boarding pad — sits at the far end of the bridge near the region's
+        // outer edge. The sync pass toggles its Interactable + ShipMarker +
         // visual template based on the bound ship's ownership. Vacant
         // gates carry no Interactable so the proximity scan ignores them.
         if (layout.placement === 'wall') {
-          const bridge = computeBridgeGeometry(slot, layout, sceneTilesX)
+          const regionEdgeX = layout.side === 'w' ? regionMinXpx : regionMaxXpx
+          const bridge = computeBridgeGeometry(slot, layout, regionEdgeX)
 
           world.spawn(
             Position({ x: bridge.padCenter.x, y: bridge.padCenter.y }),

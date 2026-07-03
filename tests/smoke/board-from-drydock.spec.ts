@@ -66,6 +66,25 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
   expect(pegasusPortal, 'expected a ShipMarker on the Pegasus board portal').toBeDefined()
   expect(pegasusPortal.interactableKind, 'owned ship board portal must be boardShip, not inspectShip').toBe('boardShip')
 
+  // 1b. The boarding pad must land INSIDE the walkable drydock region, not
+  //     off at the whole scene's outer edge. The drydock is a hidden interior
+  //     region of vonBraunCity; a bridge anchored to the scene edge drops the
+  //     pad in the sealed orbital void, unreachable and off-camera.
+  const regions = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.listCameraRegions('vonBraunCity'),
+  )
+  const drydockRegion = regions.find(
+    (r: { poiId: string | null }) => r.poiId === 'vonBraunDrydock',
+  )
+  expect(drydockRegion, 'expected a vonBraunDrydock camera region').toBeDefined()
+  const pad = pegasusPortal.posTile
+  const rect = drydockRegion.rect
+  expect(pad.x, 'boarding pad x must be inside the drydock region (west edge)').toBeGreaterThanOrEqual(rect.x)
+  expect(pad.x, 'boarding pad x must be inside the drydock region (east edge)').toBeLessThanOrEqual(rect.x + rect.w)
+  expect(pad.y, 'boarding pad y must be inside the drydock region (north edge)').toBeGreaterThanOrEqual(rect.y)
+  expect(pad.y, 'boarding pad y must be inside the drydock region (south edge)').toBeLessThanOrEqual(rect.y + rect.h)
+
   // 2. Boarding swaps flagship + scene.
   const boardResult = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -40,6 +40,7 @@ import {
   deriveHangarOccupancy,
 } from '../../systems/shipDelivery'
 import { poiIdForHangar } from '../../data/pois'
+import { getCameraRegions } from '../../data/scenes'
 import { getStat } from '../../stats/sheet'
 import { getShipClass } from '../../data/ship-classes'
 import { spawnNPC } from '../../character/spawn'
@@ -410,6 +411,17 @@ registerDebugHandle('listGates', (sceneId: string) => {
   return Array.from(seen.values()).sort(
     (a, b) => (a.poiId.localeCompare(b.poiId) || a.gateNumber.localeCompare(b.gateNumber)),
   )
+})
+
+// Camera regions (tile-space rects + poiId) declared by a scene. Smoke
+// uses this to assert a bound ship's boarding pad lands inside the walkable
+// drydock region rather than off at the scene's outer edge.
+registerDebugHandle('listCameraRegions', (sceneId: string) => {
+  return getCameraRegions(sceneId).map((r) => ({
+    poiId: r.poiId ?? null,
+    hidden: r.hidden ?? false,
+    rect: { x: r.rect.x, y: r.rect.y, w: r.rect.w, h: r.rect.h },
+  }))
 })
 
 // Phase 6.2.A — list ship markers currently mirrored into a scene's
