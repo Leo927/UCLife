@@ -404,10 +404,17 @@ function applyBoardPortal(
     if (board.has(ShipMarker)) board.remove(ShipMarker)
     if (board.has(TemplateRef)) board.remove(TemplateRef)
     if (door) {
+      // Idempotency guard: syncShipMarkers runs every tick, so an empty gate
+      // hits this path continuously. Only re-lock + invalidate pathfinding
+      // when the door isn't already locked — otherwise every idle gate
+      // re-dirties the wall/component/HPA caches each tick, keeping them
+      // permanently dirty and making every repath pay a full rebuild.
       const d = door.get(Door)!
-      door.set(Door, { ...d, locked: true })
-      if (door.has(TemplateRef)) door.set(TemplateRef, { id: 'door-ship-locked' })
-      markPathfindingDirty()
+      if (!d.locked) {
+        door.set(Door, { ...d, locked: true })
+        if (door.has(TemplateRef)) door.set(TemplateRef, { id: 'door-ship-locked' })
+        markPathfindingDirty()
+      }
     }
     return
   }

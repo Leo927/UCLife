@@ -7,7 +7,7 @@ import type { Entity } from 'koota'
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import { IsPlayer, Position, Door } from '../../ecs/traits'
-import { findPath } from '../../systems/pathfinding'
+import { findPath, pfCacheStats, resetPfCacheStats } from '../../systems/pathfinding'
 import { hpaStats, resetHpaStats, clusterBuildCount, resetClusterBuildCount } from '../../systems/hpa'
 import { worldConfig } from '../../config'
 
@@ -30,6 +30,23 @@ function probe(player: Entity, from: { x: number; y: number }, target: { x: numb
 
 registerDebugHandle('getClusterBuildCount', () => clusterBuildCount)
 registerDebugHandle('resetClusterBuildCount', () => { resetClusterBuildCount() })
+
+// Pathfinding wall/component cache-rebuild profiler. enablePfCacheStats(true)
+// resets + starts counting; pfCacheStats() reads the tallies. Drives the
+// pathfinding-cache-warm regression gate, which asserts the O(COLS*ROWS)
+// component flood-fill does NOT fire during steady-state gameplay (a dirty-mark
+// mid-gameplay makes the next findPath pay it — the walk-lag stutter).
+registerDebugHandle('enablePfCacheStats', (enabled: boolean): void => {
+  pfCacheStats.enabled = enabled
+  if (enabled) resetPfCacheStats()
+})
+registerDebugHandle('pfCacheStats', () => ({
+  wallRebuilds: pfCacheStats.wallRebuilds,
+  wallMs: pfCacheStats.wallMs,
+  compRebuilds: pfCacheStats.compRebuilds,
+  compMs: pfCacheStats.compMs,
+  dirtyMarks: pfCacheStats.dirtyMarks,
+}))
 
 registerDebugHandle('pfDiagSealedProbe', () => {
   const player = world.queryFirst(IsPlayer, Position)

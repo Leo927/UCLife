@@ -37,6 +37,29 @@ interface SceneCache {
 // geometry per scene); the static caches must not be shared across scenes.
 const sceneCaches = new Map<SceneId, SceneCache>()
 
+// Cache-rebuild profiler. Off by default (single boolean check when disabled).
+// rebuildComponents floods ~COLS*ROWS cells (millions on the big scene), so a
+// dirty-mark that lands mid-gameplay makes the next findPath pay a multi-ms
+// spike. Counters count how often that happens during a play window; read via
+// the `pfCacheStats` debug handle (see the pathfinding-cache-warm regression
+// gate). Mirrors hpaStats / movementStats.
+export const pfCacheStats = {
+  enabled: false,
+  wallRebuilds: 0,
+  wallMs: 0,
+  compRebuilds: 0,
+  compMs: 0,
+  dirtyMarks: 0,
+}
+
+export function resetPfCacheStats(): void {
+  pfCacheStats.wallRebuilds = 0
+  pfCacheStats.wallMs = 0
+  pfCacheStats.compRebuilds = 0
+  pfCacheStats.compMs = 0
+  pfCacheStats.dirtyMarks = 0
+}
+
 function getSceneCache(id: SceneId): SceneCache {
   let c = sceneCaches.get(id)
   if (!c) {
@@ -62,6 +85,7 @@ export function markPathfindingDirty(sceneId?: SceneId) {
   sc.componentsDirty = true
   markHpaDirty(id)
   markTransitNavDirty(id)
+  if (pfCacheStats.enabled) pfCacheStats.dirtyMarks++
 }
 
 // Pre-warm the active scene's wall grid, component grid, and HPA* cluster
@@ -87,6 +111,7 @@ function blockRect(g: Uint8Array, x: number, y: number, w: number, h: number) {
 }
 
 function rebuildWalls(world: World, sc: SceneCache): void {
+  const t0 = pfCacheStats.enabled ? performance.now() : 0
   const g = sc.wallGrid ?? new Uint8Array(COLS * ROWS)
   // Reuse the existing buffer to avoid churning ~1.7 MB per procgen pass.
   if (sc.wallGrid) g.fill(0)
@@ -98,9 +123,11 @@ function rebuildWalls(world: World, sc: SceneCache): void {
   sc.wallGrid = g
   sc.wallsDirty = false
   sc.componentsDirty = true
+  if (pfCacheStats.enabled) { pfCacheStats.wallRebuilds++; pfCacheStats.wallMs += performance.now() - t0 }
 }
 
 function rebuildComponents(sc: SceneCache): void {
+  const t0 = pfCacheStats.enabled ? performance.now() : 0
   if (!sc.wallGrid) throw new Error('rebuildComponents: wallGrid not initialized')
   const wallGrid = sc.wallGrid
   const N = wallGrid.length
@@ -131,6 +158,7 @@ function rebuildComponents(sc: SceneCache): void {
   }
   sc.componentGrid = c
   sc.componentsDirty = false
+  if (pfCacheStats.enabled) { pfCacheStats.compRebuilds++; pfCacheStats.compMs += performance.now() - t0 }
 }
 
 function getActiveCacheRebuilt(world: World): SceneCache {
