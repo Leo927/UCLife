@@ -50,3 +50,4 @@ import './skillPerks'       // Issue #142 — milestone/pick/respec state + unlo
 import './pfDiag'           // click-to-navigate pathfinding probes (reachability gate)
 import './movement'         // repath-budget stats + burst helper (issue #152)
 import './frameProf'        // frame-time profiler: per-stage ms/frame (sim / snapshot / pixiUpdate / interval)
+import './render'           // ground-renderer profiler: per-layer visible node counts + update ms

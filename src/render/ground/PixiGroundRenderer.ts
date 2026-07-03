@@ -82,10 +82,16 @@ const ROUGH_HAZARD_TEXT: Record<'tap' | 'scavenge' | 'rough', string> = {
 
 // ── Persistent node shapes ─────────────────────────────────────────
 
-interface RoadNode { rect: Graphics }
-interface BuildingNode { root: Container; rect: Graphics; label: Text }
-interface WallNode { rect: Graphics }
-interface DoorNode { rect: Graphics }
+// `sig` is the serialized geometry-determining state last drawn into the
+// node's Graphics. Static city geometry (roads/walls/doors/buildings) never
+// changes between frames, so redrawing it every frame forced Pixi to
+// re-tessellate + re-upload all of it continuously (buildLine/toStrokeStyle/
+// packAttributes dominated the frame in the dense city). We now redraw only
+// when `sig` changes, letting Pixi keep the cached geometry.
+interface RoadNode { rect: Graphics; sig: string }
+interface BuildingNode { root: Container; rect: Graphics; label: Text; sig: string }
+interface WallNode { rect: Graphics; sig: string }
+interface DoorNode { rect: Graphics; sig: string }
 interface BedNode {
   root: Container
   body: Graphics
@@ -175,6 +181,10 @@ export const groundStats = {
   interactableNodes: 0,
   npcNodes: 0,
   spriteLoadsPending: 0,
+  // Count of static-geometry (road/wall/door/building) Graphics re-tessellations.
+  // Static city geometry is drawn once and cached; while the camera is
+  // stationary this must not increment (guards the per-frame-redraw regression).
+  staticRedraws: 0,
 }
 
 // Phase 4.2 — module-scope mirror of currently-emoting symptomatic
@@ -197,6 +207,7 @@ export function resetGroundStats(): void {
   groundStats.interactableNodes = 0
   groundStats.npcNodes = 0
   groundStats.spriteLoadsPending = 0
+  groundStats.staticRedraws = 0
 }
 
 // ── Renderer ───────────────────────────────────────────────────────
@@ -230,6 +241,12 @@ export class PixiGroundRenderer {
   private emoteStates = new Map<Entity, EmoteState>()
 
   private spriteLoadCounter = 0
+
+  // Static-layer redraw guards: background + grid only change when the world
+  // envelope changes (never during normal play), so we draw them once and let
+  // Pixi cache the geometry instead of re-tessellating every frame.
+  private bgSig = ''
+  private gridSig = ''
 
   // Stash dispatchers so per-node listeners can read the latest version
   // (Pixi listeners are attached once at node creation).
@@ -341,41 +358,33 @@ export class PixiGroundRenderer {
   }
 
   private syncBackground(worldW: number, worldH: number): void {
-    // Static; redraw only when world dims change. Cheap enough to clear+redraw
-    // each frame, keeping the renderer stateless wrt envelope changes.
+    const sig = `${worldW}x${worldH}`
+    if (this.bgSig === sig) return
+    this.bgSig = sig
     this.background.clear()
       .rect(0, 0, worldW, worldH)
       .fill(0x0a0a0d)
   }
 
   private syncGrid(snap: GroundSnapshot): void {
-    // Viewport-clipped grid lines.
+    // The grid spans the full static world envelope and is scrolled by the
+    // viewport container transform, so it only needs redrawing when the world
+    // dims change — not every frame as the camera pans. Drawn once, then cached
+    // by Pixi (was a per-frame clear+re-tessellate of every visible line, a
+    // dominant cost while walking the dense city).
     const TILE = snap.tilePx
-    const PAD = 2 * TILE
-    const vx0 = snap.camX - PAD
-    const vy0 = snap.camY - PAD
-    const vx1 = snap.camX + snap.canvasW + PAD
-    const vy1 = snap.camY + snap.canvasH + PAD
+    const sig = `${snap.worldW}x${snap.worldH}@${TILE}`
+    if (this.gridSig === sig) return
+    this.gridSig = sig
 
     const cols = snap.worldW / TILE
     const rows = snap.worldH / TILE
-    const gridColStart = Math.max(0, Math.floor(vx0 / TILE))
-    const gridColEnd = Math.min(cols, Math.ceil(vx1 / TILE))
-    const gridRowStart = Math.max(0, Math.floor(vy0 / TILE))
-    const gridRowEnd = Math.min(rows, Math.ceil(vy1 / TILE))
-
     this.gridLayer.clear()
-    // Horizontal lines.
-    for (let r = gridRowStart; r <= gridRowEnd; r++) {
-      this.gridLayer
-        .moveTo(0, r * TILE)
-        .lineTo(snap.worldW, r * TILE)
+    for (let r = 0; r <= rows; r++) {
+      this.gridLayer.moveTo(0, r * TILE).lineTo(snap.worldW, r * TILE)
     }
-    // Vertical lines.
-    for (let c = gridColStart; c <= gridColEnd; c++) {
-      this.gridLayer
-        .moveTo(c * TILE, 0)
-        .lineTo(c * TILE, snap.worldH)
+    for (let c = 0; c <= cols; c++) {
+      this.gridLayer.moveTo(c * TILE, 0).lineTo(c * TILE, snap.worldH)
     }
     this.gridLayer.stroke({ color: 0x1c1c22, width: 1 })
   }
@@ -389,12 +398,17 @@ export class PixiGroundRenderer {
         const rect = new Graphics()
         rect.eventMode = 'none'
         this.roadLayer.addChild(rect)
-        node = { rect }
+        node = { rect, sig: '' }
         this.roadNodes.set(r.ent, node)
       }
-      node.rect.clear()
-        .rect(r.x, r.y, r.w, r.h)
-        .fill(ROAD_FILL[r.kind])
+      const sig = `${r.x},${r.y},${r.w},${r.h},${r.kind}`
+      if (node.sig !== sig) {
+        node.rect.clear()
+          .rect(r.x, r.y, r.w, r.h)
+          .fill(ROAD_FILL[r.kind])
+        node.sig = sig
+        groundStats.staticRedraws++
+      }
     }
     for (const [ent, node] of this.roadNodes) {
       if (!seen.has(ent)) {
@@ -420,17 +434,22 @@ export class PixiGroundRenderer {
         root.addChild(rect)
         root.addChild(label)
         this.buildingLayer.addChild(root)
-        node = { root, rect, label }
+        node = { root, rect, label, sig: '' }
         this.buildingNodes.set(b.ent, node)
       }
-      // Dashed-outline rect with low-alpha fill, mirroring Konva BuildingMark.
-      node.rect.clear()
-        .rect(b.x, b.y, b.w, b.h)
-        .fill({ color: b.visual.fill, alpha: 0.18 })
-      drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, b.visual.stroke, 1)
-      if (node.label.text !== b.label) node.label.text = b.label
-      node.label.x = b.x + 8
-      node.label.y = b.y + 6
+      const sig = `${b.x},${b.y},${b.w},${b.h},${b.visual.fill},${b.visual.stroke},${b.label}`
+      if (node.sig !== sig) {
+        // Dashed-outline rect with low-alpha fill, mirroring Konva BuildingMark.
+        node.rect.clear()
+          .rect(b.x, b.y, b.w, b.h)
+          .fill({ color: b.visual.fill, alpha: 0.18 })
+        drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, b.visual.stroke, 1)
+        if (node.label.text !== b.label) node.label.text = b.label
+        node.label.x = b.x + 8
+        node.label.y = b.y + 6
+        node.sig = sig
+        groundStats.staticRedraws++
+      }
     }
     for (const [ent, node] of this.buildingNodes) {
       if (!seen.has(ent)) {
@@ -449,13 +468,18 @@ export class PixiGroundRenderer {
         const rect = new Graphics()
         rect.eventMode = 'none'
         this.wallLayer.addChild(rect)
-        node = { rect }
+        node = { rect, sig: '' }
         this.wallNodes.set(w.ent, node)
       }
-      node.rect.clear()
-        .rect(w.x, w.y, w.w, w.h)
-        .fill(w.visual.fill)
-        .stroke({ color: w.visual.stroke, width: 1 })
+      const sig = `${w.x},${w.y},${w.w},${w.h},${w.visual.fill},${w.visual.stroke}`
+      if (node.sig !== sig) {
+        node.rect.clear()
+          .rect(w.x, w.y, w.w, w.h)
+          .fill(w.visual.fill)
+          .stroke({ color: w.visual.stroke, width: 1 })
+        node.sig = sig
+        groundStats.staticRedraws++
+      }
     }
     for (const [ent, node] of this.wallNodes) {
       if (!seen.has(ent)) {
@@ -474,13 +498,20 @@ export class PixiGroundRenderer {
         const rect = new Graphics()
         rect.eventMode = 'none'
         this.doorLayer.addChild(rect)
-        node = { rect }
+        node = { rect, sig: '' }
         this.doorNodes.set(d.ent, node)
       }
-      node.rect.clear()
-        .rect(d.x, d.y, d.w, d.h)
-        .fill(d.visual.fill)
-      drawDashedRect(node.rect, d.x, d.y, d.w, d.h, 3, 2, d.visual.stroke, 1)
+      // variant + visual capture lock/faction/bed-keyed state, which changes
+      // when a ship docks/undocks — so a door still redraws on those events.
+      const sig = `${d.x},${d.y},${d.w},${d.h},${d.variant},${d.visual.fill},${d.visual.stroke}`
+      if (node.sig !== sig) {
+        node.rect.clear()
+          .rect(d.x, d.y, d.w, d.h)
+          .fill(d.visual.fill)
+        drawDashedRect(node.rect, d.x, d.y, d.w, d.h, 3, 2, d.visual.stroke, 1)
+        node.sig = sig
+        groundStats.staticRedraws++
+      }
     }
     for (const [ent, node] of this.doorNodes) {
       if (!seen.has(ent)) {
