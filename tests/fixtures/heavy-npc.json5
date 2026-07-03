@@ -1,0 +1,41 @@
+// Perf-gate fixture — 20 named NPCs in vonBraunCity for worst-case N
+// pathfinding burst tests (#152 repath budget, #153 HPA* pre-warm).
+// All positions are on the open walkable plain west of the procgen rect
+// (x<40), clear of the diplomatic-slot buildings (x>=22). This makes the
+// fixture seeded-deterministic: no procedural-NPC fishing.
+{
+  seed: 'perf-gate-heavy-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 10000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+
+  npcs: [
+    // Row 1: y=14, x=22..38 step 2 — 9 NPCs
+    { id: 'pnpc-00', name: 'Perf NPC 00', at: { scene: 'vonBraunCity', x: 22, y: 14 } },
+    { id: 'pnpc-01', name: 'Perf NPC 01', at: { scene: 'vonBraunCity', x: 24, y: 14 } },
+    { id: 'pnpc-02', name: 'Perf NPC 02', at: { scene: 'vonBraunCity', x: 26, y: 14 } },
+    { id: 'pnpc-03', name: 'Perf NPC 03', at: { scene: 'vonBraunCity', x: 28, y: 14 } },
+    { id: 'pnpc-04', name: 'Perf NPC 04', at: { scene: 'vonBraunCity', x: 30, y: 14 } },
+    { id: 'pnpc-05', name: 'Perf NPC 05', at: { scene: 'vonBraunCity', x: 32, y: 14 } },
+    { id: 'pnpc-06', name: 'Perf NPC 06', at: { scene: 'vonBraunCity', x: 34, y: 14 } },
+    { id: 'pnpc-07', name: 'Perf NPC 07', at: { scene: 'vonBraunCity', x: 36, y: 14 } },
+    { id: 'pnpc-08', name: 'Perf NPC 08', at: { scene: 'vonBraunCity', x: 38, y: 14 } },
+    // Row 2: y=18, x=22..38 step 2 — 9 NPCs
+    { id: 'pnpc-09', name: 'Perf NPC 09', at: { scene: 'vonBraunCity', x: 22, y: 18 } },
+    { id: 'pnpc-10', name: 'Perf NPC 10', at: { scene: 'vonBraunCity', x: 24, y: 18 } },
+    { id: 'pnpc-11', name: 'Perf NPC 11', at: { scene: 'vonBraunCity', x: 26, y: 18 } },
+    { id: 'pnpc-12', name: 'Perf NPC 12', at: { scene: 'vonBraunCity', x: 28, y: 18 } },
+    { id: 'pnpc-13', name: 'Perf NPC 13', at: { scene: 'vonBraunCity', x: 30, y: 18 } },
+    { id: 'pnpc-14', name: 'Perf NPC 14', at: { scene: 'vonBraunCity', x: 32, y: 18 } },
+    { id: 'pnpc-15', name: 'Perf NPC 15', at: { scene: 'vonBraunCity', x: 34, y: 18 } },
+    { id: 'pnpc-16', name: 'Perf NPC 16', at: { scene: 'vonBraunCity', x: 36, y: 18 } },
+    { id: 'pnpc-17', name: 'Perf NPC 17', at: { scene: 'vonBraunCity', x: 38, y: 18 } },
+    // Row 3: y=22, x=22..24 step 2 — 2 NPCs (total: 20)
+    { id: 'pnpc-18', name: 'Perf NPC 18', at: { scene: 'vonBraunCity', x: 22, y: 22 } },
+    { id: 'pnpc-19', name: 'Perf NPC 19', at: { scene: 'vonBraunCity', x: 24, y: 22 } },
+  ],
+}
