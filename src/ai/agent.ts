@@ -1,7 +1,7 @@
 import type { Entity, TraitInstance, World } from 'koota'
 import { State } from 'mistreevous'
 import type { Agent, ActionResult } from 'mistreevous/dist/Agent'
-import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard, IsPlayer, FactionRole } from '../ecs/traits'
+import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard } from '../ecs/traits'
 import { isPointInActiveZone } from '../systems/activeZone'
 import type { ActionKind, RoughKind } from '../ecs/traits'
 import { tierOf } from '../systems/relations'
@@ -29,6 +29,14 @@ import {
 import { aiConfig, economyConfig, worldConfig, actionsConfig } from '../config'
 import { feedUse } from '../systems/attributes'
 import { useDebug } from '../debug/store'
+
+// Frame-level sensor cache populated once per npcSystem() call. Avoids
+// per-NPC world.queryFirst(IsPlayer) + trait reads for the guard branch.
+export interface NpcFrameCtx {
+  player: Entity | null
+  playerPos: { x: number; y: number } | null
+  playerFaction: string | null
+}
 
 const ARRIVE_DIST = worldConfig.ranges.npcArrive
 const COUNTER_DIST = worldConfig.ranges.npcCounter
@@ -112,7 +120,9 @@ export type NPCAgent = Agent & {
   wander: () => ActionResult
 }
 
-export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
+const NULL_FRAME_CTX: NpcFrameCtx = { player: null, playerPos: null, playerFaction: null }
+
+export function makeNPCAgent(world: World, entity: Entity, frameCtx: NpcFrameCtx = NULL_FRAME_CTX): NPCAgent {
   // Stays `undefined` for traits the entity hasn't been given yet (e.g. a
   // freshly-spawned immigrant before setupWorld stamps Vitals); each condition
   // guards its own access. Actions skip ctx since they may run for many ticks
@@ -227,12 +237,9 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
 
   // Phase 7.0.E.4 — the player in this world (guards only run in micro scenes
   // that contain the player), and the player's faction alignment. Neutral
-  // (no FactionRole) reads as null and is never hostile.
-  const findPlayerHere = (): Entity | null => world.queryFirst(IsPlayer) ?? null
-  const playerAlignmentOf = (player: Entity): string | null => {
-    const fr = player.get(FactionRole)
-    return fr ? fr.faction : null
-  }
+  // (no FactionRole) reads as null and is never hostile. Both values are
+  // frame-cached in NpcFrameCtx to avoid per-guard world.queryFirst() calls.
+  const findPlayerHere = (): Entity | null => frameCtx.player
 
   return {
     refreshContext,
@@ -244,13 +251,12 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
     // Detection: the player is inside the guard's restricted rect AND within
     // detectRadiusPx of the guard AND aligned with a faction the guard faction
     // is hostile to. Reads the rect/radius/faction off the Guard trait so the
-    // BT never reaches into the systems layer.
+    // BT never reaches into the systems layer. Uses frame-cached player data
+    // to avoid per-guard entity queries.
     detectsHostilePlayer() {
       const g = entity.get(Guard)
       if (!g) return false
-      const player = findPlayerHere()
-      if (!player) return false
-      const pp = player.get(Position)
+      const pp = frameCtx.playerPos
       if (!pp) return false
       const tile = worldConfig.tilePx
       const inRect =
@@ -260,7 +266,7 @@ export function makeNPCAgent(world: World, entity: Entity): NPCAgent {
       const gp = entity.get(Position)
       if (!gp) return false
       if (Math.hypot(gp.x - pp.x, gp.y - pp.y) > g.detectRadiusPx) return false
-      return isHostile(g.faction, playerAlignmentOf(player), diplomacySlotsConfig.enmity)
+      return isHostile(g.faction, frameCtx.playerFaction, diplomacySlotsConfig.enmity)
     },
 
     // Eject: set the player's MoveTarget to the slot exit (player movement is

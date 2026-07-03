@@ -100,6 +100,25 @@
   // fail (an apartment/room, with margin), larger ones fall through.
   pathfinding: {
     reachabilityGateCellCap: 8192,
+    // Max NPC findPath calls per movementSystem() invocation. The player always
+    // repaths regardless of this cap. NPCs beyond the cap are deferred one frame
+    // (they keep their MoveTarget and idle until the next tick gives them a slot).
+    npcRepathBudgetPerFrame: 8,
+  },
+
+  // Per-frame NPC behavior-tree evaluation budget (issue #154). Caps how many
+  // NPC BT steps can run in a single real frame — spreads spike load across
+  // subsequent frames rather than locking the main thread on tab-return or a
+  // simultaneous shift-end. wakePending (vital-threshold) interrupts always
+  // bypass this cap and fire immediately. Deferred newly-idle NPCs are re-queued
+  // via wakePending so they step on the next frame; deferred bucket NPCs wait for
+  // their next bucket turn (typically within 1 game-minute at 1× speed).
+  //
+  // N = realistic upper bound from scenes.json5 replenishments targets (≈ 42).
+  // Budget: sim.npc p99 < 16.7 ms at N. Complexity: O(budget) BT steps/frame,
+  // each step O(1) sensor reads (cache hits) — stays under budget regardless of N.
+  npc: {
+    btBudgetPerFrame: 12,
   },
 
   // Active-zone optimization. NPCs whose Position lies within the player's

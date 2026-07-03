@@ -30,6 +30,10 @@ export interface WorldConfig {
   }
   pathfinding: {
     reachabilityGateCellCap: number
+    npcRepathBudgetPerFrame: number
+  }
+  npc: {
+    btBudgetPerFrame: number
   }
   activeZone: {
     activeRadiusTiles: number

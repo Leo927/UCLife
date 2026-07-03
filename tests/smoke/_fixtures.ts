@@ -46,6 +46,19 @@ export function isKnownPixiBatcherStartup(text: string): boolean {
   return /Cannot read properties of null \(reading 'clear'\)/.test(text)
 }
 
+/**
+ * Known Pixi v8 renderer teardown race: the auto-render ticker fires one last
+ * rAF after Application.destroy() nulls the renderer, so `renderer._resolution`
+ * throws. PixiCanvas.tsx calls stop() + destroy() in cleanup, but the already-
+ * queued rAF can still land before stop() cancels it. Harmless — the canvas is
+ * already torn down. Tests that trigger scene transitions (boardShip, takeHelm,
+ * leaveHelm) may encounter this; allowlist via
+ * `sim.allowConsoleError(isKnownPixiResolutionTeardown)`.
+ */
+export function isKnownPixiResolutionTeardown(text: string): boolean {
+  return /Cannot read properties of null \(reading '_resolution'\)/.test(text)
+}
+
 export type BootOptions = {
   /** Name of a fixture under `tests/fixtures/*.json5`. */
   fixture?: string

@@ -12,7 +12,7 @@ import {
   Ship, EntityKey, Owner, IsFlagshipMark, IsInActiveFleet,
 } from '../ecs/traits'
 import { migratePlayerEntity } from '../character/migrate'
-import { markPathfindingDirty } from '../systems/pathfinding'
+import { markPathfindingDirty, warmPathfinding } from '../systems/pathfinding'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
 import { getShipClass, type ShipClassDef } from '../data/ship-classes'
 import { seedShipSceneLayout, tearDownShipSceneLayout } from '../ecs/spawn'
@@ -33,6 +33,7 @@ export const useScene = create<SceneState>((set) => ({
   setActive: (id) => {
     setActiveSceneId(id)
     markPathfindingDirty()
+    warmPathfinding(getWorld(id))
     set((s) => ({ activeId: id, swapNonce: s.swapNonce + 1 }))
   },
 }))

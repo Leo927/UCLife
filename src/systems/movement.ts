@@ -10,12 +10,35 @@ import { getStat } from '../stats/sheet'
 const PX_PER_GAME_MIN = worldConfig.movePxPerGameMin
 const ARRIVE_EPS = worldConfig.arriveEpsPx
 const WAYPOINT_EPS = worldConfig.waypointEpsPx
+const NPC_REPATH_BUDGET = worldConfig.pathfinding.npcRepathBudgetPerFrame
 
 // Matches the circle radius drawn in render/Game.tsx so collisions read visually.
 const BODY_RADIUS_PX = 9
 const MIN_GAP_PX = BODY_RADIUS_PX * 2
 
+// Repath budget counters. Toggle `enabled` via enableRepathStats() (debug handle).
+// Overhead is a single boolean check per entity per frame when disabled.
+//
+// Reset semantics (designed for test isolation):
+//   - `lastPlayerRepaths`    — cumulative since last enableRepathStats(true)
+//   - `lastNpcRepathsRun`    — peak per-frame NPC repath count since enable
+//                              (invariant: no single frame exceeded budgetK)
+//   - `lastNpcRepathsDeferred` — cumulative since last enableRepathStats(true)
+//
+// Call enableRepathStats(true) to reset all counters before a test window.
+// Do NOT reset inside movementSystem() — that would lose the player's repath
+// from the first frame when multiple frames elapse between enable and read.
+export const movementStats = {
+  enabled: false,
+  lastPlayerRepaths: 0,
+  lastNpcRepathsRun: 0,
+  lastNpcRepathsDeferred: 0,
+}
+
 export function movementSystem(world: World, gameMinutes: number) {
+  const PROF = movementStats.enabled
+  let npcRepathsThisFrame = 0
+
   for (const entity of world.query(Position, MoveTarget, Action)) {
     const pos = entity.get(Position)!
     const target = entity.get(MoveTarget)!
@@ -40,19 +63,38 @@ export function movementSystem(world: World, gameMinutes: number) {
       continue
     }
 
+    const isPlayer = entity.has(IsPlayer)
     let path = entity.get(Path)
     if (!path || path.targetX !== target.x || path.targetY !== target.y) {
-      const wps = findPath(world, entity, pos, target)
-      const next = { waypoints: wps, index: 0, targetX: target.x, targetY: target.y }
-      if (entity.has(Path)) entity.set(Path, next)
-      else entity.add(Path(next))
-      path = next
-      // If the player can't path AND the only blocker is a faction gate,
-      // surface a toast. Only fires on freshly-recomputed empty paths.
-      if (wps.length === 0 && entity.has(IsPlayer)) {
-        const wpsNoFaction = findPath(world, null, pos, target)
-        if (wpsNoFaction.length > 0) {
-          emitSim('toast', { textZh: '需要亚纳海姆电子员工身份' })
+      if (!isPlayer && npcRepathsThisFrame >= NPC_REPATH_BUDGET) {
+        // NPC repath budget exhausted — defer one frame.
+        // The player always bypasses this gate (full click responsiveness).
+        // Deferred NPCs with no path idle this frame; those with a stale path
+        // walk along it one more frame before retrying next tick.
+        if (PROF) movementStats.lastNpcRepathsDeferred++
+        if (!path) continue
+        // stale path: fall through and follow old waypoints one more frame
+      } else {
+        const wps = findPath(world, entity, pos, target)
+        const next = { waypoints: wps, index: 0, targetX: target.x, targetY: target.y }
+        if (entity.has(Path)) entity.set(Path, next)
+        else entity.add(Path(next))
+        path = next
+        if (isPlayer) {
+          if (PROF) movementStats.lastPlayerRepaths++
+          // If the player can't path AND the only blocker is a faction gate,
+          // surface a toast. Only fires on freshly-recomputed empty paths.
+          if (wps.length === 0) {
+            const wpsNoFaction = findPath(world, null, pos, target)
+            if (wpsNoFaction.length > 0) {
+              emitSim('toast', { textZh: '需要亚纳海姆电子员工身份' })
+            }
+          }
+        } else {
+          npcRepathsThisFrame++
+          if (PROF && npcRepathsThisFrame > movementStats.lastNpcRepathsRun) {
+            movementStats.lastNpcRepathsRun = npcRepathsThisFrame
+          }
         }
       }
     }

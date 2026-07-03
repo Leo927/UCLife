@@ -48,4 +48,5 @@ import './facilityTiers'    // Issue #141 — tier panel view + upgrade start + 
 import './psychology'       // Phase 5.3 — cause-event stance trigger + psyche inspection
 import './skillPerks'       // Issue #142 — milestone/pick/respec state + unlock flags + NPC action kind
 import './pfDiag'           // click-to-navigate pathfinding probes (reachability gate)
+import './movement'         // repath-budget stats + burst helper (issue #152)
 import './frameProf'        // frame-time profiler: per-stage ms/frame (sim / snapshot / pixiUpdate / interval)
