@@ -49,3 +49,4 @@ import './psychology'       // Phase 5.3 — cause-event stance trigger + psyche
 import './skillPerks'       // Issue #142 — milestone/pick/respec state + unlock flags + NPC action kind
 import './pfDiag'           // click-to-navigate pathfinding probes (reachability gate)
 import './movement'         // repath-budget stats + burst helper (issue #152)
+import './frameProf'        // frame-profiler toggle + getFrameStats (issue #154)
