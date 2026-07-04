@@ -15,3 +15,5 @@ arch/**/*.png
 arch/**/*.svg
 .claude/worktrees
 .claude/scheduled_tasks.lock
+# SDD scratch (briefs, reports, review packages)
+.superpowers/
