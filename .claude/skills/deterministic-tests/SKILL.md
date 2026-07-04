@@ -159,7 +159,7 @@ If the path resolves to a non-function (e.g. `__uclife__.useScene.getState` itse
 
 ## The 8 hard rules (non-negotiable)
 
-These are the construction rules from `CLAUDE.md`. Every new test must obey all seven. Detailed rationale + failure modes in `references/construction-rules.md` — read it when a test fails review or breaks for a non-obvious reason.
+These are the construction rules from `CLAUDE.md`. Every new test must obey all eight. Detailed rationale + failure modes in `references/construction-rules.md` — read it when a test fails review or breaks for a non-obvious reason.
 
 1. **Drive through `__uclife__`, not the DOM.** Read state via the deterministic handle. Don't assert on rendered text or canvas pixels unless the test is *about* the renderer.
 2. **No fixed `sleep` / `waitForTimeout`.** Wait on conditions (`stepUntil`, `waitForSelector` for DOM mount). If you reach for `setTimeout(2000)`, expose a deterministic signal instead.
