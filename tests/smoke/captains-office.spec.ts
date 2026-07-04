@@ -5,7 +5,7 @@
 //   4. Comm-panel + brig-panel UI surfaces respond to interactable kicks.
 //   5. Combat tally payload carries the captured POW row + brig occupancy.
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -20,7 +20,6 @@ const REQUIRED_HANDLES = [
 const STEP_BUDGET_MIN = 60
 
 test('captains office: adjutant, brig capacity, POW capture, panels', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   await sim.boot({ requireHandles: REQUIRED_HANDLES })
 
   // 1. Adjutant config check — name read from ship-classes.json5.

@@ -7,7 +7,7 @@
 // Construction rules: __uclife__ only, sim-time only, seeded fixture, no
 // retries, fail-loud expects.
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -50,7 +50,6 @@ async function fightToResolution(sim: any, enemyClass: string) {
 }
 
 test('recoverables: dialogue before tally, prize-crew gate, in-flight hull, pod, dock delivery', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   await sim.boot({ fixture: 'recoverables', requireHandles: REQUIRED_HANDLES })
 
   // ── 1+2. With no idle crew, the dialogue fires before the tally and the

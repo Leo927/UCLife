@@ -3,10 +3,9 @@
 // SpaceView renders with z-index:5; .hud must have a higher z-index so it
 // renders on top — otherwise the dark canvas background swallows the bar.
 
-import { test, expect, isKnownPixiBatcherStartup, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
 
 test('hud is visible above space-view when at helm', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   sim.allowConsoleError((t) => t.includes('The above error occurred in the <PixiCanvas>'))
   await sim.boot({ requireHandles: ['__uclife__.enterSpace'] })
 

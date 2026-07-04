@@ -10,7 +10,7 @@
 // 5. Set one escort aggressive, one cautious; step the engagement; assert
 //    the two close/hold differently (read off the deterministic handle).
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -40,7 +40,6 @@ const EXPECTED_DP_CAP = 8
 const EXPECTED_MAX_CP = 7
 
 test('CP/DP wired into tactical + doctrine sliders active', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
 
   // ── 0. Fleet sanity: flagship + two escorts present. ──────────────────

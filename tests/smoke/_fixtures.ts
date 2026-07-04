@@ -37,16 +37,6 @@ export function isExpectedTestModePortraitMissing(text: string): boolean {
 }
 
 /**
- * Known transient Pixi v8 batcher error that fires once during certain scene
- * swaps and combat boot. Harmless — the next frame recreates the batch state.
- * Tests that exercise paths through the combat / cockpit scene chain should
- * allowlist this via `sim.allowConsoleError(isKnownPixiBatcherStartup)`.
- */
-export function isKnownPixiBatcherStartup(text: string): boolean {
-  return /Cannot read properties of null \(reading 'clear'\)/.test(text)
-}
-
-/**
  * Known Pixi v8 renderer teardown race: the auto-render ticker fires one last
  * rAF after Application.destroy() nulls the renderer, so `renderer._resolution`
  * throws. PixiCanvas.tsx calls stop() + destroy() in cleanup, but the already-

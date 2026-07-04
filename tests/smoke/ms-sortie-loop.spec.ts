@@ -17,7 +17,7 @@
 // All gates run through `__uclife__` debug handles + `sim.stepUntil`
 // per CLAUDE.md § Smoke-test reliability.
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -54,7 +54,6 @@ const PLAYER_MS_RUNTIME_KEY = 'player-ms-1'  // CombatShipState entity key for t
 const HARDPOINT_ID = 'hp-0'
 
 test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   await sim.boot({ fixture: 'ms-sortie', requireHandles: REQUIRED_HANDLES })
 
   // ── 1. Get into combat ─────────────────────────────────────────────────

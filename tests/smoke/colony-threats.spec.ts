@@ -25,7 +25,6 @@
  *  11. Assert colony is no longer player-owned and threat state is null.
  */
 import { test, expect } from './_fixtures'
-import { isKnownPixiBatcherStartup } from './_fixtures'
 
 const POI_A = 'marikoRefinery'
 const SAVE_SLOT = 5
@@ -33,8 +32,6 @@ const SAVE_SLOT = 5
 // ── Scenario A: raid cooldown + auto-resolve ──────────────────────────────────
 
 test('colony raid cooldown gate and auto-resolve detection', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
-
   await sim.boot({
     fixture: 'colony-raid-target',
     requireHandles: [
@@ -125,8 +122,6 @@ test('colony raid cooldown gate and auto-resolve detection', async ({ sim }) => 
 // ── Scenario B: stability collapse → ownership loss ───────────────────────────
 
 test('colony stability collapse: grace period → ownership loss → no dangling refs', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
-
   await sim.boot({
     fixture: 'colony-unstable',
     requireHandles: [
