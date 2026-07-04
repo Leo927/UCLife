@@ -64,8 +64,14 @@ Reliability is the primary acceptance criterion for any new spec, ranked above c
 5. **No dynamic `await import('/src/...')` from inside the page.** Vite hands the test a different module instance than the running app, so trait-identity queries (`world.queryFirst(traitsMod.IsPlayer)`) silently match nothing. Expose helpers on `__uclife__` instead (slices live under `src/boot/debugHandles/`, assembled in `src/bootProd.tsx`).
 6. **No retry wrappers, no `test.retry(n)`, no try/catch swallowing.** `playwright.config.ts` pins `retries: 0` — keep it there. If a check needs retries to stay green, the underlying signal is wrong; fix it.
 7. **Fail loud, fail fast.** Every `expect` must name the broken invariant. The fixture auto-asserts no unexpected page errors on teardown — don't suppress that gate.
+8. **Acceptance journey smokes: `__uclife__` observes, never drives.** A spec named
+   `journey-*.spec.ts` performs every player action through real input (walk, press E via
+   keyboard, click DOM buttons / canvas coordinates). Debug verbs (`grantFleet`,
+   `forceUndockFlagship`, `startCombatCheat`, …) are forbidden in journey specs — reads
+   (`getGameState`, `getEntityScreenCoords`, `stepFor`/`stepUntil`, fixture boot) are the
+   only `__uclife__` surface they may touch. System smokes may still drive debug verbs.
 
-If you can't meet rules 1–7 for a scenario, **don't add the test** — file the gap as a TODO.
+If you can't meet rules 1–8 for a scenario, **don't add the test** — file the gap as a TODO.
 
 ### Perf budgets — non-negotiable
 

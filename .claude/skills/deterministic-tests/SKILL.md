@@ -157,7 +157,7 @@ The default is `['__uclife_test__.step', '__uclife__.getGameState']`. Add only t
 
 If the path resolves to a non-function (e.g. `__uclife__.useScene.getState` itself is a function on the zustand store), the check still passes because `typeof === 'function'`. Anything deeper (`__uclife__.useScene.getState().activeId`) belongs in `sim.stepUntil` or `sim.page.evaluate`, not in `requireHandles`.
 
-## The 7 hard rules (non-negotiable)
+## The 8 hard rules (non-negotiable)
 
 These are the construction rules from `CLAUDE.md`. Every new test must obey all seven. Detailed rationale + failure modes in `references/construction-rules.md` — read it when a test fails review or breaks for a non-obvious reason.
 
@@ -168,8 +168,14 @@ These are the construction rules from `CLAUDE.md`. Every new test must obey all 
 5. **No dynamic `await import('/src/...')` from `page.evaluate`.** Vite hands the page a different module instance than the running app — trait-identity queries silently match nothing. Expose helpers on `__uclife__` instead.
 6. **No retry wrappers, no `test.retry(n)`, no swallowing try/catch.** `playwright.config.ts` pins `retries: 0` — keep it there. If a check needs retries to stay green, the underlying signal is wrong; fix it.
 7. **Fail loud, fail fast.** Every `expect` message names the broken invariant. Page errors are auto-asserted by the fixture; on failure, Playwright's HTML report + trace.zip surface the state.
+8. **Acceptance journey smokes: `__uclife__` observes, never drives.** A spec named
+   `journey-*.spec.ts` performs every player action through real input (walk, press E via
+   keyboard, click DOM buttons / canvas coordinates). Debug verbs (`grantFleet`,
+   `forceUndockFlagship`, `startCombatCheat`, …) are forbidden in journey specs — reads
+   (`getGameState`, `getEntityScreenCoords`, `stepFor`/`stepUntil`, fixture boot) are the
+   only `__uclife__` surface they may touch. System smokes may still drive debug verbs.
 
-If a scenario can't meet rules 1–7, **don't add the test** — file the gap as a TODO.
+If a scenario can't meet rules 1–8, **don't add the test** — file the gap as a TODO.
 
 ## Anti-patterns — explicitly forbidden
 
@@ -183,6 +189,7 @@ Will fail review unconditionally. The detailed why is in `references/constructio
 - Captured savestates pasted as fixtures.
 - `element.click()` / `element.dispatchEvent(...)` from `page.evaluate`.
 - Dynamic `await import('/src/...')` from inside `page.evaluate`.
+- Debug verbs inside a `journey-*.spec.ts` — journey specs prove the player path; a debug write invalidates the proof.
 - Editing `.github/workflows/ci.yml` to add a per-test step. The workflow has no per-test knowledge by design — drop a spec file and it runs.
 
 ## URL params (boot-time invariants)
