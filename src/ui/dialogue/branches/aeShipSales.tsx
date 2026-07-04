@@ -1,18 +1,22 @@
 // Phase 6.2.C1 — AE Von Braun spaceport ship sales branch.
-// Phase 6.2.C2 — generalized so each AE sales rep sells exactly one hull,
-// per the fleet.json5 salesRepCatalog mapping (specId → shipClassId).
-// VB rep sells the lunarMilitia light hull; Von Braun drydock rep sells
-// the Pegasus-class capital. The buy gates on (1) money, (2) the chosen
-// hangar having a free slot for the hull's hangarSlotClass (slots at or
-// above the hull's class accept it; capital ⊇ ms ⊇ smallCraft); on click
-// an in-transit row is enqueued on the target Hangar and the ship entity
-// materializes only at receive-delivery time (hangar manager click).
+// Phase 6.2.C2 — generalized so each AE sales rep sells hulls per the
+// fleet.json5 salesRepCatalog mapping (specId → shipClassIds[]), one
+// product section per hull id, in list order. Task 4 (W1 playable loop)
+// grew the VB rep's list to two hulls: the cheap starter `lightFreighter`
+// first, the `lunarMilitia` light escort second. Von Braun drydock rep
+// still sells only the Pegasus-class capital. The buy gate on each
+// section is (1) money, (2) the chosen hangar having a free slot for
+// that hull's hangarSlotClass (slots at or above the hull's class accept
+// it; capital ⊇ ms ⊇ smallCraft); on click an in-transit row is enqueued
+// on the target Hangar and the ship entity materializes only at
+// receive-delivery time (hangar manager click).
 //
 // "Reachable" at 6.2.C2 = the rep's local hangar (active scene only):
 // VB rep → VB surface hangar (smallCraft slots); drydock rep → Von Braun
 // drydock (capital slots). Cross-hangar transfer is a 6.2.G concern.
 
 import { useState } from 'react'
+import type { Entity } from 'koota'
 import { useTrait, useQueryFirst, useQuery } from 'koota/react'
 import {
   IsPlayer, Money, Building, Hangar, EntityKey, Job, Workstation,
@@ -43,18 +47,18 @@ function leadTimeForClass(hangarSlotClass: string): number {
 
 export function aeShipSalesBranch(ctx: DialogueCtx): DialogueNode | null {
   if (!ctx.roles.isAEShipSalesOnDuty) return null
-  // The npc's workstation specId picks the hull this rep sells; if the
+  // The npc's workstation specId picks the hulls this rep sells; if the
   // catalog has no entry (e.g. a misconfigured spec), bail rather than
   // render an empty panel.
   const wsEnt = ctx.npc.get(Job)?.workstation ?? null
   const specId = wsEnt?.get(Workstation)?.specId ?? ''
   const entry = fleetConfig.salesRepCatalog[specId]
-  if (!entry) return null
+  if (!entry || entry.shipClassIds.length === 0) return null
   return {
     id: 'aeShipSales',
     label: dialogueText.buttons.aeShipSales,
     info: dialogueText.branches.aeShipSales.title,
-    specialUI: () => <AEShipSalesPanel shipClassId={entry.shipClassId} />,
+    specialUI: () => <AEShipSalesPanel shipClassIds={entry.shipClassIds} />,
   }
 }
 
@@ -66,9 +70,32 @@ interface HangarOption {
   occupied: number
 }
 
-function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
+function AEShipSalesPanel({ shipClassIds }: { shipClassIds: string[] }) {
   const player = useQueryFirst(IsPlayer)
   const money = useTrait(player, Money)
+  const t = dialogueText.branches.aeShipSales
+
+  if (!player) return null
+
+  const playerMoney = money?.amount ?? 0
+
+  return (
+    <>
+      <h3>{t.title}</h3>
+      <div className="shop-money">{t.moneyLabel}: <span className="shop-money-amount">¥{playerMoney.toLocaleString()}</span></div>
+
+      {shipClassIds.map((id) => (
+        <HullSection key={id} shipClassId={id} player={player} playerMoney={playerMoney} />
+      ))}
+
+      <PendingDeliveriesList />
+    </>
+  )
+}
+
+function HullSection({
+  shipClassId, player, playerMoney,
+}: { shipClassId: string; player: Entity; playerMoney: number }) {
   const t = dialogueText.branches.aeShipSales
 
   // Subscribe to every Hangar in the active scene so the slot count
@@ -80,11 +107,6 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
   const localHangars = useQuery(Building, Hangar, EntityKey)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  if (!player) return null
-
-  const playerMoney = money?.amount ?? 0
-
-  // One product per rep, chosen by the sales-rep catalog.
   const cls = getShipClass(shipClassId)
   const leadDays = leadTimeForClass(cls.hangarSlotClass)
 
@@ -178,10 +200,8 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
   }
 
   return (
-    <>
-      <h3>{t.title}</h3>
-      <div className="shop-money">{t.moneyLabel}: <span className="shop-money-amount">¥{playerMoney.toLocaleString()}</span></div>
-      <h3 style={{ marginTop: 8 }}>{cls.nameZh}</h3>
+    <section style={{ marginTop: 12 }} data-ae-hull-section={shipClassId}>
+      <h3 style={{ marginTop: 0 }}>{cls.nameZh}</h3>
       <p className="map-place-desc">{cls.descZh}</p>
       <div className="ship-dealer-stats">
         <div>{t.statHull} {cls.hullMax}</div>
@@ -207,7 +227,7 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
                 <label className="dev-key" style={{ cursor: 'pointer' }}>
                   <input
                     type="radio"
-                    name="ae-vb-hangar-target"
+                    name={`ae-vb-hangar-target-${shipClassId}`}
                     checked={isSel}
                     onChange={() => setSelectedKey(o.buildingKey)}
                   />
@@ -232,14 +252,11 @@ function AEShipSalesPanel({ shipClassId }: { shipClassId: string }) {
       {slotFree && !canAfford && (
         <p className="map-place-desc">{t.gateNoMoney.replace('{price}', cls.priceFiat.toLocaleString())}</p>
       )}
-
-      <PendingDeliveriesList currentClassId={cls.id} />
-    </>
+    </section>
   )
 }
 
-function PendingDeliveriesList({ currentClassId }: { currentClassId: string }) {
-  void currentClassId
+function PendingDeliveriesList() {
   const t = dialogueText.branches.aeShipSales
   const allBuildings = useQuery(Building, Hangar, EntityKey)
   const today = gameDayNumber(useClock(s => s.gameDate))

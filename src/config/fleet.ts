@@ -32,9 +32,10 @@ export interface FleetConfig {
   shipSalesDeskTileVB: { x: number; y: number }
   // Phase 6.2.C2 — Von Braun orbital drydock concourse sales desk +
   // sales-rep catalog. The catalog maps each rep's workstation specId
-  // to the single hull class that rep sells.
+  // to the list of hull classes that rep sells (rendered as one product
+  // section per id, in list order).
   shipSalesDeskTileVonBraunDrydock: { x: number; y: number }
-  salesRepCatalog: Record<string, { shipClassId: string }>
+  salesRepCatalog: Record<string, { shipClassIds: string[] }>
   // Phase 6.2.5.B — vehicle (MS / fighter / MW) broker desk + catalog +
   // delivery lead time. The catalog maps each vehicle rep's workstation
   // specId to the MS class that rep sells.
