@@ -168,15 +168,35 @@ export class Sim {
     untilFn: () => boolean | Promise<boolean>,
     maxGameMinutes: number,
   ): Promise<void> {
+    await this.stepUntilImpl(untilFn, maxGameMinutes, false)
+  }
+
+  /**
+   * Coarse variant of stepUntil — advances in large slices (predicate checked
+   * once per slice). For ground / UI waits in a heavily-populated scene where
+   * fine 16ms stepping is wall-clock-prohibitive. NOT for combat / space flight.
+   */
+  async stepUntilCoarse(
+    untilFn: () => boolean | Promise<boolean>,
+    maxGameMinutes: number,
+  ): Promise<void> {
+    await this.stepUntilImpl(untilFn, maxGameMinutes, true)
+  }
+
+  private async stepUntilImpl(
+    untilFn: () => boolean | Promise<boolean>,
+    maxGameMinutes: number,
+    coarse: boolean,
+  ): Promise<void> {
     const src = untilFn.toString()
     await this.page.evaluate(
-      async ({ src, max }) => {
+      async ({ src, max, coarse }) => {
         // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
         const until = new Function('return (' + src + ')')() as () => boolean | Promise<boolean>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (window as any).__uclife_test__.step({ until, maxGameMinutes: max })
+        await (window as any).__uclife_test__.step({ until, maxGameMinutes: max, coarse })
       },
-      { src, max: maxGameMinutes },
+      { src, max: maxGameMinutes, coarse },
     )
   }
 

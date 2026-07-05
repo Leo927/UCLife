@@ -96,9 +96,10 @@ describe('getGameState', () => {
     expect(getGameState().getPlayerCharacter().getActionKind()).toBe('idle')
   })
 
-  it('getCombat.isOpen is false when no tactical combat is active', () => {
+  it('getCombat reads the tactical-combat store (closed + paused by default)', () => {
     applyFixture('minimal-player-only')
     expect(getGameState().getCombat().isOpen()).toBe(false)
+    expect(getGameState().getCombat().isPaused()).toBe(true)
   })
 
   it('getFaction reads the post-fixture fund as a "Money" resource', () => {

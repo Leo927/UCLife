@@ -33,6 +33,22 @@ function groundCanvasRect(): DOMRect | null {
   return canvasEl ? canvasEl.getBoundingClientRect() : null
 }
 
+function activeScenePlayerPos(): { x: number; y: number } | null {
+  const p = getWorld(getActiveSceneId()).queryFirst(IsPlayer, Position)
+  return p ? { ...p.get(Position)! } : null
+}
+
+/**
+ * World-space (pixel) Position of an active-scene entity by EntityKey. Unlike
+ * getEntityScreenCoords this is camera-independent and works for off-camera
+ * entities — journey smokes use it to compute where to right-click the map
+ * panel to route the player across the city (full pathfinding). Returns null
+ * when no such entity exists in the active scene.
+ */
+export function getEntityWorldPos(entityId: string): { x: number; y: number } | null {
+  return activeSceneEntityPos(entityId)
+}
+
 /**
  * Look up the active-scene entity whose EntityKey.key === entityId,
  * project its Position through the live camera + canvas rect, and
@@ -59,30 +75,46 @@ export function getEntityScreenCoords(entityId: string): ScreenCoords | null {
 }
 
 /**
- * Like getEntityScreenCoords, but for an entity that projects OFF the
- * visible canvas it returns the projected point clamped to just inside the
- * canvas edge (by testConfig.walkClickMarginPx) — a valid click point in the
- * entity's direction. Journey smokes click-to-walk toward off-camera targets
- * in stages with this, re-reading each stage as the camera follows the player,
- * and switch to getEntityScreenCoords (true point, non-null) once the target
- * enters view to land the final talk/interact click on its sprite. Returns
- * null only when the entity is absent or the canvas isn't mounted.
+ * Like getEntityScreenCoords, but usable when the entity projects OFF the
+ * visible canvas: it returns the point where the ray FROM THE PLAYER toward the
+ * entity exits the canvas (inset by testConfig.walkClickMarginPx) — a valid
+ * click point that preserves the true player→target direction (per-axis
+ * clamping would distort the angle and steer the walk into obstacles). When the
+ * entity is already on-canvas the true projected point is returned. Journey
+ * smokes click-to-walk toward off-camera targets in stages with this, re-
+ * reading as the camera follows the player, and switch to getEntityScreenCoords
+ * once the target enters view for the final talk/interact click. Returns null
+ * only when the entity/player is absent or the canvas isn't mounted.
  */
 export function getEntityScreenCoordsClamped(entityId: string): ScreenCoords | null {
-  const foundEntity = activeSceneEntityPos(entityId)
-  if (!foundEntity) return null
+  const target = activeSceneEntityPos(entityId)
+  if (!target) return null
 
   const cam = useCamera.getState()
   const rect = groundCanvasRect()
   if (!rect) return null
 
-  const rawX = rect.left + (foundEntity.x - cam.camX)
-  const rawY = rect.top + (foundEntity.y - cam.camY)
-  const m = testConfig.walkClickMarginPx
-  return {
-    x: Math.max(rect.left + m, Math.min(rect.right - m, rawX)),
-    y: Math.max(rect.top + m, Math.min(rect.bottom - m, rawY)),
+  const tx = rect.left + (target.x - cam.camX)
+  const ty = rect.top + (target.y - cam.camY)
+  if (tx >= rect.left && tx <= rect.right && ty >= rect.top && ty <= rect.bottom) {
+    return { x: tx, y: ty } // on-canvas: true point
   }
+
+  const player = activeScenePlayerPos()
+  if (!player) return null
+  const px = rect.left + (player.x - cam.camX)
+  const py = rect.top + (player.y - cam.camY)
+  const dx = tx - px
+  const dy = ty - py
+  const m = testConfig.walkClickMarginPx
+  // Largest t in the target direction that stays inside the inset canvas.
+  let t = 1
+  if (dx > 0) t = Math.min(t, (rect.right - m - px) / dx)
+  else if (dx < 0) t = Math.min(t, (rect.left + m - px) / dx)
+  if (dy > 0) t = Math.min(t, (rect.bottom - m - py) / dy)
+  else if (dy < 0) t = Math.min(t, (rect.top + m - py) / dy)
+  t = Math.max(0, t)
+  return { x: px + dx * t, y: py + dy * t }
 }
 
 // ── Space-view (starmap) world→screen projection ───────────────────────
@@ -140,9 +172,71 @@ export function getPoiScreenCoords(poiId: string): ScreenCoords | null {
  * Returns null under the same conditions as getPoiScreenCoords.
  */
 export function getEnemyScreenCoords(enemyKey: string): ScreenCoords | null {
+  const w = spaceEnemyWorldPos(enemyKey)
+  return w ? projectSpaceWorldToScreen(w) : null
+}
+
+function spaceEnemyWorldPos(enemyKey: string): { x: number; y: number } | null {
   const space = getWorld('spaceCampaign')
   for (const e of space.query(EnemyAI, Position, EntityKey)) {
-    if (e.get(EntityKey)!.key === enemyKey) return projectSpaceWorldToScreen(e.get(Position)!)
+    if (e.get(EntityKey)!.key === enemyKey) return { ...e.get(Position)! }
   }
   return null
+}
+
+/**
+ * Like getEnemyScreenCoords, but for an enemy that projects OFF the space
+ * canvas it returns the point where the ray from the ship (canvas centre)
+ * toward the enemy exits the canvas — a valid right-click point to quick-
+ * navigate TOWARD the enemy (raw-point course), closing the gap until it
+ * enters view. Direction-preserving (per-axis clamp would distort the angle).
+ */
+function spacePoiWorldPos(poiId: string): { x: number; y: number } | null {
+  const space = getWorld('spaceCampaign')
+  for (const e of space.query(PoiTag, Position)) {
+    if (e.get(PoiTag)!.poiId === poiId) return { ...e.get(Position)! }
+  }
+  return null
+}
+
+// Ray from the ship (space-canvas centre) toward a world target, clamped to the
+// starmap canvas edge (sides by walkClickMarginPx; top/bottom by spaceClickInsetPx
+// to clear the HUD). Direction-preserving; on-canvas targets return the true
+// point. A valid right-click point to quick-navigate TOWARD the target, closing
+// the gap until it enters view.
+function spaceClampedTowardWorld(world: { x: number; y: number }): ScreenCoords | null {
+  const ship = spaceShipWorldPos()
+  if (!ship) return null
+  const canvasEl = document.querySelector<HTMLCanvasElement>('.space-view canvas')
+  if (!canvasEl) return null
+  const rect = canvasEl.getBoundingClientRect()
+  const cx = rect.left + (rect.right - rect.left) / 2
+  const cy = rect.top + (rect.bottom - rect.top) / 2
+  const tx = cx + (world.x - ship.x)
+  const ty = cy + (world.y - ship.y)
+  if (tx >= rect.left && tx <= rect.right && ty >= rect.top && ty <= rect.bottom) {
+    return { x: tx, y: ty }
+  }
+  const dx = tx - cx
+  const dy = ty - cy
+  const m = testConfig.walkClickMarginPx
+  const vm = testConfig.spaceClickInsetPx
+  let t = 1
+  if (dx > 0) t = Math.min(t, (rect.right - m - cx) / dx)
+  else if (dx < 0) t = Math.min(t, (rect.left + m - cx) / dx)
+  if (dy > 0) t = Math.min(t, (rect.bottom - vm - cy) / dy)
+  else if (dy < 0) t = Math.min(t, (rect.top + vm - cy) / dy)
+  t = Math.max(0, t)
+  return { x: cx + dx * t, y: cy + dy * t }
+}
+
+export function getEnemyScreenCoordsClamped(enemyKey: string): ScreenCoords | null {
+  const enemy = spaceEnemyWorldPos(enemyKey)
+  return enemy ? spaceClampedTowardWorld(enemy) : null
+}
+
+/** POI analogue of getEnemyScreenCoordsClamped — hop home toward an off-canvas POI. */
+export function getPoiScreenCoordsClamped(poiId: string): ScreenCoords | null {
+  const poi = spacePoiWorldPos(poiId)
+  return poi ? spaceClampedTowardWorld(poi) : null
 }

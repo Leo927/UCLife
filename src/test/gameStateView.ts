@@ -89,6 +89,7 @@ export interface EngagementView {
 // (auto-fire victory) without touching the debug combat-store handle.
 export interface CombatView {
   isOpen(): boolean
+  isPaused(): boolean
 }
 
 export interface FactionView {
@@ -452,7 +453,10 @@ export function getGameState(): GameStateView {
       }
     },
     getCombat(): CombatView {
-      return { isOpen: () => useCombatStore.getState().open }
+      return {
+        isOpen: () => useCombatStore.getState().open,
+        isPaused: () => useCombatStore.getState().paused,
+      }
     },
     getFaction(id: string): FactionView | null {
       if (!FACTION_IDS.has(id)) return null

@@ -207,6 +207,26 @@ describe('applyFixture', () => {
     expect(ms.get(Ms)!.damageState, 'damaged + docked at a depot => in-repair').toBe('in-repair')
   })
 
+  it('loads earned-start: player has starter-hull cash and the hangar manager seats', () => {
+    // Unit world skips setupWorld, so the surface hangar's hangar_manager seat
+    // doesn't exist — pre-spawn a free one for the fixture link to bind against
+    // (in the browser boot the seat comes from the hangarSurface layout).
+    const w = getWorld('vonBraunCity')
+    const seat = w.spawn(
+      Workstation({ specId: 'hangar_manager', occupant: null, managerStation: null }),
+    )
+    applyFixture('earned-start')
+    const player = findPlayer()
+    expect(player).not.toBeNull()
+    expect(player!.get(Money)!.amount).toBe(6000)
+    let mgr = null
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === 'hangarMgr') mgr = e
+    }
+    expect(mgr, 'hangar manager NPC must spawn').not.toBeNull()
+    expect(seat.get(Workstation)!.occupant, 'fixture links the manager onto the seat').toBe(mgr)
+  })
+
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
     applyFixture('vonBraunDrydock-station')
     // The drydock concourse is now the hidden orbital region of vonBraunCity.

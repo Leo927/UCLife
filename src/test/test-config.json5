@@ -41,13 +41,21 @@
   // click-to-walk toward off-camera NPCs/interactables in stages using it.
   walkClickMarginPx: 8,
 
+  // Extra top/bottom inset (screen px) for the SPACE-view clamp: the starmap
+  // canvas is fixed inset:0 (full window) but its top toolbar (~54px) and
+  // bottom overlays sit on top of it, so a clamp to the raw canvas edge would
+  // land a right-click on the HUD, not the map. Inset enough to clear them.
+  spaceClickInsetPx: 64,
+
   // Coarse slice (game-ms) for step({ gameMinutes, coarse: true }). Long
   // IDLE advances (e.g. the multi-day ship-delivery lead) are infeasible at
   // the 16ms interactive tick — a game-day is ~5.4M ticks. A coarse slice
   // runs every-frame systems once per slice while still firing each per-
   // minute + day-rollover boundary, so an idle wait stays faithful to the
   // minute-gated systems (deliveries, day rollover) at a fraction of the
-  // tick count. Only safe while nothing needs sub-minute fidelity (no
-  // combat / space flight / smooth player walk in progress).
-  coarseSliceGameMs: 60000,
+  // tick count. 10 game-min keeps a slice well under a day (so no midnight
+  // is skipped) while collapsing a 2-day wait to ~288 slices. Only safe
+  // while nothing needs sub-minute fidelity (no combat / space flight /
+  // smooth player walk in progress).
+  coarseSliceGameMs: 600000,
 }

@@ -25,7 +25,8 @@ import { pinTestModeSpeed } from './clock'
 import { applyFixture } from './fixtures'
 import { step } from './runtime'
 import {
-  getEntityScreenCoords, getEntityScreenCoordsClamped, getPoiScreenCoords, getEnemyScreenCoords,
+  getEntityScreenCoords, getEntityScreenCoordsClamped, getPoiScreenCoords, getPoiScreenCoordsClamped,
+  getEnemyScreenCoords, getEnemyScreenCoordsClamped, getEntityWorldPos,
 } from './canvasHitTest'
 import { getGameState } from './gameStateView'
 import { useDebug } from '../debug/store'
@@ -146,8 +147,11 @@ export default async function bootTestMode(params: TestBootParams): Promise<void
   const handle = assembleUclifeHandle()
   handle.getEntityScreenCoords = getEntityScreenCoords
   handle.getEntityScreenCoordsClamped = getEntityScreenCoordsClamped
+  handle.getEntityWorldPos = getEntityWorldPos
   handle.getPoiScreenCoords = getPoiScreenCoords
+  handle.getPoiScreenCoordsClamped = getPoiScreenCoordsClamped
   handle.getEnemyScreenCoords = getEnemyScreenCoords
+  handle.getEnemyScreenCoordsClamped = getEnemyScreenCoordsClamped
   // Phase 5 will replace this with a real navigable view; we wire the
   // function reference here so the runtime surface (smoke checks +
   // calling code) stays stable across the Phase 5 swap.

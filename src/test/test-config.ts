@@ -9,6 +9,7 @@ export interface TestConfig {
   msPerGameMinute: number
   msPerGameSecond: number
   walkClickMarginPx: number
+  spaceClickInsetPx: number
   coarseSliceGameMs: number
 }
 

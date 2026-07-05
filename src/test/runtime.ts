@@ -18,6 +18,11 @@ const MAX_STEP_TICKS = testConfig.maxStepTicks
 export interface StepUntilOpts {
   until: () => boolean
   maxGameMinutes: number
+  // Coarse mode: advance in testConfig.coarseSliceGameMs slices (predicate
+  // checked once per slice) instead of the 16ms tick. For ground / UI waits
+  // in a heavily-populated scene, where each game-minute is ~3750 full-city
+  // ticks; unsafe while combat / space flight needs sub-minute fidelity.
+  coarse?: boolean
 }
 
 export interface StepMinutesOpts {
@@ -75,11 +80,13 @@ export async function step(opts: StepOpts): Promise<void> {
 async function stepUntil(opts: StepUntilOpts): Promise<void> {
   if (opts.until()) return
   const budgetMs = opts.maxGameMinutes * MS_PER_GAME_MINUTE
+  const sliceMs = opts.coarse ? testConfig.coarseSliceGameMs : TICK_GAME_MS
   let elapsedMs = 0
   let ticks = 0
   while (elapsedMs < budgetMs && ticks < MAX_STEP_TICKS) {
-    advanceSimByGameMs(TICK_GAME_MS)
-    elapsedMs += TICK_GAME_MS
+    const slice = budgetMs - elapsedMs < sliceMs ? budgetMs - elapsedMs : sliceMs
+    advanceSimByGameMs(slice)
+    elapsedMs += slice
     ticks++
     if (opts.until()) return
   }

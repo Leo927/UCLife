@@ -98,24 +98,31 @@ describe('getEntityScreenCoordsClamped', () => {
     uninstallStubDocument()
     useCamera.getState().setCamera({ canvasW: 0, canvasH: 0, camX: 0, camY: 0 })
     const world = getWorld(getActiveSceneId())
-    for (const e of world.query(EntityKey)) e.destroy()
+    for (const e of world.query(Position)) e.destroy()
   })
 
   it('returns the true on-screen point when the entity is inside the canvas', () => {
     const world = getWorld(getActiveSceneId())
     world.spawn(EntityKey({ key: 'near' }), Position({ x: 200, y: 150 }))
     useCamera.getState().setCamera({ canvasW: 800, canvasH: 600, camX: 0, camY: 0 })
-    // Same projection as getEntityScreenCoords, inside the rect → unclamped.
+    // Inside the rect → unclamped true point; no player needed.
     expect(getEntityScreenCoordsClamped('near')).toEqual({ x: 300, y: 200 })
   })
 
-  it('clamps an off-canvas target to just inside the edge (margin=8)', () => {
+  it('clamps an off-canvas target along the ray from the player, preserving direction', () => {
     const world = getWorld(getActiveSceneId())
-    // rawX = 100 + 10_000 = 10_100 → clamp to right(900) - margin(8) = 892.
-    // rawY = 50 + 150 = 200 → inside [58, 642] → unchanged.
+    world.spawn(IsPlayer, Position({ x: 400, y: 150 }))              // player screen (500, 200)
+    world.spawn(EntityKey({ key: 'far' }), Position({ x: 10_000, y: 150 })) // target off right, same row
+    useCamera.getState().setCamera({ canvasW: 800, canvasH: 600, camX: 0, camY: 0 })
+    // Ray goes straight right → exits at right(900) - margin(8) = 892; y stays 200.
+    expect(getEntityScreenCoordsClamped('far')).toEqual({ x: 892, y: 200 })
+  })
+
+  it('returns null off-canvas when there is no player to ray from', () => {
+    const world = getWorld(getActiveSceneId())
     world.spawn(EntityKey({ key: 'far' }), Position({ x: 10_000, y: 150 }))
     useCamera.getState().setCamera({ canvasW: 800, canvasH: 600, camX: 0, camY: 0 })
-    expect(getEntityScreenCoordsClamped('far')).toEqual({ x: 892, y: 200 })
+    expect(getEntityScreenCoordsClamped('far')).toBeNull()
   })
 
   it('returns null for an unknown entity id', () => {
