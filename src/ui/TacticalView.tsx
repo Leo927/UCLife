@@ -10,7 +10,7 @@ import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
-  withdrawFromCombat,
+  withdrawFromCombat, type FireMode,
 } from '../systems/combat'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { simNow } from '../sim/time'
@@ -234,6 +234,15 @@ function StatBar(props: { label: string; current: number; max: number; color: st
   )
 }
 
+// W2 command layer (Task 5) — mode badge label. 自动 = auto-fire (pre-Task-5
+// default), 待命 = hold (charges, never fires), 齐射 = volley (charges,
+// fires once per player-requested row click).
+function fireModeLabelZh(mode: FireMode): string {
+  if (mode === 'hold') return '待命'
+  if (mode === 'volley') return '齐射'
+  return '自动'
+}
+
 function ChargeBar(props: { pct: number; ready: boolean }) {
   return (
     <div className="tactical-charge">
@@ -341,6 +350,7 @@ export function TacticalView() {
   const paused = useCombatStore((s) => s.paused)
   const lastFlashZh = useCombatStore((s) => s.lastFlashZh)
   const lastFlashAtMs = useCombatStore((s) => s.lastFlashAtMs)
+  const fireModeByMount = useCombatStore((s) => s.fireModeByMount)
   const [tick, setTick] = useState(0)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [pendingOrder, setPendingOrder] = useState<PendingOrder>(null)
@@ -590,7 +600,19 @@ export function TacticalView() {
       ? '点击战场选择集火目标 · Esc / 右键取消'
       : pendingOrder === 'withdraw'
         ? '再次点击撤退按钮确认撤退 · 点击战场 / Esc / 右键取消'
-        : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
+        : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 点击武器行切换射击模式 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
+
+  const onWeaponModeClick = (mountIdx: number) => (ev: React.MouseEvent) => {
+    ev.stopPropagation()
+    playUi('ui.tactical.order-pick')
+    useCombatStore.getState().cycleFireMode(mountIdx)
+  }
+
+  const onWeaponRowClick = (mountIdx: number, mode: FireMode, ready: boolean) => {
+    if (mode !== 'volley' || !ready) return
+    playUi('ui.tactical.order-issue')
+    useCombatStore.getState().requestVolleyFire(mountIdx)
+  }
 
   return (
     <div className="tactical-overlay">
@@ -643,11 +665,28 @@ export function TacticalView() {
           }
           const def = getWeapon(m.weaponId)
           const pct = def.chargeSec > 0 ? m.chargeSec / def.chargeSec : 0
+          const mode = fireModeByMount[m.mountIdx] ?? 'auto'
+          const volleyClickable = mode === 'volley' && m.ready
           return (
-            <div key={m.mountIdx} className="tactical-weapon-row">
-              <div className="tactical-weapon-name">
-                {def.nameZh}
-                {m.ready && <span className="tactical-weapon-ready"> · 就绪</span>}
+            <div
+              key={m.mountIdx}
+              className={`tactical-weapon-row${volleyClickable ? ' is-volley-ready' : ''}`}
+              data-tactical-weapon-row={m.mountIdx}
+              onClick={() => onWeaponRowClick(m.mountIdx, mode, m.ready)}
+            >
+              <div className="tactical-weapon-row-left">
+                <button
+                  type="button"
+                  className={`tactical-weapon-mode is-${mode}`}
+                  data-tactical-weapon-mode={m.mountIdx}
+                  onClick={onWeaponModeClick(m.mountIdx)}
+                >
+                  {fireModeLabelZh(mode)}
+                </button>
+                <div className="tactical-weapon-name">
+                  {def.nameZh}
+                  {m.ready && <span className="tactical-weapon-ready"> · 就绪</span>}
+                </div>
               </div>
               <ChargeBar pct={pct} ready={m.ready} />
             </div>

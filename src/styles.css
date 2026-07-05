@@ -2260,9 +2260,43 @@ html, body, #root {
   grid-template-columns: 1fr 2fr;
   gap: 12px;
   align-items: center;
+  /* The panel itself is pointer-events:none so blank space lets arena
+     mouse/aim tracking through; individual rows opt back in below. */
+  pointer-events: auto;
 }
 .tactical-weapon-row.is-empty {
   opacity: 0.4;
+  pointer-events: none;
+}
+/* W2 command layer (Task 5) — a row only fires on click while in volley
+   mode with a ready charge; the cursor communicates that affordance. */
+.tactical-weapon-row.is-volley-ready {
+  cursor: pointer;
+  border-color: var(--accent);
+}
+.tactical-weapon-row-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.tactical-weapon-mode {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: #16161c;
+  color: var(--muted);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.tactical-weapon-mode.is-hold {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.tactical-weapon-mode.is-volley {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .tactical-weapon-name {
   font-size: 12px;

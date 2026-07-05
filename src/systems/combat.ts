@@ -171,6 +171,32 @@ function resolveCombatWeaponDef(weaponId: string): WeaponDef {
 let nextProjectileId = 1
 const projectiles: ProjectileSnap[] = []
 
+// W2 command layer (Task 5) — per-mount shot bookkeeping for the fire-mode
+// smoke (asserting hold blocks fire, volley fires exactly once). Not
+// surfaced to players; a debug-only read (getPlayerMountShotCounts) mirrors
+// this for tests. Reset per engagement alongside the projectile pool.
+const playerMountShotCounts = new Map<number, { count: number; lastTargetKey: string }>()
+
+function recordPlayerMountShot(mountIdx: number, targetEnt: Entity): void {
+  const prior = playerMountShotCounts.get(mountIdx)
+  playerMountShotCounts.set(mountIdx, {
+    count: (prior?.count ?? 0) + 1,
+    lastTargetKey: targetEnt.get(EntityKey)?.key ?? '',
+  })
+}
+
+export interface PlayerMountShotSnapshot {
+  mountIdx: number
+  count: number
+  lastTargetKey: string
+}
+
+export function getPlayerMountShotCounts(): PlayerMountShotSnapshot[] {
+  return Array.from(playerMountShotCounts.entries()).map(([mountIdx, v]) => ({
+    mountIdx, count: v.count, lastTargetKey: v.lastTargetKey,
+  }))
+}
+
 // Campaign-world EntityKey of the enemy that triggered the engagement —
 // stored so endCombat('victory') can destroy it (otherwise the same
 // pirate re-prompts engagement after the cooldown expires).
@@ -205,10 +231,25 @@ export function getCombatPlayerHeading(): number {
   return e.get(CombatShipState)!.heading
 }
 
+// W2 command layer (Task 5) — per-mount manual fire control. `auto` is the
+// pre-Task-5 behavior (fire on the nearest in-arc, in-range hostile the
+// instant the charge is ready). `hold` accumulates charge but never fires —
+// a trigger discipline for players who don't want to spend flux/ammo on a
+// marginal shot. `volley` also withholds auto-fire; a ready volley mount
+// only fires once the player spends a single-shot request via
+// requestVolleyFire (row click in the UI), and picks the in-arc target
+// nearest the aim cursor rather than the flagship's nearest-hostile default.
+export type FireMode = 'auto' | 'hold' | 'volley'
+
+const FIRE_MODE_CYCLE: Record<FireMode, FireMode> = {
+  auto: 'hold',
+  hold: 'volley',
+  volley: 'auto',
+}
+
 interface CombatState {
   open: boolean
   paused: boolean
-  selectedMountIdx: number | null
   // Recent flash banner (e.g. weapon hit)
   lastFlashZh: string
   lastFlashAtMs: number
@@ -222,12 +263,20 @@ interface CombatState {
   // its current orientation — the helm never auto-aims at the enemy.
   aimAtMouse: boolean
   aimMouse: { x: number; y: number } | null
+  // Per-WeaponMount fire mode, keyed by WeaponMount.mountIdx. A mount
+  // absent from the map defaults to 'auto' (today's behavior).
+  fireModeByMount: Record<number, FireMode>
+  // Single-shot volley request per mount, set by the UI row click and
+  // consumed by §3 of combatSystem the instant it fires. Switching a mount
+  // away from 'volley' discards any pending request — see cycleFireMode.
+  volleyRequested: Record<number, boolean>
   setOpen: (open: boolean) => void
   togglePause: () => void
-  setSelectedMount: (idx: number | null) => void
   setInputAxis: (axis: { forward: number; strafe: number }) => void
   setAimAtMouse: (on: boolean) => void
   setAimMouse: (m: { x: number; y: number } | null) => void
+  cycleFireMode: (mountIdx: number) => void
+  requestVolleyFire: (mountIdx: number) => void
   flash: (textZh: string) => void
   reset: () => void
   // Snapshot of projectiles — UI reads this each render. Not persisted
@@ -238,32 +287,46 @@ interface CombatState {
 export const useCombatStore = create<CombatState>((set) => ({
   open: false,
   paused: true,
-  selectedMountIdx: null,
   lastFlashZh: '',
   lastFlashAtMs: 0,
   inputAxis: { forward: 0, strafe: 0 },
   aimAtMouse: false,
   aimMouse: null,
+  fireModeByMount: {},
+  volleyRequested: {},
   setOpen: (open) => set({ open }),
   togglePause: () => set((s) => {
     const next = !s.paused
     useClock.getState().setSpeed(next ? 0 : 1)
     return { paused: next }
   }),
-  setSelectedMount: (selectedMountIdx) => set({ selectedMountIdx }),
   setInputAxis: (inputAxis) => set({ inputAxis }),
   setAimAtMouse: (aimAtMouse) => set({ aimAtMouse }),
   setAimMouse: (aimMouse) => set({ aimMouse }),
+  cycleFireMode: (mountIdx) => set((s) => {
+    const current = s.fireModeByMount[mountIdx] ?? 'auto'
+    const next = FIRE_MODE_CYCLE[current]
+    const volleyRequested = { ...s.volleyRequested }
+    if (current === 'volley' && next !== 'volley') delete volleyRequested[mountIdx]
+    return {
+      fireModeByMount: { ...s.fireModeByMount, [mountIdx]: next },
+      volleyRequested,
+    }
+  }),
+  requestVolleyFire: (mountIdx) => set((s) => ({
+    volleyRequested: { ...s.volleyRequested, [mountIdx]: true },
+  })),
   flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: simNow() }),
   reset: () => set({
     open: false,
     paused: true,
-    selectedMountIdx: null,
     lastFlashZh: '',
     lastFlashAtMs: 0,
     inputAxis: { forward: 0, strafe: 0 },
     aimAtMouse: false,
     aimMouse: null,
+    fireModeByMount: {},
+    volleyRequested: {},
   }),
   getProjectiles: () => projectiles.slice(),
 }))
@@ -507,6 +570,7 @@ export function startCombat(
     else e.destroy()
   }
   projectiles.length = 0
+  playerMountShotCounts.clear()
   salvageAccum = []   // Issue #64 — fresh salvage tally per engagement
   resetRecoverables() // Issue #71 — fresh recoverables accumulator per fight
   activeCampaignEnemyKey = campaignEnemyKey ?? null
@@ -1124,6 +1188,44 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }): number 
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+interface EnemyCandidate {
+  ent: Entity
+  pos: { x: number; y: number }
+}
+
+// W2 command layer (Task 5) — every hostile within a mount's arc + range,
+// shared by both 'auto' (picks nearest to the flagship) and 'volley'
+// (picks nearest to the aim cursor) target resolution so the two modes
+// agree on what counts as a legal shot.
+function inArcEnemyCandidates(
+  enemies: Entity[],
+  originPos: { x: number; y: number },
+  mountFacingWorld: number,
+  arcWidth: number,
+  range: number,
+): EnemyCandidate[] {
+  const out: EnemyCandidate[] = []
+  for (const en of enemies) {
+    const enemyState = en.get(CombatShipState)
+    if (!enemyState) continue
+    if (dist(originPos, enemyState.pos) > range) continue
+    const ang = angleBetween(originPos, enemyState.pos)
+    if (!inArc(ang, mountFacingWorld, arcWidth)) continue
+    out.push({ ent: en, pos: enemyState.pos })
+  }
+  return out
+}
+
+function nearestCandidateTo(candidates: EnemyCandidate[], point: { x: number; y: number }): EnemyCandidate | null {
+  let best: EnemyCandidate | null = null
+  let bestDist = Infinity
+  for (const c of candidates) {
+    const d = dist(point, c.pos)
+    if (d < bestDist) { bestDist = d; best = c }
+  }
+  return best
+}
+
 // Defensive clamp for a rally point into the arena bounds. Rally points are
 // always player-clicked inside the arena (Task 2 guarantees this at issue
 // time), but the directive loop clamps anyway rather than trust an
@@ -1419,6 +1521,22 @@ export function combatSystem(_world: World, dtMs: number): void {
   // §4b's weapon-fire block reads this instead of re-deriving nearest, so
   // shots track the same target the directive steers/aims toward.
   const resolvedTargets = new Map<Entity, Entity | null>()
+  // W2 command-layer review rider — a standing focus-fire order is a
+  // single fleet-wide target, so resolve it once per tick instead of once
+  // per escort. The pre-rider code re-ran findEnemyByKey's O(enemies) scan
+  // for every escort even though every escort reads the same answer.
+  const focusOrderKey = activeOrders().focusTargetKey
+  let focusOrderEnt: Entity | null = null
+  if (focusOrderKey) {
+    focusOrderEnt = findEnemyByKey(enemies, focusOrderKey)
+    if (!focusOrderEnt) {
+      // Stale key (target already dead/gone) is cleared here — the very
+      // next tick reads a null focusTargetKey, so this log fires exactly
+      // once per staleness event, not every tick.
+      clearStaleFocusTarget()
+      pushCombatLog('目标已失去 · 舰队恢复常规交战', 'info')
+    }
+  }
   for (const self of allShips) {
     const cs = self.get(CombatShipState)!
     const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
@@ -1433,21 +1551,9 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
 
     // A standing focus-fire order overrides an escort's target selection.
-    // A stale key (target already dead/gone) is cleared here — the very
-    // next tick reads a null focusTargetKey, so the "目标已失去" log below
-    // fires exactly once per staleness event, not every tick.
-    if (isEscort) {
-      const focusKey = activeOrders().focusTargetKey
-      if (focusKey) {
-        const focusEnt = findEnemyByKey(enemies, focusKey)
-        if (focusEnt) {
-          nearest = focusEnt
-          nearestRange = dist(cs.pos, focusEnt.get(CombatShipState)!.pos)
-        } else {
-          clearStaleFocusTarget()
-          pushCombatLog('目标已失去 · 舰队恢复常规交战', 'info')
-        }
-      }
+    if (isEscort && focusOrderEnt) {
+      nearest = focusOrderEnt
+      nearestRange = dist(cs.pos, focusOrderEnt.get(CombatShipState)!.pos)
     }
 
     let thrustWorld = { x: 0, y: 0 }
@@ -1573,34 +1679,50 @@ export function combatSystem(_world: World, dtMs: number): void {
   const playerPos = playerCsNow.pos
   const playerHeading = playerCsNow.heading
 
-  // -- 3. Player weapon charge + auto-fire ----------------------------------
-  // Each WeaponMount entity picks the closest in-arc, in-range enemy.
+  // -- 3. Player weapon charge + fire-mode-gated fire -----------------------
+  // Each WeaponMount always charges regardless of fire mode; whether (and
+  // at what) a ready mount fires depends on Task 5's per-mount mode:
+  //   - 'auto'   (default): fires the nearest in-arc, in-range enemy the
+  //              instant it's ready — pre-Task-5 behavior.
+  //   - 'hold':  charges but never fires; the player is banking the shot.
+  //   - 'volley': charges but only fires when the UI has queued a
+  //              single-shot request for this mount (store.volleyRequested),
+  //              targeting the in-arc enemy nearest the aim cursor
+  //              (fallback: nearest in-arc) rather than nearest-to-flagship.
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
     if (!m.weaponId) continue
     const def = getWeapon(m.weaponId)
     let charge = Math.min(def.chargeSec, m.chargeSec + dtSec)
     let ready = charge >= def.chargeSec
-    if (ready) {
+    const mode = store.fireModeByMount[m.mountIdx] ?? 'auto'
+    if (ready && mode !== 'hold') {
       const mountFacing = playerHeading + m.facingRad
-      let target: { ent: Entity; pos: { x: number; y: number } } | null = null
-      let bestRange = Infinity
-      for (const en of enemies) {
-        const enemyState = en.get(CombatShipState)
-        if (!enemyState) continue
-        const range = dist(playerPos, enemyState.pos)
-        if (range > def.range) continue
-        const ang = angleBetween(playerPos, enemyState.pos)
-        if (!inArc(ang, mountFacing, m.firingArcRad)) continue
-        if (range < bestRange) {
-          bestRange = range
-          target = { ent: en, pos: enemyState.pos }
+      const candidates = inArcEnemyCandidates(enemies, playerPos, mountFacing, m.firingArcRad, def.range)
+      if (mode === 'auto') {
+        const target = nearestCandidateTo(candidates, playerPos)
+        if (target) {
+          fireWeapon('player', def, playerPos, target.pos, target.ent)
+          recordPlayerMountShot(m.mountIdx, target.ent)
+          charge = 0
+          ready = false
         }
-      }
-      if (target) {
-        fireWeapon('player', def, playerPos, target.pos, target.ent)
-        charge = 0
-        ready = false
+      } else if (store.volleyRequested[m.mountIdx]) {
+        const aimPoint = store.aimMouse
+        const target = aimPoint
+          ? nearestCandidateTo(candidates, aimPoint)
+          : nearestCandidateTo(candidates, playerPos)
+        if (target) {
+          fireWeapon('player', def, playerPos, target.pos, target.ent)
+          recordPlayerMountShot(m.mountIdx, target.ent)
+          charge = 0
+          ready = false
+          useCombatStore.setState((s) => {
+            const volleyRequested = { ...s.volleyRequested }
+            delete volleyRequested[m.mountIdx]
+            return { volleyRequested }
+          })
+        }
       }
     }
     if (ready !== m.ready || charge !== m.chargeSec) {
