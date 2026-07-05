@@ -76,6 +76,7 @@ export function DialogueRunner({ root }: { root: DialogueNode }) {
             <button
               key={c.id}
               className="dialog-option"
+              data-dialogue-option={c.id}
               disabled={c.enabled === false}
               onClick={() => enter(c)}
               title={c.hint}
