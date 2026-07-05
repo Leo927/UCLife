@@ -1,0 +1,35 @@
+// W1 Task 5 — the old boot state, now explicit. bootstrapShipScene no longer
+// grants a flagship at boot (the first hull is bought at the AE broker), so
+// every ship-dependent smoke that used to rely on the boot flagship boots
+// this fixture instead: a lightFreighter flagship docked at Von Braun, the
+// starter MS (mobileWorker) stowed in its hangar bay, and the starter parts
+// inventory. Player stands at the default city spawn tile.
+{
+  seed: 'starter-fleet-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000,
+    location: { scene: 'vonBraunCity', x: 20, y: 50 },
+  },
+
+  ships: [
+    { id: 'ship', template: 'lightFreighter', dockedAt: 'vonBraun', flagship: true },
+  ],
+
+  ms: [
+    { key: 'ms-player-0', template: 'mobileWorker', storedOnShip: 'ship', bayIndex: 0 },
+  ],
+
+  parts: {
+    weapons: { 'ms-ballisticGun': 1, 'ms-missileRack': 1 },
+    frameMods: {
+      extPropellantTank: 1,
+      autoloader: 1,
+      lifeSupportPod: 1,
+      armorPlating: 1,
+      subThruster: 1,
+    },
+  },
+}

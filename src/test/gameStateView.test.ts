@@ -62,6 +62,16 @@ describe('getGameState', () => {
     expect(ship!.getHullPct()).toBe(1)
   })
 
+  it('getPlayerFleet counts zero ships when no fixture ship exists', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getPlayerFleet().getShipCount()).toBe(0)
+  })
+
+  it('getPlayerFleet counts the fixture flagship', () => {
+    applyFixture('amuro-at-recruit-office')
+    expect(getGameState().getPlayerFleet().getShipCount()).toBe(1)
+  })
+
   it('getFaction reads the post-fixture fund as a "Money" resource', () => {
     applyFixture('amuro-at-recruit-office')
     const ae = getGameState().getFaction('anaheim')

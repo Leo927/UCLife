@@ -20,7 +20,7 @@ const REQUIRED_HANDLES = [
 const STEP_BUDGET_MIN = 60
 
 test('captains office: adjutant, brig capacity, POW capture, panels', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // 1. Adjutant config check — name read from ship-classes.json5.
   const adj = await sim.page.evaluate(

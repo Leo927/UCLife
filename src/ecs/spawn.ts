@@ -10,7 +10,7 @@ import {
   Bed, Wall, Door, BarSeat, RoughSpot,
   EntityKey, Transit,
   FlightHub, Road,
-  Ship, ShipRoom, WeaponMount, IsFlagshipMark, IsInActiveFleet,
+  Ship, ShipRoom, WeaponMount, IsFlagshipMark,
   Hangar, OrbitalLift, TemplateRef,
   type InteractableKind,
   Ms, PlayerPartsInventory, MsRef,
@@ -38,9 +38,6 @@ import { flightHubs } from '../data/flights'
 import { setAirportPlacement, clearAirportPlacements } from '../sim/airportPlacements'
 import { setTransitPlacement, clearTransitPlacements } from '../sim/transitPlacements'
 import { bootstrapSpaceCampaign } from '../sim/spaceBootstrap'
-import { attachShipStatSheet } from './shipEffects'
-import { recomputeFleetFuelMax } from './fleetPool'
-import { defaultShipName } from '../data/shipNaming'
 import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
@@ -1155,68 +1152,14 @@ function spawnDiplomaticSlotAnchors(scene: MicroSceneConfig): void {
   }
 }
 
-// Ship interior bootstrap. Spawns the walkable flagship: Ship instance
-// (Starsector stat block) tagged with IsFlagshipMark so flagship helpers
-// can find it, one ShipRoom per blueprint room (pure walkable space — the
-// FTL room/system/oxygen/fire model goes away), one WeaponMount per
-// hardpoint, and the starmap + disembark kiosks at the bridge / hangar.
-function bootstrapShipScene(scene: ShipSceneConfig): void {
-  const cls = getShipClass(scene.shipClassId)
-
-  // Player starts docked at Von Braun by default. Derived world position
-  // from orbital parameters lands in slice 3 — for now fleetPos is a
-  // placeholder; the docked-POI id is the source of truth.
-  const fleetPos = { x: 0, y: 0 }
-
-  const flagship = world.spawn(
-    Ship({
-      templateId: cls.id,
-      name: defaultShipName(cls),
-      hullCurrent: cls.hullMax, hullMax: cls.hullMax,
-      armorCurrent: cls.armorMax, armorMax: cls.armorMax,
-      fluxMax: cls.fluxMax, fluxCurrent: 0,
-      fluxDissipation: cls.fluxDissipation,
-      hasShield: cls.hasShield,
-      shieldEfficiency: cls.shieldEfficiency,
-      topSpeed: cls.topSpeed,
-      accel: cls.accel,
-      decel: cls.decel,
-      angularAccel: cls.angularAccel,
-      maxAngVel: cls.maxAngVel,
-      crCurrent: cls.crMax, crMax: cls.crMax,
-      dockedAtPoiId: 'vonBraun',
-      fleetPos,
-      inCombat: false,
-      // Phase 6.2.E1 — flagship anchors at the center slot of the
-      // war-room formation grid and starts with the default aggression.
-      aggression: fleetConfig.aggressionDefault,
-      formationSlot: fleetConfig.activeFleetGrid.flagshipSlot,
-    }),
-    IsFlagshipMark(),
-    // Phase 6.2.E1 — the flagship is always in the active fleet (the
-    // ship the player is on can't be in reserve). The war-room UI
-    // enforces the constraint; the marker is the source of truth.
-    IsInActiveFleet(),
-    EntityKey({ key: 'ship' }),
-    Owner({ kind: 'character', entity: null }),
-  )
-  // Phase 6.2.B — project the class scalars into the per-ship StatSheet
-  // and seed an empty ShipEffectsList. Save round-trip rebuilds the
-  // sheet's modifier arrays from the list at load (see boot/saveHandlers/
-  // shipEffects.ts).
-  attachShipStatSheet(flagship)
-
-  seedShipSceneLayout(cls, getWorld(SHIP_SCENE_ID))
-
-  // Seed the fleet fuel pool full — bootstrap starts the player with a
-  // ready-to-fly tank. recomputeFleetFuelMax derives capacity from
-  // active-fleet ship statesheets (flagship is the sole member at boot).
-  recomputeFleetFuelMax({ topUp: true })
-
-  // Phase 6.2.5.A — grant starter MS and place sprite + terminal in hangar.
-  grantStarterMsToFlagship()
-  refreshMsLayout()
-}
+// Ship interior bootstrap. W1 Task 5 — the player no longer owns a ship at
+// boot: the first hull is bought at the AE broker and delivered to a hangar
+// (src/systems/shipDelivery.ts). Boot leaves the ship-interior world empty;
+// its class-specific layout (rooms, kiosks, MS bays) is seeded the first
+// time the player physically boards a hull (`boardShipByKey` in
+// src/sim/scene.ts). Nothing to spawn here — the hook is kept so the scene
+// registry still resolves a bootstrap for sceneType 'ship'.
+function bootstrapShipScene(_scene: ShipSceneConfig): void {}
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -1306,18 +1249,20 @@ export function tearDownShipSceneLayout(targetWorld: World): void {
   for (const ent of doomed) ent.destroy()
 }
 
-// Grant the starter MS to the flagship's hangar bay. Idempotent — no-op
-// if an Ms entity with starterMsEntityKey already exists.
-export function grantStarterMsToFlagship(): void {
+// Spawn one MS entity (fresh StatSheet + resource caps seeded by
+// attachMsStatSheet's zero-detect). Shared by the starter-MS grant and the
+// deterministic fixture loader (which pins an explicit frame + key).
+export interface SpawnMsOpts {
+  key: string
+  templateId: string
+  storedOnShipKey?: string
+  bayIndex?: number
+  dockedAtPoiId?: string
+  pilotId?: string
+}
+export function spawnMsEntity(opts: SpawnMsOpts): Entity {
+  const cls = getMsClass(opts.templateId)
   const shipWorld = getWorld(SHIP_SCENE_ID)
-  for (const ent of shipWorld.query(Ms, EntityKey)) {
-    if (ent.get(EntityKey)!.key === msConfig.starterMsEntityKey) return
-  }
-  const cls = getMsClass(msConfig.starterMsTemplateId)
-  // Phase 6.2.5.C — sortie resources seed via attachMsStatSheet (which
-  // reads template caps when the Ms trait's currentPropellant /
-  // currentLifeSupport are 0). We pass 0/{} here and let the helper do
-  // it so a future template-base change stays in one place.
   const msEnt = shipWorld.spawn(
     Ms({
       templateId: cls.id,
@@ -1327,22 +1272,39 @@ export function grantStarterMsToFlagship(): void {
       armorCurrent: cls.armorMax,
       armorMax: cls.armorMax,
       mountedWeapons: defaultMountedWeapons(cls),
-      storedOnShipKey: 'ship',
-      bayIndex: 0,
-      // 6.2.5.B fields default the same way.
-      dockedAtPoiId: '',
-      pilotId: '',
+      storedOnShipKey: opts.storedOnShipKey ?? '',
+      bayIndex: opts.bayIndex ?? 0,
+      dockedAtPoiId: opts.dockedAtPoiId ?? '',
+      pilotId: opts.pilotId ?? '',
       transitDestinationId: '',
       transitArrivalDay: 0,
-      // 6.2.5.C fields. Zero = "attachMsStatSheet please seed me".
+      // Phase 6.2.5.C — zero = "attachMsStatSheet please seed me".
       currentPropellant: 0,
       currentAmmoByWeapon: {},
       currentLifeSupport: 0,
       frameMods: [],
     }),
-    EntityKey({ key: msConfig.starterMsEntityKey }),
+    EntityKey({ key: opts.key }),
   )
   attachMsStatSheet(msEnt)
+  return msEnt
+}
+
+// Grant the starter MS + parts inventory, stored aboard the ship keyed by
+// `shipKey`. W1 Task 5 — this fires when the player receives their first
+// hull (src/systems/shipDelivery.ts), not at boot. Idempotent — no-op if an
+// Ms entity with starterMsEntityKey already exists.
+export function grantStarterMsToShip(shipKey: string): void {
+  const shipWorld = getWorld(SHIP_SCENE_ID)
+  for (const ent of shipWorld.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key === msConfig.starterMsEntityKey) return
+  }
+  spawnMsEntity({
+    key: msConfig.starterMsEntityKey,
+    templateId: msConfig.starterMsTemplateId,
+    storedOnShipKey: shipKey,
+    bayIndex: 0,
+  })
 
   // Parts inventory singleton — spawn if missing.
   const partsKey = 'player-parts-inv'

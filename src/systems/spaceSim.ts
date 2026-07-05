@@ -15,7 +15,7 @@ import { contact } from '../engine/space/engagement'
 import { enemyAISystem } from './enemyAI'
 import { fleetFormationSystem } from './fleetFormation'
 import { useEngagement } from '../sim/engagement'
-import { spendFuel, getFleetPool, getDockedPoiId, setDockedPoi, setFleetPos } from '../sim/ship'
+import { spendFuel, getFleetPool, getDockedPoiId, setDockedPoi, setFleetPos, getFlagshipEntity } from '../sim/ship'
 import { emitSim } from '../sim/events'
 import { simNow } from '../sim/time'
 
@@ -265,8 +265,13 @@ export function spaceSimSystem(world: World, dtSec: number): void {
   // is parked and immune; the modal must never fire while the player is
   // walking around the city or ship interior.
   let playerPos: { x: number; y: number } | null = null
-  const playerDocked = !!getDockedPoiId()
-  if (!playerDocked) {
+  // W1 Task 5 — the player owns no ship until they buy one, but
+  // bootstrapSpaceCampaign still spawns a placeholder player ShipBody in
+  // space. With no flagship, getDockedPoiId() is null, so the docked guard
+  // alone would let an enemy ambush a player who owns nothing. No flagship =
+  // not flying = immune (same as parked).
+  const playerFlying = !!getFlagshipEntity() && !getDockedPoiId()
+  if (playerFlying) {
     for (const pe of world.query(IsPlayer, ShipBody, Position)) {
       playerPos = pe.get(Position)!
       break

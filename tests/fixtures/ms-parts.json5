@@ -8,6 +8,10 @@
 //
 // Same baseline shape as ms-sortie, minus the recovery-tug captain (this
 // smoke never strands an MS).
+//
+// W1 Task 5 — the starter MS + parts inventory are no longer boot-granted;
+// this fixture pins them (a `gm_pre`, as before). buyPartCheat needs the
+// PlayerPartsInventory singleton to exist, and the install step needs the MS.
 {
   seed: 'ms-parts-001',
   startDate: '2026-05-27T08:00:00Z',
@@ -20,11 +24,21 @@
   },
 
   ships: [
-    {
-      id: 'ship',
-      template: 'lightFreighter',
-      name: '自由号',
-      dockedAt: 'vonBraun',
-    },
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun', flagship: true },
   ],
+
+  ms: [
+    { key: 'ms-player-0', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 0 },
+  ],
+
+  parts: {
+    weapons: { 'ms-ballisticGun': 1, 'ms-missileRack': 1 },
+    frameMods: {
+      extPropellantTank: 1,
+      autoloader: 1,
+      lifeSupportPod: 1,
+      armorPlating: 1,
+      subThruster: 1,
+    },
+  },
 }

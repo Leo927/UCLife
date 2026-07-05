@@ -24,7 +24,7 @@ const REQUIRED_HANDLES = [
 const STEP_BUDGET_MIN = 60
 
 test('cockpit: launch MS, dock, re-helm flagship', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // Boot + board + helm + jump into combat.
   const setupOk = await sim.page.evaluate(() => {

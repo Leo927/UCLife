@@ -15,7 +15,7 @@
 
 import { test, expect, DOM_COMMIT_TIMEOUT_MS, isExpectedTestModePortraitMissing } from './_fixtures'
 
-const FIXTURE = 'player-with-cash-at-vb'
+const FIXTURE = 'fleet-supply'
 const VB_HANGAR_TYPE = 'hangarSurface'
 const EXPECTED_SUPPLY_MAX = 1000
 const EXPECTED_FUEL_MAX = 400

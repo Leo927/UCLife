@@ -15,7 +15,7 @@ import { migratePlayerEntity } from '../character/migrate'
 import { markPathfindingDirty, warmPathfinding } from '../systems/pathfinding'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
 import { getShipClass, type ShipClassDef } from '../data/ship-classes'
-import { seedShipSceneLayout, tearDownShipSceneLayout } from '../ecs/spawn'
+import { seedShipSceneLayout, tearDownShipSceneLayout, refreshMsLayout } from '../ecs/spawn'
 import { worldConfig, fleetConfig } from '../config'
 import { emitSim } from './events'
 
@@ -171,6 +171,10 @@ export function boardShipByKey(targetShipKey: string): { ok: true } | { ok: fals
 
   tearDownShipSceneLayout(shipWorld)
   seedShipSceneLayout(targetCls, shipWorld)
+  // W1 Task 5 — any MS stowed aboard the new flagship (e.g. the starter MS
+  // granted with the player's first bought hull) renders in its hangar bay
+  // only once that hull is the flagship. Re-place the MS sprites here.
+  refreshMsLayout()
 
   const arrival = spawnPixelsForClass(targetCls)
   migratePlayerToScene(SHIP_SCENE_ID, arrival)

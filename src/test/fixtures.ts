@@ -8,16 +8,20 @@ import { Faction, EntityKey, Workstation, Job } from '../ecs/traits'
 import { bootstrapFactions } from '../ecs/ownership'
 import { setSimRngSeed } from '../sim/rng'
 import { setSimNow } from '../sim/time'
-import { worldConfig, factionsConfig, skillsConfig, type SkillId as ConfigSkillId, type FactionId } from '../config'
+import { worldConfig, factionsConfig, skillsConfig, fleetConfig, type SkillId as ConfigSkillId, type FactionId } from '../config'
 import {
   isCauseId, isTemperamentId, type CauseTags, type TemperamentId,
 } from '../config/psychology'
 import { isSceneId } from '../data/scenes'
 import { isShipClassId, getShipClass } from '../data/ship-classes'
-import { Ship, IsFlagshipMark, Owner } from '../ecs/traits'
+import { isMsClassId } from '../data/ms'
+import { isMsWeaponId } from '../data/ms-weapons'
+import { isMsFrameModId } from '../data/ms-frame-mods'
+import { Ship, IsFlagshipMark, IsInActiveFleet, Owner, PlayerPartsInventory } from '../ecs/traits'
 import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
 import { recomputeFleetFuelMax } from '../ecs/fleetPool'
+import { seedShipSceneLayout, refreshMsLayout, spawnMsEntity } from '../ecs/spawn'
 
 interface FixtureLocation {
   scene: string
@@ -42,6 +46,32 @@ interface FixtureShip {
   template: string
   name?: string
   dockedAt?: string
+  // W1 Task 5 — the fleet flagship. Exactly one ship may set this. When set,
+  // the loader seeds the ship-interior layout for its class, tops off the
+  // fleet fuel pool, and marks the entity IsFlagshipMark — reproducing the
+  // boot state that bootstrapShipScene used to grant. When no ship sets it,
+  // ships[0] is marked IsFlagshipMark (interior NOT seeded) for backward compat.
+  flagship?: boolean
+}
+
+// W1 Task 5 — an MS aboard the flagship or docked at a POI. The starter MS
+// is no longer auto-granted at boot, so fixtures that need one (retrofit,
+// sortie, roster) pin its frame + key here. Mirrors the Ms trait + the
+// getMs / getMsRoster debug-handle vocabulary.
+interface FixtureMs {
+  key: string
+  template: string
+  storedOnShip?: string
+  bayIndex?: number
+  dockedAt?: string
+  pilotId?: string
+}
+
+// W1 Task 5 — the player parts inventory singleton (MS weapons + frame mods).
+// Granted with the first hull at runtime; declared explicitly in fixtures.
+interface FixtureParts {
+  weapons?: Record<string, number>
+  frameMods?: Record<string, number>
 }
 
 interface FixtureNpc {
@@ -66,18 +96,22 @@ interface Fixture {
   player?: FixturePlayer
   factions?: FixtureFaction[]
   ships?: FixtureShip[]
+  ms?: FixtureMs[]
+  parts?: FixtureParts
   npcs?: FixtureNpc[]
 }
 
 const FIXTURE_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
-  'seed', 'startDate', 'scene', 'player', 'factions', 'ships', 'npcs',
+  'seed', 'startDate', 'scene', 'player', 'factions', 'ships', 'ms', 'parts', 'npcs',
 ])
 const PLAYER_KEYS: ReadonlySet<string> = new Set([
   'money', 'location', 'skills', 'background',
 ])
 const LOCATION_KEYS: ReadonlySet<string> = new Set(['scene', 'x', 'y'])
 const FACTION_KEYS: ReadonlySet<string> = new Set(['id', 'money'])
-const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt'])
+const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt', 'flagship'])
+const MS_KEYS: ReadonlySet<string> = new Set(['key', 'template', 'storedOnShip', 'bayIndex', 'dockedAt', 'pilotId'])
+const PARTS_KEYS: ReadonlySet<string> = new Set(['weapons', 'frameMods'])
 const NPC_KEYS: ReadonlySet<string> = new Set([
   'id', 'name', 'at', 'skills', 'workstation', 'faction', 'temperament', 'sympathies',
 ])
@@ -147,6 +181,24 @@ function asNumber(name: string, path: string, v: unknown): number {
     fail(name, path, `must be a finite number, got ${typeof v}`)
   }
   return v
+}
+
+function asBoolean(name: string, path: string, v: unknown): boolean {
+  if (typeof v !== 'boolean') fail(name, path, `must be a boolean, got ${typeof v}`)
+  return v
+}
+
+function validatePartCounts(
+  name: string, path: string, raw: unknown,
+  isValidId: (id: string) => boolean, kindLabel: string,
+): Record<string, number> {
+  const o = asObject(name, path, raw)
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(o)) {
+    if (!isValidId(k)) fail(name, `${path}.${k}`, `is not a known ${kindLabel} id`)
+    out[k] = asNumber(name, `${path}.${k}`, v)
+  }
+  return out
 }
 
 function validateLocation(name: string, path: string, raw: unknown): FixtureLocation {
@@ -232,8 +284,39 @@ function validate(name: string, raw: unknown): Fixture {
       const s: FixtureShip = { id, template }
       if (r.name !== undefined) s.name = asString(name, `ships[${i}].name`, r.name)
       if (r.dockedAt !== undefined) s.dockedAt = asString(name, `ships[${i}].dockedAt`, r.dockedAt)
+      if (r.flagship !== undefined) s.flagship = asBoolean(name, `ships[${i}].flagship`, r.flagship)
       return s
     })
+    const flagshipCount = out.ships.filter((s) => s.flagship === true).length
+    if (flagshipCount > 1) fail(name, 'ships', `declares ${flagshipCount} flagships; at most one ship may set flagship: true`)
+  }
+
+  if (root.ms !== undefined) {
+    const arr = asArray(name, 'ms', root.ms)
+    out.ms = arr.map((row, i) => {
+      const r = asObject(name, `ms[${i}]`, row)
+      rejectUnknownKeys(name, `ms[${i}]`, r, MS_KEYS)
+      const key = asString(name, `ms[${i}].key`, r.key)
+      const template = asString(name, `ms[${i}].template`, r.template)
+      if (!isMsClassId(template)) {
+        fail(name, `ms[${i}].template`, `"${template}" not found in ms-classes`)
+      }
+      const m: FixtureMs = { key, template }
+      if (r.storedOnShip !== undefined) m.storedOnShip = asString(name, `ms[${i}].storedOnShip`, r.storedOnShip)
+      if (r.bayIndex !== undefined) m.bayIndex = asNumber(name, `ms[${i}].bayIndex`, r.bayIndex)
+      if (r.dockedAt !== undefined) m.dockedAt = asString(name, `ms[${i}].dockedAt`, r.dockedAt)
+      if (r.pilotId !== undefined) m.pilotId = asString(name, `ms[${i}].pilotId`, r.pilotId)
+      return m
+    })
+  }
+
+  if (root.parts !== undefined) {
+    const p = asObject(name, 'parts', root.parts)
+    rejectUnknownKeys(name, 'parts', p, PARTS_KEYS)
+    const parts: FixtureParts = {}
+    if (p.weapons !== undefined) parts.weapons = validatePartCounts(name, 'parts.weapons', p.weapons, isMsWeaponId, 'ms-weapon')
+    if (p.frameMods !== undefined) parts.frameMods = validatePartCounts(name, 'parts.frameMods', p.frameMods, isMsFrameModId, 'ms-frame-mod')
+    out.parts = parts
   }
 
   if (root.npcs !== undefined) {
@@ -351,32 +434,26 @@ function applyShips(name: string, fx: Fixture): void {
   if (!fx.ships) return
   const shipWorld = getWorld('playerShipInterior')
 
-  // Build a lookup of bootstrap-spawned ships so the fixture can adopt
-  // them by EntityKey rather than spawning duplicates. bootstrapShipScene
-  // always lands at least one entity (the default flagship with key='ship')
-  // and resetDeliveredShipCounter() is a no-op in test mode, so a fixture
-  // that declares `ships[].id === 'ship'` MUST reach in and rewrite that
-  // entity in place — otherwise IsFlagshipMark + EntityKey collide.
-  const existingByKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
-  for (const e of shipWorld.query(Ship, EntityKey)) {
-    existingByKey.set(e.get(EntityKey)!.key, e)
-  }
+  // W1 Task 5 — boot no longer spawns a flagship, so the ship-interior world
+  // is empty here and every fixture ship is spawned fresh. Exactly one ship
+  // is the flagship: the one with explicit `flagship: true`, else ships[0].
+  // The flagship gets IsFlagshipMark + IsInActiveFleet + the flagship
+  // formation slot (reproducing the old boot markers). When declared
+  // `flagship: true`, its class interior is seeded too, so board / enter-ship
+  // fixtures find a walkable layout without booting into the ship first.
+  const explicitFlagshipIdx = fx.ships.findIndex((s) => s.flagship === true)
+  const flagshipIdx = explicitFlagshipIdx >= 0 ? explicitFlagshipIdx : 0
 
   const seenIds = new Set<string>()
+  let flagshipCls: ReturnType<typeof getShipClass> | undefined
   for (let i = 0; i < fx.ships.length; i += 1) {
     const s = fx.ships[i]
     if (seenIds.has(s.id)) fail(name, `ships[${i}].id`, `duplicates ships[].id "${s.id}"`)
     seenIds.add(s.id)
     const cls = getShipClass(s.template)
-    let ship = existingByKey.get(s.id)
-    if (ship) {
-      // Adopt the bootstrap-spawned entity. Rewrite the Ship trait to
-      // match the fixture; the StatSheet / Owner already exist (the
-      // bootstrap stamps them) so we just overwrite the docked POI +
-      // name + template-derived stats.
-      const cur = ship.get(Ship)!
-      ship.set(Ship, {
-        ...cur,
+    const isFlagship = i === flagshipIdx
+    const ship = shipWorld.spawn(
+      Ship({
         templateId: cls.id,
         name: s.name ?? defaultShipName(cls),
         hullCurrent: cls.hullMax, hullMax: cls.hullMax,
@@ -394,40 +471,65 @@ function applyShips(name: string, fx: Fixture): void {
         dockedAtPoiId: s.dockedAt ?? '',
         fleetPos: { x: 0, y: 0 },
         inCombat: false,
-      })
-      if (!ship.has(Owner)) ship.add(Owner)
-      ship.set(Owner, { kind: 'character', entity: null })
-    } else {
-      ship = shipWorld.spawn(
-        Ship({
-          templateId: cls.id,
-          name: s.name ?? defaultShipName(cls),
-          hullCurrent: cls.hullMax, hullMax: cls.hullMax,
-          armorCurrent: cls.armorMax, armorMax: cls.armorMax,
-          fluxMax: cls.fluxMax, fluxCurrent: 0,
-          fluxDissipation: cls.fluxDissipation,
-          hasShield: cls.hasShield,
-          shieldEfficiency: cls.shieldEfficiency,
-          topSpeed: cls.topSpeed,
-          accel: cls.accel,
-          decel: cls.decel,
-          angularAccel: cls.angularAccel,
-          maxAngVel: cls.maxAngVel,
-          crCurrent: cls.crMax, crMax: cls.crMax,
-          dockedAtPoiId: s.dockedAt ?? '',
-          fleetPos: { x: 0, y: 0 },
-          inCombat: false,
-        }),
-        EntityKey({ key: s.id }),
-        Owner({ kind: 'character', entity: null }),
-      )
-      attachShipStatSheet(ship)
+        aggression: fleetConfig.aggressionDefault,
+        formationSlot: isFlagship ? fleetConfig.activeFleetGrid.flagshipSlot : -1,
+      }),
+      EntityKey({ key: s.id }),
+      Owner({ kind: 'character', entity: null }),
+    )
+    attachShipStatSheet(ship)
+    if (isFlagship) {
+      ship.add(IsFlagshipMark)
+      ship.add(IsInActiveFleet)
+      if (s.flagship === true) flagshipCls = cls
     }
-    if (i === 0 && !ship.has(IsFlagshipMark)) ship.add(IsFlagshipMark)
   }
+
+  // Seed the flagship's interior (rooms + kiosks) the way the old boot did,
+  // so fixtures that board / enter the ship find a walkable layout.
+  if (flagshipCls) seedShipSceneLayout(flagshipCls, shipWorld)
+
   // Roster mutated — re-derive fleet fuel capacity and top off so the
   // fixture starts in a flyable state.
   recomputeFleetFuelMax({ topUp: true })
+}
+
+function applyMs(name: string, fx: Fixture): void {
+  if (!fx.ms) return
+  const seenKeys = new Set<string>()
+  for (let i = 0; i < fx.ms.length; i += 1) {
+    const m = fx.ms[i]
+    if (seenKeys.has(m.key)) fail(name, `ms[${i}].key`, `duplicates ms[].key "${m.key}"`)
+    seenKeys.add(m.key)
+    spawnMsEntity({
+      key: m.key,
+      templateId: m.template,
+      storedOnShipKey: m.storedOnShip,
+      bayIndex: m.bayIndex,
+      dockedAtPoiId: m.dockedAt,
+      pilotId: m.pilotId,
+    })
+  }
+  // Re-place MS sprites for whatever is stowed aboard the flagship.
+  refreshMsLayout()
+}
+
+function applyParts(name: string, fx: Fixture): void {
+  if (!fx.parts) return
+  const shipWorld = getWorld('playerShipInterior')
+  const partsKey = 'player-parts-inv'
+  for (const ent of shipWorld.query(PlayerPartsInventory, EntityKey)) {
+    if (ent.get(EntityKey)!.key === partsKey) {
+      fail(name, 'parts', 'a PlayerPartsInventory already exists (fixture declared parts twice?)')
+    }
+  }
+  shipWorld.spawn(
+    PlayerPartsInventory({
+      weapons: { ...(fx.parts.weapons ?? {}) },
+      frameMods: { ...(fx.parts.frameMods ?? {}) },
+    }),
+    EntityKey({ key: partsKey }),
+  )
 }
 
 function applyNpcs(name: string, fx: Fixture): void {
@@ -474,6 +576,8 @@ export function applyFixture(name: string): void {
   applyPlayer(name, fx)
   applyFactions(name, fx)
   applyShips(name, fx)
+  applyMs(name, fx)
+  applyParts(name, fx)
   applyNpcs(name, fx)
   // Route through useScene so the zustand store stays in sync with
   // ecs/world.ts's activeId — ScopedRoot subscribes to useScene to pick

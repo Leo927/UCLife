@@ -28,7 +28,7 @@ const REQUIRED_HANDLES = [
 ]
 
 test('war-room: plot table, IsInActiveFleet, aggression, save round-trip', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

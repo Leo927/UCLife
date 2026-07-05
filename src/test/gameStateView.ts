@@ -56,6 +56,12 @@ export interface ShipView {
   getCrew(): CharacterView[]
 }
 
+// W1 Task 5 — the player's owned hulls. getShipCount() is 0 on a fresh
+// boot now that the flagship is bought, not boot-granted.
+export interface FleetView {
+  getShipCount(): number
+}
+
 export interface FactionView {
   getId(): string
   getResource(key: string): number
@@ -114,6 +120,9 @@ export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
   getShip(idOrName: string): ShipView | null
+  // W1 Task 5 — the player's fleet (owned Ship entities). Used by the
+  // no-ship-start smoke to prove a fresh boot owns nothing.
+  getPlayerFleet(): FleetView
   getFaction(id: string): FactionView | null
   getDialogue(): DialogueView | null
   getScene(): SceneView
@@ -263,6 +272,19 @@ function findShipByKey(key: string): { entity: Entity; sceneId: string } | null 
   return null
 }
 
+// Count the player's owned hulls across all scene worlds. Player ships
+// carry Owner{ kind: 'character' }; enemy / neutral hulls do not.
+function countPlayerShips(): number {
+  let n = 0
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const e of w.query(Ship, Owner)) {
+      if (e.get(Owner)!.kind === 'character') n += 1
+    }
+  }
+  return n
+}
+
 function makeShipView(entity: Entity): ShipView {
   return {
     getId(): string {
@@ -376,6 +398,9 @@ export function getGameState(): GameStateView {
       const hit = findShipByKey(idOrName)
       if (!hit) return null
       return makeShipView(hit.entity)
+    },
+    getPlayerFleet(): FleetView {
+      return { getShipCount: countPlayerShips }
     },
     getFaction(id: string): FactionView | null {
       if (!FACTION_IDS.has(id)) return null

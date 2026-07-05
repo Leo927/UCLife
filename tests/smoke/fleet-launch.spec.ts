@@ -32,7 +32,7 @@ test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', 
   // canvas-render console error during the same scene swap.
   sim.allowConsoleError((t) => t.includes('The above error occurred in the <PixiCanvas>'))
   sim.allowConsoleError((t) => /Cannot read properties of undefined \(reading 'push'\)/.test(t))
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.cheatMoney(2_000_000))

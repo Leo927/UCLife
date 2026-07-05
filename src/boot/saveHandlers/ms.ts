@@ -14,7 +14,7 @@ import { attachFormulas, serializeSheet, type SerializedSheet } from '../../stat
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { attachMsStatSheet, ammoCapsForMs } from '../../ecs/msEffects'
 import { getMsClass } from '../../data/ms'
-import { grantStarterMsToFlagship, refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
+import { refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -123,8 +123,10 @@ function restoreMs(saved: unknown): void {
   for (const ent of w.query(PlayerPartsInventory)) doomed.push(ent)
   for (const ent of doomed) ent.destroy()
 
+  // W1 Task 5 — a save with no MS roster (a no-MS game, or a pre-6.2.5 save)
+  // restores to an empty roster. The starter MS is no longer auto-granted
+  // here; it's earned aboard the player's first bought hull.
   if (!saved || typeof saved !== 'object') {
-    grantStarterMsToFlagship()
     refreshMsLayout()
     refreshAllDepotMsLayouts()
     return
@@ -132,7 +134,6 @@ function restoreMs(saved: unknown): void {
 
   const block = saved as MsRosterBlock
   if (!Array.isArray(block.roster) || block.roster.length === 0) {
-    grantStarterMsToFlagship()
     refreshMsLayout()
     refreshAllDepotMsLayouts()
     return
@@ -228,7 +229,9 @@ function resetMs(): void {
   for (const ent of w.query(Ms)) doomed.push(ent)
   for (const ent of w.query(PlayerPartsInventory)) doomed.push(ent)
   for (const ent of doomed) ent.destroy()
-  grantStarterMsToFlagship()
+  // W1 Task 5 — a fresh world owns no ship, so no starter MS is granted at
+  // reset. It arrives with the player's first bought hull. Refresh clears
+  // any stale MS sprites left over from the previous world.
   refreshMsLayout()
   refreshAllDepotMsLayouts()
 }

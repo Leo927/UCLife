@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation, IsFlagshipMark, IsInActiveFleet, Ship, Ms, PlayerPartsInventory } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -161,6 +161,34 @@ describe('applyFixture', () => {
     expect(getStat(escortA.get(ShipStatSheet)!.sheet, 'dpCost')).toBe(2)
     const escortB = byKey.get('escort-b')!
     expect(getStat(escortB.get(ShipStatSheet)!.sheet, 'dpCost')).toBe(10)
+  })
+
+  it('loads starter-fleet: flagship + stowed starter MS + parts inventory (old boot state)', () => {
+    applyFixture('starter-fleet')
+    const shipWorld = getWorld('playerShipInterior')
+    const byKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+    // Flagship: lightFreighter, docked VB, IsFlagshipMark + IsInActiveFleet.
+    const flag = byKey.get('ship')!
+    expect(flag, 'flagship entity "ship" must exist').toBeTruthy()
+    expect(flag.has(IsFlagshipMark), 'flagship carries IsFlagshipMark').toBe(true)
+    expect(flag.has(IsInActiveFleet), 'flagship is in the active fleet').toBe(true)
+    expect(flag.get(Ship)!.templateId).toBe('lightFreighter')
+    expect(flag.get(Ship)!.dockedAtPoiId).toBe('vonBraun')
+
+    // Starter MS: mobileWorker, stowed aboard the flagship at bay 0.
+    const ms = byKey.get('ms-player-0')!
+    expect(ms, 'starter MS entity must exist').toBeTruthy()
+    expect(ms.get(Ms)!.templateId).toBe('mobileWorker')
+    expect(ms.get(Ms)!.storedOnShipKey).toBe('ship')
+    expect(ms.get(Ms)!.bayIndex).toBe(0)
+
+    // Parts inventory carries the starter weapons.
+    const parts = byKey.get('player-parts-inv')!
+    expect(parts, 'parts inventory must exist').toBeTruthy()
+    expect(parts.get(PlayerPartsInventory)!.weapons['ms-ballisticGun']).toBe(1)
+    expect(parts.get(PlayerPartsInventory)!.frameMods['autoloader']).toBe(1)
   })
 
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
