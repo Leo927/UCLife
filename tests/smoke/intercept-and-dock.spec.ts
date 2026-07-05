@@ -39,13 +39,12 @@ const DOCK_POSITION_TOLERANCE_PX = 50
 test('intercept course chases a live enemy to contact; dockAt reliably parks at an orbiting POI', async ({ sim }) => {
   await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
   // This spec isolates the navigation/dock-retargeting loop under test from
-  // fleet fuel economy (a separate concern with its own coverage — see
-  // fleet-supply.spec.ts). starter-fleet's lightFreighter has only a
-  // 16-unit tank; chasing a live lunar patrol to contact and back can
-  // legitimately burn through it, which strands the ship with an active,
-  // unfulfillable course and never satisfies the dock predicate below —
-  // a real bug (see Design/ or the task report), but a fuel-economy one,
-  // not the retargeting reliability this test is about.
+  // fleet fuel economy: infinite fuel means a run that burns more than the
+  // starter lightFreighter's realistic 60-unit tank still exercises
+  // intercept -> contact -> decline -> dock without the sortie fuel budget
+  // confounding the retargeting assertions below. The realistic-fuel round
+  // trip (undock + intercept + dock within half the tank) has its own
+  // dedicated coverage in fuel-budget.spec.ts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.setInfiniteFuelSupply(true))
 

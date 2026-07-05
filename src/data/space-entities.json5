@@ -83,6 +83,16 @@
     // of that position so the player encounters them on the first departure
     // from Von Braun. pirate_skirmisher entries are weaker patrol craft;
     // pirate_raider is the fleet anchor.
+    //
+    // W1 Task 7 review fix — the uniform 5x aggroRadius scale (see
+    // pirate-lunar-4 below) left all four of these groups' circles covering
+    // every near-moon dock anchor (vonBraun/vonBraunDrydock/marikoRefinery)
+    // at t=0, so an undock triggered the whole cluster into chase at once.
+    // Only pirate-lunar-4 is authored to reach that far (it's the intended
+    // "genuinely pursues" group, sized to the spec's 1/8-sector-width
+    // target); pirate-lunar-1/2/3 are staggered back down so their circles
+    // exclude every near-moon dock anchor with a >=20% distance margin —
+    // orbits move, so a hairline miss today becomes a hit tomorrow.
     {
       id: 'pirate-lunar-1',
       kind: 'enemyShip',
@@ -96,7 +106,7 @@
         { x: 19800, y: 13000 },
         { x: 18800, y: 12200 },
       ],
-      aggroRadius: 3250,
+      aggroRadius: 500,
       fleeHullPct: 0.20,
     },
     {
@@ -112,7 +122,7 @@
         { x: 18600, y: 11800 },
         { x: 17800, y: 11200 },
       ],
-      aggroRadius: 3000,
+      aggroRadius: 950,
       fleeHullPct: 0.20,
     },
     {
@@ -122,7 +132,7 @@
       escorts: ['pirate_skirmisher'],
       spawn: { x: 20000, y: 13200 },
       aiMode: 'idle',
-      aggroRadius: 2500,
+      aggroRadius: 900,
       fleeHullPct: 0.20,
     },
     // Lunar raider with two skirmisher wingmen — heaviest near-moon
