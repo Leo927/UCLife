@@ -23,6 +23,11 @@
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
       escorts: ['pirate_skirmisher'],
+      // W3 (ms-identity) Task 2 — first authored hostile-MS wingman. Light
+      // junker brawler; the shoal zone is early/mid-game content so a
+      // gm_pre-piloted player meets its first hostile MS here, not at the
+      // (deliberately solo) Von Braun starter picket.
+      msComplement: ['pirate_junkerMs'],
       spawn: { x: 9500, y: 11200 },
       aiMode: 'patrol',
       patrolPath: [
@@ -42,6 +47,8 @@
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
       escorts: ['pirate_skirmisher'],
+      // W3 (ms-identity) Task 2 — fire-support MS wingman variant.
+      msComplement: ['pirate_junkerMs_gun'],
       spawn: { x: 11800, y: 12600 },
       aiMode: 'patrol',
       patrolPath: [
@@ -221,6 +228,11 @@
       shipClassId: 'pirate_raider',
       escorts: ['pirate_skirmisher'],
       notableCaptains: { '0': 'gato-0077-corp-raider' },
+      // W3 (ms-identity) Task 2 — Gato's flotilla is the heaviest authored
+      // outer-belt group; it fields both junker MS variants alongside its
+      // ships, deliberate mid/late-game escalation over the shoal-zone
+      // groups above.
+      msComplement: ['pirate_junkerMs', 'pirate_junkerMs_gun'],
       spawn: { x: 27000, y: 8400 },
       aiMode: 'patrol',
       patrolPath: [

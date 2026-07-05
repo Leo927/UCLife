@@ -189,16 +189,22 @@ registerDebugHandle('combatEnemySnapshot', () => {
 
 registerDebugHandle('combatEntities', () => {
   const w = getWorld('playerShipInterior')
-  const out: { side: string; isFlagship: boolean; isMs: boolean; piloted: boolean; nameZh: string; hull: string }[] = []
+  const out: {
+    key: string; side: string; isFlagship: boolean; isMs: boolean; piloted: boolean
+    nameZh: string; hull: string; hullCurrent: number; hullMax: number
+  }[] = []
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
     out.push({
+      key: e.get(EntityKey)?.key ?? '',
       side: cs.side,
       isFlagship: cs.isFlagship,
       isMs: cs.isMs,
       piloted: cs.pilotedByPlayer,
       nameZh: cs.nameZh,
       hull: `${cs.hullCurrent}/${cs.hullMax}`,
+      hullCurrent: cs.hullCurrent,
+      hullMax: cs.hullMax,
     })
   }
   return out

@@ -35,7 +35,8 @@ import {
 } from '../ecs/traits'
 import { refreshMsLayout, refreshAllDepotMsLayouts } from '../ecs/spawn'
 import { formationOffsetForSlot } from './fleetFormation'
-import { getEnemyShip, isEnemyShipId } from '../data/enemyShips'
+import { getEnemyShip, isEnemyShipId, type EnemyShipBlueprint } from '../data/enemyShips'
+import { getSpaceEntity } from '../data/space-entities'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
 import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
@@ -407,6 +408,59 @@ function enemySpawnSlot(idx: number, total: number): { x: number; y: number } {
   }
 }
 
+// Shared enemy-side CombatShipState shape — used for both ship-fleet rows
+// (spawnEnemyShip) and MS complement rows (spawnEnemyMsComplement). Reads
+// every combat-relevant field off the blueprint (ships and isMs rows share
+// the same mounts/defaultWeapons/ai shape), so an MS blueprint authored with
+// fluxMax:0 + hasShield:false spawns with no flux/shield model automatically
+// — no isMs-specific branch needed here.
+function buildEnemyCombatShipState(
+  blueprint: EnemyShipBlueprint,
+  pos: { x: number; y: number },
+  captainId: string,
+) {
+  return CombatShipState({
+    shipClassId: blueprint.id,
+    nameZh: blueprint.nameZh,
+    captainId,
+    side: 'enemy',
+    isFlagship: false,
+    isMs: blueprint.isMs ?? false,
+    pilotedByPlayer: false,
+    isPlayer: false,
+    pos,
+    vel: { x: 0, y: 0 },
+    heading: Math.PI,    // facing -x toward player
+    angVel: 0,
+    hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
+    armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
+    fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
+    hasShield: blueprint.hasShield,
+    shieldEfficiency: blueprint.shieldEfficiency,
+    shieldUp: blueprint.hasShield,
+    topSpeed: blueprint.topSpeed,
+    accel: blueprint.accel,
+    decel: blueprint.decel,
+    angularAccel: blueprint.angularAccel,
+    maxAngVel: blueprint.maxAngVel,
+    weapons: blueprint.defaultWeapons.map((id, i) => ({
+      weaponId: id,
+      size: blueprint.mounts[i].size,
+      firingArcRad: (blueprint.mounts[i].firingArcDeg * Math.PI) / 180,
+      facingRad: (blueprint.mounts[i].facingDeg * Math.PI) / 180,
+      chargeSec: 0,
+      ready: false,
+      hardpointId: '',
+    })),
+    ai: {
+      aggression: blueprint.ai.aggression,
+      retreatThreshold: blueprint.ai.retreatThresholdPct,
+      maintainRange: blueprint.ai.maintainRange,
+    },
+    currentTargetKey: '',
+  })
+}
+
 function spawnEnemyShip(
   w: World,
   blueprintId: string,
@@ -417,48 +471,42 @@ function spawnEnemyShip(
   const blueprint = getEnemyShip(blueprintId)
   const spawn = enemySpawnSlot(slotIdx, totalSlots)
   w.spawn(
-    CombatShipState({
-      shipClassId: blueprint.id,
-      nameZh: blueprint.nameZh,
-      captainId,
-      side: 'enemy',
-      isFlagship: false,
-      isMs: false,
-      pilotedByPlayer: false,
-      isPlayer: false,
-      pos: { x: spawn.x, y: spawn.y },
-      vel: { x: 0, y: 0 },
-      heading: Math.PI,    // facing -x toward player
-      angVel: 0,
-      hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
-      armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
-      fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
-      hasShield: blueprint.hasShield,
-      shieldEfficiency: blueprint.shieldEfficiency,
-      shieldUp: blueprint.hasShield,
-      topSpeed: blueprint.topSpeed,
-      accel: blueprint.accel,
-      decel: blueprint.decel,
-      angularAccel: blueprint.angularAccel,
-      maxAngVel: blueprint.maxAngVel,
-      weapons: blueprint.defaultWeapons.map((id, i) => ({
-        weaponId: id,
-        size: blueprint.mounts[i].size,
-        firingArcRad: (blueprint.mounts[i].firingArcDeg * Math.PI) / 180,
-        facingRad: (blueprint.mounts[i].facingDeg * Math.PI) / 180,
-        chargeSec: 0,
-        ready: false,
-        hardpointId: '',
-      })),
-      ai: {
-        aggression: blueprint.ai.aggression,
-        retreatThreshold: blueprint.ai.retreatThresholdPct,
-        maintainRange: blueprint.ai.maintainRange,
-      },
-      currentTargetKey: '',
-    }),
+    buildEnemyCombatShipState(blueprint, spawn, captainId),
     EntityKey({ key: `enemy-ship-${slotIdx}` }),
   )
+}
+
+// W3 (ms-identity) Task 2 — this engagement's hostile MS wingmen (Issue
+// space-entities.json5 `msComplement`). Spawned as independent CombatShipState
+// rows (side:'enemy', isMs:true) keyed `enemy-ms-<n>`, distinct from the
+// ship-keyed `enemy-ship-<n>` rows so both kinds are individually targetable
+// and the tally/cleanup queries (getEnemyEntities, breakDownEnemiesForVictory)
+// pick them up automatically — no separate bookkeeping needed since they're
+// plain side:'enemy' CombatShipState rows. Formation slots continue the ship
+// fleet's fan-out (shipFleetSize + i) so MS don't spawn stacked on a ship.
+function spawnEnemyMsComplement(w: World, msComplement: readonly string[], shipFleetSize: number): void {
+  const totalSlots = shipFleetSize + msComplement.length
+  msComplement.forEach((msId, i) => {
+    const blueprint = getEnemyShip(msId)
+    const spawn = enemySpawnSlot(shipFleetSize + i, totalSlots)
+    w.spawn(
+      buildEnemyCombatShipState(blueprint, spawn, ''),
+      EntityKey({ key: `enemy-ms-${i}` }),
+    )
+  })
+}
+
+// W3 (ms-identity) Task 2 — resolves this engagement's MS complement from
+// the space-entities group behind campaignEnemyKey (spaceBootstrap keys
+// every campaign entity `enemy-${spaceEntityId}`). Reads directly off the
+// data row instead of threading a new startCombat parameter through the
+// engagement modal + debug cheat call sites: campaignEnemyKey already
+// carries enough to look the row up, and startCombatCheat's synthetic
+// (non-campaign) fights simply resolve to no complement.
+function resolveMsComplement(campaignEnemyKey: string | null | undefined): readonly string[] {
+  if (!campaignEnemyKey) return []
+  const spaceEntity = getSpaceEntity(campaignEnemyKey.replace(/^enemy-/, ''))
+  return spaceEntity?.msComplement ?? []
 }
 
 // Phase 6.2.E2 — spawn a non-flagship CombatShipState for every
@@ -654,6 +702,11 @@ export function startCombat(
   // mapped from the war-room aggression slider so cautious/steady/
   // aggressive doctrine actually reads through.
   spawnActiveFleetEscorts(w)
+
+  // W3 (ms-identity) Task 2 — field this campaign group's hostile MS
+  // wingmen (space-entities.json5 `msComplement`), if any.
+  const msComplement = resolveMsComplement(campaignEnemyKey)
+  if (msComplement.length > 0) spawnEnemyMsComplement(w, msComplement, fleet.length)
 
   setInCombat(true)
   useClock.getState().setMode('combat')
@@ -1881,8 +1934,16 @@ export function combatSystem(_world: World, dtMs: number): void {
     const msPos = psState.pos
     const msHeading = psState.heading
 
+    // §1's resolvedTargets was built at the top of this same tick, before
+    // §3 (player weapon fire) had a chance to destroy an enemy — with 2+
+    // enemies now reachable everywhere (msComplement, multi-escort groups),
+    // a target this MS resolved to at §1 may already be dead by the time
+    // this section runs. Re-check liveness rather than trusting the cached
+    // Entity ref; a stale ref just means "no target this tick" instead of
+    // dereferencing a destroyed entity's traits.
     const targetEnt = resolvedTargets.get(psEnt) ?? null
-    const target = targetEnt ? { ent: targetEnt, pos: targetEnt.get(CombatShipState)!.pos } : null
+    const targetCs = targetEnt?.get(CombatShipState)
+    const target = targetCs ? { ent: targetEnt!, pos: targetCs.pos } : null
     const bestRange = target ? dist(msPos, target.pos) : Infinity
 
     const updatedWeapons = psState.weapons.map((wpn) => {
