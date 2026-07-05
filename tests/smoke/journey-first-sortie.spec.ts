@@ -69,6 +69,7 @@ const DOCK_HOP_STAGE_MIN = 0.1     // per-hop step; VB doesn't chase back
 const DOCK_NEAR_PX = 500           // world proximity at which VB is reliably on-screen
 const DOCK_BUDGET_MIN = 60 * 12    // fly-home + autodock budget
 const JOURNEY_TIMEOUT_MS = 150_000  // whole end-to-end loop headroom past the 60s default
+const KIOSK_INTERACT_TRIES = 5      // re-issue a kiosk interact until the scene swaps
 
 async function screenCoords(sim: any, key: string): Promise<{ x: number; y: number } | null> {
   return sim.page.evaluate((k: string) => (window as any).__uclife__.getEntityScreenCoords(k), key)
@@ -169,13 +170,24 @@ async function interactToScene(sim: any, key: string, targetScene: string): Prom
   // helm; the stowed starter MS sits just below the disembark kiosk. A click on
   // the kiosk's centre can land on that lower sprite (rendered on top) instead
   // of the kiosk. Nudge the click upward, onto the kiosk's clear top edge.
-  const pt = await sim.page.evaluate((k: string) => {
-    const t = (window as any).__uclife__.getEntityScreenCoords(k)
-    return t ? { x: t.x, y: t.y - 12 } : null // upper half of the ~32px kiosk sprite
-  }, key)
-  expect(pt, `${key} must be on-screen to interact`).toBeTruthy()
-  await sim.page.mouse.click(pt!.x, pt!.y)
-  await sim.stepForCoarse(TRANSITION_WALK_MIN)
+  //
+  // Clicking auto-walks to the kiosk then interacts on arrival — a multi-step
+  // sequence a single coarse slice needn't finish, and a grazed click can miss
+  // the small sprite entirely. Re-issue the interact until the scene swaps
+  // (bounded): each pass re-reads the live kiosk coords and drives the walk a
+  // little further, so the interaction reliably lands without masking a genuine
+  // failure (the final waitForScene still fails loud if it never fires).
+  for (let i = 0; i < KIOSK_INTERACT_TRIES; i++) {
+    const swapped = await sim.page.evaluate(
+      (s: string) => (window as any).__uclife__.getGameState().getScene().getId() === s, targetScene)
+    if (swapped) return
+    const pt = await sim.page.evaluate((k: string) => {
+      const t = (window as any).__uclife__.getEntityScreenCoords(k)
+      return t ? { x: t.x, y: t.y - 12 } : null // upper half of the ~32px kiosk sprite
+    }, key)
+    if (pt) await sim.page.mouse.click(pt.x, pt.y)
+    await sim.stepForCoarse(TRANSITION_WALK_MIN)
+  }
   await waitForScene(sim, targetScene)
 }
 
