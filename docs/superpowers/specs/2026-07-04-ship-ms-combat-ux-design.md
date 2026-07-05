@@ -110,25 +110,32 @@ fields round-trip on the save handler.
   buyable at the VB AE rep; buy → delivery → receive → first-hull onboarding (fuel + toast).
 - **W1.2 Live-target courses — shipped.** POI/enemy-referenced courses re-resolve per tick;
   `拦截` intercept verb + `aggroContactRadius` engagement modal; patrol pursuit config-ified.
-- **W1.3 Fuel retune — shipped.** Takeoff/tank/burn retuned; the *intended* short sortie fits
-  ~half a tank. (But see the capstone finding: the actual VB pirate sits far beyond that.)
+- **W1.3 Fuel retune — shipped.** Takeoff/tank/burn retuned; the short sortie (undock →
+  intercept the VB picket → dock home) fits ~half a tank, and the capstone journey now asserts
+  the full round trip doesn't strand the ship on fuel.
 - **W1.4 MS custody fixes — shipped.** Depot terminal scene guard, unload/load verbs, depot
   MS retrofit path.
 - **W1.5 MS repair lifecycle — shipped.** `damageState`/`repairProgress`, hangar-repair MS
   branch, save round-trip.
-- **Capstone (Task 10) — shipped, scoped to the engagement.** `tests/smoke/journey-first-
-  sortie.spec.ts` plays the loop through real input only: buy → board → helm → undock →
-  intercept → engagement modal → break off (passes 5/5 across grep + full-parallel runs). The
-  **fight-and-win + return-and-disembark legs are blocked in the shipped game** and are
-  follow-up balance/content gaps, not harness gaps: (a) the only pirate covering Von Braun,
-  `pirate-lunar-4`, is Char Aznable's lunar *raider + 2 skirmisher escorts* — a 1-v-3 a
-  civilian starter freighter loses on auto-fire (its beam can't out-DPS three hulls), and
-  losing also **crashes `combatSystem`** via an undefined-`Ship` read in the flagship hull-
-  pause (`combat.ts:1636`); (b) that raider patrols ~6550px from Von Braun — *outside* its own
-  3750 `aggroRadius`, so it never pursues on undock, and a manual round trip that far exceeds
-  the 60-unit tank, stranding the ship. The brief assumed a "single pirateLight"; the shipped
-  campaign enemy is far heavier. Recommended follow-ups: fixture-authorable winnable
-  engagement near the dock (or move/soften the VB-covering pirate), guard the combat crash.
+- **Capstone (Task 10) — shipped, full loop.** `tests/smoke/journey-first-sortie.spec.ts`
+  plays the entire W1 loop through real input only (reads via `__uclife__`): buy → wait out the
+  delivery → receive → board → helm → intercept → **engage → win on auto-fire → clear
+  RecoverablesPanel + CombatTallyPanel → assert money rose → 停泊 dock home → 下船 disembark
+  into the city**. Green 12/12 isolated and across both full-parallel `ci:local` runs. Closing
+  the loop needed three fixes the original scoping flagged as blockers:
+  - **Defeat no longer crashes.** An enemy weapon that destroyed the flagship fired
+    `endCombat('defeat')` mid-tick (destroying the flagship entity), then `combatSystem` §6 read
+    the dead entity's `Ship` trait (`combat.ts:1636`). Now re-queries the flagship and bails if
+    the fight already resolved. Regression: `tests/smoke/combat-defeat.spec.ts`.
+  - **Winnable, reachable starter fight.** `pirate-lunar-4` (Char's raider + 2 escorts, a
+    1-v-3) no longer covers Von Braun: its aggro is shrunk and it's relocated as fly-out-to
+    mid-game content. A single weak `pirateLight` picket (`pirate-lunar-starter`, empirically
+    won at ~70% hull) is now the sole VB-covering group and the nearest enemy to the dock.
+  - **Picket follows the orbiting dock.** Fixed-coord near-moon patrols were orphaned ~5900px
+    from Von Braun by the time a 2-day delivery wait carried the moon ~90° along its orbit. The
+    starter now sets `anchorBodyId:'moon'` (EnemyAI orbit anchoring) so it station-keeps on the
+    VB approach at all times; the test-mode space tick was also clamped so a coarse idle step no
+    longer flings aggroed enemies off-sector.
 
 ## Workstream 2 — Command layer
 
