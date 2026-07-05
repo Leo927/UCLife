@@ -628,17 +628,6 @@ export function startCombat(
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
 
-// Flee penalties — Starsector "you can't run for free" feel.
-// Hull lands the bigger hit; armor depletes (regenerates between
-// encounters); CR drains heavily so back-to-back flees stack.
-const FLEE_HULL_LOSS_PCT = 0.35
-const FLEE_CR_DRAIN = 50
-
-// Defeat: stripped to the survivor floor. Money goes to a small
-// rescue-stipend amount; the player has to ground-game back into a
-// new ship.
-const DEFEAT_SURVIVOR_MONEY = 200
-
 // Ground scenes the rescue transport might drop a defeated player at,
 // alongside the POI that scene's port maps to (used to keep ship state
 // internally consistent should the player re-acquire a ship later).
@@ -779,20 +768,40 @@ function destroyCampaignEnemyByKey(key: string): void {
   }
 }
 
+// W2 Task 3 — the computed deltas are returned (not just logged) so the
+// single call site in endCombat's flee branch has them in one place for a
+// future debrief payload (Task 6), without a second parallel computation.
+export interface FleePenaltyResult {
+  hullLoss: number
+  crDrain: number
+}
+
 // Public so the engagement modal's flee choice (which closes the modal
-// without entering combat) shares one penalty path with in-combat retreat.
-export function applyFleePenalty(): void {
+// without entering combat) shares one penalty path with in-combat withdraw.
+export function applyFleePenalty(): FleePenaltyResult {
+  const { hullLossPct, crDrain } = combatConfig.fleePenalty
   const ship = getPlayerShip()
-  if (!ship) return
+  if (!ship) return { hullLoss: 0, crDrain: 0 }
   const s = ship.get(Ship)!
-  const hullLoss = Math.floor(s.hullCurrent * FLEE_HULL_LOSS_PCT)
+  const hullLoss = Math.floor(s.hullCurrent * hullLossPct)
   ship.set(Ship, {
     ...s,
     hullCurrent: Math.max(1, s.hullCurrent - hullLoss),
     armorCurrent: 0,
   })
-  drainCR(FLEE_CR_DRAIN)
-  logEvent(`脱离接触 · 船体受创 -${hullLoss} · 战备 -${FLEE_CR_DRAIN}`)
+  drainCR(crDrain)
+  logEvent(`脱离接触 · 船体受创 -${hullLoss} · 战备 -${crDrain}`)
+  return { hullLoss, crDrain }
+}
+
+// W2 Task 3 — mid-combat withdraw. Locked decision: always available and
+// CP-free (no orderCosts row — unlike rally/focusFire/regroup, this isn't a
+// comm-authority order, it's an emergency disengage). Routes through the
+// same endCombat('flee') → applyFleePenalty() path as the pre-combat
+// engagement modal's flee choice, so both surfaces cost identically.
+export function withdrawFromCombat(): void {
+  if (!useCombatStore.getState().open) return
+  endCombat('flee')
 }
 
 function applyDefeatConsequence(): void {
@@ -803,7 +812,7 @@ function applyDefeatConsequence(): void {
   // (skills, perks, relationships, ambitions) survives — the run continues.
   const player = findPlayer()
   if (player) {
-    player.set(Money, { amount: DEFEAT_SURVIVOR_MONEY })
+    player.set(Money, { amount: combatConfig.defeat.survivorMoney })
   }
 
   // Eject the player to the rescue colony before destroying the ship —

@@ -10,6 +10,7 @@ import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
+  withdrawFromCombat,
 } from '../systems/combat'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { simNow } from '../sim/time'
@@ -39,7 +40,28 @@ const SHIP_SCENE_ID = 'playerShipInterior'
 // arm the next arena click to resolve the order; `null` is idle (normal
 // WASD/aim input). Lives as component state so both the palette buttons and
 // the arena click/cancel handlers below read and clear the same value.
-type PendingOrder = 'rally' | 'focusFire' | null
+// `withdraw` (W2 Task 3) doesn't arm a click-target — it arms a two-step
+// confirm on the button itself (misclicking 撤退 would be rage-inducing);
+// any arena click, Esc, or right-click while armed cancels it instead of
+// resolving an order.
+type PendingOrder = 'rally' | 'focusFire' | 'withdraw' | null
+
+// W2 Task 3 — shared misclick guard for the two withdraw entry points (the
+// order palette button and the topbar quick-verb): first click arms the
+// confirm state, a second click on either button within
+// combatConfig.withdrawConfirmWindowMs commits. Both buttons read/write the
+// same pendingOrder state lifted to TacticalView so arming one reflects on
+// the other.
+function onWithdrawClick(pendingOrder: PendingOrder, setPendingOrder: (o: PendingOrder) => void): void {
+  if (pendingOrder === 'withdraw') {
+    playUi('ui.tactical.order-issue')
+    withdrawFromCombat()
+    setPendingOrder(null)
+    return
+  }
+  playUi('ui.tactical.order-pick')
+  setPendingOrder('withdraw')
+}
 
 function orderRefusalZh(reason: 'unknown_order' | 'insufficient_cp'): string {
   return reason === 'insufficient_cp' ? '指挥点不足 · 指令未下达' : '未知指令'
@@ -332,6 +354,15 @@ export function TacticalView() {
   const pendingOrderRef = useRef(pendingOrder)
   pendingOrderRef.current = pendingOrder
 
+  // W2 Task 3 — the armed withdraw confirm auto-disarms after
+  // combatConfig.withdrawConfirmWindowMs so a "confirm?" button never sits
+  // armed indefinitely if the player walks away from the decision.
+  useEffect(() => {
+    if (pendingOrder !== 'withdraw') return
+    const id = window.setTimeout(() => setPendingOrder(null), combatConfig.withdrawConfirmWindowMs)
+    return () => window.clearTimeout(id)
+  }, [pendingOrder])
+
   useEffect(() => {
     if (!open) return
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
@@ -508,14 +539,20 @@ export function TacticalView() {
   // snapshot within orderPickRadiusPx, or cancels with a toast if nothing's
   // close enough. Either way the mode clears on this click; a spent CP is
   // never refunded by re-canceling after the fact (issue* already debited).
+  // withdraw (W2 Task 3) isn't a click-target order — any arena click while
+  // its confirm is armed just cancels it, same as Esc/right-click.
   const onArenaClick = (ev: React.MouseEvent<HTMLDivElement>) => {
     if (!pendingOrder) return
+    const order = pendingOrder
+    setPendingOrder(null)
+    if (order === 'withdraw') {
+      playUi('ui.tactical.order-cancel')
+      return
+    }
     const r = rendererRef.current
     if (!r) return
     const rect = ev.currentTarget.getBoundingClientRect()
     const world = r.screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top)
-    const order = pendingOrder
-    setPendingOrder(null)
     if (order === 'rally') {
       playUi('ui.tactical.order-issue')
       reportOrderRefusal(issueRally(world))
@@ -546,16 +583,19 @@ export function TacticalView() {
   }
 
   const playerCls = getShipClass(player.templateId)
+  const isClickTargetOrder = pendingOrder === 'rally' || pendingOrder === 'focusFire'
   const hintZh = pendingOrder === 'rally'
     ? '点击战场选择集结坐标 · Esc / 右键取消'
     : pendingOrder === 'focusFire'
       ? '点击战场选择集火目标 · Esc / 右键取消'
-      : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
+      : pendingOrder === 'withdraw'
+        ? '再次点击撤退按钮确认撤退 · 点击战场 / Esc / 右键取消'
+        : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
 
   return (
     <div className="tactical-overlay">
       <div
-        className={`tactical-canvas-host${pendingOrder ? ' is-targeting' : ''}`}
+        className={`tactical-canvas-host${isClickTargetOrder ? ' is-targeting' : ''}`}
         onMouseMove={onArenaMouseMove}
         onClick={onArenaClick}
         onContextMenu={onArenaContextMenu}
@@ -572,7 +612,13 @@ export function TacticalView() {
       <CombatLogPanel />
       <CombatLogHistory />
 
-      <CockpitTopbar paused={paused} flagshipName={playerCls.nameZh} msName={ms?.nameZh ?? null} />
+      <CockpitTopbar
+        paused={paused}
+        flagshipName={playerCls.nameZh}
+        msName={ms?.nameZh ?? null}
+        pendingOrder={pendingOrder}
+        setPendingOrder={setPendingOrder}
+      />
       <OrderPalette pendingOrder={pendingOrder} setPendingOrder={setPendingOrder} />
 
       <PlayerHud title={playerCls.nameZh} snap={player} />
@@ -667,7 +713,18 @@ function CombatLogPanel() {
 //   piloting=null       : the overlay was closed externally (e.g. by
 //                         leaveBridge); shouldn't normally render here
 //                         since we early-return on !open above.
-function CockpitTopbar(props: { paused: boolean; flagshipName: string; msName: string | null }) {
+// W2 Task 3 — the topbar 撤退 verb is shown regardless of piloting state:
+// it's an emergency disengage of the whole engagement, not a fleet-comm
+// order (unlike the palette's rally/focusFire/regroup, which need comm
+// authority and so are flagship-only). A player piloting the MS can still
+// pull the whole fight out.
+function CockpitTopbar(props: {
+  paused: boolean
+  flagshipName: string
+  msName: string | null
+  pendingOrder: PendingOrder
+  setPendingOrder: (o: PendingOrder) => void
+}) {
   const piloting = useCockpit((s) => s.piloting)
   const togglePause = () => { playUi('ui.tactical.toggle-pause'); useCombatStore.getState().togglePause() }
   const onLeaveBridge = () => { playUi('ui.tactical.toggle-pause'); leaveBridge() }
@@ -687,6 +744,7 @@ function CockpitTopbar(props: { paused: boolean; flagshipName: string; msName: s
   // directly; the 30Hz `tick` poll in TacticalView already forces this
   // subtree to re-render, so no separate subscription is needed here.
   const cp = commandPoolDescribe()
+  const withdrawArmed = props.pendingOrder === 'withdraw'
 
   return (
     <div className="tactical-topbar">
@@ -707,6 +765,13 @@ function CockpitTopbar(props: { paused: boolean; flagshipName: string; msName: s
       {piloting === 'ms' && (
         <button className="tactical-btn" onClick={onDock}>返航 (回收)</button>
       )}
+      <button
+        className={`tactical-btn${withdrawArmed ? ' is-pending' : ''}`}
+        data-tactical-topbar-withdraw="true"
+        onClick={() => onWithdrawClick(props.pendingOrder, props.setPendingOrder)}
+      >
+        {withdrawArmed ? '撤退 · 确认?' : '撤退'}
+      </button>
     </div>
   )
 }
@@ -760,12 +825,11 @@ function OrderPalette(props: { pendingOrder: PendingOrder; setPendingOrder: (o: 
         重整队形 · {costs.formationChange} CP
       </button>
       <button
-        className="tactical-btn tactical-order-btn"
+        className={`tactical-btn tactical-order-btn${props.pendingOrder === 'withdraw' ? ' is-pending' : ''}`}
         data-tactical-order="withdraw"
-        disabled
-        title="任务3实装"
+        onClick={() => onWithdrawClick(props.pendingOrder, props.setPendingOrder)}
       >
-        撤退
+        {props.pendingOrder === 'withdraw' ? '撤退 · 确认?' : '撤退'}
       </button>
     </div>
   )

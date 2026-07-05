@@ -2147,7 +2147,9 @@ html, body, #root {
   pointer-events: auto;
   z-index: 1;
 }
-.tactical-order-btn.is-pending {
+/* Shared armed-state cue — the order palette's rally/focusFire/withdraw
+   buttons and the topbar's withdraw quick-verb (W2 Task 3) both use it. */
+.tactical-btn.is-pending {
   border-color: var(--accent);
   color: var(--accent);
 }

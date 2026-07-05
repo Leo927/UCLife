@@ -45,4 +45,29 @@
   // neighbor, generous enough to tolerate imprecise clicking at a
   // letterboxed, possibly-scaled-down arena.
   orderPickRadiusPx: 60,
+
+  // W2 Task 3 — mid-combat withdraw + the pre-combat engagement modal's
+  // flee choice share one penalty path (applyFleePenalty() in combat.ts).
+  // Starsector "you can't run for free" feel: hull takes the bigger hit,
+  // armor depletes fully (it regenerates between encounters anyway), CR
+  // drains heavily so back-to-back flees stack up a real cost.
+  fleePenalty: {
+    hullLossPct: 0.35,
+    crDrain: 50,
+  },
+
+  // Defeat: the flagship is destroyed and the survivor is stripped to this
+  // rescue stipend. Other progression (skills, perks, relationships,
+  // ambitions) survives — the run continues from a ground colony.
+  defeat: {
+    survivorMoney: 200,
+  },
+
+  // W2 Task 3 — withdraw is a one-shot, CP-free, always-available verb, so a
+  // misclick shouldn't be able to pay its hull/CR cost by accident. First
+  // click on 撤退 arms a confirm state; a second click on the same button
+  // within this window commits. Long enough for a deliberate follow-up
+  // click, short enough that walking away and coming back later doesn't
+  // leave a stale "confirm?" button armed.
+  withdrawConfirmWindowMs: 3000,
 }

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useEngagement } from '../sim/engagement'
 import { playUi } from '../audio/player'
+import { combatConfig } from '../config'
 
 const SHIP_CLASS_NAMES_ZH: Record<string, string> = {
   pirate_skirmisher: '海盗游击艇',
@@ -49,10 +50,18 @@ export function EngagementModal() {
           </p>
           {escortLine && <p className="map-place-desc">{escortLine}</p>}
         </section>
-        <section className="status-section" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-          <button onClick={() => { playUi('ui.engagement.negotiate'); resolve('negotiate') }}>尝试谈判</button>
-          <button onClick={() => { playUi('ui.engagement.flee'); resolve('flee') }}>脱离</button>
-          <button onClick={() => { playUi('ui.engagement.engage'); resolve('engage') }}>交战</button>
+        <section className="status-section" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button onClick={() => { playUi('ui.engagement.negotiate'); resolve('negotiate') }}>尝试谈判</button>
+            <button onClick={() => { playUi('ui.engagement.flee'); resolve('flee') }}>脱离</button>
+            <button onClick={() => { playUi('ui.engagement.engage'); resolve('engage') }}>交战</button>
+          </div>
+          {/* W2 Task 3 — flee's consequence is silent no longer; the same
+              combat.json5 values drive this line and the mid-combat
+              withdraw button's confirm copy, so they can never drift apart. */}
+          <p className="map-place-desc" style={{ margin: 0 }}>
+            脱离 · 船体 -{Math.round(combatConfig.fleePenalty.hullLossPct * 100)}% · 战备 -{combatConfig.fleePenalty.crDrain}
+          </p>
         </section>
       </div>
     </div>

@@ -12,6 +12,9 @@ export interface CombatConfig {
   tallyFuelGain: number
   rallyArriveRadiusPx: number
   orderPickRadiusPx: number
+  fleePenalty: { hullLossPct: number; crDrain: number }
+  defeat: { survivorMoney: number }
+  withdrawConfirmWindowMs: number
 }
 
 export const combatConfig = json5.parse(raw) as CombatConfig

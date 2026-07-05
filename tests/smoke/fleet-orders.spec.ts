@@ -183,7 +183,7 @@ async function bootTacticalWithEscort(sim: { page: import('@playwright/test').Pa
   await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
 }
 
-test('order palette (real input): CP gauge, order costs, withdraw disabled', async ({ sim }) => {
+test('order palette (real input): CP gauge, order costs, withdraw enabled and CP-free', async ({ sim }) => {
   await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
   await bootTacticalWithEscort(sim)
 
@@ -204,9 +204,13 @@ test('order palette (real input): CP gauge, order costs, withdraw disabled', asy
     sim.page.locator('[data-tactical-order="regroup"]'), '重整队形 button shows its CP cost',
   ).toContainText('1 CP')
 
+  // W2 Task 3 — withdraw is always available and CP-free (locked decision):
+  // no orderCosts row, no disabled state, no tooltip. Full withdraw
+  // coverage (real click confirm, penalty, no re-prompt) lives in
+  // combat-withdraw.spec.ts.
   const withdraw = sim.page.locator('[data-tactical-order="withdraw"]')
-  await expect(withdraw, 'withdraw stays disabled until Task 3').toBeDisabled()
-  await expect(withdraw, 'withdraw carries the Task 3 tooltip').toHaveAttribute('title', '任务3实装')
+  await expect(withdraw, 'withdraw is enabled — no CP gating').toBeEnabled()
+  await expect(withdraw, 'withdraw shows no CP cost suffix').toHaveText('撤退')
 
   await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
 })
