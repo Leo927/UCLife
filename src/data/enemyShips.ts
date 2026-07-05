@@ -135,9 +135,9 @@ for (const ship of parsed.ships) {
     }
   }
 
-  if (ship.defaultWeapons.length > ship.mounts.length) {
+  if (ship.defaultWeapons.length !== ship.mounts.length) {
     throw new Error(
-      `enemyShips.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} weapons but only ${ship.mounts.length} mounts`,
+      `enemyShips.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} weapons but ${ship.mounts.length} mounts — every declared mount must be armed (mirrors ship-classes' #165 rule)`,
     )
   }
   ship.defaultWeapons.forEach((wId, i) => {

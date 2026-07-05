@@ -1880,10 +1880,16 @@ export function combatSystem(_world: World, dtMs: number): void {
 
     // Pick the closest player-side unit (refresh per-enemy so two
     // enemies in different corners can target different player units).
+    // playerSide was snapshot once at the top of this tick — an earlier
+    // enemy's shot this same tick may have already destroyed one of these
+    // entities (player MS -> onMsDestroyed -> entity.destroy(); escort ->
+    // CombatShipState removed), so re-check liveness rather than trusting
+    // the cached ref (mirrors the §4b re-check below).
     let target: { ent: Entity; pos: { x: number; y: number } } | null = null
     let bestRange = Infinity
     for (const ps of playerSide) {
-      const psState = ps.get(CombatShipState)!
+      const psState = ps.get(CombatShipState)
+      if (!psState) continue
       const r = dist(enemyPos, psState.pos)
       if (r < bestRange) { bestRange = r; target = { ent: ps, pos: psState.pos } }
     }

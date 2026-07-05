@@ -200,7 +200,7 @@ function snapshotPlayerMs(): MsSnap | null {
   const w = getWorld(SHIP_SCENE_ID)
   for (const e of w.query(CombatShipState)) {
     const s = e.get(CombatShipState)!
-    if (!s.isMs) continue
+    if (!s.isMs || s.side !== 'player') continue
     const ek = e.get(EntityKey)
     const key = ek ? ek.key : 'player-ms'
     return {

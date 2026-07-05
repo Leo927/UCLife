@@ -23,6 +23,9 @@ const REQUIRED_HANDLES = [
   '__uclife__.startCombatCheat',
   '__uclife__.useCombatStore',
   '__uclife__.combatEntities',
+  '__uclife__.launchPlayerMs',
+  '__uclife__.useCockpit',
+  '__uclife__.msState',
 ]
 
 const STEP_BUDGET_MIN = 60
@@ -132,4 +135,84 @@ test('MS complement: a campaign group with msComplement fields enemy MS rows tha
     msHullDropped || flagshipHullDropped || combatResolved,
     'fight must progress: enemy MS or flagship hull must drop, or combat must resolve, within the drive budget',
   ).toBe(true)
+})
+
+// Review finding (Critical) — snapshotPlayerMs() in src/ui/TacticalView.tsx
+// used to match the first CombatShipState row with isMs===true, with no
+// side filter. Once a complement fields enemy-side MS rows (isMs:true,
+// side:'enemy'), that stale scan finds the enemy MS before any player MS is
+// launched and renders it inside the friendly-blue `.tactical-hud-ms` HUD —
+// an enemy frame mislabeled as the player's own. The fix must filter on
+// side==='player'. This proves both ends: no player-MS HUD renders while
+// only the hostile complement is fielded, and once the player launches
+// their own MS the HUD reflects the PLAYER frame's identity, not the first
+// isMs row the query happens to see.
+test('MS complement: player-MS HUD only reflects the player-side MS, never an enemy complement row', async ({ sim }) => {
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
+
+  const setupOk = await sim.page.evaluate(() => {
+    const u = (window as any).__uclife__
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
+  })
+  expect(setupOk, 'cheatMoney+cheatPiloting failed at setup').toBeTruthy()
+
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.stepUntil(
+    () => (window as any).__uclife__.useScene.getState().activeId === 'playerShipInterior',
+    STEP_BUDGET_MIN,
+  )
+
+  const helmRes = await sim.page.evaluate(() => (window as any).__uclife__.takeHelmCheat())
+  expect(helmRes?.ok, `takeHelmCheat should succeed; got ${JSON.stringify(helmRes)}`).toBeTruthy()
+
+  await sim.page.evaluate(
+    (args: { lead: string; escorts: string[]; key: string }) =>
+      (window as any).__uclife__.startCombatCheat(args.lead, args.escorts, args.key, {}),
+    { lead: SHOAL_LEAD_CLASS_ID, escorts: SHOAL_ESCORT_CLASS_IDS, key: SHOAL_GROUP_CAMPAIGN_KEY },
+  )
+  await sim.stepUntil(
+    () => (window as any).__uclife__.useCombatStore.getState().open === true,
+    STEP_BUDGET_MIN,
+  )
+
+  const entities: CombatEntitySnapshot[] = await sim.page.evaluate(
+    () => (window as any).__uclife__.combatEntities(),
+  )
+  const enemyMs = entities.filter((e) => e.side === 'enemy' && e.isMs)
+  expect(
+    enemyMs.length,
+    `expected the shoal complement to field at least one enemy MS row, got: ${JSON.stringify(entities)}`,
+  ).toBeGreaterThan(0)
+
+  // Resume — combat opens paused on the first-contact briefing.
+  await sim.page.evaluate(() => {
+    const uu = (window as any).__uclife__
+    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
+  })
+
+  // Before the player launches their own MS, only a hostile MS exists in
+  // the tactical world. The player-MS HUD must not render at all — it is
+  // not "some enemy's HUD", it is simply absent.
+  const enemyMsHudCount = await sim.page.locator('.tactical-hud-ms').count()
+  expect(
+    enemyMsHudCount,
+    'no player-MS HUD should render while only the enemy complement is fielded',
+  ).toBe(0)
+
+  // Now launch the player's own MS alongside the fielded enemy complement.
+  const launchRes = await sim.page.evaluate(() => (window as any).__uclife__.launchPlayerMs())
+  expect(launchRes?.ok, `launchPlayerMs should succeed; got ${JSON.stringify(launchRes)}`).toBe(true)
+  await sim.stepUntil(
+    () => (window as any).__uclife__.useCockpit.getState().piloting === 'ms',
+    STEP_BUDGET_MIN,
+  )
+
+  const playerMs = await sim.page.evaluate(() => (window as any).__uclife__.msState())
+  expect(playerMs, 'msState() should return the launched player MS').toBeTruthy()
+
+  const hudTitle = await sim.page.locator('.tactical-hud-ms .tactical-hud-title').innerText()
+  expect(
+    hudTitle,
+    `player-MS HUD must show the PLAYER frame's name ("${playerMs.nameZh}"), not an enemy complement row`,
+  ).toBe(playerMs.nameZh)
 })
