@@ -141,14 +141,14 @@ registerDebugHandle('dockPlayerMs', (force: boolean = false) => dockMs({ force }
 registerDebugHandle('takeFlagshipControl', () => takeFlagshipControl())
 registerDebugHandle('leaveBridgeCheat', () => { leaveBridge(); return true })
 
-// W2 command layer (Task 5) — every shipped ship class currently authors
-// only one defaultWeapons entry, so the flagship's second+ hardpoints spawn
-// empty (WeaponMount.weaponId === ''). The fire-mode smoke needs two armed
-// mounts on the same ship to prove "hold on mount 0 doesn't block mount 1's
-// auto-fire" — this test-only setup verb arms an existing (possibly empty)
-// mount without touching ship-classes.json5 content/balance. The optional
-// firingArcRad override lets the volley-targeting smoke guarantee two
-// enemies are simultaneously in-arc without depending on live heading.
+// W2 command layer (Task 5) — the fire-mode smoke needs two armed mounts on
+// the same ship to prove "hold on mount 0 doesn't block mount 1's auto-fire".
+// Every shipped ship class arms every declared mount at boot (Issue #165),
+// so this is no longer filling a gap — it's a test-only setter that pins a
+// mount's weapon explicitly (independent of the authored default) without
+// touching ship-classes.json5 content/balance. The optional firingArcRad
+// override lets the volley-targeting smoke guarantee two enemies are
+// simultaneously in-arc without depending on live heading.
 registerDebugHandle('armWeaponMountForTest', (
   mountIdx: number, weaponId: string, firingArcRad?: number,
 ): boolean => {
