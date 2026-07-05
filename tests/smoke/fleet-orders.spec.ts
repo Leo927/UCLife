@@ -1,6 +1,6 @@
-// W2 command layer, Task 1 — fleet-order effects wired into the escort
-// directive. issueFleetOrder() (fleetCommandPoints.ts) already debits CP;
-// this smoke proves the standing order actually changes escort behavior:
+// W2 command layer. issueFleetOrder() (fleetCommandPoints.ts) already
+// debits CP; this smoke proves the standing order actually changes escort
+// behavior:
 //
 //   1. Focus-fire on the non-nearest enemy overrides the escort's resolved
 //      target (movement aim + §4b weapon-fire share the same resolution).
@@ -11,8 +11,13 @@
 // Reuses the cp-dp fixture (flagship + 2 escorts, known player-skill CP/DP
 // formula inputs — see tests/fixtures/cp-dp.json5) with only escort-a
 // promoted active, so exactly one escort deploys alongside the flagship.
+//
+// Task 2 extends this with the REAL-INPUT order palette: DOM button clicks
+// + `page.mouse.click` on the tactical arena canvas, resolved through
+// TacticalView's click-target mode instead of the `issueFleetOrderDebug`
+// debug verb Task 1 used for the backend-only cases above.
 
-import { test, expect } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife__.setIsInActiveFleet',
@@ -24,6 +29,8 @@ const REQUIRED_HANDLES = [
   '__uclife__.combatPlayerSideSnapshot',
   '__uclife__.issueFleetOrderDebug',
   '__uclife__.fleetOrdersDescribe',
+  '__uclife__.getTacticalEnemyScreenCoords',
+  '__uclife__.getTacticalWorldScreenCoords',
 ]
 
 const TICK_DT_MS = 500
@@ -32,6 +39,16 @@ const TICK_DT_MS = 500
 // arena units of the point.
 const RALLY_ARRIVE_RADIUS_PX = 40
 const RALLY_POINT = { x: 900, y: 550 }
+// Far from both spawn clusters (player/escort near (250,300), enemies near
+// (750,300) — see src/systems/combat.ts's PLAYER_SPAWN / ENEMY_FORMATION_CENTER)
+// and well outside combatConfig.orderPickRadiusPx (60) of anything, so a
+// focus-fire click here always resolves to "no target."
+const EMPTY_ARENA_POINT = { x: 20, y: 20 }
+// Screen→world→screen round-tripping through a real browser mouse click
+// (integer CSS-pixel coords) can lose a fraction of an arena unit to
+// rounding at the tactical arena's letterbox scale. A few units of
+// tolerance absorbs that without masking a real projection bug.
+const RALLY_CLICK_TOLERANCE_PX = 3
 
 test('fleet orders: focus-fire retargets, rally steers, regroup clears', async ({ sim }) => {
   await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
@@ -149,6 +166,161 @@ test('fleet orders: focus-fire retargets, rally steers, regroup clears', async (
     rallyPoint: null,
     focusTargetKey: null,
   })
+
+  await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
+})
+
+// ── Task 2 — real-input order palette ─────────────────────────────────────
+
+async function bootTacticalWithEscort(sim: { page: import('@playwright/test').Page }): Promise<void> {
+  await sim.page.evaluate(() => (window as any).__uclife__.setIsInActiveFleet('escort-a', true))
+  await sim.page.evaluate(() =>
+    (window as any).__uclife__.startCombatCheat('pirateLight', ['pirateLight'], null, {}))
+  await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  // PixiCanvas's Application.init() is async — the arena <canvas> the
+  // world→screen helpers project through doesn't exist the instant
+  // .tactical-overlay mounts.
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+}
+
+test('order palette (real input): CP gauge, order costs, withdraw disabled', async ({ sim }) => {
+  await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
+  await bootTacticalWithEscort(sim)
+
+  const cp = await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())
+  const gauge = sim.page.locator('[data-tactical-cp]')
+  await expect(gauge, 'CP gauge attribute mirrors commandPoolDescribe()').toHaveAttribute(
+    'data-tactical-cp', `${cp.current}/${cp.max}`,
+  )
+  await expect(gauge, 'CP gauge text shows current/max').toContainText(`${cp.current}/${cp.max}`)
+
+  await expect(
+    sim.page.locator('[data-tactical-order="rally"]'), '集结 button shows its CP cost',
+  ).toContainText('1 CP')
+  await expect(
+    sim.page.locator('[data-tactical-order="focusFire"]'), '集火 button shows its CP cost',
+  ).toContainText('1 CP')
+  await expect(
+    sim.page.locator('[data-tactical-order="regroup"]'), '重整队形 button shows its CP cost',
+  ).toContainText('1 CP')
+
+  const withdraw = sim.page.locator('[data-tactical-order="withdraw"]')
+  await expect(withdraw, 'withdraw stays disabled until Task 3').toBeDisabled()
+  await expect(withdraw, 'withdraw carries the Task 3 tooltip').toHaveAttribute('title', '任务3实装')
+
+  await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
+})
+
+test('order palette (real input): click-target rally + focus-fire, Esc/empty-click cancel, works while paused', async ({ sim }) => {
+  await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
+  await bootTacticalWithEscort(sim)
+
+  const maxCp = (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).max
+
+  // Tactical opens paused on first contact — the palette must accept orders
+  // right here, before the player ever unpauses.
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.useCombatStore.getState().paused),
+    'tactical view opens paused on first contact',
+  ).toBe(true)
+
+  // ── Esc cancels a pending order — no CP spent, hint reverts ───────────
+  await sim.page.locator('[data-tactical-order="rally"]').click()
+  await expect(sim.page.locator('.tactical-hint'), 'hint switches to rally targeting copy').toContainText('集结坐标')
+  await sim.page.keyboard.press('Escape')
+  await expect(sim.page.locator('.tactical-hint'), 'Esc reverts the hint to the default').toContainText('WASD')
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'Esc-cancel must not spend CP',
+  ).toBe(maxCp)
+
+  // ── Right-click cancels too ───────────────────────────────────────────
+  await sim.page.locator('[data-tactical-order="focusFire"]').click()
+  await expect(sim.page.locator('.tactical-hint'), 'hint switches to focus-fire targeting copy').toContainText('集火目标')
+  await sim.page.mouse.click(EMPTY_ARENA_POINT.x + 400, EMPTY_ARENA_POINT.y + 300, { button: 'right' })
+  await expect(sim.page.locator('.tactical-hint'), 'right-click reverts the hint to the default').toContainText('WASD')
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'right-click cancel must not spend CP',
+  ).toBe(maxCp)
+
+  // ── An empty-arena left-click cancels focus-fire with a toast, no CP spent ──
+  await sim.page.locator('[data-tactical-order="focusFire"]').click()
+  const emptyPt = await sim.page.evaluate(
+    (p) => (window as any).__uclife__.getTacticalWorldScreenCoords(p), EMPTY_ARENA_POINT,
+  )
+  expect(emptyPt, 'the empty arena point must project onto the tactical canvas').toBeTruthy()
+  await sim.page.mouse.click(emptyPt.x, emptyPt.y)
+  await expect(sim.page.locator('.toast'), 'no-target click toasts a cancellation').toContainText('未发现目标')
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'no-target cancel must not spend CP',
+  ).toBe(maxCp)
+
+  // ── Focus-fire real click while PAUSED writes the standing order ──────
+  await sim.page.locator('[data-tactical-order="focusFire"]').click()
+  const enemyPt = await sim.page.evaluate(
+    () => (window as any).__uclife__.getTacticalEnemyScreenCoords('enemy-ship-1'),
+  )
+  expect(enemyPt, 'enemy-ship-1 must project onto the tactical arena').toBeTruthy()
+  await sim.page.mouse.click(enemyPt.x, enemyPt.y)
+
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'focus-fire debits CP even while paused — pause is the planning moment',
+  ).toBe(maxCp - 1)
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.fleetOrdersDescribe())).focusTargetKey,
+    'the order writes fleet-order state while paused',
+  ).toBe('enemy-ship-1')
+
+  // ── Unpause via real DOM click; the paused-issued order actually applies ──
+  await sim.page.locator('.tactical-topbar').getByRole('button', { name: /继续/ }).click()
+  await sim.page.evaluate((dt: number) => {
+    const uu = (window as any).__uclife__
+    for (let i = 0; i < 6; i++) uu.tickCombatSystem(dt)
+  }, TICK_DT_MS)
+  const snap = await sim.page.evaluate(() => (window as any).__uclife__.combatPlayerSideSnapshot())
+  const escort = snap.find((r: { entityKey: string }) => r.entityKey === 'escort-a')
+  expect(escort, 'escort-a must have deployed').toBeTruthy()
+  expect(
+    escort.targetKey,
+    'escort-a tracks the paused-issued focus-fire order once unpaused',
+  ).toBe('enemy-ship-1')
+
+  // ── Rally via real DOM button + arena click ───────────────────────────
+  const cpBeforeRally = (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current
+  await sim.page.locator('[data-tactical-order="rally"]').click()
+  const rallyPt = await sim.page.evaluate(
+    (p) => (window as any).__uclife__.getTacticalWorldScreenCoords(p), RALLY_POINT,
+  )
+  expect(rallyPt, 'the rally point must project onto the tactical canvas').toBeTruthy()
+  await sim.page.mouse.click(rallyPt.x, rallyPt.y)
+
+  const ordersAfterRally = await sim.page.evaluate(() => (window as any).__uclife__.fleetOrdersDescribe())
+  expect(
+    ordersAfterRally.rallyPoint?.x,
+    `real-click rally point x must match the clicked world point within tolerance: ${JSON.stringify(ordersAfterRally.rallyPoint)}`,
+  ).toBeGreaterThanOrEqual(RALLY_POINT.x - RALLY_CLICK_TOLERANCE_PX)
+  expect(ordersAfterRally.rallyPoint?.x).toBeLessThanOrEqual(RALLY_POINT.x + RALLY_CLICK_TOLERANCE_PX)
+  expect(ordersAfterRally.rallyPoint?.y).toBeGreaterThanOrEqual(RALLY_POINT.y - RALLY_CLICK_TOLERANCE_PX)
+  expect(ordersAfterRally.rallyPoint?.y).toBeLessThanOrEqual(RALLY_POINT.y + RALLY_CLICK_TOLERANCE_PX)
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'rally debits 1 more CP',
+  ).toBe(cpBeforeRally - 1)
+
+  // ── Regroup via real DOM button clears both standing orders ──────────
+  const cpBeforeRegroup = (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current
+  await sim.page.locator('[data-tactical-order="regroup"]').click()
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.fleetOrdersDescribe()),
+    'regroup must clear both standing orders',
+  ).toEqual({ rallyPoint: null, focusTargetKey: null })
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'regroup debits 1 CP',
+  ).toBe(cpBeforeRegroup - 1)
 
   await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
 })

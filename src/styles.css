@@ -2038,6 +2038,11 @@ html, body, #root {
   inset: 0;
   background: #050509;
 }
+/* W2 Task 2 — click-target mode cursor feedback while a rally/focus-fire
+   order is pending resolution by the next arena click. */
+.tactical-canvas-host.is-targeting {
+  cursor: cell;
+}
 .tactical-topbar {
   position: absolute;
   top: 12px;
@@ -2118,6 +2123,37 @@ html, body, #root {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
+}
+/* W2 Task 2 — command-point pool gauge, topbar. */
+.tactical-cp-gauge {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: #1f1f27;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* W2 Task 2 — fleet-order palette, floats under the topbar. */
+.tactical-order-palette {
+  position: absolute;
+  top: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 1;
+}
+.tactical-order-btn.is-pending {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tactical-order-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .tactical-enemy-stack {
   position: absolute;

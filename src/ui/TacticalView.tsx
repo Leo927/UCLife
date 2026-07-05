@@ -13,7 +13,7 @@ import {
 } from '../systems/combat'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { simNow } from '../sim/time'
-import { combatConfig } from '../config'
+import { combatConfig, fleetConfig } from '../config'
 import { getWorld } from '../ecs/world'
 import { Ship, WeaponMount, CombatShipState, EntityKey, IsFlagshipMark } from '../ecs/traits'
 import { getShipClass } from '../data/ship-classes'
@@ -30,8 +30,26 @@ import {
   useCockpit, dockMs, leaveBridge,
 } from '../sim/cockpit'
 import { emitSim } from '../sim/events'
+import { issueRally, issueFocusFire, issueRegroup } from '../systems/fleetOrders'
+import { commandPoolDescribe, type OrderResult } from '../systems/fleetCommandPoints'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
+
+// W2 command layer — order palette click-target mode. `rally`/`focusFire`
+// arm the next arena click to resolve the order; `null` is idle (normal
+// WASD/aim input). Lives as component state so both the palette buttons and
+// the arena click/cancel handlers below read and clear the same value.
+type PendingOrder = 'rally' | 'focusFire' | null
+
+function orderRefusalZh(reason: 'unknown_order' | 'insufficient_cp'): string {
+  return reason === 'insufficient_cp' ? '指挥点不足 · 指令未下达' : '未知指令'
+}
+
+// Toast the refusal reason; a successful order already narrates itself via
+// fleetOrders.ts's pushCombatLog call, so there's nothing to do on success.
+function reportOrderRefusal(result: OrderResult): void {
+  if (!result.ok) emitSim('toast', { textZh: orderRefusalZh(result.reason) })
+}
 
 interface PlayerSnap {
   templateId: string
@@ -128,6 +146,22 @@ function snapshotEnemies(): EnemySnap[] {
     })
   }
   return out
+}
+
+// Focus-fire click-target resolution: nearest enemy snapshot to the clicked
+// world point, within combatConfig.orderPickRadiusPx. Null when nothing is
+// close enough — the caller cancels the order rather than guessing.
+function nearestEnemyWithinPickRadius(point: { x: number; y: number }, enemies: EnemySnap[]): EnemySnap | null {
+  let best: EnemySnap | null = null
+  let bestDist = combatConfig.orderPickRadiusPx
+  for (const e of enemies) {
+    const d = Math.hypot(e.pos.x - point.x, e.pos.y - point.y)
+    if (d <= bestDist) {
+      best = e
+      bestDist = d
+    }
+  }
+  return best
 }
 
 interface MsSnap {
@@ -287,10 +321,16 @@ export function TacticalView() {
   const lastFlashAtMs = useCombatStore((s) => s.lastFlashAtMs)
   const [tick, setTick] = useState(0)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
+  const [pendingOrder, setPendingOrder] = useState<PendingOrder>(null)
 
   const rendererRef = useRef<PixiTacticalRenderer | null>(null)
   const sizeRef = useRef(size)
   sizeRef.current = size
+  // Mirrors pendingOrder for the keydown effect below, whose closure is
+  // fixed at mount (deps=[open]) and would otherwise only ever see the
+  // initial `null`.
+  const pendingOrderRef = useRef(pendingOrder)
+  pendingOrderRef.current = pendingOrder
 
   useEffect(() => {
     if (!open) return
@@ -366,6 +406,14 @@ export function TacticalView() {
     const onKeyDown = (ev: KeyboardEvent) => {
       const target = ev.target as HTMLElement | null
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
+      if (ev.code === 'Escape') {
+        if (pendingOrderRef.current) {
+          ev.preventDefault()
+          playUi('ui.tactical.order-cancel')
+          setPendingOrder(null)
+        }
+        return
+      }
       if (ev.code === 'Space') {
         ev.preventDefault()
         useCombatStore.getState().togglePause()
@@ -414,6 +462,7 @@ export function TacticalView() {
       useCombatStore.getState().setInputAxis({ forward: 0, strafe: 0 })
       useCombatStore.getState().setAimAtMouse(false)
       useCombatStore.getState().setAimMouse(null)
+      setPendingOrder(null)
     }
   }, [open])
 
@@ -453,16 +502,64 @@ export function TacticalView() {
     useCombatStore.getState().setAimMouse({ x: wp.x, y: wp.y })
   }
 
+  // Order palette click-target mode (W2 Task 2): the next arena left-click
+  // while a rally/focus-fire order is pending resolves it — rally takes the
+  // clicked world point directly; focus-fire resolves to the nearest enemy
+  // snapshot within orderPickRadiusPx, or cancels with a toast if nothing's
+  // close enough. Either way the mode clears on this click; a spent CP is
+  // never refunded by re-canceling after the fact (issue* already debited).
+  const onArenaClick = (ev: React.MouseEvent<HTMLDivElement>) => {
+    if (!pendingOrder) return
+    const r = rendererRef.current
+    if (!r) return
+    const rect = ev.currentTarget.getBoundingClientRect()
+    const world = r.screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top)
+    const order = pendingOrder
+    setPendingOrder(null)
+    if (order === 'rally') {
+      playUi('ui.tactical.order-issue')
+      reportOrderRefusal(issueRally(world))
+      return
+    }
+    const target = nearestEnemyWithinPickRadius(world, enemies)
+    if (!target) {
+      playUi('ui.tactical.order-cancel')
+      emitSim('toast', { textZh: '未发现目标 · 集火指令已取消' })
+      return
+    }
+    playUi('ui.tactical.order-issue')
+    reportOrderRefusal(issueFocusFire(target.key))
+  }
+
+  // Right-click cancels click-target mode (mirrors Esc) instead of opening
+  // the browser context menu, which has no use in the tactical overlay.
+  const onArenaContextMenu = (ev: React.MouseEvent<HTMLDivElement>) => {
+    ev.preventDefault()
+    if (!pendingOrder) return
+    playUi('ui.tactical.order-cancel')
+    setPendingOrder(null)
+  }
+
   const onPixiReady = (app: Application) => {
     const sz = sizeRef.current
     rendererRef.current = new PixiTacticalRenderer(app, sz.w, sz.h, ARENA_W, ARENA_H)
   }
 
   const playerCls = getShipClass(player.templateId)
+  const hintZh = pendingOrder === 'rally'
+    ? '点击战场选择集结坐标 · Esc / 右键取消'
+    : pendingOrder === 'focusFire'
+      ? '点击战场选择集火目标 · Esc / 右键取消'
+      : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
 
   return (
     <div className="tactical-overlay">
-      <div className="tactical-canvas-host" onMouseMove={onArenaMouseMove}>
+      <div
+        className={`tactical-canvas-host${pendingOrder ? ' is-targeting' : ''}`}
+        onMouseMove={onArenaMouseMove}
+        onClick={onArenaClick}
+        onContextMenu={onArenaContextMenu}
+      >
         <PixiCanvas
           width={size.w}
           height={size.h}
@@ -476,6 +573,7 @@ export function TacticalView() {
       <CombatLogHistory />
 
       <CockpitTopbar paused={paused} flagshipName={playerCls.nameZh} msName={ms?.nameZh ?? null} />
+      <OrderPalette pendingOrder={pendingOrder} setPendingOrder={setPendingOrder} />
 
       <PlayerHud title={playerCls.nameZh} snap={player} />
       {ms && <PlayerMsHud snap={ms} />}
@@ -511,9 +609,7 @@ export function TacticalView() {
         })}
       </div>
 
-      <div className="tactical-hint">
-        WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 武器在敌舰进入射程与射界时自动开火 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击
-      </div>
+      <div className="tactical-hint">{hintZh}</div>
     </div>
   )
 }
@@ -587,10 +683,18 @@ function CockpitTopbar(props: { paused: boolean; flagshipName: string; msName: s
       ? `驾驶 · ${props.flagshipName}`
       : '旁观'
 
+  // W2 Task 2 — CP gauge. commandPoolDescribe() reads the zustand pool
+  // directly; the 30Hz `tick` poll in TacticalView already forces this
+  // subtree to re-render, so no separate subscription is needed here.
+  const cp = commandPoolDescribe()
+
   return (
     <div className="tactical-topbar">
       <div className="tactical-title">战术指挥</div>
       <div className="tactical-piloting">{pilotingLabel}</div>
+      <div className="tactical-cp-gauge" data-tactical-cp={`${cp.current}/${cp.max}`}>
+        指挥点 {cp.current}/{cp.max}
+      </div>
       <div className={`tactical-pause-state${props.paused ? ' is-paused' : ''}`}>
         {props.paused ? '已暂停 ⏸' : '运行中 ▶'}
       </div>
@@ -603,6 +707,66 @@ function CockpitTopbar(props: { paused: boolean; flagshipName: string; msName: s
       {piloting === 'ms' && (
         <button className="tactical-btn" onClick={onDock}>返航 (回收)</button>
       )}
+    </div>
+  )
+}
+
+// W2 Task 2 — fleet-order palette. Only rendered while piloting the
+// flagship: an MS pilot mid-sortie has no comm authority over the rest of
+// the fleet (that's the flagship's comm suite, per fleetCommandPoints.ts's
+// header). Rally/focus-fire arm click-target mode (resolved by
+// TacticalView's onArenaClick); regroup and withdraw are one-shot.
+function OrderPalette(props: { pendingOrder: PendingOrder; setPendingOrder: (o: PendingOrder) => void }) {
+  const piloting = useCockpit((s) => s.piloting)
+  if (piloting !== 'flagship') return null
+
+  const costs = fleetConfig.commandPoints.orderCosts
+
+  const onRally = () => {
+    playUi('ui.tactical.order-pick')
+    props.setPendingOrder('rally')
+  }
+  const onFocusFire = () => {
+    playUi('ui.tactical.order-pick')
+    props.setPendingOrder('focusFire')
+  }
+  const onRegroup = () => {
+    props.setPendingOrder(null)
+    playUi('ui.tactical.order-issue')
+    reportOrderRefusal(issueRegroup())
+  }
+
+  return (
+    <div className="tactical-order-palette">
+      <button
+        className={`tactical-btn tactical-order-btn${props.pendingOrder === 'rally' ? ' is-pending' : ''}`}
+        data-tactical-order="rally"
+        onClick={onRally}
+      >
+        集结 · {costs.rally} CP
+      </button>
+      <button
+        className={`tactical-btn tactical-order-btn${props.pendingOrder === 'focusFire' ? ' is-pending' : ''}`}
+        data-tactical-order="focusFire"
+        onClick={onFocusFire}
+      >
+        集火 · {costs.focusFire} CP
+      </button>
+      <button
+        className="tactical-btn tactical-order-btn"
+        data-tactical-order="regroup"
+        onClick={onRegroup}
+      >
+        重整队形 · {costs.formationChange} CP
+      </button>
+      <button
+        className="tactical-btn tactical-order-btn"
+        data-tactical-order="withdraw"
+        disabled
+        title="任务3实装"
+      >
+        撤退
+      </button>
     </div>
   )
 }
