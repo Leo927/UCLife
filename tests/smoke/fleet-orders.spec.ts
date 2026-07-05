@@ -31,6 +31,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.fleetOrdersDescribe',
   '__uclife__.getTacticalEnemyScreenCoords',
   '__uclife__.getTacticalWorldScreenCoords',
+  '__uclife__.pushCombatLogDebug',
 ]
 
 const TICK_DT_MS = 500
@@ -327,6 +328,65 @@ test('order palette (real input): click-target rally + focus-fire, Esc/empty-cli
     (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
     'regroup debits 1 CP',
   ).toBe(cpBeforeRegroup - 1)
+
+  await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
+})
+
+// ── Task 7 — combat log must not cover the player status readout ─────────
+// A pre-W1 playtest observed `.combat-log` (top-left fading scroll)
+// rendering on top of `.tactical-hud-player`, hiding hull/armor mid-fight.
+// Regression guard: with the log full of entries, its bounding box must not
+// intersect the player HUD's, at any viewport the game actually ships at.
+function boxesIntersect(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return !(
+    a.x + a.width <= b.x
+    || b.x + b.width <= a.x
+    || a.y + a.height <= b.y
+    || b.y + b.height <= a.y
+  )
+}
+
+async function assertCombatLogClearsPlayerHud(sim: { page: import('@playwright/test').Page }): Promise<void> {
+  // 6+ log lines, per the brief — enough to fill the log's visible window
+  // and stress its max-height, not just a single-line sliver.
+  await sim.page.evaluate(() => {
+    const uu = (window as any).__uclife__
+    for (let i = 0; i < 8; i++) uu.pushCombatLogDebug(`测试日志 · 第 ${i} 行`, 'info')
+  })
+
+  const logBox = await sim.page.locator('.combat-log').boundingBox()
+  const hudBox = await sim.page.locator('.tactical-hud-player').boundingBox()
+  expect(logBox, '.combat-log must be visible once entries are pushed').toBeTruthy()
+  expect(hudBox, '.tactical-hud-player must be visible').toBeTruthy()
+
+  expect(
+    boxesIntersect(logBox!, hudBox!),
+    `combat log must not cover the player status readout (hull/armor): log=${JSON.stringify(logBox)} hud=${JSON.stringify(hudBox)}`,
+  ).toBe(false)
+}
+
+test('combat log does not cover the player status readout (default viewport)', async ({ sim }) => {
+  await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
+  await bootTacticalWithEscort(sim)
+
+  await assertCombatLogClearsPlayerHud(sim)
+
+  await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
+})
+
+test('combat log does not cover the player status readout (playtest-realistic small viewport)', async ({ sim }) => {
+  // The original playtest report predates W2's topbar changes and didn't
+  // record its viewport; 1024x600 is a realistic small-laptop size well
+  // below the default 1280x800 Playwright viewport, used here to check the
+  // overlap isn't merely hidden by extra vertical room.
+  await sim.page.setViewportSize({ width: 1024, height: 600 })
+  await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
+  await bootTacticalWithEscort(sim)
+
+  await assertCombatLogClearsPlayerHud(sim)
 
   await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
 })

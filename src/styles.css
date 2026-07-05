@@ -2104,14 +2104,14 @@ html, body, #root {
   pointer-events: none;
   z-index: 1;
 }
-.tactical-hud-player { left: 12px; border-color: #14532d; }
+.tactical-hud-player { border-color: #14532d; }
 .tactical-hud-enemy  { right: 12px; border-color: #7f1d1d; }
-/* Phase 6.1 — player MS HUD sits below the flagship HUD on the left,
-   in friendly-MS blue to match the renderer color and the climbIntoMs
-   floor tile. */
+/* Phase 6.1 — player MS HUD, in friendly-MS blue to match the renderer
+   color and the climbIntoMs floor tile. Vertical placement below the
+   flagship HUD comes from .tactical-player-stack (Task 7), not a fixed
+   top offset — the stack lets it, the flagship HUD, and the combat log
+   flow one below the other regardless of any of their content heights. */
 .tactical-hud-ms {
-  left: 12px;
-  top: 198px;
   width: 220px;
   border-color: #1e3a8a;
 }
@@ -2171,6 +2171,29 @@ html, body, #root {
   position: relative;
   top: auto;
   right: auto;
+}
+/* Task 7 (W2 command layer) — the flagship HUD, MS HUD (when launched),
+   and combat log used to each be independently `position: absolute` at
+   the same top-left corner, so the log (higher z-index) rendered on top
+   of the flagship HUD and hid hull/armor mid-fight. Stacking them as flex
+   children — mirroring .tactical-enemy-stack's pattern above — makes each
+   element's actual height push the next one down, so they can never
+   overlap regardless of HUD content or combat-log line count. */
+.tactical-player-stack {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 1;
+}
+.tactical-player-stack .tactical-hud {
+  position: relative;
+  top: auto;
+  left: auto;
 }
 .tactical-hud-title {
   font-size: 13px;
@@ -2392,18 +2415,18 @@ html, body, #root {
 
 /* Combat event log — Phase 6.0. Top-left fading scroll, Starsector shape.
    Sits over the tactical canvas; pointer-events allow Tab toggle but the
-   log itself is read-only. Severity tier drives left-border color. */
+   log itself is read-only. Severity tier drives left-border color.
+   Task 7 (W2 command layer) — flows as the last child of
+   .tactical-player-stack, below the flagship/MS HUDs, instead of its own
+   `position: absolute` at the same top-left corner (which used to render
+   on top of the HUDs — see the stack's own comment above). */
 .combat-log {
-  position: absolute;
-  top: 12px;
-  left: 12px;
   width: 320px;
   max-height: 50vh;
   display: flex;
   flex-direction: column;
   gap: 4px;
   pointer-events: none;
-  z-index: 2;
 }
 .combat-log-entry {
   padding: 5px 9px;

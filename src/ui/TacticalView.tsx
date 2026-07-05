@@ -642,7 +642,6 @@ export function TacticalView() {
         />
       </div>
 
-      <CombatLogPanel />
       <CombatLogHistory />
 
       <CockpitTopbar
@@ -654,8 +653,11 @@ export function TacticalView() {
       />
       <OrderPalette pendingOrder={pendingOrder} setPendingOrder={setPendingOrder} />
 
-      <PlayerHud title={playerCls.nameZh} snap={player} />
-      {ms && <PlayerMsHud snap={ms} />}
+      <div className="tactical-player-stack">
+        <PlayerHud title={playerCls.nameZh} snap={player} />
+        {ms && <PlayerMsHud snap={ms} />}
+        <CombatLogPanel />
+      </div>
       <div className="tactical-enemy-stack">
         {enemies.map((en) => (
           <EnemyHud key={en.key} title={en.nameZh} snap={en} />

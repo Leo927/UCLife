@@ -10,7 +10,7 @@ import {
   issueFleetOrder, dpCostForShip, doctrineForAggression, dailyRefillCommandPoints,
 } from '../../systems/fleetCommandPoints'
 import { findShipByKey } from '../../systems/fleetCrew'
-import { useCombatLog } from '../../sim/combatLog'
+import { pushCombatLog, useCombatLog, type CombatLogSeverity } from '../../sim/combatLog'
 
 registerDebugHandle('computeDpCap', () => computeDpCap())
 registerDebugHandle('deploymentDescribe', () => deploymentDescribe())
@@ -48,4 +48,13 @@ registerDebugHandle('combatLogEntries', () =>
     textZh: e.textZh,
     severity: e.severity,
   })),
+)
+
+// Task 7 (W2 command layer) — smoke-only way to fill the combat log without
+// scripting a full engagement. Real gameplay pushes entries via combat
+// events (see systems/combat.ts); this handle exists purely so the
+// combat-log/status-panel overlap regression guard can push an arbitrary
+// number of lines deterministically.
+registerDebugHandle('pushCombatLogDebug', (textZh: string, severity: CombatLogSeverity) =>
+  pushCombatLog(textZh, severity),
 )
