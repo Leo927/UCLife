@@ -1633,7 +1633,14 @@ export function combatSystem(_world: World, dtMs: number): void {
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.
   // Each threshold fires at most once per engagement — tracked in
   // flagshipThresholdsHit (reset by startCombat).
-  const shipNow = ship.get(Ship)!
+  //
+  // The flagship can be destroyed EARLIER in this same tick: an enemy weapon
+  // (§4) or projectile (§5) that finishes it fires endCombat('defeat'), which
+  // destroys the flagship entity (applyDefeatConsequence). Sections 6/7 assume
+  // a live flagship, so re-query and bail if the fight already resolved.
+  const flagshipNow = getPlayerShip()
+  if (!flagshipNow) return
+  const shipNow = flagshipNow.get(Ship)!
   if (shipNow.hullMax > 0) {
     const hullPct = shipNow.hullCurrent / shipNow.hullMax
     for (const pct of combatConfig.flagshipPauseHullPcts) {
