@@ -91,6 +91,16 @@ describe('getGameState', () => {
     expect(getGameState().getEngagement().getEnemyKey()).toBeNull()
   })
 
+  it('CharacterView.getActionKind defaults to idle for a freshly spawned player', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getPlayerCharacter().getActionKind()).toBe('idle')
+  })
+
+  it('getCombat.isOpen is false when no tactical combat is active', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getCombat().isOpen()).toBe(false)
+  })
+
   it('getFaction reads the post-fixture fund as a "Money" resource', () => {
     applyFixture('amuro-at-recruit-office')
     const ae = getGameState().getFaction('anaheim')

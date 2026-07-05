@@ -33,4 +33,21 @@
   // seconds (real-ms / 1000) — hoisted into config so the test-mode
   // tick doesn't hard-code the conversion.
   msPerGameSecond: 1000,
+
+  // Inset (screen px) used by getEntityScreenCoordsClamped when a walk
+  // target projects off-canvas: the returned click point is clamped this
+  // far inside the canvas edge so `page.mouse.click` always lands on the
+  // Pixi surface (a click exactly on rect.right can miss). Journey smokes
+  // click-to-walk toward off-camera NPCs/interactables in stages using it.
+  walkClickMarginPx: 8,
+
+  // Coarse slice (game-ms) for step({ gameMinutes, coarse: true }). Long
+  // IDLE advances (e.g. the multi-day ship-delivery lead) are infeasible at
+  // the 16ms interactive tick — a game-day is ~5.4M ticks. A coarse slice
+  // runs every-frame systems once per slice while still firing each per-
+  // minute + day-rollover boundary, so an idle wait stays faithful to the
+  // minute-gated systems (deliveries, day rollover) at a fraction of the
+  // tick count. Only safe while nothing needs sub-minute fidelity (no
+  // combat / space flight / smooth player walk in progress).
+  coarseSliceGameMs: 60000,
 }

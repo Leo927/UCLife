@@ -2,8 +2,9 @@ import type { Entity } from 'koota'
 import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ecs/world'
 import {
   IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
-  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche,
+  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche, Action,
 } from '../ecs/traits'
+import { useCombatStore } from '../systems/combat'
 import { temperamentOf, sympathiesOf } from '../character/psychology'
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
@@ -48,6 +49,10 @@ export interface CharacterView {
     revealed: string[]
     lastRevealDay: number
   } | null
+  // W1 Task 10 — the character's current Action.kind ('idle', 'working', …).
+  // The journey smoke waits on a vendor reaching 'working' (on-shift) before
+  // its dialogue branch renders, since only the behaviour tree sets it.
+  getActionKind(): string
 }
 
 export interface ShipView {
@@ -77,6 +82,13 @@ export interface FleetView {
 export interface EngagementView {
   isOpen(): boolean
   getEnemyKey(): string | null
+}
+
+// W1 Task 10 — tactical-combat store state, surfaced read-only so the journey
+// smoke can wait for combat to open (after clicking 交战) and then resolve
+// (auto-fire victory) without touching the debug combat-store handle.
+export interface CombatView {
+  isOpen(): boolean
 }
 
 export interface FactionView {
@@ -142,6 +154,8 @@ export interface GameStateView {
   getPlayerFleet(): FleetView
   // W1 Task 6 — read-only space-engagement modal state.
   getEngagement(): EngagementView
+  // W1 Task 10 — read-only tactical-combat open state.
+  getCombat(): CombatView
   getFaction(id: string): FactionView | null
   getDialogue(): DialogueView | null
   getScene(): SceneView
@@ -260,6 +274,9 @@ function makeCharacterView(entity: Entity, sceneId: string): CharacterView {
       if (!p || !entity.has(Knows(p.entity))) return { grievances: 0, credits: 0 }
       const e = entity.get(Knows(p.entity))!
       return { grievances: e.grievances.length, credits: e.credits.length }
+    },
+    getActionKind(): string {
+      return entity.get(Action)?.kind ?? 'idle'
     },
     getPsyche() {
       if (!entity.has(Psyche) || !entity.has(Attributes)) return null
@@ -433,6 +450,9 @@ export function getGameState(): GameStateView {
         isOpen: () => useEngagement.getState().open,
         getEnemyKey: () => useEngagement.getState().enemyKey,
       }
+    },
+    getCombat(): CombatView {
+      return { isOpen: () => useCombatStore.getState().open }
     },
     getFaction(id: string): FactionView | null {
       if (!FACTION_IDS.has(id)) return null

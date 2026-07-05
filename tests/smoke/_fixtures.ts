@@ -144,6 +144,21 @@ export class Sim {
   }
 
   /**
+   * Coarse idle advance — like stepFor, but advances in large slices instead
+   * of the 16ms interactive tick. For long IDLE waits ONLY (e.g. the multi-day
+   * ship-delivery lead), where sub-minute fidelity is unneeded and the 16ms
+   * tick count (~5.4M/game-day) is wall-clock-prohibitive. Do NOT use while a
+   * smooth walk, combat, or space flight is in progress.
+   */
+  async stepForCoarse(gameMinutes: number): Promise<void> {
+    await this.page.evaluate(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (m: number) => { await (window as any).__uclife_test__.step({ gameMinutes: m, coarse: true }) },
+      gameMinutes,
+    )
+  }
+
+  /**
    * Step sim time until predicate returns true, bounded by maxGameMinutes.
    * Predicate runs in the browser context — it can ONLY reach `window.__uclife__`,
    * not outer-scope variables. This is the same closure constraint Playwright

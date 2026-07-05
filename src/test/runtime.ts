@@ -22,6 +22,14 @@ export interface StepUntilOpts {
 
 export interface StepMinutesOpts {
   gameMinutes: number
+  // Coarse mode: advance in testConfig.coarseSliceGameMs slices instead of the
+  // 16ms interactive tick. For long IDLE advances only (multi-day delivery
+  // lead): a game-day is ~5.4M ticks at 16ms — infeasible under the step-tick
+  // bound / wall clock — but ~1.4k coarse slices. Still fires every per-minute
+  // + day-rollover boundary (advanceSimByGameMs runs the minute-gated block
+  // once per slice), so deliveries + rollovers land faithfully. Unsafe while
+  // anything needs sub-minute fidelity (combat, space flight, a smooth walk).
+  coarse?: boolean
 }
 
 export type StepOpts = StepUntilOpts | StepMinutesOpts
@@ -85,11 +93,12 @@ async function stepUntil(opts: StepUntilOpts): Promise<void> {
 
 async function stepMinutes(opts: StepMinutesOpts): Promise<void> {
   const totalMs = opts.gameMinutes * MS_PER_GAME_MINUTE
+  const sliceMs = opts.coarse ? testConfig.coarseSliceGameMs : TICK_GAME_MS
   let advancedMs = 0
   let ticks = 0
   while (advancedMs < totalMs && ticks < MAX_STEP_TICKS) {
     const remaining = totalMs - advancedMs
-    const slice = remaining < TICK_GAME_MS ? remaining : TICK_GAME_MS
+    const slice = remaining < sliceMs ? remaining : sliceMs
     advanceSimByGameMs(slice)
     advancedMs += slice
     ticks++

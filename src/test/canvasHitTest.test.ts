@@ -4,9 +4,12 @@
 // jsdom isn't a project dep, so we mock document.querySelector inline.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { getEntityScreenCoords } from './canvasHitTest'
+import {
+  getEntityScreenCoords, getEntityScreenCoordsClamped,
+  getPoiScreenCoords, getEnemyScreenCoords,
+} from './canvasHitTest'
 import { getWorld, getActiveSceneId } from '../ecs/world'
-import { EntityKey, Position } from '../ecs/traits'
+import { EntityKey, Position, IsPlayer, PoiTag, EnemyAI } from '../ecs/traits'
 import { useCamera } from '../render/cameraStore'
 
 interface FakeCanvas {
@@ -14,11 +17,13 @@ interface FakeCanvas {
 }
 
 let fakeCanvas: FakeCanvas | null = null
+let fakeSpaceCanvas: FakeCanvas | null = null
 
 function installStubDocument(): void {
   ;(globalThis as unknown as { document: unknown }).document = {
     querySelector(sel: string): FakeCanvas | null {
       if (sel === '.game-canvas canvas') return fakeCanvas
+      if (sel === '.space-view canvas') return fakeSpaceCanvas
       return null
     },
   }
@@ -77,5 +82,89 @@ describe('getEntityScreenCoords', () => {
     const world = getWorld(getActiveSceneId())
     world.spawn(EntityKey({ key: 'fixture-c' }), Position({ x: 200, y: 150 }))
     expect(getEntityScreenCoords('fixture-c')).toBeNull()
+  })
+})
+
+describe('getEntityScreenCoordsClamped', () => {
+  beforeEach(() => {
+    installStubDocument()
+    fakeCanvas = {
+      getBoundingClientRect: () => ({ left: 100, top: 50, right: 900, bottom: 650 }),
+    }
+  })
+
+  afterEach(() => {
+    fakeCanvas = null
+    uninstallStubDocument()
+    useCamera.getState().setCamera({ canvasW: 0, canvasH: 0, camX: 0, camY: 0 })
+    const world = getWorld(getActiveSceneId())
+    for (const e of world.query(EntityKey)) e.destroy()
+  })
+
+  it('returns the true on-screen point when the entity is inside the canvas', () => {
+    const world = getWorld(getActiveSceneId())
+    world.spawn(EntityKey({ key: 'near' }), Position({ x: 200, y: 150 }))
+    useCamera.getState().setCamera({ canvasW: 800, canvasH: 600, camX: 0, camY: 0 })
+    // Same projection as getEntityScreenCoords, inside the rect → unclamped.
+    expect(getEntityScreenCoordsClamped('near')).toEqual({ x: 300, y: 200 })
+  })
+
+  it('clamps an off-canvas target to just inside the edge (margin=8)', () => {
+    const world = getWorld(getActiveSceneId())
+    // rawX = 100 + 10_000 = 10_100 → clamp to right(900) - margin(8) = 892.
+    // rawY = 50 + 150 = 200 → inside [58, 642] → unchanged.
+    world.spawn(EntityKey({ key: 'far' }), Position({ x: 10_000, y: 150 }))
+    useCamera.getState().setCamera({ canvasW: 800, canvasH: 600, camX: 0, camY: 0 })
+    expect(getEntityScreenCoordsClamped('far')).toEqual({ x: 892, y: 200 })
+  })
+
+  it('returns null for an unknown entity id', () => {
+    expect(getEntityScreenCoordsClamped('nope')).toBeNull()
+  })
+})
+
+describe('space-view screen coords (getPoiScreenCoords / getEnemyScreenCoords)', () => {
+  // scale = 1, viewport centered on the player ship:
+  //   screenX = rect.left + (worldX - shipX) + viewW/2
+  const SPACE = 'spaceCampaign'
+
+  beforeEach(() => {
+    installStubDocument()
+    fakeSpaceCanvas = {
+      getBoundingClientRect: () => ({ left: 0, top: 0, right: 1280, bottom: 800 }),
+    }
+    getWorld(SPACE).spawn(IsPlayer, Position({ x: 500, y: 400 }))
+  })
+
+  afterEach(() => {
+    fakeSpaceCanvas = null
+    uninstallStubDocument()
+    const world = getWorld(SPACE)
+    for (const e of world.query(Position)) e.destroy()
+  })
+
+  it('projects a POI world position through the ship-centered viewport', () => {
+    getWorld(SPACE).spawn(PoiTag({ poiId: 'vonBraun' }), Position({ x: 600, y: 400 }))
+    // (600-500)+640 = 740; (400-400)+400 = 400.
+    expect(getPoiScreenCoords('vonBraun')).toEqual({ x: 740, y: 400 })
+  })
+
+  it('projects an enemy world position by EntityKey', () => {
+    getWorld(SPACE).spawn(
+      EnemyAI(), EntityKey({ key: 'enemy-pirate-lunar-4' }), Position({ x: 500, y: 300 }),
+    )
+    // (500-500)+640 = 640; (300-400)+400 = 300.
+    expect(getEnemyScreenCoords('enemy-pirate-lunar-4')).toEqual({ x: 640, y: 300 })
+  })
+
+  it('returns null for an absent POI / enemy', () => {
+    expect(getPoiScreenCoords('nope')).toBeNull()
+    expect(getEnemyScreenCoords('nope')).toBeNull()
+  })
+
+  it('returns null when the space canvas is not mounted', () => {
+    fakeSpaceCanvas = null
+    getWorld(SPACE).spawn(PoiTag({ poiId: 'vonBraun' }), Position({ x: 600, y: 400 }))
+    expect(getPoiScreenCoords('vonBraun')).toBeNull()
   })
 })
