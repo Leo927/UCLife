@@ -224,21 +224,23 @@ test('order palette (real input): click-target rally + focus-fire, Esc/empty-cli
     'tactical view opens paused on first contact',
   ).toBe(true)
 
-  // ── Esc cancels a pending order — no CP spent, hint reverts ───────────
-  await sim.page.locator('[data-tactical-order="rally"]').click()
-  await expect(sim.page.locator('.tactical-hint'), 'hint switches to rally targeting copy').toContainText('集结坐标')
+  // ── Esc cancels a pending order — no CP spent, armed state reverts ────
+  const rallyBtn = sim.page.locator('[data-tactical-order="rally"]')
+  await rallyBtn.click()
+  await expect(rallyBtn, 'rally button enters armed (pending) state').toHaveClass(/is-pending/)
   await sim.page.keyboard.press('Escape')
-  await expect(sim.page.locator('.tactical-hint'), 'Esc reverts the hint to the default').toContainText('WASD')
+  await expect(rallyBtn, 'Esc disarms the rally button back to idle').not.toHaveClass(/is-pending/)
   expect(
     (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
     'Esc-cancel must not spend CP',
   ).toBe(maxCp)
 
   // ── Right-click cancels too ───────────────────────────────────────────
-  await sim.page.locator('[data-tactical-order="focusFire"]').click()
-  await expect(sim.page.locator('.tactical-hint'), 'hint switches to focus-fire targeting copy').toContainText('集火目标')
+  const focusFireBtn = sim.page.locator('[data-tactical-order="focusFire"]')
+  await focusFireBtn.click()
+  await expect(focusFireBtn, 'focus-fire button enters armed (pending) state').toHaveClass(/is-pending/)
   await sim.page.mouse.click(EMPTY_ARENA_POINT.x + 400, EMPTY_ARENA_POINT.y + 300, { button: 'right' })
-  await expect(sim.page.locator('.tactical-hint'), 'right-click reverts the hint to the default').toContainText('WASD')
+  await expect(focusFireBtn, 'right-click disarms the focus-fire button back to idle').not.toHaveClass(/is-pending/)
   expect(
     (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
     'right-click cancel must not spend CP',
@@ -321,6 +323,50 @@ test('order palette (real input): click-target rally + focus-fire, Esc/empty-cli
     (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
     'regroup debits 1 CP',
   ).toBe(cpBeforeRegroup - 1)
+
+  await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
+})
+
+test('order palette (real input): insufficient CP refuses the order and leaves fleet-order state untouched', async ({ sim }) => {
+  await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
+  await bootTacticalWithEscort(sim)
+
+  // Drain the pool via repeated real regroup clicks (formationChange costs 1
+  // CP; regroup is a one-shot order, no arm/resolve needed). No
+  // tickCombatSystem call happens between clicks, so regenCommandPoints
+  // never runs — the pool only ever goes down, making the drain
+  // deterministic regardless of wall-clock time spent clicking.
+  const regroupBtn = sim.page.locator('[data-tactical-order="regroup"]')
+  const maxCp = (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).max
+  let cpAfterDrain = { current: -1, max: maxCp }
+  for (let i = 0; i < maxCp; i++) {
+    await regroupBtn.click()
+    cpAfterDrain = await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())
+  }
+  expect(cpAfterDrain.current, 'repeated regroup clicks must drain the CP pool to exactly 0').toBe(0)
+
+  const ordersBeforeRefusal = await sim.page.evaluate(() => (window as any).__uclife__.fleetOrdersDescribe())
+
+  // ── Arm + resolve a rally order against the empty pool: refused ──────
+  await sim.page.locator('[data-tactical-order="rally"]').click()
+  const rallyPt = await sim.page.evaluate(
+    (p) => (window as any).__uclife__.getTacticalWorldScreenCoords(p), RALLY_POINT,
+  )
+  expect(rallyPt, 'the rally point must project onto the tactical canvas').toBeTruthy()
+  await sim.page.mouse.click(rallyPt.x, rallyPt.y)
+
+  await expect(
+    sim.page.locator('.toast'),
+    'an insufficient-CP refusal toasts the CP-exhausted reason',
+  ).toContainText('指挥点不足')
+  expect(
+    (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current,
+    'a refused order must not push CP below 0',
+  ).toBe(0)
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.fleetOrdersDescribe()),
+    'a refused order must leave standing fleet-order state exactly as it was before the attempt',
+  ).toEqual(ordersBeforeRefusal)
 
   await sim.page.evaluate(() => (window as any).__uclife__.endCombatCheat('flee'))
 })
