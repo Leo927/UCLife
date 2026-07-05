@@ -351,6 +351,7 @@ export function TacticalView() {
   const lastFlashZh = useCombatStore((s) => s.lastFlashZh)
   const lastFlashAtMs = useCombatStore((s) => s.lastFlashAtMs)
   const fireModeByMount = useCombatStore((s) => s.fireModeByMount)
+  const piloting = useCockpit((s) => s.piloting)
   const [tick, setTick] = useState(0)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [pendingOrder, setPendingOrder] = useState<PendingOrder>(null)
@@ -602,14 +603,24 @@ export function TacticalView() {
         ? '再次点击撤退按钮确认撤退 · 点击战场 / Esc / 右键取消'
         : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 点击武器行切换射击模式 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
 
+  // Task 5 review — fire-mode controls are bridge controls, mirroring
+  // OrderPalette's comm-authority gate below: a mount's mode/volley trigger
+  // only take real input while the player is piloting the flagship, since
+  // combatSystem §3 forces every mount to 'auto' the instant they aren't
+  // (the AI flagship fires all its charged guns, per Design/combat.md). The
+  // queue itself stays visible for situational awareness (what's the AI
+  // doing with my guns right now) — it just goes read-only.
+  const flagshipPiloted = piloting === 'flagship'
+
   const onWeaponModeClick = (mountIdx: number) => (ev: React.MouseEvent) => {
     ev.stopPropagation()
+    if (!flagshipPiloted) return
     playUi('ui.tactical.order-pick')
     useCombatStore.getState().cycleFireMode(mountIdx)
   }
 
   const onWeaponRowClick = (mountIdx: number, mode: FireMode, ready: boolean) => {
-    if (mode !== 'volley' || !ready) return
+    if (!flagshipPiloted || mode !== 'volley' || !ready) return
     playUi('ui.tactical.order-issue')
     useCombatStore.getState().requestVolleyFire(mountIdx)
   }
@@ -666,7 +677,7 @@ export function TacticalView() {
           const def = getWeapon(m.weaponId)
           const pct = def.chargeSec > 0 ? m.chargeSec / def.chargeSec : 0
           const mode = fireModeByMount[m.mountIdx] ?? 'auto'
-          const volleyClickable = mode === 'volley' && m.ready
+          const volleyClickable = flagshipPiloted && mode === 'volley' && m.ready
           return (
             <div
               key={m.mountIdx}
@@ -679,7 +690,8 @@ export function TacticalView() {
                   type="button"
                   className={`tactical-weapon-mode is-${mode}`}
                   data-tactical-weapon-mode={m.mountIdx}
-                  onClick={onWeaponModeClick(m.mountIdx)}
+                  aria-disabled={!flagshipPiloted}
+                  onClick={flagshipPiloted ? onWeaponModeClick(m.mountIdx) : undefined}
                 >
                   {fireModeLabelZh(mode)}
                 </button>

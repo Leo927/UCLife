@@ -239,6 +239,10 @@ export function getCombatPlayerHeading(): number {
 // only fires once the player spends a single-shot request via
 // requestVolleyFire (row click in the UI), and picks the in-arc target
 // nearest the aim cursor rather than the flagship's nearest-hostile default.
+// These modes are bridge controls: combatSystem §3 only honors them while
+// the player is piloting the flagship. The moment they leave the helm (MS
+// sortie or walking off the bridge) every mount reverts to 'auto' — the
+// stored selection is untouched and simply resumes when they retake the helm.
 export type FireMode = 'auto' | 'hold' | 'volley'
 
 const FIRE_MODE_CYCLE: Record<FireMode, FireMode> = {
@@ -1689,13 +1693,37 @@ export function combatSystem(_world: World, dtMs: number): void {
   //              single-shot request for this mount (store.volleyRequested),
   //              targeting the in-arc enemy nearest the aim cursor
   //              (fallback: nearest in-arc) rather than nearest-to-flagship.
+  //
+  // Task 5 review — these are all flagship WeaponMount entities (the ECS
+  // WeaponMount trait is only ever spawned on the flagship; MS weapons live
+  // in CombatShipState.weapons instead), so the fire-mode gates are a bridge
+  // control surface, not a fleet-wide one. Per Design/combat.md the flagship
+  // is on AI whenever the player isn't at the helm — same invariant §1
+  // already applies to WASD/aim via `cs.pilotedByPlayer`. So while the
+  // player is piloting the MS or has left the bridge, every mount is forced
+  // to 'auto' here regardless of its stored mode: the AI flagship fires all
+  // its charged guns, exactly like pre-Task-5. `fireModeByMount` itself is
+  // never written in that branch — the player's selections are a standing
+  // preference that must survive the AI interlude and resume the instant
+  // they retake the helm.
+  const flagshipPiloted = playerCsNow.pilotedByPlayer
+  // A queued volley request, unlike the mode selection, is a one-shot
+  // trigger pull rather than a standing preference — leaving it queued
+  // while the AI has the conn would let a stale pre-departure click fire
+  // the instant the player retakes the helm. Clearing it is the
+  // deterministic choice (the alternative, leaving it queued, would make
+  // "did that shot come from me" depend on exactly when the mount finished
+  // charging relative to the helm swap).
+  if (!flagshipPiloted && Object.keys(store.volleyRequested).length > 0) {
+    useCombatStore.setState({ volleyRequested: {} })
+  }
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
     if (!m.weaponId) continue
     const def = getWeapon(m.weaponId)
     let charge = Math.min(def.chargeSec, m.chargeSec + dtSec)
     let ready = charge >= def.chargeSec
-    const mode = store.fireModeByMount[m.mountIdx] ?? 'auto'
+    const mode = flagshipPiloted ? (store.fireModeByMount[m.mountIdx] ?? 'auto') : 'auto'
     if (ready && mode !== 'hold') {
       const mountFacing = playerHeading + m.facingRad
       const candidates = inArcEnemyCandidates(enemies, playerPos, mountFacing, m.firingArcRad, def.range)
