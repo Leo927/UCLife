@@ -66,7 +66,6 @@ const COMBAT_DRIVE_STAGES = 20     // resume-and-advance stages (fight resolves 
 const COMBAT_STAGE_MIN = 1         // fine sim-minutes per stage (~3750 tactical ticks)
 const DOCK_HOP_STAGES = 30         // right-click hops to close on static VB
 const DOCK_HOP_STAGE_MIN = 0.1     // per-hop step; VB doesn't chase back
-const DOCK_NEAR_PX = 500           // world proximity at which VB is reliably on-screen
 const DOCK_BUDGET_MIN = 60 * 12    // fly-home + autodock budget
 const JOURNEY_TIMEOUT_MS = 150_000  // whole end-to-end loop headroom past the 60s default
 const KIOSK_INTERACT_TRIES = 5      // re-issue a kiosk interact until the scene swaps
@@ -400,19 +399,18 @@ test('journey: buy → board → helm → intercept → engage → win → tally
 
   // ── 9. Dock home at Von Braun via the POI context menu ───────────────
   // Von Braun is off-screen after the running fight; right-click quick-navigate
-  // toward it until the ship is close enough that VB is reliably on-screen,
+  // toward it until it actually projects on-screen (the rectangular space
+  // viewport is direction-sensitive — a world-distance radius alone doesn't
+  // guarantee visibility when the approach is more vertical than horizontal),
   // then left-click it and pick 停泊 — dockAt commits an auto-dock course that
-  // flies the last leg and parks on arrival. Break on WORLD proximity (not
-  // screen visibility) so overshoot past this static point can't oscillate the
-  // ship on/off-screen forever.
+  // flies the last leg and parks on arrival. The break condition is the exact
+  // same on-screen predicate the final assertion checks, so there is no
+  // heuristic-vs-actual mismatch between "close enough to stop hopping" and
+  // "close enough to click".
   for (let i = 0; i < DOCK_HOP_STAGES; i++) {
-    const near = await sim.page.evaluate((arg: { p: string; nearPx: number }) => {
-      const u = (window as any).__uclife__
-      const s = u.shipPos()
-      const vb = u.getEntityWorldPos('poi-' + arg.p)
-      return vb ? Math.hypot(s.x - vb.x, s.y - vb.y) < arg.nearPx : false
-    }, { p: DOCK_POI, nearPx: DOCK_NEAR_PX })
-    if (near) break
+    const onScreen = await sim.page.evaluate((p: string) =>
+      (window as any).__uclife__.getPoiScreenCoords(p) != null, DOCK_POI)
+    if (onScreen) break
     const pt = await sim.page.evaluate((p: string) => {
       const u = (window as any).__uclife__
       return u.getPoiScreenCoords(p) ?? u.getPoiScreenCoordsClamped(p)

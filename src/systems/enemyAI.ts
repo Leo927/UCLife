@@ -19,15 +19,20 @@ import { Position, Velocity, Thrust, EnemyAI, IsPlayer, ShipBody, Body } from '.
 import { thrustToward } from '../engine/space'
 import { spaceConfig } from '../config'
 import { inAggroRadius, distSq } from '../engine/space/engagement'
-import { getDockedPoiId } from '../sim/ship'
+import { getDockedPoiId, getFlagshipEntity } from '../sim/ship'
 
 export function enemyAISystem(world: World): void {
-  // A docked player ship is parked at a POI and not a valid target — pirates
-  // ignore it so they don't path toward Von Braun while the player walks
-  // around the city. Aggro only resumes once the player undocks.
-  const playerDocked = !!getDockedPoiId()
+  // Mirrors spaceSim.ts §6's immunity guard. A docked player ship is parked
+  // at a POI and not a valid target — pirates ignore it so they don't path
+  // toward Von Braun while the player walks around the city. Aggro only
+  // resumes once the player undocks. bootstrapSpaceCampaign also always
+  // spawns an IsPlayer+ShipBody placeholder before the player owns a
+  // flagship (W1 Task 5 — the first hull is bought, not granted at boot);
+  // getDockedPoiId() alone is null in that state too, so it must never be
+  // the sole gate — no flagship = not flying = immune, same as parked.
+  const playerTargetable = !!getFlagshipEntity() && !getDockedPoiId()
   let playerPos: { x: number; y: number } | null = null
-  if (!playerDocked) {
+  if (playerTargetable) {
     for (const e of world.query(IsPlayer, ShipBody, Position)) {
       playerPos = e.get(Position)!
       break

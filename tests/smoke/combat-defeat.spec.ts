@@ -10,6 +10,14 @@
 // time until an enemy beam lands. Leaving 1 hp (not 0) means the end-of-tick
 // resolution never fires "clean" — defeat can ONLY resolve through the
 // mid-tick endCombat('defeat') path, which is exactly the crash path.
+//
+// Final-review finding 2 — applyDefeatConsequence destroyed the flagship but
+// left any Ms.storedOnShipKey pointing at the dead key: custody verbs would
+// refuse forever, fleetSupplyDrain would bill the lost MS forever, and the
+// idempotent starter-MS grant key would never free up for a re-buy. Fixed
+// diegetically: MS stowed aboard the lost flagship are lost with the ship.
+// Covered below — no dangling storedOnShipKey, no more supply drain for the
+// lost MS, and a freshly bought hull re-grants the starter bundle.
 
 import { test, expect, DOM_COMMIT_TIMEOUT_MS, isKnownPixiResolutionTeardown } from './_fixtures'
 
@@ -24,11 +32,24 @@ const REQUIRED_HANDLES = [
   '__uclife__.flagshipDamage',
   '__uclife__.tickCombatSystem',
   '__uclife__.useCombatStore',
+  '__uclife__.getMsRoster',
+  '__uclife__.runFleetSupplyDrainTick',
+  '__uclife__.listHangarsAllScenes',
+  '__uclife__.enqueueShipDelivery',
+  '__uclife__.runShipDeliveryTick',
+  '__uclife__.receiveShipDelivery',
+  '__uclife__.boardShipByKey',
+  '__uclife__.getGameDay',
 ]
 
 const LEFTOVER_HULL = 1        // >0 so resolution fires only via a mid-tick kill
 const TICK_DT_MS = 500
 const MAX_DRIVE_TICKS = 600    // ~300s tactical; enemy closes 500→180px range in ~10s
+const LOST_FLAGSHIP_KEY = 'ship'     // starter-fleet fixture's flagship EntityKey
+const STARTER_MS_KEY = 'ms-player-0' // config/ms.json5 starterMsEntityKey
+const REBUY_LEAD_DAYS = 3
+const REBUY_HULL_CLASS = 'lightFreighter'
+const REBUY_HANGAR_TYPE = 'hangarSurface'
 
 test('combat defeat: flagship destroyed mid-tick resolves cleanly (no crash)', async ({ sim }) => {
   sim.allowConsoleError(isKnownPixiResolutionTeardown)
@@ -92,4 +113,64 @@ test('combat defeat: flagship destroyed mid-tick resolves cleanly (no crash)', a
     await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount()),
     'losing the fight destroys the flagship',
   ).toBe(0)
+
+  // Finding 2 — the starter-fleet fixture stows ms-player-0 aboard the lost
+  // flagship (storedOnShipKey: 'ship'). It must be destroyed with the ship,
+  // not orphaned with a dangling reference to the dead key.
+  const rosterAfterDefeat = await sim.page.evaluate(() => (window as any).__uclife__.getMsRoster())
+  expect(
+    rosterAfterDefeat.some((m: any) => m.storedOnShipKey === LOST_FLAGSHIP_KEY),
+    'no MS entity may still reference the destroyed flagship key',
+  ).toBe(false)
+  expect(
+    rosterAfterDefeat.some((m: any) => m.key === STARTER_MS_KEY),
+    'the starter MS aboard the lost flagship must be destroyed, not orphaned',
+  ).toBe(false)
+
+  // Finding 2 — fleetSupplyDrainSystem walks every Ms entity regardless of
+  // whether its storedOnShipKey still resolves; a destroyed-but-lingering
+  // MS would bill upkeep forever. With the MS gone, the drain tick must not
+  // count it.
+  const gameDay = await sim.page.evaluate(() => (window as any).__uclife__.getGameDay())
+  const drainResult = await sim.page.evaluate(
+    (day: number) => (window as any).__uclife__.runFleetSupplyDrainTick(day),
+    gameDay,
+  )
+  expect(drainResult.msDraining, 'the lost MS must not keep billing supply upkeep').toBe(0)
+
+  // Finding 2 — grantStarterMsToShip's idempotency check keys on the starter
+  // MS entity existing at all (config/ms.json5 starterMsEntityKey). With it
+  // destroyed, the player's next bought hull must re-grant the starter
+  // bundle rather than silently skipping it forever.
+  const hangars = await sim.page.evaluate(() => (window as any).__uclife__.listHangarsAllScenes())
+  const rebuyHangar = hangars.find((h: any) => h.typeId === REBUY_HANGAR_TYPE)
+  expect(rebuyHangar, 'no state hangar available to re-buy a hull after defeat').toBeTruthy()
+
+  const enq = await sim.page.evaluate(
+    (arg) => (window as any).__uclife__.enqueueShipDelivery(arg.k, arg.cls, arg.orderDay, arg.lead),
+    { k: rebuyHangar.buildingKey, cls: REBUY_HULL_CLASS, orderDay: gameDay, lead: REBUY_LEAD_DAYS },
+  )
+  expect(enq, 'enqueueShipDelivery rejected the post-defeat re-buy').toBeTruthy()
+
+  await sim.page.evaluate(
+    (day: number) => (window as any).__uclife__.runShipDeliveryTick(day),
+    gameDay + REBUY_LEAD_DAYS,
+  )
+  const rx = await sim.page.evaluate(
+    (arg) => (window as any).__uclife__.receiveShipDelivery(arg.k, arg.idx),
+    { k: rebuyHangar.buildingKey, idx: enq.rowIndex },
+  )
+  expect(rx.ok, `receiveShipDelivery failed: ${JSON.stringify(rx)}`).toBe(true)
+
+  const boardResult = await sim.page.evaluate(
+    (key: string) => (window as any).__uclife__.boardShipByKey(key),
+    rx.entityKey,
+  )
+  expect(boardResult.ok, `boardShipByKey failed: ${boardResult.reasonZh ?? ''}`).toBe(true)
+
+  const rosterAfterRebuy = await sim.page.evaluate(() => (window as any).__uclife__.getMsRoster())
+  expect(
+    rosterAfterRebuy.some((m: any) => m.key === STARTER_MS_KEY && m.storedOnShipKey === rx.entityKey),
+    'the starter MS bundle must re-grant onto the newly bought hull',
+  ).toBe(true)
 })

@@ -23,6 +23,37 @@ const REQUIRED_HANDLES = ['__uclife_test__.step', '__uclife__.getGameState', ...
 
 const ROLLOVER_DAY = 1
 
+// W1 final-review finding 1 — enemyAISystem used to gate targeting on
+// getDockedPoiId() alone, which is also null with no flagship (not just
+// docked). bootstrapSpaceCampaign always spawns an IsPlayer+ShipBody
+// placeholder in spaceCampaign before the player owns a hull (W1 Task 5),
+// so a shipless boot let the starter picket (pirate-lunar-starter) see and
+// chase the phantom placeholder, abandoning its moon anchor. Regression
+// covered at the unit layer too (src/systems/enemyAI.test.ts); this smoke
+// exercises the real boot + real authored entity over stepped sim time.
+const STARTER_PICKET_KEY = 'enemy-pirate-lunar-starter'
+
+test('shipless player must be invisible to pirates: starter picket never enters chase', async ({ sim }) => {
+  await sim.boot({ requireHandles: [...REQUIRED_HANDLES, '__uclife__.listEnemies'] })
+
+  const ownsShip = await sim.page.evaluate(() =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount() > 0)
+  expect(ownsShip, 'this scenario requires the no-ship boot state').toBe(false)
+
+  await sim.stepFor(15)
+
+  const enemies = await sim.page.evaluate(() =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__uclife__.listEnemies() as Array<{ key: string; mode: string }>)
+  const picket = enemies.find((e) => e.key === STARTER_PICKET_KEY)
+  expect(picket, 'starter picket (pirate-lunar-starter) missing from spaceCampaign').toBeTruthy()
+  expect(
+    picket!.mode,
+    'shipless player must be invisible to pirates — the starter picket must never chase',
+  ).not.toBe('chase')
+})
+
 test('fresh boot owns no ship; ship systems stay inert without crashing', async ({ sim }) => {
   await sim.boot({ requireHandles: REQUIRED_HANDLES }) // no fixture — plain test-mode boot
 
