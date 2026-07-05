@@ -84,6 +84,14 @@
     // from Von Braun. pirate_skirmisher entries are weaker patrol craft;
     // pirate_raider is the fleet anchor.
     //
+    // Only pirate-lunar-starter sets anchorBodyId:'moon' (see space-entities.ts):
+    // its coords are authored absolute at t=0 but track the moon's live position,
+    // so the home picket orbits WITH the dock and is still on the Von Braun
+    // approach after a multi-day delivery wait carries the moon ~90deg away. The
+    // heavier lunar groups stay fixed-coord — deliberate mid-game content the
+    // player flies OUT to; anchoring them too would crowd the freshly-won home
+    // fight with a second contact the starter freighter can't survive.
+    //
     // W1 Task 10 — the earned-start LOOP needs a FIRST fight a stock
     // lightFreighter can actually win, near enough to Von Braun to complete
     // undock → intercept → fight → return inside the 60-fuel tank. That role
@@ -99,9 +107,11 @@
     // dock anchors with a >=20% distance margin (orbits move, so a hairline
     // miss today becomes a hit tomorrow). This keeps the home-port undock a
     // single-pirate encounter, never a multi-group ambush — see
-    // space-entities.test.ts. Char Aznable's raider (pirate-lunar-4) keeps its
-    // heavier 1-v-3 as reachable mid-game content, but its aggro is shrunk
-    // below its own dock distances so it no longer covers the starter's turf.
+    // space-entities.test.ts. pirate-lunar-3 (south-east) and Char Aznable's
+    // raider (pirate-lunar-4, north-east) are pushed clear of the Von Braun ↔
+    // starter approach corridor as well, so the starter is the reliable first
+    // contact and Char's heavier 1-v-3 is deliberate mid-game content the
+    // player must fly out to.
     {
       // W1 Task 10 — the winnable starter encounter. One weak pirateLight,
       // no escorts, patrolling a tight loop just off the Von Braun approach.
@@ -113,14 +123,18 @@
       patrolPath: [
         { x: 19180, y: 13050 },
         { x: 19900, y: 12800 },
-        { x: 19600, y: 11900 },
-        { x: 18700, y: 12300 },
+        { x: 19500, y: 12350 },
+        { x: 18700, y: 12500 },
       ],
       // 1/8-sector-width reach (30000 / 8), transferred here from
       // pirate-lunar-4: the sole near-moon patrol that "genuinely pursues"
       // an undocking ship, so the earned-start intercept reliably converges.
       aggroRadius: 3750,
       fleeHullPct: 0.2,
+      // Follow the moon so it stays on the Von Braun approach at all times —
+      // the dock orbits ~90deg away over a multi-day delivery wait, and a
+      // fixed-coord patrol would be orphaned far from where the player undocks.
+      anchorBodyId: 'moon',
     },
     {
       id: 'pirate-lunar-1',
@@ -155,11 +169,14 @@
       fleeHullPct: 0.20,
     },
     {
+      // W1 Task 10 — pushed south-east so it clears the Von Braun dock anchors
+      // at t=0 with margin (invariant); fixed-coord mid-game content the player
+      // flies out to (only the starter follows the moon toward home).
       id: 'pirate-lunar-3',
       kind: 'enemyShip',
       shipClassId: 'pirate_skirmisher',
       escorts: ['pirate_skirmisher'],
-      spawn: { x: 20000, y: 13200 },
+      spawn: { x: 21400, y: 14200 },
       aiMode: 'idle',
       aggroRadius: 900,
       fleeHullPct: 0.20,
@@ -176,21 +193,21 @@
       shipClassId: 'pirate_raider',
       escorts: ['pirate_skirmisher', 'pirate_skirmisher'],
       notableCaptains: { '0': 'char-aznable-0077-disguise' },
-      spawn: { x: 19400, y: 12600 },
+      // W1 Task 10 — relocated north-east, well clear of the Von Braun home
+      // approach, so a first undock never stumbles into this 1-v-3. Char's
+      // raider is now deliberate mid-game content the player must fly out to.
+      spawn: { x: 22500, y: 10500 },
       aiMode: 'patrol',
       patrolPath: [
-        { x: 19400, y: 12600 },
-        { x: 20600, y: 13000 },
-        { x: 21000, y: 12000 },
-        { x: 20000, y: 11200 },
+        { x: 22500, y: 10500 },
+        { x: 23500, y: 10800 },
+        { x: 23200, y: 9600 },
+        { x: 22000, y: 10000 },
       ],
-      // W1 Task 10 — the 1/8-sector "genuinely pursues" reach moved to
-      // pirate-lunar-starter (the winnable first fight). Char's raider is
-      // now mid-game content: its aggro is shrunk below its own distance to
-      // every near-moon dock anchor (min 480px to marikoRefinery) with a
-      // >=20% margin, so it no longer covers the home-port turf. The player
-      // must fly out to it, not stumble into a 1-v-3 on their first undock.
-      aggroRadius: 350,
+      // Mid-game "genuinely pursues" reach out in its own corner — sized well
+      // below its distance to every near-moon dock anchor (nearest ~2930px to
+      // Von Braun) with a wide margin, so it never covers the home-port turf.
+      aggroRadius: 2000,
       fleeHullPct: 0.15,
     },
 

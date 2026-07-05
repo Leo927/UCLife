@@ -10,7 +10,7 @@ import {
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS } from '../data/pois'
 import { SPACE_ENTITIES } from '../data/space-entities'
-import { derivedPos } from '../engine/space/orbits'
+import { derivedPos, derivedPosById } from '../engine/space/orbits'
 import type { ParentResolver, OrbitalParams } from '../engine/space/types'
 import { getShipState } from './ship'
 import { isSpecialNpcId } from '../character/specialNpcs'
@@ -128,6 +128,15 @@ export function bootstrapSpaceCampaign(): void {
   // gates the player ship's autopilot path; enemies route through
   // enemyAISystem instead.
   for (const e of SPACE_ENTITIES) {
+    // Orbit-anchored enemies ride their anchor body at a constant offset:
+    // capture (spawn − body t=0 position) so enemyAISystem can station-keep
+    // them at liveBodyPos + offset each tick, tracking the orbiting body.
+    const anchorOffset = e.anchorBodyId
+      ? (() => {
+          const base = derivedPosById(e.anchorBodyId, 0, resolveBody)
+          return { x: e.spawn.x - base.x, y: e.spawn.y - base.y }
+        })()
+      : { x: 0, y: 0 }
     world.spawn(
       Position({ x: e.spawn.x, y: e.spawn.y }),
       Velocity({ vx: 0, vy: 0 }),
@@ -145,6 +154,8 @@ export function bootstrapSpaceCampaign(): void {
         patrolIdx: 0,
         aggroRadius: e.aggroRadius,
         fleeHullPct: e.fleeHullPct,
+        anchorBodyId: e.anchorBodyId ?? '',
+        anchorOffset,
       }),
       EntityKey({ key: `enemy-${e.id}` }),
     )

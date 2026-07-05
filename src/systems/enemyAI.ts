@@ -15,7 +15,7 @@
 // gets integrated by the same per-frame loop.
 
 import type { World } from 'koota'
-import { Position, Velocity, Thrust, EnemyAI, IsPlayer, ShipBody } from '../ecs/traits'
+import { Position, Velocity, Thrust, EnemyAI, IsPlayer, ShipBody, Body } from '../ecs/traits'
 import { thrustToward } from '../engine/space'
 import { spaceConfig } from '../config'
 import { inAggroRadius, distSq } from '../engine/space/engagement'
@@ -36,6 +36,13 @@ export function enemyAISystem(world: World): void {
 
   const maxSpeed = spaceConfig.baseShipMaxSpeed * spaceConfig.shipSpeedScale * spaceConfig.enemyAi.speedFactor
 
+  // Live celestial-body positions (updated by spaceSim §2 before this system),
+  // used to resolve orbit-anchored patrols against their body's current spot.
+  const bodyPos = new Map<string, { x: number; y: number }>()
+  for (const b of world.query(Body, Position)) {
+    bodyPos.set(b.get(Body)!.bodyId, b.get(Position)!)
+  }
+
   for (const e of world.query(EnemyAI, Position, Velocity, Thrust)) {
     const ai = e.get(EnemyAI)!
     const pos = e.get(Position)!
@@ -48,6 +55,19 @@ export function enemyAISystem(world: World): void {
       } else if (mode === 'chase' && !inAggroRadius(pos, playerPos, ai.aggroRadius * spaceConfig.enemyAi.chaseHysteresis)) {
         mode = 'patrol'
       }
+    }
+
+    // Orbit-anchored enemies rigidly ride their body at a fixed offset while
+    // not engaged — a direct position set (not physics) so the fast-jumping,
+    // clock-driven moon can't leave them behind under coarse sim steps. Aggro
+    // still breaks them off to chase/flee below.
+    const anchorLive = ai.anchorBodyId ? bodyPos.get(ai.anchorBodyId) : undefined
+    if (anchorLive && (mode === 'patrol' || mode === 'idle')) {
+      e.set(Position, { x: anchorLive.x + ai.anchorOffset.x, y: anchorLive.y + ai.anchorOffset.y })
+      e.set(Velocity, { vx: 0, vy: 0 })
+      e.set(Thrust, { ax: 0, ay: 0 })
+      if (mode !== ai.mode) e.set(EnemyAI, { ...ai, mode })
+      continue
     }
 
     let target: { x: number; y: number } | null = null

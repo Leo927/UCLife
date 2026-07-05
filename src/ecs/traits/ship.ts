@@ -281,6 +281,14 @@ export const EnemyAI = trait(() => ({
   patrolIdx: 0,
   aggroRadius: 0,
   fleeHullPct: 0,
+  // W1 Task 10 — orbit anchoring. When anchorBodyId is set, this enemy rigidly
+  // station-keeps at anchorOffset from the anchor body's LIVE position while on
+  // patrol/idle (it rides the orbiting body), and only breaks off to chase/flee
+  // the player. Without this a near-moon patrol is orphaned as the fast-orbiting
+  // moon carries the dock ~90deg away over a multi-day delivery wait.
+  // anchorOffset is (authored spawn − body t=0 position), captured at bootstrap.
+  anchorBodyId: '',
+  anchorOffset: { x: 0, y: 0 },
 }))
 
 export const MaintenanceLoad = trait({
