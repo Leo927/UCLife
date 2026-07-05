@@ -37,6 +37,7 @@ import {
 } from '../ecs/traits'
 import { getWorld } from '../ecs/world'
 import { getStat } from '../stats/sheet'
+import { computeMsDamageState } from '../ecs/msDamage'
 import { getMsClass } from '../data/ms'
 import { getShipClass } from '../data/ship-classes'
 import { fittingSlotClasses } from '../data/facilityTypes'
@@ -149,7 +150,10 @@ export function unloadMsToDepot(msKey: string, poiId: string): MsCustodyResult {
     return { ok: false, reasonZh: '该机库没有 MS 泊位' }
   }
 
-  msEnt.set(Ms, { ...ms, storedOnShipKey: '', dockedAtPoiId: poiId })
+  // Task 9 — landing at a depot may flip a damaged MS's damageState into
+  // 'in-repair' (it was 'ready'-with-deficit while still aboard the ship).
+  const unloaded = { ...ms, storedOnShipKey: '', dockedAtPoiId: poiId }
+  msEnt.set(Ms, { ...unloaded, damageState: computeMsDamageState(unloaded) })
   refreshMsLayout()
   refreshAllDepotMsLayouts()
   emitSim('log', { textZh: 'MS 已卸运至地面机库', atMs: simNow() })
@@ -186,9 +190,10 @@ export function loadMsAboard(msKey: string, shipKey: string): MsCustodyResult {
   }
 
   const bayIndex = nextFreeBayIndex(shipKey, capacity)
-  msEnt.set(Ms, {
-    ...ms, storedOnShipKey: shipKey, dockedAtPoiId: '', bayIndex,
-  })
+  // Task 9 — loading aboard drops out of depot custody, so a damaged MS
+  // reverts to 'ready'-with-deficit (no repair crew works on it at sea).
+  const loaded = { ...ms, storedOnShipKey: shipKey, dockedAtPoiId: '', bayIndex }
+  msEnt.set(Ms, { ...loaded, damageState: computeMsDamageState(loaded) })
   refreshMsLayout()
   refreshAllDepotMsLayouts()
   emitSim('log', { textZh: 'MS 已装载上舰', atMs: simNow() })

@@ -15,6 +15,7 @@ import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { attachMsStatSheet, ammoCapsForMs } from '../../ecs/msEffects'
 import { getMsClass } from '../../data/ms'
 import { refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
+import { computeMsDamageState, type MsDamageState } from '../../ecs/msDamage'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -50,6 +51,11 @@ interface MsBlock {
   currentAmmoByWeapon?: Record<string, number | 'Inf'>
   currentLifeSupport?: number
   frameMods?: string[]
+  // Task 9 (W1 playable-loop) — repair-lifecycle state. Optional so pre-
+  // Task-9 saves round-trip cleanly; restoreMs recomputes it from
+  // hull/armor + dockedAtPoiId when absent (computeMsDamageState is a
+  // pure function of exactly those fields, so this is never stale).
+  damageState?: MsDamageState
 }
 
 interface PartsBlock {
@@ -97,6 +103,7 @@ function snapshotMs(): MsRosterBlock | undefined {
       currentAmmoByWeapon: ammoSerialized,
       currentLifeSupport: ms.currentLifeSupport,
       frameMods: ms.frameMods.length > 0 ? [...ms.frameMods] : undefined,
+      damageState: ms.damageState,
     })
   }
   if (roster.length === 0) return undefined
@@ -149,6 +156,12 @@ function restoreMs(saved: unknown): void {
         ammoRestored[hpId] = count === 'Inf' ? Infinity : (count as number)
       }
     }
+    const dockedAtPoiId = b.dockedAtPoiId ?? ''
+    const damageState = b.damageState ?? computeMsDamageState({
+      hullCurrent: b.hullCurrent, hullMax: b.hullMax,
+      armorCurrent: b.armorCurrent, armorMax: b.armorMax,
+      dockedAtPoiId,
+    })
     const msEnt = w.spawn(
       Ms({
         templateId: b.templateId,
@@ -160,7 +173,7 @@ function restoreMs(saved: unknown): void {
         mountedWeapons: b.mountedWeapons ?? {},
         storedOnShipKey: b.storedOnShipKey ?? '',
         bayIndex: b.bayIndex ?? 0,
-        dockedAtPoiId: b.dockedAtPoiId ?? '',
+        dockedAtPoiId,
         pilotId: b.pilotId ?? '',
         transitDestinationId: b.transitDestinationId ?? '',
         transitArrivalDay: b.transitArrivalDay ?? 0,
@@ -171,6 +184,7 @@ function restoreMs(saved: unknown): void {
         currentAmmoByWeapon: ammoRestored,
         currentLifeSupport: b.currentLifeSupport ?? 0,
         frameMods: b.frameMods ?? [],
+        damageState,
       }),
       EntityKey({ key: b.entityKey }),
     )

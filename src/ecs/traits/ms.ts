@@ -61,6 +61,13 @@ export const Ms = trait({
   // installed mod also seeds an Effect on MsEffectsList with source
   // `eff:framemod:<id>` (see ecs/msEffects.ts).
   frameMods: [] as string[],
+  // Task 9 (W1 playable-loop) — 'in-repair' iff damaged AND parked at a
+  // depot; 'ready' otherwise (undamaged, or damaged but still aboard a
+  // ship awaiting custody transfer). Derived by ecs/msDamage.ts's
+  // computeMsDamageState — never hand-set outside that helper. No 0..1
+  // progress field: the deficit itself (hullCurrent/armorCurrent vs. max)
+  // *is* the progress; a second field would just be able to drift from it.
+  damageState: 'ready' as 'ready' | 'in-repair',
 })
 
 export const MsStatSheet = trait(() => ({

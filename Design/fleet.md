@@ -146,8 +146,14 @@ ECS entity. Lives in a ship's `hangarUnits`. State that changes:
 - `assignedShipId: EntityKey` — back-pointer to the ship whose hangar holds this unit
 - `mountedWeapons: Record<hardpointId, weaponInstanceId>` — **the retrofit field; player-mutable at hangar**
 - `frameMods: Array<frameModId>` — bolt-on frame upgrades (armor plating, thruster packs, sensor pods); player-installable at hangar (Phase 6.2.5+)
-- `damageState: 'ready' | 'damaged' | 'destroyed' | 'in-repair'`
-- `repairProgress: 0..1` — when in-repair
+- `damageState: 'ready' | 'in-repair'` — Task 9 shipped this as a two-value
+  enum, not the four-value one earlier drafts of this doc sketched:
+  'in-repair' iff damaged AND parked at a depot (`dockedAtPoiId` set);
+  'ready' covers both undamaged AND damaged-but-still-mid-deployment (no
+  repair crew touching it). No separate `repairProgress` field — the
+  hull/armor deficit itself is the progress; a second field would only be
+  able to drift from it. See the "In-repair, in code" note under Supply
+  below and `ecs/msDamage.ts`.
 
 ### MS weapons and frame mods
 
@@ -194,7 +200,7 @@ fleetSupplyPerDay =
 
 This is the number the campaign HUD reads. (`starmap.md`'s continuous fuel/supply economy section is aligned to this formula — supply storage and drain are per-ship, not rolled up onto the flagship.)
 
-> **In-repair, in code.** The MS runtime instance has no `damageState` field yet; `fleetSupplyDrainSystem` treats an MS as in-repair when it carries hull or armor damage (`hullCurrent < hullMax || armorCurrent < armorMax`), mirroring the ship-side `repairDeficit`. When an explicit MS repair lifecycle lands, swap this derivation for the `damageState === 'in-repair'` check.
+> **In-repair, in code.** `Ms.damageState` (`'ready' | 'in-repair'`, `ecs/msDamage.ts`) is `'in-repair'` iff the MS carries hull/armor deficit AND sits at a depot (`dockedAtPoiId` set — the Task 8 custody invariant). `hangarRepair.ts`'s daily throughput restores depot MS the same way it restores ships (armor-first, shared focus/spread pool), and writes `damageState` on every application; `msCustody.ts` / `msTransfer.ts` recompute it on every custody transition. `fleetSupplyDrainSystem` reads `damageState === 'in-repair'` directly instead of re-deriving from the deficit. Economic consequence: a damaged MS still riding aboard a ship (no repair crew touching it) pays only its ordinary `supplyPerDay` — the `supplyPerRepairDay` surcharge only bills while a hangar crew is actively working the hull at a depot.
 
 Supply is **stored across the fleet** in each ship's `currentSupply`, capped by the ship's class `supplyStorage`. Auto-pooled at a friendly station / when reorganizing, but during a deployment you can run out on one ship while another has slack. Same goes for fuel and cargo.
 

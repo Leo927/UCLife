@@ -25,6 +25,7 @@ import { getMsClass } from '../data/ms'
 import { getPoi, poiIdForHangar } from '../data/pois'
 import { fittingSlotClasses } from '../data/facilityTypes'
 import { getStat } from '../stats/sheet'
+import { computeMsDamageState } from '../ecs/msDamage'
 import { findHangarAtPoi } from './hangarQuery'
 import { countShipsAboard } from './shipDelivery'
 
@@ -129,13 +130,16 @@ export function enqueueMsTransfer(
 
   const days = msTransitDaysForRoute(originPoiId, destPoiId)
   const arrivalDay = gameDay + days
-  msEnt.set(Ms, {
+  // Task 9 — departing custody drops out of depot repair; a damaged MS
+  // reverts to 'ready'-with-deficit while in transit.
+  const departed = {
     ...ms,
     dockedAtPoiId: '',
     storedOnShipKey: '',
     transitDestinationId: destPoiId,
     transitArrivalDay: arrivalDay,
-  })
+  }
+  msEnt.set(Ms, { ...departed, damageState: computeMsDamageState(departed) })
 
   return {
     ok: true,
@@ -198,22 +202,27 @@ export function msTransitSystem(gameDay: number): { msLanded: number } {
     }
 
     if (landedOnCarrier) {
-      ent.set(Ms, {
+      // Task 9 — landing aboard a carrier is not depot custody; a damaged
+      // MS reverts to 'ready'-with-deficit until it reaches a depot.
+      const landed = {
         ...ms,
         storedOnShipKey: landedOnCarrier,
         dockedAtPoiId: '',
         transitDestinationId: '',
         transitArrivalDay: 0,
-      })
+      }
+      ent.set(Ms, { ...landed, damageState: computeMsDamageState(landed) })
     } else {
-      // Land at the depot's POI (un-aboard, sitting in the bay).
-      ent.set(Ms, {
+      // Land at the depot's POI (un-aboard, sitting in the bay). Task 9 —
+      // this may flip a damaged MS's damageState into 'in-repair'.
+      const landed = {
         ...ms,
         storedOnShipKey: '',
         dockedAtPoiId: destPoiId,
         transitDestinationId: '',
         transitArrivalDay: 0,
-      })
+      }
+      ent.set(Ms, { ...landed, damageState: computeMsDamageState(landed) })
     }
     out.msLanded += 1
   }

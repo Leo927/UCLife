@@ -18,6 +18,7 @@ import {
 } from './traits'
 import { getMsClass, defaultMountedWeapons } from '../data/ms'
 import { attachMsStatSheet } from './msEffects'
+import { computeMsDamageState } from './msDamage'
 import { msConfig } from '../config/ms'
 import {
   getObjectTemplate,
@@ -1259,22 +1260,30 @@ export interface SpawnMsOpts {
   bayIndex?: number
   dockedAtPoiId?: string
   pilotId?: string
+  // Task 9 (W1 playable-loop) — fixture-only override for a pre-damaged
+  // depot MS (ms-repair smoke). Omitted = full hull/armor, matching the
+  // starter-grant behavior this function otherwise always had.
+  hullCurrent?: number
+  armorCurrent?: number
 }
 export function spawnMsEntity(opts: SpawnMsOpts): Entity {
   const cls = getMsClass(opts.templateId)
   const shipWorld = getWorld(SHIP_SCENE_ID)
+  const hullCurrent = opts.hullCurrent ?? cls.hullMax
+  const armorCurrent = opts.armorCurrent ?? cls.armorMax
+  const dockedAtPoiId = opts.dockedAtPoiId ?? ''
   const msEnt = shipWorld.spawn(
     Ms({
       templateId: cls.id,
       name: cls.nameZh,
-      hullCurrent: cls.hullMax,
+      hullCurrent,
       hullMax: cls.hullMax,
-      armorCurrent: cls.armorMax,
+      armorCurrent,
       armorMax: cls.armorMax,
       mountedWeapons: defaultMountedWeapons(cls),
       storedOnShipKey: opts.storedOnShipKey ?? '',
       bayIndex: opts.bayIndex ?? 0,
-      dockedAtPoiId: opts.dockedAtPoiId ?? '',
+      dockedAtPoiId,
       pilotId: opts.pilotId ?? '',
       transitDestinationId: '',
       transitArrivalDay: 0,
@@ -1283,6 +1292,9 @@ export function spawnMsEntity(opts: SpawnMsOpts): Entity {
       currentAmmoByWeapon: {},
       currentLifeSupport: 0,
       frameMods: [],
+      damageState: computeMsDamageState({
+        hullCurrent, hullMax: cls.hullMax, armorCurrent, armorMax: cls.armorMax, dockedAtPoiId,
+      }),
     }),
     EntityKey({ key: opts.key }),
   )

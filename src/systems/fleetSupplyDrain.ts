@@ -14,6 +14,18 @@
 // a per-dock stockpile. Hangars retain their own Hangar.supplyCurrent as
 // a refill warehouse the player resupplies *from* when docked.
 //
+// Task 9 (W1 playable-loop) — "in-repair" now reads `Ms.damageState`
+// (hangarRepair.ts's depot repair lifecycle keeps it in sync) instead of
+// re-deriving from the hull/armor deficit. This is a deliberate economic
+// narrowing, not just a refactor: `damageState` is only 'in-repair' while
+// the MS is damaged AND parked at a depot (ecs/msDamage.ts), so a damaged
+// MS still riding aboard a ship — no repair crew touching it — now pays
+// only its ordinary `supplyPerDay`, not the extra `supplyPerRepairDay`.
+// The old derivation billed the repair surcharge for the entire time an
+// MS carried any deficit, aboard or not, which double-charged hulls that
+// were mid-deployment and nowhere near a hangar crew. See Design/fleet.md's
+// supply-drain note for the doc-level version of this call.
+//
 // Caps at zero — running dry surfaces in the manager dialog (缺补给)
 // and as a HUD gauge tint without breaking the tick.
 //
@@ -104,7 +116,7 @@ export function fleetSupplyDrainSystem(
     // An MS parked at a POI hangar (no storedOnShipKey) is never mothballed.
     if (m.storedOnShipKey && mothballedShipKeys.has(m.storedOnShipKey)) continue
     let contribution = msSupplyPerDayOf(msEnt)
-    if (isMsInRepair(m)) contribution += msSupplyPerRepairDayOf(msEnt)
+    if (m.damageState === 'in-repair') contribution += msSupplyPerRepairDayOf(msEnt)
     if (contribution <= 0) continue
     result.msDraining += 1
     requested += contribution
@@ -142,16 +154,6 @@ function supplyPerDayOf(ship: Entity): number {
   // to 0 when no sheet is attached (legacy entities pre-6.2.B).
   if (!ship.has(ShipStatSheet)) return 0
   return getStat(ship.get(ShipStatSheet)!.sheet, 'supplyPerDay')
-}
-
-// An MS is "in-repair" while it carries hull or armor damage — there is
-// no separate damageState flag on the runtime instance; the hangar repair
-// throughput restores it over the following days. Mirrors the ship-side
-// repairDeficit notion in systems/hangarRepair.ts.
-function isMsInRepair(m: {
-  hullCurrent: number; hullMax: number; armorCurrent: number; armorMax: number
-}): boolean {
-  return m.hullCurrent < m.hullMax || m.armorCurrent < m.armorMax
 }
 
 // Authoritative read from the MsStatSheet — mirrors supplyPerDayOf(ship)

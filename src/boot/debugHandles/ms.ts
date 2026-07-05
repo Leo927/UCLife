@@ -29,6 +29,7 @@ import {
 import { dispatchRecoveryTug, getRecoveryTugs } from '../../sim/recoveryTug'
 import { getDoorSnapshot, sortieStats } from '../../sim/hangarDoors'
 import { getStat } from '../../stats/sheet'
+import { computeMsDamageState, type MsDamageState } from '../../ecs/msDamage'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -54,6 +55,7 @@ interface MsSnapshot {
   currentAmmoByWeapon: Record<string, number | 'Inf'>
   currentLifeSupport: number
   frameMods: string[]
+  damageState: MsDamageState
   propellantStorageCap: number
   lifeSupportMinutesCap: number
   frameSlotsCap: number
@@ -95,6 +97,7 @@ function snapshotOneMs(ent: import('koota').Entity): MsSnapshot {
     currentAmmoByWeapon: ammoOut,
     currentLifeSupport: ms.currentLifeSupport,
     frameMods: [...ms.frameMods],
+    damageState: ms.damageState,
     propellantStorageCap: propCap,
     lifeSupportMinutesCap: lsCap,
     frameSlotsCap: slotsCap,
@@ -462,7 +465,8 @@ registerDebugHandle('parkMsAtPoi', (msKey: string, poiId: string): boolean => {
   for (const ent of w.query(Ms, EntityKey)) {
     if (ent.get(EntityKey)!.key !== msKey) continue
     const m = ent.get(Ms)!
-    ent.set(Ms, { ...m, storedOnShipKey: '', dockedAtPoiId: poiId, bayIndex: 0 })
+    const parked = { ...m, storedOnShipKey: '', dockedAtPoiId: poiId, bayIndex: 0 }
+    ent.set(Ms, { ...parked, damageState: computeMsDamageState(parked) })
     return true
   }
   return false

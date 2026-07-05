@@ -17,6 +17,7 @@ import { fleetConfig } from '../config'
 import { createShipSheet } from '../stats/shipSchema'
 import { createMsSheet } from '../stats/msSchema'
 import { setBase } from '../stats/sheet'
+import { computeMsDamageState } from '../ecs/msDamage'
 
 // koota caps live worlds at 16 per module; release each test's world so
 // the suite doesn't exhaust the id pool as cases accumulate.
@@ -96,31 +97,36 @@ function spawnShipAt(
   return ent
 }
 
-// Spawn an MS aboard a given ship (by the ship's EntityKey). `inRepair`
-// damages the hull so isMsInRepair() trips, exercising the supplyPerRepairDay
-// term. The MsStatSheet carries the supply stats the drain reads via getStat.
+// Spawn an MS aboard a given ship (by the ship's EntityKey), or parked at
+// a depot POI when `dockedAtPoiId` is given instead. `damaged` lowers the
+// hull; `damageState` is derived the same way production code derives it
+// (computeMsDamageState) — 'in-repair' only when damaged AND docked at a
+// depot (Task 9), never merely from hull deficit. The MsStatSheet carries
+// the supply stats the drain reads via getStat.
 function spawnMsAboard(
   world: World,
   key: string,
   storedOnShipKey: string,
   supplyPerDay: number,
   supplyPerRepairDay: number,
-  opts: { inRepair?: boolean } = {},
+  opts: { inRepair?: boolean; dockedAtPoiId?: string } = {},
 ) {
   const hullMax = 320
   const armorMax = 80
+  const hullCurrent = opts.inRepair ? hullMax - 50 : hullMax
+  const dockedAtPoiId = opts.dockedAtPoiId ?? ''
   const ent = world.spawn(
     Ms({
       templateId: 'gm_pre',
       name: 'GM',
-      hullCurrent: opts.inRepair ? hullMax - 50 : hullMax,
+      hullCurrent,
       hullMax,
       armorCurrent: armorMax,
       armorMax,
       mountedWeapons: {},
       storedOnShipKey,
       bayIndex: 0,
-      dockedAtPoiId: '',
+      dockedAtPoiId,
       pilotId: '',
       transitDestinationId: '',
       transitArrivalDay: 0,
@@ -128,6 +134,7 @@ function spawnMsAboard(
       currentAmmoByWeapon: {},
       currentLifeSupport: 0,
       frameMods: [],
+      damageState: computeMsDamageState({ hullCurrent, hullMax, armorCurrent: armorMax, armorMax, dockedAtPoiId }),
     }),
     EntityKey({ key }),
   )
@@ -233,19 +240,40 @@ describe('fleetSupplyDrainSystem', () => {
     expect(sf.available).toBe(995)
   })
 
-  it('adds supplyPerRepairDay for an in-repair MS', () => {
+  // Task 9 — damageState is only 'in-repair' when the MS is BOTH damaged
+  // and docked at a depot (ecs/msDamage.ts), so the surcharge requires a
+  // real depot POI, not just a hull deficit.
+  it('adds supplyPerRepairDay for an in-repair MS docked at a depot', () => {
     const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 'ship', 'vonBraun', 4)
-    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5, { inRepair: true })
+    spawnMsAboard(world, 'ms1', '', 0.5, 1.5, { inRepair: true, dockedAtPoiId: 'vonBraun' })
     spawnMsAboard(world, 'ms2', 'ship', 0.5, 1.5)
 
     const sf = spendFactory(1000)
     const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
-    // ship 4 + ms1 (0.5 + 1.5 in-repair) + ms2 (0.5) = 6.5
+    // ship 4 + ms1 (0.5 + 1.5 in-repair, docked at a depot) + ms2 (0.5) = 6.5
     expect(r.totalDrainSupply).toBe(6.5)
     expect(r.msDraining).toBe(2)
     expect(sf.available).toBe(993.5)
+  })
+
+  // Task 9's economic call, made explicit: a damaged MS still riding aboard
+  // a ship — no repair crew touching it — pays only its ordinary
+  // supplyPerDay. The old derivation billed supplyPerRepairDay for any
+  // hull deficit regardless of location; this test pins the new behavior
+  // so it can't silently regress back to the old always-drain semantics.
+  it('does NOT add supplyPerRepairDay for a damaged MS still aboard a ship (not at a depot)', () => {
+    const world = freshWorld()
+    spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
+    spawnShipAt(world, 'ship', 'vonBraun', 4)
+    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5, { inRepair: true })
+
+    const sf = spendFactory(1000)
+    const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
+    // ship 4 + ms1 (0.5 ordinary only, no repair surcharge while aboard) = 4.5
+    expect(r.totalDrainSupply).toBe(4.5)
+    expect(sf.available).toBe(995.5)
   })
 
   it('skips MS aboard a mothballed ship — both ship and MS terms drop to 0', () => {
@@ -267,12 +295,12 @@ describe('fleetSupplyDrainSystem', () => {
     const world = freshWorld()
     spawnHangar(world, 'h1', 'vonBraun', 1000, 400)
     spawnShipAt(world, 'ship', 'vonBraun', 4)
-    spawnMsAboard(world, 'ms1', 'ship', 0.5, 1.5, { inRepair: true })
+    spawnMsAboard(world, 'ms1', '', 0.5, 1.5, { inRepair: true, dockedAtPoiId: 'vonBraun' })
     spawnMsAboard(world, 'ms2', 'ship', 0.5, 1.5)
 
     const sf = spendFactory(1000)
     const r = fleetSupplyDrainSystem(world, world, 1, sf.spend)
-    // ship 4 + ms1 (0.5 + 1.5) + ms2 (0.5) = 6.5, in a single debit.
+    // ship 4 + ms1 (0.5 + 1.5 in-repair at depot) + ms2 (0.5) = 6.5, one debit.
     expect(sf.log.length).toBe(1)
     expect(sf.log[0]).toBe(6.5)
     expect(r.totalDrainSupply).toBe(6.5)

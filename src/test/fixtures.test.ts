@@ -191,6 +191,22 @@ describe('applyFixture', () => {
     expect(parts.get(PlayerPartsInventory)!.frameMods['autoloader']).toBe(1)
   })
 
+  it('loads ms-repair-depot: pre-damaged MS parks at vonBraun with the fixture hullCurrent override', () => {
+    applyFixture('ms-repair-depot')
+    const shipWorld = getWorld('playerShipInterior')
+    const byKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+    const ms = byKey.get('ms-depot-0')!
+    expect(ms, 'pre-damaged depot MS must exist').toBeTruthy()
+    expect(ms.get(Ms)!.templateId).toBe('mobileWorker')
+    expect(ms.get(Ms)!.hullCurrent, 'hullCurrent override should parse from the fixture').toBe(40)
+    expect(ms.get(Ms)!.hullMax, 'hullMax stays at the mobileWorker template value').toBe(160)
+    expect(ms.get(Ms)!.dockedAtPoiId).toBe('vonBraun')
+    expect(ms.get(Ms)!.storedOnShipKey).toBe('')
+    expect(ms.get(Ms)!.damageState, 'damaged + docked at a depot => in-repair').toBe('in-repair')
+  })
+
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {
     applyFixture('vonBraunDrydock-station')
     // The drydock concourse is now the hidden orbital region of vonBraunCity.

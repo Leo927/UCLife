@@ -2,36 +2,45 @@
 // `day:rollover` chain in src/sim/loop.ts. For each Hangar facility:
 //
 //   dailyThroughput  =  Σ(worker.workPerformance) × manager.workPerformance × baseRepairPerWorker
-//   spread            =  dailyThroughput / count(ships not yet fully repaired at this POI)
+//   spread            =  dailyThroughput / count(targets not yet fully repaired at this POI)
 //
 // If the hangar's `repairPriorityShipKey` is set, the full pool focuses
-// on that one ship until it's fully restored — the player's override on
-// the spread.
+// on that one target (ship OR MS, matched by EntityKey) until it's fully
+// restored — the player's override on the spread.
 //
 // Repair flows armor-first, then hull (Starsector pattern — ablative
 // armor is the outer layer to rebuild). Excess points roll to the next
-// damaged ship in the spread, so a single tick can finish one ship's
+// damaged target in the spread, so a single tick can finish one target's
 // armor restoration and start hull repair on another.
 //
 // At 6.2.B the only docked-ship lookup is "ship.dockedAtPoiId matches
 // the hangar's host POI." Multi-hangar-per-POI assignment is a 6.2.G
 // concern (transfer-to-other-hangar plumbing); for the demo the VB
 // state hangar repairs the flagship the moment it docks at vonBraun.
+//
+// Task 9 (W1 playable-loop) — depot MS share the same throughput pool.
+// `dockedAtPoiId` is the depot-custody invariant (Task 8): an MS still
+// aboard a ship never has it set, so `findDamagedMsAtPoi` naturally
+// excludes aboard MS without an extra check. Ships and MS are collapsed
+// into one `RepairTarget` list so the existing focus/spread accumulator
+// doesn't need to know which kind it's holding.
 
 import type { Entity, World } from 'koota'
 import {
   Building, Hangar, Position, Workstation, Attributes,
-  Ship, ShipStatSheet, EntityKey,
+  Ship, ShipStatSheet, Ms, EntityKey,
 } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { poiIdForHangar } from '../data/pois'
 import { getJobSpec } from '../data/jobs'
 import { fleetConfig } from '../config'
 import { getStat } from '../stats/sheet'
+import { computeMsDamageState } from '../ecs/msDamage'
 
 export interface HangarRepairResult {
   hangarsTicked: number
   shipsRepaired: number
+  msRepaired: number
   pointsApplied: number
 }
 
@@ -43,34 +52,38 @@ export function hangarRepairSystem(_gameDay: number): HangarRepairResult {
   const result: HangarRepairResult = {
     hangarsTicked: 0,
     shipsRepaired: 0,
+    msRepaired: 0,
     pointsApplied: 0,
   }
 
-  // Hangars sit in city scenes; ships sit in playerShipInterior. Walk
+  // Hangars sit in city scenes; ships + MS sit in playerShipInterior. Walk
   // every scene's hangars; for each, resolve its host POI; match docked
-  // ships across all worlds (today: just playerShipInterior).
+  // ships/MS across all worlds (today: just playerShipInterior).
   for (const sceneId of SCENE_IDS) {
     const sceneWorld = getWorld(sceneId)
     for (const hangarEnt of sceneWorld.query(Building, Hangar)) {
       const poiId = poiIdForHangar(sceneId, hangarEnt.get(Building)!)
       if (!poiId) continue
-      const dockedShips = findDamagedShipsAtPoi(poiId)
-      if (dockedShips.length === 0) continue
+      const targets: RepairTarget[] = [
+        ...findDamagedShipsAtPoi(poiId).map(shipRepairTarget),
+        ...findDamagedMsAtPoi(poiId).map(msRepairTarget),
+      ]
+      if (targets.length === 0) continue
 
       const throughput = computeHangarThroughput(sceneWorld, hangarEnt)
       if (throughput <= 0) continue
       result.hangarsTicked += 1
 
       const focusKey = hangarEnt.get(Hangar)!.repairPriorityShipKey
-      const focusShip = focusKey
-        ? dockedShips.find((ent) => ent.get(EntityKey)?.key === focusKey) ?? null
+      const focusTarget = focusKey
+        ? targets.find((t) => t.key === focusKey) ?? null
         : null
 
-      if (focusShip) {
-        const applied = applyRepair(focusShip, throughput)
+      if (focusTarget) {
+        const applied = focusTarget.applyPoints(throughput)
         result.pointsApplied += applied
-        if (isFullyRepaired(focusShip)) {
-          result.shipsRepaired += 1
+        if (focusTarget.isFullyRepaired()) {
+          tallyRepaired(result, focusTarget)
           // Clear the priority slot — the player picks the next one
           // explicitly via the manager verb. Leaving it pinned would
           // silently re-focus on a destroyed-then-restored hull.
@@ -80,34 +93,84 @@ export function hangarRepairSystem(_gameDay: number): HangarRepairResult {
         continue
       }
 
-      // Spread evenly across docked-and-damaged ships. Overflow from a
-      // ship that finishes early rolls to the next damaged one — the
-      // accumulator pattern lets a single tick complete multiple ships
+      // Spread evenly across docked-and-damaged targets. Overflow from a
+      // target that finishes early rolls to the next damaged one — the
+      // accumulator pattern lets a single tick complete multiple targets
       // without leaving leftover points on the floor.
       let remaining = throughput
-      let damaged = dockedShips.slice()
+      let damaged = targets.slice()
       while (remaining > 0 && damaged.length > 0) {
         const share = remaining / damaged.length
         let progressed = false
-        for (const ship of damaged) {
+        for (const target of damaged) {
           if (share <= 0) break
-          const before = repairDeficit(ship)
+          const before = target.deficit()
           if (before <= 0) continue
-          const applied = applyRepair(ship, Math.min(share, before))
+          const applied = target.applyPoints(Math.min(share, before))
           if (applied > 0) progressed = true
           result.pointsApplied += applied
           remaining -= applied
         }
-        damaged = damaged.filter((s) => !isFullyRepaired(s))
+        damaged = damaged.filter((t) => !t.isFullyRepaired())
         if (!progressed) break
       }
-      for (const ship of dockedShips) {
-        if (isFullyRepaired(ship)) result.shipsRepaired += 1
+      for (const target of targets) {
+        if (target.isFullyRepaired()) tallyRepaired(result, target)
       }
     }
   }
 
   return result
+}
+
+// One repairable unit — a Ship or an Ms, collapsed to a common surface so
+// the focus/spread accumulator above doesn't need to know which kind it's
+// holding. `deficit` / `applyPoints` operate on whichever trait the
+// underlying entity carries.
+interface RepairTarget {
+  kind: 'ship' | 'ms'
+  key: string
+  deficit: () => number
+  applyPoints: (points: number) => number
+  isFullyRepaired: () => boolean
+}
+
+function tallyRepaired(result: HangarRepairResult, target: RepairTarget): void {
+  if (target.kind === 'ship') result.shipsRepaired += 1
+  else result.msRepaired += 1
+}
+
+interface RepairableFields {
+  hullCurrent: number
+  hullMax: number
+  armorCurrent: number
+  armorMax: number
+}
+
+function repairDeficitOf(f: RepairableFields): number {
+  return (f.hullMax - f.hullCurrent) + (f.armorMax - f.armorCurrent)
+}
+
+// Apply `points` of repair, armor-first then hull. Returns the resulting
+// field values + the actually-applied count (≤ points and ≤ deficit).
+function applyRepairToFields<F extends RepairableFields>(
+  f: F, points: number,
+): { updated: F; applied: number } {
+  let remaining = points
+  let nextArmor = f.armorCurrent
+  let nextHull = f.hullCurrent
+  if (nextArmor < f.armorMax) {
+    const give = Math.min(f.armorMax - nextArmor, remaining)
+    nextArmor += give
+    remaining -= give
+  }
+  if (remaining > 0 && nextHull < f.hullMax) {
+    const give = Math.min(f.hullMax - nextHull, remaining)
+    nextHull += give
+    remaining -= give
+  }
+  const applied = points - remaining
+  return { updated: { ...f, armorCurrent: nextArmor, hullCurrent: nextHull }, applied }
 }
 
 function findDamagedShipsAtPoi(poiId: string): Entity[] {
@@ -119,49 +182,80 @@ function findDamagedShipsAtPoi(poiId: string): Entity[] {
   for (const ent of shipWorld.query(Ship)) {
     const s = ent.get(Ship)!
     if (s.dockedAtPoiId !== poiId) continue
-    if (repairDeficit(ent) <= 0) continue
+    if (repairDeficitOf(s) <= 0) continue
     out.push(ent)
   }
   return out
 }
 
-function repairDeficit(ship: Entity): number {
-  const s = ship.get(Ship)
-  if (!s) return 0
-  return (s.hullMax - s.hullCurrent) + (s.armorMax - s.armorCurrent)
+// Task 9 — depot-only per the custody invariant (Task 8): an MS aboard a
+// ship never has `dockedAtPoiId` set, so this naturally excludes it even
+// if its host ship happens to be docked at the same POI.
+function findDamagedMsAtPoi(poiId: string): Entity[] {
+  const msWorld = getWorld('playerShipInterior')
+  const out: Entity[] = []
+  for (const ent of msWorld.query(Ms)) {
+    const m = ent.get(Ms)!
+    if (m.dockedAtPoiId !== poiId) continue
+    if (repairDeficitOf(m) <= 0) continue
+    out.push(ent)
+  }
+  return out
 }
 
-function isFullyRepaired(ship: Entity): boolean {
-  return repairDeficit(ship) <= 0
+function shipRepairTarget(ship: Entity): RepairTarget {
+  return {
+    kind: 'ship',
+    key: ship.get(EntityKey)?.key ?? '',
+    deficit: () => {
+      const s = ship.get(Ship)
+      return s ? repairDeficitOf(s) : 0
+    },
+    applyPoints: (points) => applyRepairToShip(ship, points),
+    isFullyRepaired: () => {
+      const s = ship.get(Ship)
+      return !s || repairDeficitOf(s) <= 0
+    },
+  }
 }
 
-// Apply `points` of repair to a ship. Armor first, then hull. Returns
-// the actually-applied count (≤ points and ≤ deficit).
-function applyRepair(ship: Entity, points: number): number {
+function msRepairTarget(msEnt: Entity): RepairTarget {
+  return {
+    kind: 'ms',
+    key: msEnt.get(EntityKey)?.key ?? '',
+    deficit: () => {
+      const m = msEnt.get(Ms)
+      return m ? repairDeficitOf(m) : 0
+    },
+    applyPoints: (points) => applyRepairToMs(msEnt, points),
+    isFullyRepaired: () => {
+      const m = msEnt.get(Ms)
+      return !m || repairDeficitOf(m) <= 0
+    },
+  }
+}
+
+function applyRepairToShip(ship: Entity, points: number): number {
   const s = ship.get(Ship)
   if (!s) return 0
-  let remaining = points
-  let nextArmor = s.armorCurrent
-  let nextHull = s.hullCurrent
-  if (nextArmor < s.armorMax) {
-    const give = Math.min(s.armorMax - nextArmor, remaining)
-    nextArmor += give
-    remaining -= give
-  }
-  if (remaining > 0 && nextHull < s.hullMax) {
-    const give = Math.min(s.hullMax - nextHull, remaining)
-    nextHull += give
-    remaining -= give
-  }
-  const applied = points - remaining
+  const { updated, applied } = applyRepairToFields(s, points)
   if (applied <= 0) return 0
-  ship.set(Ship, { ...s, armorCurrent: nextArmor, hullCurrent: nextHull })
+  ship.set(Ship, updated)
   // 6.2.B doesn't yet wire damage Effects on the ship sheet, but the
   // sheet exists — bump its version so a future getStat() cache miss
   // doesn't read a stale folded value once doctrine / damage Effects
   // start landing.
   const ss = ship.get(ShipStatSheet)
   if (ss) ship.set(ShipStatSheet, { sheet: ss.sheet })
+  return applied
+}
+
+function applyRepairToMs(msEnt: Entity, points: number): number {
+  const m = msEnt.get(Ms)
+  if (!m) return 0
+  const { updated, applied } = applyRepairToFields(m, points)
+  if (applied <= 0) return 0
+  msEnt.set(Ms, { ...updated, damageState: computeMsDamageState(updated) })
   return applied
 }
 

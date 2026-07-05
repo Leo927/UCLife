@@ -65,6 +65,9 @@ interface FixtureMs {
   bayIndex?: number
   dockedAt?: string
   pilotId?: string
+  // Task 9 (W1 playable-loop) — pre-damaged depot MS for the ms-repair
+  // smoke. Omitted = full hull (the pre-existing default behavior).
+  hullCurrent?: number
 }
 
 // W1 Task 5 — the player parts inventory singleton (MS weapons + frame mods).
@@ -110,7 +113,9 @@ const PLAYER_KEYS: ReadonlySet<string> = new Set([
 const LOCATION_KEYS: ReadonlySet<string> = new Set(['scene', 'x', 'y'])
 const FACTION_KEYS: ReadonlySet<string> = new Set(['id', 'money'])
 const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt', 'flagship'])
-const MS_KEYS: ReadonlySet<string> = new Set(['key', 'template', 'storedOnShip', 'bayIndex', 'dockedAt', 'pilotId'])
+const MS_KEYS: ReadonlySet<string> = new Set([
+  'key', 'template', 'storedOnShip', 'bayIndex', 'dockedAt', 'pilotId', 'hullCurrent',
+])
 const PARTS_KEYS: ReadonlySet<string> = new Set(['weapons', 'frameMods'])
 const NPC_KEYS: ReadonlySet<string> = new Set([
   'id', 'name', 'at', 'skills', 'workstation', 'faction', 'temperament', 'sympathies',
@@ -306,6 +311,7 @@ function validate(name: string, raw: unknown): Fixture {
       if (r.bayIndex !== undefined) m.bayIndex = asNumber(name, `ms[${i}].bayIndex`, r.bayIndex)
       if (r.dockedAt !== undefined) m.dockedAt = asString(name, `ms[${i}].dockedAt`, r.dockedAt)
       if (r.pilotId !== undefined) m.pilotId = asString(name, `ms[${i}].pilotId`, r.pilotId)
+      if (r.hullCurrent !== undefined) m.hullCurrent = asNumber(name, `ms[${i}].hullCurrent`, r.hullCurrent)
       return m
     })
   }
@@ -508,6 +514,7 @@ function applyMs(name: string, fx: Fixture): void {
       bayIndex: m.bayIndex,
       dockedAtPoiId: m.dockedAt,
       pilotId: m.pilotId,
+      hullCurrent: m.hullCurrent,
     })
   }
   // Re-place MS sprites for whatever is stowed aboard the flagship.
