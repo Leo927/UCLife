@@ -118,13 +118,17 @@
       id: 'pirate-lunar-starter',
       kind: 'enemyShip',
       shipClassId: 'pirateLight',
-      spawn: { x: 19180, y: 13050 },
+      // Closer to Von Braun than any other pirate (680px vs lunar-1's 732px),
+      // so "nearest authored enemy" resolvers (fuel-budget / intercept smokes)
+      // target this big-aggro, reliably-chasing picket rather than a small-aggro
+      // patrol they can't cleanly close on.
+      spawn: { x: 19180, y: 12680 },
       aiMode: 'patrol',
       patrolPath: [
-        { x: 19180, y: 13050 },
-        { x: 19900, y: 12800 },
-        { x: 19500, y: 12350 },
-        { x: 18700, y: 12500 },
+        { x: 19180, y: 12680 },
+        { x: 19700, y: 12550 },
+        { x: 19400, y: 12200 },
+        { x: 18800, y: 12500 },
       ],
       // 1/8-sector-width reach (30000 / 8), transferred here from
       // pirate-lunar-4: the sole near-moon patrol that "genuinely pursues"
