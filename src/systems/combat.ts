@@ -1916,8 +1916,7 @@ export function combatSystem(_world: World, dtMs: number): void {
   }
 
   // -- 5c. Issue #69 — Command-Point regen ---------------------------------
-  // O(1) pool increment (no per-unit work); a `CP regen` info log fires on
-  // each whole-point gain. Profile behind CPDP_PROF=1.
+  // O(1) pool increment (no per-unit work). Profile behind CPDP_PROF=1.
   regenCommandPoints(dtSec)
 
   // -- 5b. Phase 6.2.5.C sortie loop: door cycles, resupply, tug ------------

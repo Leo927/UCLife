@@ -11,7 +11,7 @@
 //        gate discipline).
 //
 //   CP — in-engagement bandwidth. A regenerating pool spent by fleet-wide
-//        orders (rally, focus-fire, retreat, formation change, MS launch
+//        orders (rally, focus-fire, formation change, MS launch
 //        authorization). When the pool runs dry the fleet acts on standing
 //        per-ship aggression doctrine only.
 //

@@ -41,7 +41,7 @@ registerDebugHandle('doctrineForAggression', (aggression: string) =>
 )
 
 // Combat-log reader (text + severity per entry). Smoke asserts the
-// `CP exhausted` / `CP regen` lines land. No combat-log handle existed
+// `CP exhausted` line lands. No combat-log handle existed
 // before Issue #69; this is the natural consumer.
 registerDebugHandle('combatLogEntries', () =>
   useCombatLog.getState().entries.map((e) => ({

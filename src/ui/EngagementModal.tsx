@@ -56,9 +56,9 @@ export function EngagementModal() {
             <button onClick={() => { playUi('ui.engagement.flee'); resolve('flee') }}>脱离</button>
             <button onClick={() => { playUi('ui.engagement.engage'); resolve('engage') }}>交战</button>
           </div>
-          {/* W2 Task 3 — flee's consequence is silent no longer; the same
-              combat.json5 values drive this line and the mid-combat
-              withdraw button's confirm copy, so they can never drift apart. */}
+          {/* W2 Task 3 — fleet's consequence is silent no longer; the same
+              combat.json5 penalty values drive this modal subtitle, displaying
+              the hull and CR cost of disengagement. */}
           <p className="map-place-desc" style={{ margin: 0 }}>
             脱离 · 船体 -{Math.round(combatConfig.fleePenalty.hullLossPct * 100)}% · 战备 -{combatConfig.fleePenalty.crDrain}
           </p>
