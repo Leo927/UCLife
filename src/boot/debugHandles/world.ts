@@ -6,9 +6,10 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import {
   IsPlayer, Position, MoveTarget, Money, Road, Building, Wall, Path,
-  Character, EntityKey, Action, Job, Workstation, QueuedInteract,
+  Character, EntityKey, Action, Job, Workstation, QueuedInteract, Interactable,
 } from '../../ecs/traits'
 import { worldConfig } from '../../config'
+import type { InteractableKind } from '../../config/kinds'
 
 const TILE = worldConfig.tilePx
 
@@ -22,6 +23,20 @@ registerDebugHandle('movePlayerTo', (tx: number, ty: number) => {
     return true
   }
   return false
+})
+
+// Tile position of the nearest Interactable of a given kind in the ACTIVE
+// scene's world (the `world` proxy tracks whichever scene is current — see
+// ecs/world.ts). Lets a smoke walk (movePlayerTo + queueInteract) onto a
+// kiosk it doesn't already have a dedicated finder for (the war-room plot
+// table, e.g.), instead of hunting canvas pixels.
+registerDebugHandle('interactableTileByKind', (kind: InteractableKind) => {
+  for (const e of world.query(Interactable, Position)) {
+    if (e.get(Interactable)!.kind !== kind) continue
+    const p = e.get(Position)!
+    return { x: p.x / TILE, y: p.y / TILE }
+  }
+  return null
 })
 
 registerDebugHandle('countByKind', () => {

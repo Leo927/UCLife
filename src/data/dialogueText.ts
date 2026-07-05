@@ -292,6 +292,13 @@ export interface DialogueText {
       rosterAggressionLabel: string
       transitLabel: string
       transitToastQueued: string
+      dpHeader: string
+      dpHint: string
+      dpCommitLabel: string
+      dpCommittedLabel: string
+      dpFlagshipAutoBadge: string
+      dpToastOverBudget: string
+      dpToastFailed: string
     }
     aeShipSales: {
       title: string

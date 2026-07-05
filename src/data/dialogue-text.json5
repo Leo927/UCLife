@@ -498,6 +498,14 @@
       // Phase 6.2.E2 — cross-POI transit + auto-launch surface strings.
       transitLabel: '在途',
       transitToastQueued: '舰队会合中 · 从 {from} 启程，{days} 天后抵达 {to}。',
+      // Task 4 (W2 command layer) — DP commit section.
+      dpHeader: '部署点 {committed}/{cap}',
+      dpHint: '未指派时全体出击',
+      dpCommitLabel: '编入出击',
+      dpCommittedLabel: '已编入',
+      dpFlagshipAutoBadge: '旗舰·自动部署',
+      dpToastOverBudget: '超出部署点上限',
+      dpToastFailed: '委任失败：{reason}',
     },
     // Captain's-office "fill from faction pool" verb.
     captainsOfficeManRest: {

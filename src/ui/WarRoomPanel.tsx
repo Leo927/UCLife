@@ -34,6 +34,11 @@ import {
   setFormationSlot,
   setAggression,
 } from '../systems/fleetWarRoom'
+import {
+  deploymentDescribe,
+  commitShipToEngagement,
+  uncommitShipFromEngagement,
+} from '../systems/fleetCommandPoints'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -60,6 +65,7 @@ export function WarRoomPanel() {
   const t = dialogueText.branches.warRoom
   const snap = warRoomDescribe()
   const grid = fleetConfig.activeFleetGrid
+  const deployment = deploymentDescribe()
 
   const bump = () => setTick((n) => n + 1)
 
@@ -119,6 +125,23 @@ export function WarRoomPanel() {
     const r = setAggression(shipKey, level)
     if (!r.ok) {
       showToast(t.toastMoveFailed.replace('{reason}', r.reason))
+      return
+    }
+    playUi('ui.hr.accept')
+    bump()
+  }
+
+  const onToggleCommit = (shipKey: string) => {
+    const isCommitted = deployment.committedShipKeys.includes(shipKey)
+    const r = isCommitted
+      ? uncommitShipFromEngagement(shipKey)
+      : commitShipToEngagement(shipKey)
+    if (!r.ok) {
+      showToast(
+        r.reason === 'over_budget'
+          ? t.dpToastOverBudget
+          : t.dpToastFailed.replace('{reason}', r.reason),
+      )
       return
     }
     playUi('ui.hr.accept')
@@ -235,6 +258,45 @@ export function WarRoomPanel() {
                 </span>
               </li>
             ))}
+          </ul>
+        </section>
+        <section className="status-section">
+          <h3 data-war-room-dp-cap={deployment.cap}>
+            {t.dpHeader
+              .replace('{committed}', String(deployment.committed))
+              .replace('{cap}', String(deployment.cap))}
+          </h3>
+          <p className="hr-intro" style={{ opacity: 0.7 }}>{t.dpHint}</p>
+          <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+            {snap.ships.filter((row) => row.isInActiveFleet).map((row) => {
+              const committed = row.isFlagship || deployment.committedShipKeys.includes(row.entityKey)
+              return (
+                <li
+                  key={row.entityKey}
+                  className="dev-row"
+                  data-war-room-dp-row={row.entityKey}
+                  style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4em' }}
+                >
+                  <span className="dev-key" style={{ flex: '1 0 8em' }}>{row.shipName}</span>
+                  <span style={{ flex: '0 0 auto', opacity: 0.7 }}>DP {row.dpCost}</span>
+                  {row.isFlagship ? (
+                    <span className="dialog-option" style={{ opacity: 0.6 }} aria-disabled="true">
+                      {t.dpFlagshipAutoBadge}
+                    </span>
+                  ) : (
+                    <button
+                      className="dialog-option"
+                      data-war-room-dp-commit={row.entityKey}
+                      aria-pressed={committed}
+                      style={{ opacity: committed ? 1 : 0.55 }}
+                      onClick={() => onToggleCommit(row.entityKey)}
+                    >
+                      {committed ? t.dpCommittedLabel : t.dpCommitLabel}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </section>
         <section className="status-section">
