@@ -104,6 +104,32 @@ panel via the now-working terminal path.
 (`onShipRepairCap` / `onShipRepairFloor`) waits for the hangar-boss surface (W4.3). New
 fields round-trip on the save handler.
 
+### W1 shipped status
+
+- **W1.1 Earned acquisition — shipped.** Boot flagship grant removed; `lightFreighter`
+  buyable at the VB AE rep; buy → delivery → receive → first-hull onboarding (fuel + toast).
+- **W1.2 Live-target courses — shipped.** POI/enemy-referenced courses re-resolve per tick;
+  `拦截` intercept verb + `aggroContactRadius` engagement modal; patrol pursuit config-ified.
+- **W1.3 Fuel retune — shipped.** Takeoff/tank/burn retuned; the *intended* short sortie fits
+  ~half a tank. (But see the capstone finding: the actual VB pirate sits far beyond that.)
+- **W1.4 MS custody fixes — shipped.** Depot terminal scene guard, unload/load verbs, depot
+  MS retrofit path.
+- **W1.5 MS repair lifecycle — shipped.** `damageState`/`repairProgress`, hangar-repair MS
+  branch, save round-trip.
+- **Capstone (Task 10) — shipped, scoped to the engagement.** `tests/smoke/journey-first-
+  sortie.spec.ts` plays the loop through real input only: buy → board → helm → undock →
+  intercept → engagement modal → break off (passes 5/5 across grep + full-parallel runs). The
+  **fight-and-win + return-and-disembark legs are blocked in the shipped game** and are
+  follow-up balance/content gaps, not harness gaps: (a) the only pirate covering Von Braun,
+  `pirate-lunar-4`, is Char Aznable's lunar *raider + 2 skirmisher escorts* — a 1-v-3 a
+  civilian starter freighter loses on auto-fire (its beam can't out-DPS three hulls), and
+  losing also **crashes `combatSystem`** via an undefined-`Ship` read in the flagship hull-
+  pause (`combat.ts:1636`); (b) that raider patrols ~6550px from Von Braun — *outside* its own
+  3750 `aggroRadius`, so it never pursues on undock, and a manual round trip that far exceeds
+  the 60-unit tank, stranding the ship. The brief assumed a "single pirateLight"; the shipped
+  campaign enemy is far heavier. Recommended follow-ups: fixture-authorable winnable
+  engagement near the dock (or move/soften the VB-covering pirate), guard the combat crash.
+
 ## Workstream 2 — Command layer
 
 Almost pure UI over shipped backend (`fleetCommandPoints.ts`).
