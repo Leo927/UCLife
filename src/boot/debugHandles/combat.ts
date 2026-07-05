@@ -31,7 +31,7 @@ import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
 import {
   useCockpit, launchMs, dockMs, takeFlagshipControl, leaveBridge,
-  getPlayerMs, PLAYER_MS_KEY, getAdjutant,
+  getPlayerMs, PLAYER_MS_KEY, getAdjutant, onMsDestroyed,
 } from '../../sim/cockpit'
 import { useBrig, getBrigOccupancy } from '../../sim/brig'
 import { useUI } from '../../ui/uiStore'
@@ -319,6 +319,27 @@ registerDebugHandle('msState', () => {
     heading: cs.heading,
     hullCurrent: cs.hullCurrent,
     hullMax: cs.hullMax,
+    armorCurrent: cs.armorCurrent,
+    armorMax: cs.armorMax,
     pilotedByPlayer: cs.pilotedByPlayer,
   }
+})
+
+// Issue #163 — deterministically damage the piloted MS's tactical clone
+// without driving real weapon-charge/projectile timing, so the roster
+// write-back smoke can assert an exact before/after hull+armor delta.
+registerDebugHandle('setPilotedMsHullCheat', (hullCurrent: number, armorCurrent: number): boolean => {
+  const e = getPlayerMs()
+  if (!e) return false
+  e.set(CombatShipState, { ...e.get(CombatShipState)!, hullCurrent, armorCurrent })
+  return true
+})
+
+// Issue #163 — drive the destruction write-back exit directly, mirroring
+// how combatSystem calls onMsDestroyed() once a hit drops the clone's
+// hull to the eject floor. Pair with setPilotedMsHullCheat(0, 0).
+registerDebugHandle('onMsDestroyedCheat', (): boolean => {
+  if (!getPlayerMs()) return false
+  onMsDestroyed()
+  return true
 })

@@ -32,6 +32,7 @@ import {
 } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
 import { getMsWeapon } from '../data/ms-weapons'
+import { computeMsDamageState } from '../ecs/msDamage'
 import { cockpitConfig, worldConfig, sortieConfig } from '../config'
 import {
   pickDoorForLaunch, requestLaunch, requestDock, launchPointAndVelocity,
@@ -67,6 +68,12 @@ export const useCockpit = create<CockpitState>((set) => ({
 }))
 
 function shipWorld() { return getWorld(SHIP_SCENE_ID) }
+
+// Issue #163 — which persistent roster Ms entity backs the currently
+// deployed clone. Set by launchMs, read + cleared by dockMs /
+// onMsDestroyed / resetCockpitForEndCombat so the write-back helper below
+// always targets the right entity without re-resolving fallback guesses.
+let activeMsRosterKey = ''
 
 function ensureTacticalOpen(open: boolean): void {
   emitSim('combat:set-overlay-open', { open })
@@ -249,6 +256,30 @@ function despawnPlayerMs(): void {
   if (ent) ent.destroy()
 }
 
+// Issue #163 — copies the tactical clone's hull/armor onto the persistent
+// roster Ms entity and recomputes damageState, so combat damage survives
+// the clone's despawn instead of being discarded. Called at both despawn
+// exits: dockMs (before despawn) and onMsDestroyed (before despawn, which
+// writes hull 0 because applyDamageToMs already clamped the clone's
+// hullCurrent to 0 before combat.ts calls onMsDestroyed). Resupply
+// (sortieResupply.ts) only restores propellant/ammo, never hull/armor, so
+// this is the sole write-back path for combat damage. Takes the roster
+// key explicitly (not global state) so Task 5's per-wing-member reuse can
+// call it once per member.
+export function syncMsCombatDamageToRoster(msKey: string): void {
+  const clone = getPlayerMs()
+  if (!clone) return
+  const cs = clone.get(CombatShipState)!
+  const w = shipWorld()
+  for (const ent of w.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key !== msKey) continue
+    const m = ent.get(Ms)!
+    const next = { ...m, hullCurrent: cs.hullCurrent, armorCurrent: cs.armorCurrent }
+    ent.set(Ms, { ...next, damageState: computeMsDamageState(next) })
+    return
+  }
+}
+
 function getHangarBayCenter(): { x: number; y: number } | null {
   const cfg = getSceneConfig(SHIP_SCENE_ID) as ShipSceneConfig
   const cls = getShipClass(cfg.shipClassId)
@@ -292,6 +323,7 @@ export function launchMs(msKey?: string): { ok: boolean; reasonZh?: string } {
 
   const resolved = resolvePlayerMsEntity(msKey)
   const nameZh = resolved ? resolved.ms.nameZh : 'MS'
+  activeMsRosterKey = resolved && resolved.msEnt.has(EntityKey) ? resolved.msEnt.get(EntityKey)!.key : ''
 
   useCockpit.getState().setPiloting('ms')
   useCockpit.getState().bumpMs()
@@ -336,6 +368,10 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
   const pick = pickDoorForLaunch(hostShipKey)  // same picker; queue logic identical
   if (pick) requestDock(hostShipKey, PLAYER_MS_KEY, pick.doorId)
 
+  // Issue #163 — write combat damage back to the roster before the clone
+  // is destroyed.
+  if (activeMsRosterKey) syncMsCombatDamageToRoster(activeMsRosterKey)
+
   despawnPlayerMs()
   useCockpit.getState().setPiloting(null)
   useCockpit.getState().bumpMs()
@@ -360,16 +396,22 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
   ensureTacticalOpen(false)
 
   adjutantSay('MS 已入舱 · 欢迎回来', 'narr')
-  const dockResolved = resolvePlayerMsEntity()
+  const dockResolved = resolvePlayerMsEntity(activeMsRosterKey || undefined)
   const dockName = dockResolved ? dockResolved.ms.nameZh : 'MS'
   pushCombatLog(`${dockName} · 回收`, 'info')
   logEvent(`回收 MS · ${dockName}`)
+  activeMsRosterKey = ''
   return { ok: true }
 }
 
 // Player MS hull crossed zero — combatSystem calls this. Eject the
 // pilot into the hangar bay (no in-tactical recovery; that's 6.2.5).
 export function onMsDestroyed(): void {
+  // Issue #163 — write hull 0 (and whatever armor deficit remains) back
+  // to the roster before the clone is destroyed, same helper dockMs uses.
+  if (activeMsRosterKey) syncMsCombatDamageToRoster(activeMsRosterKey)
+  activeMsRosterKey = ''
+
   despawnPlayerMs()
   useCockpit.getState().setPiloting(null)
   useCockpit.getState().bumpMs()
@@ -449,7 +491,13 @@ export function leaveBridge(): void {
 // Reset cockpit state — called by combat.ts:endCombat so the next
 // engagement starts cleanly (no stale piloting flag, no orphan MS).
 export function resetCockpitForEndCombat(): void {
+  // Issue #163 scope note: combat ending while an MS is still launched
+  // and undocked discards damage taken since launch — dockMs/onMsDestroyed
+  // are the two write-back exits; this reset path isn't one of them (the
+  // flagship has already lost its CombatShipState row by the time this
+  // runs, so there's no clone left to read from anyway).
   if (getPlayerMs()) despawnPlayerMs()
+  activeMsRosterKey = ''
   useCockpit.getState().setPiloting(null)
   useCockpit.getState().bumpMs()
   // The flagship CombatShipState is stripped by endCombat itself;
