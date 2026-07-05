@@ -10,8 +10,9 @@
 //   2. Engaging opens tactical combat.
 //   3. A real two-click DOM confirm on the order palette's 撤退 button
 //      (misclicking withdraw would be rage-inducing) ends combat via
-//      endCombat('flee') -> applyFleePenalty(), applying the
-//      combat.json5-configured hull/armor/CR penalty.
+//      endCombat('flee') -> resolveFleeWithDebrief(), applying the
+//      combat.json5-configured hull/armor/CR penalty and opening the
+//      debrief beat.
 //   4. Because the ship never left contact range, the same cooldown +
 //      out-of-aggro latch that guards every contact keeps the modal from
 //      reopening even well past the cooldown window.
@@ -150,6 +151,85 @@ test('mid-combat withdraw: real click confirm, flee penalty applied, no instant 
     await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getEngagement().isOpen()),
     'engagement must not re-prompt while the ship never left contact range',
   ).toBe(false)
+})
+
+// Critical-review fix (Task 6) — the pre-combat engagement modal's 脱离
+// choice must debrief identically to mid-combat withdraw: same event, same
+// outcome, same penalty lines, from one shared resolution path
+// (resolveFleeWithDebrief() in combat.ts). Before the fix, modal-flee called
+// applyFleePenalty() directly and discarded the return — the penalty landed
+// but no debrief ever opened.
+test('modal flee: real click on 脱离 gets the same debrief as mid-combat withdraw', async ({ sim }) => {
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
+
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.page.waitForFunction(
+    () => (window as any).__uclife__.getGameState().getScene().getId() === 'playerShipInterior',
+    null, { timeout: DOM_COMMIT_TIMEOUT_MS })
+  const helm = await sim.page.evaluate(() => (window as any).__uclife__.takeHelmCheat())
+  expect(helm?.ok, `takeHelmCheat failed: ${helm?.message}`).toBe(true)
+  await sim.page.waitForFunction(
+    () => (window as any).__uclife__.getGameState().getScene().getId() === 'spaceCampaign',
+    null, { timeout: DOM_COMMIT_TIMEOUT_MS })
+
+  await sim.page.evaluate(() => (window as any).__uclife__.setInfiniteFuelSupply(true))
+
+  const enemies = await sim.page.evaluate(() => (window as any).__uclife__.listEnemies())
+  expect(enemies.length, 'no campaign enemies to engage').toBeGreaterThan(0)
+  const target = enemies[0]
+
+  const navRes = await sim.page.evaluate(
+    (key: string) => (window as any).__uclife__.debugNavigate({ kind: 'enemy', enemyKey: key }),
+    target.key,
+  )
+  expect(navRes.ok, `debugNavigate({kind:'enemy'}) failed: ${navRes.message}`).toBe(true)
+
+  // Force contact deterministically, same technique as the withdraw test
+  // above — park on the enemy, then drive one real contact-detection tick.
+  await sim.page.evaluate((p: { x: number; y: number }) => (window as any).__uclife__.moveShipTo(p.x, p.y), target.pos)
+  await sim.page.evaluate((dt: number) => (window as any).__uclife__.tickSpace(dt), CONTACT_TICK_DT_SEC)
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getEngagement().isOpen()),
+    'contact must prompt the engagement modal',
+  ).toBe(true)
+
+  const before = await sim.page.evaluate(() => (window as any).__uclife__.getShipState())
+
+  // ── Real DOM click on the modal's 脱离 choice. Unlike mid-combat withdraw,
+  // this path never enters tactical combat at all. ─────────────────────
+  await sim.page.locator('.status-panel').getByRole('button', { name: '脱离' })
+    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getEngagement().isOpen()),
+    'flee must close the engagement modal',
+  ).toBe(false)
+
+  await sim.page.waitForSelector('[data-combat-debrief]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  const debrief = sim.page.locator('[data-combat-debrief]')
+  await expect(debrief, 'modal flee must announce the flee outcome').toHaveAttribute(
+    'data-combat-debrief-outcome', 'flee',
+  )
+  const debriefText = await debrief.innerText()
+  expect(debriefText, 'debrief heading must show the 脱离 outcome').toContain('脱离')
+  expect(debriefText, 'debrief must report the hull-loss penalty line').toMatch(/船体受创/)
+  expect(debriefText, 'debrief must report the CR-drain penalty line').toMatch(/战备/)
+
+  await sim.page.locator('[data-combat-debrief-continue]').click()
+  await expect(debrief, 'continue must close the debrief beat back to the space view').toBeHidden()
+
+  // ── Same penalty as mid-combat withdraw, from the same shared computation ──
+  const after = await sim.page.evaluate(() => (window as any).__uclife__.getShipState())
+  const expectedHullLoss = Math.floor(before.hullCurrent * FLEE_HULL_LOSS_PCT)
+  expect(
+    after.hullCurrent,
+    'modal flee must apply the same configured hull-loss percentage as withdraw',
+  ).toBe(Math.max(1, before.hullCurrent - expectedHullLoss))
+  expect(after.armorCurrent, 'modal flee must zero the armor buffer').toBe(0)
+  expect(
+    after.crCurrent,
+    'modal flee must drain the same configured amount of combat readiness as withdraw',
+  ).toBe(Math.max(0, before.crCurrent - FLEE_CR_DRAIN))
 })
 
 test('fleet-withdraw button gated to flagship: MS pilot must not see topbar withdraw', async ({ sim }) => {

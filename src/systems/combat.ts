@@ -844,9 +844,9 @@ export interface FleePenaltyResult {
   crDrain: number
 }
 
-// Public so the engagement modal's flee choice (which closes the modal
-// without entering combat) shares one penalty path with in-combat withdraw.
-export function applyFleePenalty(): FleePenaltyResult {
+// Not exported — the penalty must never fire without also opening the
+// debrief, so every caller goes through resolveFleeWithDebrief() below.
+function applyFleePenalty(): FleePenaltyResult {
   const { hullLossPct, crDrain } = combatConfig.fleePenalty
   const ship = getPlayerShip()
   if (!ship) return { hullLoss: 0, crDrain: 0 }
@@ -862,10 +862,27 @@ export function applyFleePenalty(): FleePenaltyResult {
   return { hullLoss, crDrain }
 }
 
+// Critical-review fix (W2 Task 6) — the ONE flee resolution path: applies
+// the penalty exactly once, builds the debrief payload, and emits it. Both
+// the pre-combat engagement modal's flee choice (sim/engagement.ts) and
+// mid-combat withdraw (endCombat('flee') below) call this instead of
+// duplicating the payload construction — so the two surfaces can never
+// drift out of sync again.
+export function resolveFleeWithDebrief(): void {
+  const penalty = applyFleePenalty()
+  emitSim('ui:open-combat-debrief', {
+    outcome: 'flee',
+    lines: [
+      { labelZh: '船体受创', valueZh: `-${penalty.hullLoss}` },
+      { labelZh: '战备损耗', valueZh: `-${penalty.crDrain}` },
+    ],
+  })
+}
+
 // W2 Task 3 — mid-combat withdraw. Locked decision: always available and
 // CP-free (no orderCosts row — unlike rally/focusFire/regroup, this isn't a
 // comm-authority order, it's an emergency disengage). Routes through the
-// same endCombat('flee') → applyFleePenalty() path as the pre-combat
+// same endCombat('flee') → resolveFleeWithDebrief() path as the pre-combat
 // engagement modal's flee choice, so both surfaces cost identically.
 export function withdrawFromCombat(): void {
   if (!useCombatStore.getState().open) return
@@ -1053,16 +1070,10 @@ export function endCombat(outcome: CombatOutcome): void {
       ],
     })
   } else {
-    const penalty = applyFleePenalty()
-    // W2 Task 6 — debrief beat for the flee outcome, same event as defeat;
-    // the panel's outcome field picks the heading + copy.
-    emitSim('ui:open-combat-debrief', {
-      outcome: 'flee',
-      lines: [
-        { labelZh: '船体受创', valueZh: `-${penalty.hullLoss}` },
-        { labelZh: '战备损耗', valueZh: `-${penalty.crDrain}` },
-      ],
-    })
+    // Critical-review fix — penalty + debrief payload + emit all live in
+    // resolveFleeWithDebrief(); this branch must not apply the penalty a
+    // second time.
+    resolveFleeWithDebrief()
   }
 }
 

@@ -47,7 +47,8 @@
   orderPickRadiusPx: 60,
 
   // W2 Task 3 — mid-combat withdraw + the pre-combat engagement modal's
-  // flee choice share one penalty path (applyFleePenalty() in combat.ts).
+  // flee choice share one penalty + debrief path (resolveFleeWithDebrief()
+  // in combat.ts).
   // Starsector "you can't run for free" feel: hull takes the bigger hit,
   // armor depletes fully (it regenerates between encounters anyway), CR
   // drains heavily so back-to-back flees stack up a real cost.
