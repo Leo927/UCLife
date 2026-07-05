@@ -79,7 +79,10 @@ describe('getGameState', () => {
 
   it('getPlayerFleet.getFuel reads the topped-off fixture fuel pool', () => {
     applyFixture('starter-fleet')
-    expect(getGameState().getPlayerFleet().getFuel()).toBeGreaterThan(0)
+    const fuel = getGameState().getPlayerFleet().getFuel()
+    expect(fuel.current).toBeGreaterThan(0)
+    expect(fuel.max).toBeGreaterThan(0)
+    expect(fuel.current).toBe(fuel.max)
   })
 
   it('getEngagement.isOpen is false when no encounter has been prompted', () => {

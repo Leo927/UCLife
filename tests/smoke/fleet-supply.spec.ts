@@ -34,7 +34,9 @@ const SECRETARY_BULK_QTY = 100
 // authors suppliesMax: 40, which projects onto ShipStatSheet.supplyStorage
 // and contributes to FleetPool.supplyMax via recomputeFleetPool.
 const FLEET_POOL_SUPPLY_MAX = 40
-const FLEET_POOL_FUEL_MAX = 16
+// W1 Task 7 — lightFreighter.fuelMax raised 16 -> 60 (starter-tank budget
+// tuning); this pool ceiling tracks the authored ship-classes.json5 value.
+const FLEET_POOL_FUEL_MAX = 60
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',

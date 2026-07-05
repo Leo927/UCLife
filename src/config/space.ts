@@ -15,6 +15,11 @@ export interface SpaceConfig {
   dockSnapRadius: number
   enemyPickRadius: number
   autopilotArriveRadiusPx: number
+  enemyAi: {
+    patrolWaypointRadiusPx: number
+    chaseHysteresis: number
+    speedFactor: number
+  }
   liftLine: {
     dashWorldPx: number
     gapWorldPx: number

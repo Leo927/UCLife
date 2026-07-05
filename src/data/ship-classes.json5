@@ -89,7 +89,11 @@
       angularAccel: 4.0,
       maxAngVel: 1.5,
       crMax: 100,
-      fuelMax: 16,
+      // W1 Task 7 — 16 made vonBraun's own 12-fuel takeoff cost alone eat
+      // 75% of the tank, leaving no budget for a round trip to any
+      // patrol and back. 60 puts a standard sortie (takeoff + intercept
+      // + dock) at roughly half the tank — see fuel-budget.spec.ts.
+      fuelMax: 60,
       suppliesMax: 40,
       // Per-day supply drain (Starsector model — aggregated across the
       // fleet by the daily drain tick at 6.2.F). A civilian light hull

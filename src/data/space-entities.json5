@@ -31,7 +31,10 @@
         { x: 9200, y: 12800 },
         { x: 8800, y: 11800 },
       ],
-      aggroRadius: 600,
+      // W1 Task 7 — 5x the pre-tuning radius so a patrol notices the
+      // player's course from well outside weapons range, not only once
+      // the ship is nearly on top of it.
+      aggroRadius: 3000,
       fleeHullPct: 0.25,
     },
     {
@@ -46,7 +49,7 @@
         { x: 12600, y: 13400 },
         { x: 11200, y: 13200 },
       ],
-      aggroRadius: 600,
+      aggroRadius: 3000,
       fleeHullPct: 0.25,
     },
     {
@@ -56,7 +59,7 @@
       escorts: ['pirate_skirmisher'],
       spawn: { x: 10200, y: 13800 },
       aiMode: 'idle',
-      aggroRadius: 500,
+      aggroRadius: 2500,
       fleeHullPct: 0.2,
     },
     {
@@ -71,7 +74,7 @@
         { x: 7800, y: 12400 },
         { x: 8200, y: 11600 },
       ],
-      aggroRadius: 600,
+      aggroRadius: 3000,
       fleeHullPct: 0.25,
     },
 
@@ -93,7 +96,7 @@
         { x: 19800, y: 13000 },
         { x: 18800, y: 12200 },
       ],
-      aggroRadius: 650,
+      aggroRadius: 3250,
       fleeHullPct: 0.20,
     },
     {
@@ -109,7 +112,7 @@
         { x: 18600, y: 11800 },
         { x: 17800, y: 11200 },
       ],
-      aggroRadius: 600,
+      aggroRadius: 3000,
       fleeHullPct: 0.20,
     },
     {
@@ -119,7 +122,7 @@
       escorts: ['pirate_skirmisher'],
       spawn: { x: 20000, y: 13200 },
       aiMode: 'idle',
-      aggroRadius: 500,
+      aggroRadius: 2500,
       fleeHullPct: 0.20,
     },
     // Lunar raider with two skirmisher wingmen — heaviest near-moon
@@ -142,7 +145,10 @@
         { x: 21000, y: 12000 },
         { x: 20000, y: 11200 },
       ],
-      aggroRadius: 750,
+      // W1 Task 7 — the raider anchor's radius scales to exactly
+      // 1/8 the sector width (30000px), the spec's stated target for
+      // "genuinely pursues" — the heaviest patrol notices the farthest.
+      aggroRadius: 3750,
       fleeHullPct: 0.15,
     },
 
@@ -161,7 +167,7 @@
         { x: 28000, y: 9200 },
         { x: 26200, y: 9600 },
       ],
-      aggroRadius: 800,
+      aggroRadius: 4000,
       fleeHullPct: 0.15,
     },
     {
@@ -172,7 +178,7 @@
       notableCaptains: { '0': 'ramba-ral-0077-corp-raider' },
       spawn: { x: 4200, y: 18800 },
       aiMode: 'idle',
-      aggroRadius: 800,
+      aggroRadius: 4000,
       fleeHullPct: 0.15,
     },
   ],

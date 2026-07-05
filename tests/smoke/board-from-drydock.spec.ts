@@ -27,11 +27,11 @@ const REQUIRED_HANDLES = [
   '__uclife__.fleetFuelPool',
 ]
 
-// lightFreighter (fixture flagship) fuelMax: 16; pegasusClass fuelMax: 80
+// lightFreighter (fixture flagship) fuelMax: 60; pegasusClass fuelMax: 80
 // (src/data/ship-classes.json5). Promoting the Pegasus to flagship adds it
 // to the active fleet — the pool's capacity must grow to reflect both
 // ships, without granting free fuel (current stays at its pre-board value).
-const LIGHT_FREIGHTER_FUEL_MAX = 16
+const LIGHT_FREIGHTER_FUEL_MAX = 60
 const PEGASUS_FUEL_MAX = 80
 const EXPECTED_POOL_FUEL_MAX_AFTER_BOARD = LIGHT_FREIGHTER_FUEL_MAX + PEGASUS_FUEL_MAX
 

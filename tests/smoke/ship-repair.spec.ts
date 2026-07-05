@@ -12,7 +12,9 @@ const EXPECTED_ARMOR_BASE = 200
 const EXPECTED_TOP_SPEED = 60
 const EXPECTED_BRIG = 2
 const EXPECTED_CREW_REQUIRED = 4
-const EXPECTED_FUEL_STORAGE = 16
+// W1 Task 7 — lightFreighter.fuelMax raised 16 -> 60 (starter-tank budget
+// tuning); ShipStatSheet.fuelStorage projects from the same authored value.
+const EXPECTED_FUEL_STORAGE = 60
 const EXPECTED_SUPPLY_STORAGE = 40
 
 const FIRST_DAMAGE_HULL = 600

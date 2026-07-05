@@ -63,9 +63,11 @@ export interface ShipView {
 // W1 Task 6 — getFuel()/getDockedPoiId() read the flagship's live fleet-
 // pool fuel and the campaign-world dock binding, for smokes driving the
 // starmap navigation/dock loop deterministically.
+// W1 Task 7 — getFuel() returns both current and max so a budget smoke
+// can assert fuel spent against tank capacity without a second call.
 export interface FleetView {
   getShipCount(): number
-  getFuel(): number
+  getFuel(): { current: number; max: number }
   getDockedPoiId(): string | null
 }
 
@@ -419,7 +421,10 @@ export function getGameState(): GameStateView {
     getPlayerFleet(): FleetView {
       return {
         getShipCount: countPlayerShips,
-        getFuel: () => getFleetPool().fuelCurrent,
+        getFuel: () => {
+          const pool = getFleetPool()
+          return { current: pool.fuelCurrent, max: pool.fuelMax }
+        },
         getDockedPoiId: getFleetDockedPoiId,
       }
     },
