@@ -12,6 +12,7 @@
 import type { Entity } from 'koota'
 import {
   Building, Hangar, Ship, EntityKey, Owner, ShipStatSheet, WasCaptured,
+  IsInActiveFleet,
 } from '../ecs/traits'
 import type { ShipDeliveryRow } from '../ecs/traits'
 import { getWorld, SCENE_IDS } from '../ecs/world'
@@ -25,6 +26,10 @@ import {
 import { getStat } from '../stats/sheet'
 import { findHangarAtPoi } from './hangarQuery'
 import { fleetConfig } from '../config'
+import { recomputeFleetFuelMax } from '../ecs/fleetPool'
+import { grantStarterMsToShip } from '../ecs/spawn'
+import { emitSim } from '../sim/events'
+import { simNow } from '../sim/time'
 
 export interface ShipDeliveryResult {
   hangarsTicked: number
@@ -212,9 +217,54 @@ export function receiveDelivery(
   if (!hasPoiFit && carrierEnt) {
     assignShipToCarrierBay(spawned.entity, carrierEnt)
   }
+  // W1 Task 5 — the player's first-ever hull carries the onboarding grant
+  // that used to fire at boot (starter MS + parts + a full fuel pool).
+  if (countPlayerOwnedShips() === 1) grantFirstHullOnboarding(spawned.entityKey)
   const next = h.pendingDeliveries.filter((_, i) => i !== rowIndex)
   hangarEnt.set(Hangar, { ...h, pendingDeliveries: next })
   return { ok: true, entityKey: spawned.entityKey }
+}
+
+// Player-owned hulls carry Owner{ kind: 'character' }; enemy / captured-in-
+// flight hulls before receipt do not sit in the player fleet count.
+function countPlayerOwnedShips(): number {
+  const w = getWorld(SHIP_SCENE_ID)
+  let n = 0
+  for (const ent of w.query(Ship, Owner)) {
+    if (ent.get(Owner)!.kind === 'character') n += 1
+  }
+  return n
+}
+
+// W1.1 onboarding breadcrumb. Fires exactly once — when the received hull
+// brings the owned-ship count to 1. The dealer delivers it fuelled, with a
+// starter MS + parts inventory stowed aboard (rendered in the hangar bay the
+// first time the player boards it). Player-facing copy is zh-CN by design.
+function grantFirstHullOnboarding(shipKey: string): void {
+  // recomputeFleetPool only sums IsInActiveFleet ships (src/ecs/fleetPool.ts
+  // sumStat). A freshly delivered hull spawns RESERVE (see
+  // spawnDeliveredShip), so without this the top-up below sums an empty
+  // active roster and lands a 0/0 pool. Activate the player's only hull
+  // first — mirrors the war-room promotion write (setIsInActiveFleet) and
+  // the fixture loader's flagship grant (applyShips in src/test/fixtures.ts)
+  // rather than inventing a third shape.
+  activateSoleHull(shipKey)
+  grantStarterMsToShip(shipKey)
+  recomputeFleetFuelMax({ topUp: true })
+  const textZh = '你的第一艘船已入库 · 前往机库闸口登船'
+  emitSim('toast', { textZh })
+  emitSim('log', { textZh, atMs: simNow() })
+}
+
+function activateSoleHull(shipKey: string): void {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(Ship, EntityKey)) {
+    if (ent.get(EntityKey)!.key !== shipKey) continue
+    if (!ent.has(IsInActiveFleet)) ent.add(IsInActiveFleet)
+    const s = ent.get(Ship)!
+    ent.set(Ship, { ...s, formationSlot: fleetConfig.activeFleetGrid.flagshipSlot })
+    return
+  }
 }
 
 // ── Phase 6.2.5 — MS-aboard carrier helpers ──────────────────────────────

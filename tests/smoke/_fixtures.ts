@@ -37,16 +37,6 @@ export function isExpectedTestModePortraitMissing(text: string): boolean {
 }
 
 /**
- * Known transient Pixi v8 batcher error that fires once during certain scene
- * swaps and combat boot. Harmless — the next frame recreates the batch state.
- * Tests that exercise paths through the combat / cockpit scene chain should
- * allowlist this via `sim.allowConsoleError(isKnownPixiBatcherStartup)`.
- */
-export function isKnownPixiBatcherStartup(text: string): boolean {
-  return /Cannot read properties of null \(reading 'clear'\)/.test(text)
-}
-
-/**
  * Known Pixi v8 renderer teardown race: the auto-render ticker fires one last
  * rAF after Application.destroy() nulls the renderer, so `renderer._resolution`
  * throws. PixiCanvas.tsx calls stop() + destroy() in cleanup, but the already-
@@ -154,6 +144,21 @@ export class Sim {
   }
 
   /**
+   * Coarse idle advance — like stepFor, but advances in large slices instead
+   * of the 16ms interactive tick. For long IDLE waits ONLY (e.g. the multi-day
+   * ship-delivery lead), where sub-minute fidelity is unneeded and the 16ms
+   * tick count (~5.4M/game-day) is wall-clock-prohibitive. Do NOT use while a
+   * smooth walk, combat, or space flight is in progress.
+   */
+  async stepForCoarse(gameMinutes: number): Promise<void> {
+    await this.page.evaluate(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (m: number) => { await (window as any).__uclife_test__.step({ gameMinutes: m, coarse: true }) },
+      gameMinutes,
+    )
+  }
+
+  /**
    * Step sim time until predicate returns true, bounded by maxGameMinutes.
    * Predicate runs in the browser context — it can ONLY reach `window.__uclife__`,
    * not outer-scope variables. This is the same closure constraint Playwright
@@ -163,15 +168,35 @@ export class Sim {
     untilFn: () => boolean | Promise<boolean>,
     maxGameMinutes: number,
   ): Promise<void> {
+    await this.stepUntilImpl(untilFn, maxGameMinutes, false)
+  }
+
+  /**
+   * Coarse variant of stepUntil — advances in large slices (predicate checked
+   * once per slice). For ground / UI waits in a heavily-populated scene where
+   * fine 16ms stepping is wall-clock-prohibitive. NOT for combat / space flight.
+   */
+  async stepUntilCoarse(
+    untilFn: () => boolean | Promise<boolean>,
+    maxGameMinutes: number,
+  ): Promise<void> {
+    await this.stepUntilImpl(untilFn, maxGameMinutes, true)
+  }
+
+  private async stepUntilImpl(
+    untilFn: () => boolean | Promise<boolean>,
+    maxGameMinutes: number,
+    coarse: boolean,
+  ): Promise<void> {
     const src = untilFn.toString()
     await this.page.evaluate(
-      async ({ src, max }) => {
+      async ({ src, max, coarse }) => {
         // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
         const until = new Function('return (' + src + ')')() as () => boolean | Promise<boolean>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (window as any).__uclife_test__.step({ until, maxGameMinutes: max })
+        await (window as any).__uclife_test__.step({ until, maxGameMinutes: max, coarse })
       },
-      { src, max: maxGameMinutes },
+      { src, max: maxGameMinutes, coarse },
     )
   }
 

@@ -24,8 +24,12 @@ import { markTestMode } from './state'
 import { pinTestModeSpeed } from './clock'
 import { applyFixture } from './fixtures'
 import { step } from './runtime'
-import { getEntityScreenCoords } from './canvasHitTest'
+import {
+  getEntityScreenCoords, getEntityScreenCoordsClamped, getPoiScreenCoords, getPoiScreenCoordsClamped,
+  getEnemyScreenCoords, getEnemyScreenCoordsClamped, getEntityWorldPos,
+} from './canvasHitTest'
 import { getGameState } from './gameStateView'
+import { useDebug } from '../debug/store'
 import { testConfig } from './test-config'
 import { createElement } from 'react'
 
@@ -62,6 +66,13 @@ export interface TestBootParams {
   seed?: string
   nowMs?: number
   assets: boolean
+  // Boot-time invariant (like the frozen clock / seed): freeze the PLAYER's
+  // vitals so a long sim-time advance doesn't starve them. The capstone
+  // journey smoke must elapse the mandatory multi-day ship-delivery lead;
+  // without this the idle player dies of neglect (~1.9 game-days) before the
+  // hull arrives. Survival is covered by its own smokes — the journey opts
+  // out of it here rather than micro-manage eating/sleeping across two days.
+  freezeNeeds: boolean
 }
 
 /**
@@ -74,7 +85,8 @@ export function parseTestBootParams(search: URLSearchParams): TestBootParams {
   const nowMsRaw = search.get('nowMs')
   const nowMs = nowMsRaw != null ? Number(nowMsRaw) : undefined
   const assets = search.get('assets') === '1'
-  return { fixture, seed, nowMs, assets }
+  const freezeNeeds = search.get('freezeNeeds') === '1'
+  return { fixture, seed, nowMs, assets, freezeNeeds }
 }
 
 export default async function bootTestMode(params: TestBootParams): Promise<void> {
@@ -117,6 +129,10 @@ export default async function bootTestMode(params: TestBootParams): Promise<void
   bootstrapApp({ skipDefaultPlayer: Boolean(params.fixture) })
   stopLoop()
 
+  // Boot-time need-freeze (opt-in). Applied after bootstrapApp so the debug
+  // store exists; treated as a boot invariant, not a runtime debug drive.
+  if (params.freezeNeeds) useDebug.getState().setFreezeNeeds(true)
+
   // 6. Apply the requested fixture. Fixture is authoritative — anything
   //    it sets (player money, skills, faction balances, ships, npcs)
   //    overrides defaults; the default player spawn was skipped above
@@ -130,6 +146,12 @@ export default async function bootTestMode(params: TestBootParams): Promise<void
   const { assembleUclifeHandle } = await import('../debug/uclifeHandle')
   const handle = assembleUclifeHandle()
   handle.getEntityScreenCoords = getEntityScreenCoords
+  handle.getEntityScreenCoordsClamped = getEntityScreenCoordsClamped
+  handle.getEntityWorldPos = getEntityWorldPos
+  handle.getPoiScreenCoords = getPoiScreenCoords
+  handle.getPoiScreenCoordsClamped = getPoiScreenCoordsClamped
+  handle.getEnemyScreenCoords = getEnemyScreenCoords
+  handle.getEnemyScreenCoordsClamped = getEnemyScreenCoordsClamped
   // Phase 5 will replace this with a real navigable view; we wire the
   // function reference here so the runtime surface (smoke checks +
   // calling code) stays stable across the Phase 5 swap.

@@ -236,6 +236,11 @@ export function vitalsSystem(world: World, gameMinutes: number) {
     }
   })
 
+  // freezeNeeds (a dev/test boot invariant) freezes NPC needs too: over a long
+  // sim-time advance (the capstone journey's multi-day delivery lead) NPCs would
+  // otherwise starve and abandon their posts, so a vendor reached days later
+  // refuses to work. Player-only freeze isn't enough for that scenario.
+  if (freezePlayer) return
   world.query(Vitals, Health, Action, Not(IsPlayer)).updateEach(([v, h, a], entity) => {
     if (h.dead) {
       inactiveAccumMin.delete(entity)

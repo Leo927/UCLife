@@ -24,7 +24,16 @@ const REQUIRED_HANDLES = [
   '__uclife__.listShipsInFleet',
   '__uclife__.boardShipByKey',
   '__uclife__.shipSceneLayoutSnapshot',
+  '__uclife__.fleetFuelPool',
 ]
+
+// lightFreighter (fixture flagship) fuelMax: 60; pegasusClass fuelMax: 80
+// (src/data/ship-classes.json5). Promoting the Pegasus to flagship adds it
+// to the active fleet — the pool's capacity must grow to reflect both
+// ships, without granting free fuel (current stays at its pre-board value).
+const LIGHT_FREIGHTER_FUEL_MAX = 60
+const PEGASUS_FUEL_MAX = 80
+const EXPECTED_POOL_FUEL_MAX_AFTER_BOARD = LIGHT_FREIGHTER_FUEL_MAX + PEGASUS_FUEL_MAX
 
 const STEP_BUDGET_MIN = 5
 
@@ -85,6 +94,11 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
   expect(pad.y, 'boarding pad y must be inside the drydock region (north edge)').toBeGreaterThanOrEqual(rect.y)
   expect(pad.y, 'boarding pad y must be inside the drydock region (south edge)').toBeLessThanOrEqual(rect.y + rect.h)
 
+  const poolBeforeBoard = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.fleetFuelPool(),
+  )
+
   // 2. Boarding swaps flagship + scene.
   const boardResult = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,4 +143,22 @@ test('drydock boarding: owned non-flagship binds, boards, interior swaps class',
   expect(layout.roomIds, 'Pegasus brig room missing — interior did not reseed').toContain('brig')
   expect(layout.roomIds, 'Pegasus commRoom missing — interior did not reseed').toContain('commRoom')
   expect(layout.mountCount, 'weapon mount count should match Pegasus (6), not lightFreighter (2)').toBe(6)
+
+  // 4. The Pegasus was reserve (no IsInActiveFleet) before boarding — the
+  // board promoted it into the active fleet alongside the lightFreighter
+  // (which stays active, just demoted to reserve formation). The fleet
+  // pool's capacity must grow to cover both hulls; current stays put — no
+  // free fuel just for boarding.
+  const poolAfterBoard = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.fleetFuelPool(),
+  )
+  expect(
+    poolAfterBoard.fuelMax,
+    'fleet pool fuelMax must grow to include the newly-active Pegasus after boarding',
+  ).toBe(EXPECTED_POOL_FUEL_MAX_AFTER_BOARD)
+  expect(
+    poolAfterBoard.fuelCurrent,
+    'boarding must not grant free fuel — current stays at its pre-board value',
+  ).toBe(poolBeforeBoard.fuelCurrent)
 })

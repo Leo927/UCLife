@@ -146,8 +146,14 @@ ECS entity. Lives in a ship's `hangarUnits`. State that changes:
 - `assignedShipId: EntityKey` — back-pointer to the ship whose hangar holds this unit
 - `mountedWeapons: Record<hardpointId, weaponInstanceId>` — **the retrofit field; player-mutable at hangar**
 - `frameMods: Array<frameModId>` — bolt-on frame upgrades (armor plating, thruster packs, sensor pods); player-installable at hangar (Phase 6.2.5+)
-- `damageState: 'ready' | 'damaged' | 'destroyed' | 'in-repair'`
-- `repairProgress: 0..1` — when in-repair
+- `damageState: 'ready' | 'in-repair'` — Task 9 shipped this as a two-value
+  enum, not the four-value one earlier drafts of this doc sketched:
+  'in-repair' iff damaged AND parked at a depot (`dockedAtPoiId` set);
+  'ready' covers both undamaged AND damaged-but-still-mid-deployment (no
+  repair crew touching it). No separate `repairProgress` field — the
+  hull/armor deficit itself is the progress; a second field would only be
+  able to drift from it. See the "In-repair, in code" note under Supply
+  below and `ecs/msDamage.ts`.
 
 ### MS weapons and frame mods
 
@@ -194,7 +200,7 @@ fleetSupplyPerDay =
 
 This is the number the campaign HUD reads. (`starmap.md`'s continuous fuel/supply economy section is aligned to this formula — supply storage and drain are per-ship, not rolled up onto the flagship.)
 
-> **In-repair, in code.** The MS runtime instance has no `damageState` field yet; `fleetSupplyDrainSystem` treats an MS as in-repair when it carries hull or armor damage (`hullCurrent < hullMax || armorCurrent < armorMax`), mirroring the ship-side `repairDeficit`. When an explicit MS repair lifecycle lands, swap this derivation for the `damageState === 'in-repair'` check.
+> **In-repair, in code.** `Ms.damageState` (`'ready' | 'in-repair'`, `ecs/msDamage.ts`) is `'in-repair'` iff the MS carries hull/armor deficit AND sits at a depot (`dockedAtPoiId` set — the Task 8 custody invariant). `hangarRepair.ts`'s daily throughput restores depot MS the same way it restores ships (armor-first, shared focus/spread pool), and writes `damageState` on every application; `msCustody.ts` / `msTransfer.ts` recompute it on every custody transition. `fleetSupplyDrainSystem` reads `damageState === 'in-repair'` directly instead of re-deriving from the deficit. Economic consequence: a damaged MS still riding aboard a ship (no repair crew touching it) pays only its ordinary `supplyPerDay` — the `supplyPerRepairDay` surcharge only bills while a hangar crew is actively working the hull at a depot.
 
 Supply is **stored across the fleet** in each ship's `currentSupply`, capped by the ship's class `supplyStorage`. Auto-pooled at a friendly station / when reorganizing, but during a deployment you can run out on one ship while another has slack. Same goes for fuel and cargo.
 
@@ -263,6 +269,8 @@ The flagship is **the ship the player is currently crewing.** It gets:
 
 That is the entire mechanical specialness. No promote-to-flagship ceremony, no story-rare gating. Switching flagship is **physical transit** between two of your ships — not a roster verb. The `IsFlagshipMark` follows the player's body. The act of switching is the act of walking back to the hangar where another of your ships sits, walking up its airlock, and entering its interior scene.
 
+**The first hull is bought, not boot-granted (W1).** Boot no longer spawns a starter flagship — `bootstrapShipScene` leaves the ship-interior world empty, so a fresh save owns **no ship**. The player buys their first hull at the AE broker (VB airport sales rep sells `lightFreighter`), it is delivered to a hangar, and it becomes the flagship only when the player physically boards it (`boardShipByKey` seeds the class interior + migrates `IsFlagshipMark`). The old boot bundle — starter MS (`ms-player-0`), starter parts inventory, and a full fuel pool — is now granted on **receipt of that first hull** (`receiveDelivery` in `src/systems/shipDelivery.ts`, via `grantStarterMsToShip`), with the W1.1 onboarding breadcrumb (`你的第一艘船已入库 · 前往机库闸口登船`). Every ship / fleet / MS system tolerates the no-ship state (returns early on a null flagship); the space engagement system treats "no flagship" as immune, so a shipless player is never ambushed. Deterministic tests that need the old boot state boot the `starter-fleet` fixture (or pin an explicit flagship + `ms:` / `parts:` blocks); the starter MS is now a civilian `mobileWorker` (a prototype GM is not plausible cargo on a used freighter), and specs needing a `gm_pre` frame pin it via their fixture.
+
 **Selling a vessel the captain is still aboard is forbidden.** The hangar manager refuses to process the sale (paperwork is fine; physical handover with the owner inside the ship is not). To sell your *current* flagship, board a different ship in your fleet (walk back to its hangar, enter it) and then close the sale through the broker; or — if it is your last hull — disembark to the hangar floor and the sale is processed as **fleet termination**: the bridge scene goes dark, the comm panel with it, and hired captains / pilots / crew route through a paid-out-or-disbanded branch back into civilian life. Selling a *non-flagship* ship is paperwork-only at the broker — the hangar manager takes possession in place, decommissions, and the slot frees up on the next day's rollover. This mirrors the realty office's rule for selling a residence the player still occupies, and makes the inverse of the acquisition arc carry the same diegetic weight as acquisition itself.
 
 The walkable scene is hydrated lazily per ship: when the player boards, the scene hydrates from the ship-class template + the instance's stored interior blob (where the player left a coffee mug); when the player leaves, it serializes back. Per-ship interior content is **authored per class, not per instance** — five ship classes = five interior templates regardless of fleet size.
@@ -322,7 +330,7 @@ Capital-ship boarding works the same way — the player just rides the orbital l
 
 ### On-ship hangar vs. surface hangar — the depot/forward asymmetry
 
-Ship templates declare `hangarCapacity` (MS sortie slots) and `mechanicCrewSlots` (the crew complement that services those MS). MS at rest live in the player's surface hangar facility — *storage is depot-only*. But during sortie, the on-ship hangar is a real working facility: the ship's mechanic crew, led by the ship's **hangar boss** NPC, services the MS aboard between engagements. Without this, multi-leg sorties become impossible — any scratch on a GM means flying home, which is the wrong pacing.
+Ship templates declare `hangarCapacity` (MS sortie slots) and `mechanicCrewSlots` (the crew complement that services those MS). **MS may ride aboard a ship at rest** (the starter MS is granted into the flagship's own bay the moment the player takes delivery of their first hull, per W1's playable-loop onboarding) — the depot is not the only place an MS can sit idle. What *is* depot-only is **deep work**: refit (frame mods, parts-inventory swaps) and the `destroyed → ready` repair transition only happen at the surface hangar (see the table below). The **`unloadMsToDepot` / `loadMsAboard`** hangar-manager verbs move an MS between a docked ship's bay and the depot's own hangar slot so the player can reach that deep work without needing to buy a second hull first; each MS's `Ms` trait carries exactly one of `storedOnShipKey` (aboard a ship) / `dockedAtPoiId` (parked at a depot) at rest. During sortie, the on-ship hangar is also a real working facility in its own right: the ship's mechanic crew, led by the ship's **hangar boss** NPC, services the MS aboard between engagements. Without this, multi-leg sorties become impossible — any scratch on a GM means flying home, which is the wrong pacing.
 
 The surface hangar's structural advantage over the on-ship hangar is **depth of work**, not throughput:
 

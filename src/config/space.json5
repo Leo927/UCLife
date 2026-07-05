@@ -38,7 +38,14 @@
 
   // Distance at which a ship enters an enemy's aggro check, in world px.
   // Enemies whose own aggroRadius overlaps fire the engagement modal.
-  aggroContactRadius: 24,
+  // W1 Task 7 — 24px demanded near-exact convergence with a moving
+  // target (autopilot arrival tolerance is only 4px), so an intercept
+  // course spent most of its fuel budget on fine velocity-matching
+  // maneuvers chasing a patrol's live position. 96px lets contact fire
+  // once the ship is meaningfully alongside the target, matching the
+  // scale of enemyPickRadius (the UI's own "close enough" tolerance for
+  // targeting the same ships).
+  aggroContactRadius: 96,
 
   // Padding on each edge when M fits the whole sector to viewport.
   fitSystemPaddingPx: 200,
@@ -48,12 +55,39 @@
   // this, clicks resolve to free-space coordinates.
   dockSnapRadius: 80,
 
+  // Click-target snap radius for enemy ships, in world px. Same role as
+  // dockSnapRadius but for the Intercept context-menu action — enemy
+  // sprites don't have a fixed dock marker, so this owns its own tunable
+  // rather than reusing dockSnapRadius by coincidence.
+  // W1 Task 7 — sanity-checked against the aggroContactRadius bump
+  // (24 -> 96): 80 stays as-authored. It's a click-hit-test tolerance
+  // (player intent), not a sim trigger radius, so it doesn't need to
+  // track aggroContactRadius 1:1 — but the two should stay the same
+  // order of magnitude so "click to target" and "close enough to fight"
+  // read as the same distance to the player, and 80 vs 96 already does.
+  enemyPickRadius: 80,
+
   // Autopilot arrival tolerance, in world px. The ship declares the
   // course complete once it is within this distance and below
   // arrivalSpeed. Keep small so free-space "go here" clicks land at the
   // actual cursor — POI auto-dock courses still snap Position to the live
   // POI on arrival, so this doesn't affect docking accuracy.
   autopilotArriveRadiusPx: 4,
+
+  // W1 Task 7 — enemyAI.ts tunables, formerly module-level constants.
+  // Moved here so they're editable without a code change.
+  enemyAi: {
+    // Waypoint-reached tolerance for a patrolling enemy advancing along
+    // its authored patrolPath, in world px.
+    patrolWaypointRadiusPx: 40,
+    // Multiplier on aggroRadius an enemy must exit before a chase reverts
+    // to patrol — keeps a chasing enemy from flickering in and out of
+    // chase mode right at the aggro boundary.
+    chaseHysteresis: 1.5,
+    // Fraction of baseShipMaxSpeed an enemy hull tops out at, relative to
+    // the player's own max speed.
+    speedFactor: 0.85,
+  },
 
   // Dashed line between elevator-linked POIs on the starmap. Lengths are
   // in *world* px and the renderer divides by camera scale so the dashes

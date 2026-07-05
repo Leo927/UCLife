@@ -246,12 +246,19 @@ export const Thrust = trait({
 export const Course = trait({
   // Autopilot target. tx/ty in world px. destPoiId optional — when set,
   // the autopilot retargets to the POI's live derived position each
-  // frame (orbits move). autoDock = "park at this POI on arrival" (dock
-  // intent from the starmap context menu); otherwise the ship just
-  // halts in space at the destination.
+  // frame (orbits move). destEnemyKey optional — when set, the
+  // autopilot retargets to the named EnemyAI entity's live position
+  // each frame (intercept course); the course deactivates itself if the
+  // target entity disappears (destroyed / fled the campaign world).
+  // destPoiId and destEnemyKey are mutually exclusive — every call site
+  // that commits a course must null out the one it isn't using.
+  // autoDock = "park at this POI on arrival" (dock intent from the
+  // starmap context menu); otherwise the ship just halts in space at
+  // the destination.
   tx: 0,
   ty: 0,
   destPoiId: null as string | null,
+  destEnemyKey: null as string | null,
   active: false,
   autoDock: false,
 })
@@ -274,6 +281,14 @@ export const EnemyAI = trait(() => ({
   patrolIdx: 0,
   aggroRadius: 0,
   fleeHullPct: 0,
+  // W1 Task 10 — orbit anchoring. When anchorBodyId is set, this enemy rigidly
+  // station-keeps at anchorOffset from the anchor body's LIVE position while on
+  // patrol/idle (it rides the orbiting body), and only breaks off to chase/flee
+  // the player. Without this a near-moon patrol is orphaned as the fast-orbiting
+  // moon carries the dock ~90deg away over a multi-day delivery wait.
+  // anchorOffset is (authored spawn − body t=0 position), captured at bootstrap.
+  anchorBodyId: '',
+  anchorOffset: { x: 0, y: 0 },
 }))
 
 export const MaintenanceLoad = trait({

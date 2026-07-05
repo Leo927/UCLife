@@ -20,6 +20,7 @@ interface SpaceBlock {
     course: {
       tx: number; ty: number; destPoiId: string | null; active: boolean
       autoDock?: boolean
+      destEnemyKey?: string | null
     }
     atHelm: boolean
   }
@@ -65,6 +66,7 @@ function snapshotSpace(): SpaceBlock | undefined {
       course: {
         tx: course.tx, ty: course.ty, destPoiId: course.destPoiId,
         active: course.active, autoDock: course.autoDock,
+        destEnemyKey: course.destEnemyKey,
       },
       atHelm,
     },
@@ -85,6 +87,9 @@ function restoreSpace(block: SpaceBlock): void {
       destPoiId: block.player.course.destPoiId,
       active: block.player.course.active,
       autoDock: block.player.course.autoDock ?? false,
+      // Legacy (pre-Task-6) saves predate this field — default null
+      // rather than leaving a stale value from resetWorld()'s defaults.
+      destEnemyKey: block.player.course.destEnemyKey ?? null,
     })
     if (block.player.atHelm && !player.has(AtHelm)) player.add(AtHelm)
     else if (!block.player.atHelm && player.has(AtHelm)) player.remove(AtHelm)

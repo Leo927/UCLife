@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation, IsFlagshipMark, IsInActiveFleet, Ship, Ms, PlayerPartsInventory } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -161,6 +161,70 @@ describe('applyFixture', () => {
     expect(getStat(escortA.get(ShipStatSheet)!.sheet, 'dpCost')).toBe(2)
     const escortB = byKey.get('escort-b')!
     expect(getStat(escortB.get(ShipStatSheet)!.sheet, 'dpCost')).toBe(10)
+  })
+
+  it('loads starter-fleet: flagship + stowed starter MS + parts inventory (old boot state)', () => {
+    applyFixture('starter-fleet')
+    const shipWorld = getWorld('playerShipInterior')
+    const byKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+    // Flagship: lightFreighter, docked VB, IsFlagshipMark + IsInActiveFleet.
+    const flag = byKey.get('ship')!
+    expect(flag, 'flagship entity "ship" must exist').toBeTruthy()
+    expect(flag.has(IsFlagshipMark), 'flagship carries IsFlagshipMark').toBe(true)
+    expect(flag.has(IsInActiveFleet), 'flagship is in the active fleet').toBe(true)
+    expect(flag.get(Ship)!.templateId).toBe('lightFreighter')
+    expect(flag.get(Ship)!.dockedAtPoiId).toBe('vonBraun')
+
+    // Starter MS: mobileWorker, stowed aboard the flagship at bay 0.
+    const ms = byKey.get('ms-player-0')!
+    expect(ms, 'starter MS entity must exist').toBeTruthy()
+    expect(ms.get(Ms)!.templateId).toBe('mobileWorker')
+    expect(ms.get(Ms)!.storedOnShipKey).toBe('ship')
+    expect(ms.get(Ms)!.bayIndex).toBe(0)
+
+    // Parts inventory carries the starter weapons.
+    const parts = byKey.get('player-parts-inv')!
+    expect(parts, 'parts inventory must exist').toBeTruthy()
+    expect(parts.get(PlayerPartsInventory)!.weapons['ms-ballisticGun']).toBe(1)
+    expect(parts.get(PlayerPartsInventory)!.frameMods['autoloader']).toBe(1)
+  })
+
+  it('loads ms-repair-depot: pre-damaged MS parks at vonBraun with the fixture hullCurrent override', () => {
+    applyFixture('ms-repair-depot')
+    const shipWorld = getWorld('playerShipInterior')
+    const byKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+    const ms = byKey.get('ms-depot-0')!
+    expect(ms, 'pre-damaged depot MS must exist').toBeTruthy()
+    expect(ms.get(Ms)!.templateId).toBe('mobileWorker')
+    expect(ms.get(Ms)!.hullCurrent, 'hullCurrent override should parse from the fixture').toBe(40)
+    expect(ms.get(Ms)!.hullMax, 'hullMax stays at the mobileWorker template value').toBe(160)
+    expect(ms.get(Ms)!.dockedAtPoiId).toBe('vonBraun')
+    expect(ms.get(Ms)!.storedOnShipKey).toBe('')
+    expect(ms.get(Ms)!.damageState, 'damaged + docked at a depot => in-repair').toBe('in-repair')
+  })
+
+  it('loads earned-start: player has starter-hull cash and the hangar manager seats', () => {
+    // Unit world skips setupWorld, so the surface hangar's hangar_manager seat
+    // doesn't exist — pre-spawn a free one for the fixture link to bind against
+    // (in the browser boot the seat comes from the hangarSurface layout).
+    const w = getWorld('vonBraunCity')
+    const seat = w.spawn(
+      Workstation({ specId: 'hangar_manager', occupant: null, managerStation: null }),
+    )
+    applyFixture('earned-start')
+    const player = findPlayer()
+    expect(player).not.toBeNull()
+    expect(player!.get(Money)!.amount).toBe(6000)
+    let mgr = null
+    for (const e of w.query(EntityKey)) {
+      if (e.get(EntityKey)!.key === 'hangarMgr') mgr = e
+    }
+    expect(mgr, 'hangar manager NPC must spawn').not.toBeNull()
+    expect(seat.get(Workstation)!.occupant, 'fixture links the manager onto the seat').toBe(mgr)
   })
 
   it('loads vonBraunDrydock-station: player lands in the drydock concourse with cash', () => {

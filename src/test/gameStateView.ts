@@ -2,8 +2,9 @@ import type { Entity } from 'koota'
 import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ecs/world'
 import {
   IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
-  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche,
+  EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche, Action,
 } from '../ecs/traits'
+import { useCombatStore } from '../systems/combat'
 import { temperamentOf, sympathiesOf } from '../character/psychology'
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
@@ -20,6 +21,8 @@ import {
   getAllDiplomaticRecords, getDiplomaticRecord, getAllMeetingRequests,
   type DiplomaticRecord, type MeetingRequest,
 } from '../sim/diplomacy'
+import { getFleetPool, getDockedPoiId as getFleetDockedPoiId } from '../sim/ship'
+import { useEngagement } from '../sim/engagement'
 import { IsPlayerFaction, FactionEffectsList, FactionSheet } from '../ecs/traits'
 import { factionPerkStoreView, type FactionPerkRow } from '../systems/factionPerks'
 import type { FactionStatId } from '../stats/factionSchema'
@@ -46,6 +49,10 @@ export interface CharacterView {
     revealed: string[]
     lastRevealDay: number
   } | null
+  // W1 Task 10 — the character's current Action.kind ('idle', 'working', …).
+  // The journey smoke waits on a vendor reaching 'working' (on-shift) before
+  // its dialogue branch renders, since only the behaviour tree sets it.
+  getActionKind(): string
 }
 
 export interface ShipView {
@@ -54,6 +61,35 @@ export interface ShipView {
   getDockedAt(): string | null
   getCaptain(): CharacterView | null
   getCrew(): CharacterView[]
+}
+
+// W1 Task 5 — the player's owned hulls. getShipCount() is 0 on a fresh
+// boot now that the flagship is bought, not boot-granted.
+// W1 Task 6 — getFuel()/getDockedPoiId() read the flagship's live fleet-
+// pool fuel and the campaign-world dock binding, for smokes driving the
+// starmap navigation/dock loop deterministically.
+// W1 Task 7 — getFuel() returns both current and max so a budget smoke
+// can assert fuel spent against tank capacity without a second call.
+export interface FleetView {
+  getShipCount(): number
+  getFuel(): { current: number; max: number }
+  getDockedPoiId(): string | null
+}
+
+// W1 Task 6 — space-engagement modal state (src/sim/engagement.ts),
+// surfaced read-only for smokes that drive an intercept course to
+// contact without clicking through the modal itself.
+export interface EngagementView {
+  isOpen(): boolean
+  getEnemyKey(): string | null
+}
+
+// W1 Task 10 — tactical-combat store state, surfaced read-only so the journey
+// smoke can wait for combat to open (after clicking 交战) and then resolve
+// (auto-fire victory) without touching the debug combat-store handle.
+export interface CombatView {
+  isOpen(): boolean
+  isPaused(): boolean
 }
 
 export interface FactionView {
@@ -114,6 +150,13 @@ export interface GameStateView {
   getPlayerCharacter(): CharacterView
   getCharacter(id: string): CharacterView | null
   getShip(idOrName: string): ShipView | null
+  // W1 Task 5 — the player's fleet (owned Ship entities). Used by the
+  // no-ship-start smoke to prove a fresh boot owns nothing.
+  getPlayerFleet(): FleetView
+  // W1 Task 6 — read-only space-engagement modal state.
+  getEngagement(): EngagementView
+  // W1 Task 10 — read-only tactical-combat open state.
+  getCombat(): CombatView
   getFaction(id: string): FactionView | null
   getDialogue(): DialogueView | null
   getScene(): SceneView
@@ -233,6 +276,9 @@ function makeCharacterView(entity: Entity, sceneId: string): CharacterView {
       const e = entity.get(Knows(p.entity))!
       return { grievances: e.grievances.length, credits: e.credits.length }
     },
+    getActionKind(): string {
+      return entity.get(Action)?.kind ?? 'idle'
+    },
     getPsyche() {
       if (!entity.has(Psyche) || !entity.has(Attributes)) return null
       const p = entity.get(Psyche)!
@@ -261,6 +307,19 @@ function findShipByKey(key: string): { entity: Entity; sceneId: string } | null 
     }
   }
   return null
+}
+
+// Count the player's owned hulls across all scene worlds. Player ships
+// carry Owner{ kind: 'character' }; enemy / neutral hulls do not.
+function countPlayerShips(): number {
+  let n = 0
+  for (const sceneId of SCENE_IDS) {
+    const w = getWorld(sceneId)
+    for (const e of w.query(Ship, Owner)) {
+      if (e.get(Owner)!.kind === 'character') n += 1
+    }
+  }
+  return n
 }
 
 function makeShipView(entity: Entity): ShipView {
@@ -376,6 +435,28 @@ export function getGameState(): GameStateView {
       const hit = findShipByKey(idOrName)
       if (!hit) return null
       return makeShipView(hit.entity)
+    },
+    getPlayerFleet(): FleetView {
+      return {
+        getShipCount: countPlayerShips,
+        getFuel: () => {
+          const pool = getFleetPool()
+          return { current: pool.fuelCurrent, max: pool.fuelMax }
+        },
+        getDockedPoiId: getFleetDockedPoiId,
+      }
+    },
+    getEngagement(): EngagementView {
+      return {
+        isOpen: () => useEngagement.getState().open,
+        getEnemyKey: () => useEngagement.getState().enemyKey,
+      }
+    },
+    getCombat(): CombatView {
+      return {
+        isOpen: () => useCombatStore.getState().open,
+        isPaused: () => useCombatStore.getState().paused,
+      }
     },
     getFaction(id: string): FactionView | null {
       if (!FACTION_IDS.has(id)) return null

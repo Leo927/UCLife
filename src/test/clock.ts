@@ -106,7 +106,15 @@ export function advanceSimByGameMs(gameMs: number): void {
   {
     const space = getWorld('spaceCampaign')
     if (space.queryFirst(IsPlayer, ShipBody)) {
-      spaceSimSystem(space, dt / MS_PER_GAME_SECOND)
+      // Space physics (enemy AI + autopilot integration) must see a
+      // frame-sized dt, never a coarse slice. Prod's RAF loop always ticks
+      // at ~tickGameMs; a coarse idle step (e.g. the multi-day delivery
+      // wait) otherwise feeds a 600s dt, and any aggroed enemy chasing the
+      // docked player integrates ~42000px per slice and flies off-sector.
+      // Orbits track the clock via getSmoothedGameMs() (§2 of spaceSim), not
+      // this dt, so clamping only steadies physics — it doesn't stall orbits.
+      const spaceDtMs = Math.min(dt, testConfig.tickGameMs)
+      spaceSimSystem(space, spaceDtMs / MS_PER_GAME_SECOND)
     }
   }
   movementSystem(world, minutesThisFrame)

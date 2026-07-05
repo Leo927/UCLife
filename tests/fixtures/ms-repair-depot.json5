@@ -1,0 +1,28 @@
+// Task 9 (W1 playable-loop) — ms-repair smoke fixture. A lightFreighter
+// flagship docked at Von Braun (so the VB state hangar's repair pool is
+// reachable) plus one pre-damaged MS already parked at that depot
+// (dockedAt set, no storedOnShip) via the ms[].hullCurrent override. A
+// separate fixture from starter-fleet.json5 on purpose — starter-fleet is
+// shared by every other MS smoke (ms-custody, ms-sortie-loop, ms-roster-
+// scale, ...) and ship-repair.spec.ts already asserts the VB hangar's full
+// throughput restores the flagship within a fixed tick budget; adding a
+// second damaged repair target to that shared fixture would silently
+// split the pool and break that assertion.
+{
+  seed: 'ms-repair-depot-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 5000,
+    location: { scene: 'vonBraunCity', x: 20, y: 50 },
+  },
+
+  ships: [
+    { id: 'ship', template: 'lightFreighter', dockedAt: 'vonBraun', flagship: true },
+  ],
+
+  ms: [
+    { key: 'ms-depot-0', template: 'mobileWorker', dockedAt: 'vonBraun', hullCurrent: 40 },
+  ],
+}

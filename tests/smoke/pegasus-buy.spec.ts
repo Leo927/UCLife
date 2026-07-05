@@ -42,7 +42,7 @@ const REQUIRED_HANDLES = [
 ]
 
 test('pegasus buy: enqueue, arrive, receive, roster, save round-trip, capacity', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.fillJobVacancies(['hangar_manager']))

@@ -1,6 +1,9 @@
 // MS system configuration — Phase 6.2.5.A.
 {
-  starterMsTemplateId: 'gm_pre',
+  // W1 Task 5 — a prototype GM (gm_pre) is not plausible cargo on a used
+  // civilian freighter in UC 0077. The starter hull is a civilian
+  // MobileWorker; the retrofit / gm_pre specs pin their frame via fixture.
+  starterMsTemplateId: 'mobileWorker',
   starterMsEntityKey: 'ms-player-0',
 
   // Weapons the player starts with in their parts inventory.

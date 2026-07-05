@@ -33,7 +33,7 @@ registerDebugHandle('setCourse', (tx: number, ty: number, destPoiId: string | nu
   const w = getWorld('spaceCampaign')
   const e = w.queryFirst(IsPlayer, Course)
   if (!e) return false
-  e.set(Course, { tx, ty, destPoiId, active: true })
+  e.set(Course, { tx, ty, destPoiId, destEnemyKey: null, active: true })
   return true
 })
 
@@ -42,6 +42,15 @@ registerDebugHandle('shipPos', () => {
   const e = w.queryFirst(IsPlayer, Position)
   if (!e) return null
   return { ...e.get(Position)! }
+})
+
+// Task 6 — Course introspection for the intercept smoke and the
+// save/load round-trip check on destEnemyKey.
+registerDebugHandle('courseSnapshot', () => {
+  const w = getWorld('spaceCampaign')
+  const e = w.queryFirst(IsPlayer, Course)
+  if (!e) return null
+  return { ...e.get(Course)! }
 })
 
 registerDebugHandle('takeHelmCheat', () => takeHelm())

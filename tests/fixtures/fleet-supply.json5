@@ -1,0 +1,35 @@
+// W1 Task 5 — fleet-supply smoke fixture. Mirrors player-with-cash-at-vb
+// (cash player at the Von Braun civic core) plus the old boot fleet state
+// the smoke depends on: a lightFreighter flagship docked at Von Braun and a
+// `gm_pre` starter MS aboard it. The smoke's daily-drain math pins the
+// flagship + gm_pre supplyPerDay, so the MS frame is fixed here (it is no
+// longer boot-granted).
+{
+  seed: 'fleet-supply-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'vonBraunCity',
+
+  player: {
+    money: 200000,
+    location: { scene: 'vonBraunCity', x: 20, y: 16 },
+  },
+
+  ships: [
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun', flagship: true },
+  ],
+
+  ms: [
+    { key: 'ms-player-0', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 0 },
+  ],
+
+  parts: {
+    weapons: { 'ms-ballisticGun': 1, 'ms-missileRack': 1 },
+    frameMods: {
+      extPropellantTank: 1,
+      autoloader: 1,
+      lifeSupportPod: 1,
+      armorPlating: 1,
+      subThruster: 1,
+    },
+  },
+}

@@ -15,30 +15,38 @@
 // gets integrated by the same per-frame loop.
 
 import type { World } from 'koota'
-import { Position, Velocity, Thrust, EnemyAI, IsPlayer, ShipBody } from '../ecs/traits'
+import { Position, Velocity, Thrust, EnemyAI, IsPlayer, ShipBody, Body } from '../ecs/traits'
 import { thrustToward } from '../engine/space'
 import { spaceConfig } from '../config'
 import { inAggroRadius, distSq } from '../engine/space/engagement'
-import { getDockedPoiId } from '../sim/ship'
-
-const PATROL_WAYPOINT_RADIUS = 40
-const CHASE_HYSTERESIS = 1.5
-const ENEMY_SPEED_FACTOR = 0.85
+import { getDockedPoiId, getFlagshipEntity } from '../sim/ship'
 
 export function enemyAISystem(world: World): void {
-  // A docked player ship is parked at a POI and not a valid target — pirates
-  // ignore it so they don't path toward Von Braun while the player walks
-  // around the city. Aggro only resumes once the player undocks.
-  const playerDocked = !!getDockedPoiId()
+  // Mirrors spaceSim.ts §6's immunity guard. A docked player ship is parked
+  // at a POI and not a valid target — pirates ignore it so they don't path
+  // toward Von Braun while the player walks around the city. Aggro only
+  // resumes once the player undocks. bootstrapSpaceCampaign also always
+  // spawns an IsPlayer+ShipBody placeholder before the player owns a
+  // flagship (W1 Task 5 — the first hull is bought, not granted at boot);
+  // getDockedPoiId() alone is null in that state too, so it must never be
+  // the sole gate — no flagship = not flying = immune, same as parked.
+  const playerTargetable = !!getFlagshipEntity() && !getDockedPoiId()
   let playerPos: { x: number; y: number } | null = null
-  if (!playerDocked) {
+  if (playerTargetable) {
     for (const e of world.query(IsPlayer, ShipBody, Position)) {
       playerPos = e.get(Position)!
       break
     }
   }
 
-  const maxSpeed = spaceConfig.baseShipMaxSpeed * spaceConfig.shipSpeedScale * ENEMY_SPEED_FACTOR
+  const maxSpeed = spaceConfig.baseShipMaxSpeed * spaceConfig.shipSpeedScale * spaceConfig.enemyAi.speedFactor
+
+  // Live celestial-body positions (updated by spaceSim §2 before this system),
+  // used to resolve orbit-anchored patrols against their body's current spot.
+  const bodyPos = new Map<string, { x: number; y: number }>()
+  for (const b of world.query(Body, Position)) {
+    bodyPos.set(b.get(Body)!.bodyId, b.get(Position)!)
+  }
 
   for (const e of world.query(EnemyAI, Position, Velocity, Thrust)) {
     const ai = e.get(EnemyAI)!
@@ -49,9 +57,22 @@ export function enemyAISystem(world: World): void {
     if (playerPos) {
       if ((mode === 'patrol' || mode === 'idle') && inAggroRadius(pos, playerPos, ai.aggroRadius)) {
         mode = 'chase'
-      } else if (mode === 'chase' && !inAggroRadius(pos, playerPos, ai.aggroRadius * CHASE_HYSTERESIS)) {
+      } else if (mode === 'chase' && !inAggroRadius(pos, playerPos, ai.aggroRadius * spaceConfig.enemyAi.chaseHysteresis)) {
         mode = 'patrol'
       }
+    }
+
+    // Orbit-anchored enemies rigidly ride their body at a fixed offset while
+    // not engaged — a direct position set (not physics) so the fast-jumping,
+    // clock-driven moon can't leave them behind under coarse sim steps. Aggro
+    // still breaks them off to chase/flee below.
+    const anchorLive = ai.anchorBodyId ? bodyPos.get(ai.anchorBodyId) : undefined
+    if (anchorLive && (mode === 'patrol' || mode === 'idle')) {
+      e.set(Position, { x: anchorLive.x + ai.anchorOffset.x, y: anchorLive.y + ai.anchorOffset.y })
+      e.set(Velocity, { vx: 0, vy: 0 })
+      e.set(Thrust, { ax: 0, ay: 0 })
+      if (mode !== ai.mode) e.set(EnemyAI, { ...ai, mode })
+      continue
     }
 
     let target: { x: number; y: number } | null = null
@@ -66,7 +87,8 @@ export function enemyAISystem(world: World): void {
       target = { x: pos.x + (dx / len) * 1000, y: pos.y + (dy / len) * 1000 }
     } else if (mode === 'patrol' && ai.patrolPath.length > 0) {
       target = ai.patrolPath[ai.patrolIdx % ai.patrolPath.length]
-      if (distSq(pos, target) < PATROL_WAYPOINT_RADIUS * PATROL_WAYPOINT_RADIUS) {
+      const waypointR = spaceConfig.enemyAi.patrolWaypointRadiusPx
+      if (distSq(pos, target) < waypointR * waypointR) {
         advancePatrol = true
       }
     }

@@ -17,6 +17,7 @@ import './ambitions'  // ambitions, event log, flags, runAmbitionsTick
 import './physiology' // Phase 4 — force-onset, day-tick, diagnose, treatment, getters
 import './cheats'     // setPlayerStat + cheatMoney / cheatPiloting
 import './ship'       // boardShip, helm, setCourse, tickSpace, ...
+import './nav'         // Task 6 — debugNavigate: drive navigateTo/dockAt without a click
 import './combat'     // combat / transition / engagement stores + fastWinCombat
 import './save'       // saveGame / loadGame
 import './jobs'       // fillJobVacancies — deterministic NPC/workstation setup for smoke tests

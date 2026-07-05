@@ -116,8 +116,10 @@
     'ui.space.leave-helm':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.space.menu-navigate':      { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.space.menu-dock':          { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.menu-intercept':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.space.right-navigate':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.space.left-poi':           { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.space.left-enemy':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
     'ui.space.left-empty':         { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 
     // ── Tactical view ───────────────────────────────────────────────

@@ -29,13 +29,25 @@
   },
 
   ships: [
-    {
-      id: 'ship',
-      template: 'lightFreighter',
-      name: '自由号',
-      dockedAt: 'vonBraun',
-    },
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun', flagship: true },
   ],
+
+  // W1 Task 5 — the starter MS is pinned here (no longer boot-granted). A
+  // `gm_pre` so the sortie smoke's beamRifle 'Inf'-ammo assertion holds.
+  ms: [
+    { key: 'ms-player-0', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 0 },
+  ],
+
+  parts: {
+    weapons: { 'ms-ballisticGun': 1, 'ms-missileRack': 1 },
+    frameMods: {
+      extPropellantTank: 1,
+      autoloader: 1,
+      lifeSupportPod: 1,
+      armorPlating: 1,
+      subThruster: 1,
+    },
+  },
 
   // NPC captain authored so the recovery-tug skill gate
   // (computers + mechanics ≥ sortieConfig.tugSkillThreshold, currently

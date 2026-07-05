@@ -1,4 +1,4 @@
-import { test, expect, isExpectedTestModePortraitMissing, isKnownPixiBatcherStartup, isKnownPixiResolutionTeardown } from './_fixtures'
+import { test, expect, isExpectedTestModePortraitMissing, isKnownPixiResolutionTeardown } from './_fixtures'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Win = any
@@ -16,7 +16,6 @@ type Win = any
 // load. The frozen test clock means no ship dock/undock can churn a door mid-window.
 test('static city geometry is not re-tessellated every frame (regression gate)', async ({ sim }) => {
   sim.allowConsoleError(isExpectedTestModePortraitMissing)
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   sim.allowConsoleError(isKnownPixiResolutionTeardown)
 
   await sim.boot({

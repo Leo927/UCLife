@@ -82,6 +82,8 @@ function spawnDeliveredMs(msClassId: string, poiId: string): { entity: Entity; e
       currentAmmoByWeapon: {},
       currentLifeSupport: 0,
       frameMods: [],
+      // A freshly-delivered hull is always undamaged.
+      damageState: 'ready',
     }),
     EntityKey({ key }),
   )

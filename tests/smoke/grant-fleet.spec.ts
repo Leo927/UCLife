@@ -16,7 +16,7 @@ const REQUIRED_HANDLES = [
 ]
 
 test('grantFleet adds Pegasus + lunarMilitia, captains, save round-trip', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   const before = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

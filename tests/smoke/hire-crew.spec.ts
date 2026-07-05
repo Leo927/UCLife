@@ -30,7 +30,7 @@ const REQUIRED_HANDLES = [
 ]
 
 test('hire-crew end-to-end: captain Effect, crew move/fire, manRest, save round-trip', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.cheatMoney(2_000_000))

@@ -12,7 +12,9 @@ const EXPECTED_ARMOR_BASE = 200
 const EXPECTED_TOP_SPEED = 60
 const EXPECTED_BRIG = 2
 const EXPECTED_CREW_REQUIRED = 4
-const EXPECTED_FUEL_STORAGE = 16
+// W1 Task 7 — lightFreighter.fuelMax raised 16 -> 60 (starter-tank budget
+// tuning); ShipStatSheet.fuelStorage projects from the same authored value.
+const EXPECTED_FUEL_STORAGE = 60
 const EXPECTED_SUPPLY_STORAGE = 40
 
 const FIRST_DAMAGE_HULL = 600
@@ -37,7 +39,7 @@ const REQUIRED_HANDLES = [
 ]
 
 test('ship repair: damage, throughput, focus priority, save round-trip', async ({ sim }) => {
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   const sheet = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

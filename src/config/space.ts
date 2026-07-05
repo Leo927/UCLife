@@ -13,7 +13,13 @@ export interface SpaceConfig {
   aggroContactRadius: number
   fitSystemPaddingPx: number
   dockSnapRadius: number
+  enemyPickRadius: number
   autopilotArriveRadiusPx: number
+  enemyAi: {
+    patrolWaypointRadiusPx: number
+    chaseHysteresis: number
+    speedFactor: number
+  }
   liftLine: {
     dashWorldPx: number
     gapWorldPx: number

@@ -62,6 +62,46 @@ describe('getGameState', () => {
     expect(ship!.getHullPct()).toBe(1)
   })
 
+  it('getPlayerFleet counts zero ships when no fixture ship exists', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getPlayerFleet().getShipCount()).toBe(0)
+  })
+
+  it('getPlayerFleet counts the fixture flagship', () => {
+    applyFixture('amuro-at-recruit-office')
+    expect(getGameState().getPlayerFleet().getShipCount()).toBe(1)
+  })
+
+  it('getPlayerFleet.getDockedPoiId reports the fixture dock binding', () => {
+    applyFixture('starter-fleet')
+    expect(getGameState().getPlayerFleet().getDockedPoiId()).toBe('vonBraun')
+  })
+
+  it('getPlayerFleet.getFuel reads the topped-off fixture fuel pool', () => {
+    applyFixture('starter-fleet')
+    const fuel = getGameState().getPlayerFleet().getFuel()
+    expect(fuel.current).toBeGreaterThan(0)
+    expect(fuel.max).toBeGreaterThan(0)
+    expect(fuel.current).toBe(fuel.max)
+  })
+
+  it('getEngagement.isOpen is false when no encounter has been prompted', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getEngagement().isOpen()).toBe(false)
+    expect(getGameState().getEngagement().getEnemyKey()).toBeNull()
+  })
+
+  it('CharacterView.getActionKind defaults to idle for a freshly spawned player', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getPlayerCharacter().getActionKind()).toBe('idle')
+  })
+
+  it('getCombat reads the tactical-combat store (closed + paused by default)', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getCombat().isOpen()).toBe(false)
+    expect(getGameState().getCombat().isPaused()).toBe(true)
+  })
+
   it('getFaction reads the post-fixture fund as a "Money" resource', () => {
     applyFixture('amuro-at-recruit-office')
     const ae = getGameState().getFaction('anaheim')

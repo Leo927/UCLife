@@ -161,13 +161,16 @@
   shipSalesDeskTileVonBraunDrydock: { x: 40, y: 556 },
 
   // Phase 6.2.C2 — sales-rep catalog. Maps each AE sales workstation
-  // specId to the single hull class that rep sells. Adding a new rep
-  // is one new spec + one new row here; the aeShipSales branch is
-  // generic over the entry. Each shipClassId must resolve to a row in
-  // ship-classes.json5.
+  // specId to the list of hull classes that rep sells (rendered as one
+  // product section per id, in list order). Adding a new rep is one new
+  // spec + one new row here; the aeShipSales branch is generic over the
+  // entry. Each shipClassId must resolve to a row in ship-classes.json5.
+  // Task 4 (W1 playable loop) puts the cheap `lightFreighter` starter
+  // hull FIRST on the VB rep's list, ahead of the existing `lunarMilitia`,
+  // so it's the obvious first purchase for a player with no ship yet.
   salesRepCatalog: {
-    ae_ship_sales_vb:  { shipClassId: 'lunarMilitia' },
-    ae_ship_sales_vbd: { shipClassId: 'pegasusClass' },
+    ae_ship_sales_vb:  { shipClassIds: ['lightFreighter', 'lunarMilitia'] },
+    ae_ship_sales_vbd: { shipClassIds: ['pegasusClass'] },
   },
 
   // Phase 6.2.5.B — vehicle (MS / fighter / MW) sales-rep catalog. Each

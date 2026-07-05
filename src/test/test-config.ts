@@ -8,6 +8,9 @@ export interface TestConfig {
   maxStepTicks: number
   msPerGameMinute: number
   msPerGameSecond: number
+  walkClickMarginPx: number
+  spaceClickInsetPx: number
+  coarseSliceGameMs: number
 }
 
 export const testConfig = json5.parse(raw) as TestConfig

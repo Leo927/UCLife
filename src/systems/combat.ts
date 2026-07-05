@@ -31,8 +31,9 @@ import type { Entity } from 'koota'
 import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
-  EnemyAI, IsFlagshipMark, IsInActiveFleet, PlayerPartsInventory,
+  EnemyAI, IsFlagshipMark, IsInActiveFleet, PlayerPartsInventory, Ms,
 } from '../ecs/traits'
+import { refreshMsLayout, refreshAllDepotMsLayouts } from '../ecs/spawn'
 import { formationOffsetForSlot } from './fleetFormation'
 import { getEnemyShip, isEnemyShipId } from '../data/enemyShips'
 import { getShipClass } from '../data/ship-classes'
@@ -46,8 +47,9 @@ import { getWorld, SCENE_IDS } from '../ecs/world'
 import { emitSim, onSim } from '../sim/events'
 import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
+import { getSceneConfig } from '../data/scenes'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
-import { combatConfig, cockpitConfig } from '../config'
+import { combatConfig, cockpitConfig, worldConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
 } from '../sim/cockpit'
@@ -801,9 +803,11 @@ function applyDefeatConsequence(): void {
   // migratePlayerToScene moves the player entity out of playerShipInterior
   // so the flagship destroy can't strand them.
   const placement = getAirportPlacement(drop.airportHubId)
+  const dropSceneCfg = getSceneConfig(drop.sceneId)
+  const spawnTile = (dropSceneCfg.sceneType === 'micro' && dropSceneCfg.playerSpawnTile) || { x: 0, y: 0 }
   const arrival = placement
     ? { x: placement.arrivalPx.x, y: placement.arrivalPx.y }
-    : { x: 20 * 20, y: 50 * 20 }   // vonBraunCity spawn fallback in tile px (TILE=20)
+    : { x: spawnTile.x * worldConfig.tilePx, y: spawnTile.y * worldConfig.tilePx }
   migratePlayerToScene(drop.sceneId, arrival)
 
   // Destroy the flagship Ship entity. Ownership is gone; the player must
@@ -811,7 +815,29 @@ function applyDefeatConsequence(): void {
   // escorts (if any) survive — the player can promote one to flagship at
   // the war room when they next board.
   const ship = getFlagshipEntity()
+  const lostShipKey = ship?.get(EntityKey)?.key ?? ''
   if (ship) ship.destroy()
+
+  // MS stowed aboard the lost flagship are lost with the ship — diegetically
+  // they had nowhere to go. Destroying them (not just leaving a dangling
+  // storedOnShipKey) matters mechanically too: custody verbs would refuse
+  // forever against a dead ship key, fleetSupplyDrain would bill their
+  // upkeep in perpetuity, and grantStarterMsToShip's idempotency check keys
+  // on the starter MS entity existing at all — leaving it alive would block
+  // the starter bundle from ever re-granting on the player's next hull.
+  if (lostShipKey) {
+    let lostMsCount = 0
+    for (const msEnt of shipWorld().query(Ms)) {
+      if (msEnt.get(Ms)!.storedOnShipKey !== lostShipKey) continue
+      msEnt.destroy()
+      lostMsCount += 1
+    }
+    if (lostMsCount > 0) {
+      refreshMsLayout()
+      refreshAllDepotMsLayouts()
+      logEvent(`随舰损失的MS · 损失 ${lostMsCount} 台`)
+    }
+  }
 
   emitSim('toast', { textZh: '飞船被毁 · 救援运输船把你丢在了另一颗殖民地' })
   logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'}`)
@@ -1633,7 +1659,14 @@ export function combatSystem(_world: World, dtMs: number): void {
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.
   // Each threshold fires at most once per engagement — tracked in
   // flagshipThresholdsHit (reset by startCombat).
-  const shipNow = ship.get(Ship)!
+  //
+  // The flagship can be destroyed EARLIER in this same tick: an enemy weapon
+  // (§4) or projectile (§5) that finishes it fires endCombat('defeat'), which
+  // destroys the flagship entity (applyDefeatConsequence). Sections 6/7 assume
+  // a live flagship, so re-query and bail if the fight already resolved.
+  const flagshipNow = getPlayerShip()
+  if (!flagshipNow) return
+  const shipNow = flagshipNow.get(Ship)!
   if (shipNow.hullMax > 0) {
     const hullPct = shipNow.hullCurrent / shipNow.hullMax
     for (const pct of combatConfig.flagshipPauseHullPcts) {

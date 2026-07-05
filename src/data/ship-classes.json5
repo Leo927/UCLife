@@ -89,7 +89,11 @@
       angularAccel: 4.0,
       maxAngVel: 1.5,
       crMax: 100,
-      fuelMax: 16,
+      // W1 Task 7 — 16 made vonBraun's own 12-fuel takeoff cost alone eat
+      // 75% of the tank, leaving no budget for a round trip to any
+      // patrol and back. 60 puts a standard sortie (takeoff + intercept
+      // + dock) at roughly half the tank — see fuel-budget.spec.ts.
+      fuelMax: 60,
       suppliesMax: 40,
       // Per-day supply drain (Starsector model — aggregated across the
       // fleet by the daily drain tick at 6.2.F). A civilian light hull
@@ -136,7 +140,13 @@
         // pirateLight so a no-input player and a default enemy meet midway.
         maintainRange: 200,
       },
-      priceFiat: 80000,
+      // Phase W1 (Task 4) — starter hull, purchasable from the VB AE sales
+      // rep before the player owns any ship. Priced at ~21 median job-day
+      // wages (median wage across every src/config/jobs.json5 catalog
+      // entry = 200/day → 21 × 200 = 4200), so a player working a median
+      // job can afford it inside a month without a grind. See
+      // src/data/ship-classes.test.ts for the reachability invariant.
+      priceFiat: 4200,
       // Captain's office sits in its own row above the bridge so it's
       // adjacent (south door into the bridge). Hosts two kiosks: the
       // readiness-summary desk (Phase 6.0) and the comm panel (Phase
@@ -202,12 +212,13 @@
       ],
     },
 
-    // Phase 6.2.C1 — the AE VB sales rep's only product. UC-flavored
-    // civilian-grade light escort: a Federation-surplus shuttle-frame
-    // refitted with two small mounts. Light enough to dock in a surface
-    // hangar's `smallCraft` slot, mean enough to fight off a single
-    // pirate raid. Cheaper than the lightFreighter so the player can
-    // afford a second hull early.
+    // Phase 6.2.C1 — the AE VB sales rep's second product (Task 4 of the
+    // W1 playable loop adds the cheaper `lightFreighter` starter hull as
+    // the rep's first). UC-flavored civilian-grade light escort: a
+    // Federation-surplus shuttle-frame refitted with two small mounts.
+    // Light enough to dock in a surface hangar's `smallCraft` slot, mean
+    // enough to fight off a single pirate raid — the step up once the
+    // player has outgrown the starter hull.
     {
       id: 'lunarMilitia',
       nameZh: '月面民兵护卫艇',

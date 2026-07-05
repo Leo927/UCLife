@@ -3,7 +3,7 @@
 // inventory whose mountType matches the selected hardpoint. Confirm
 // writes mountedWeapons[hardpointId] and adjusts inventory count.
 
-import { useQueryFirst, useTrait } from 'koota/react'
+import { useTrait } from 'koota/react'
 import { Ms, MsStatSheet, PlayerPartsInventory, EntityKey } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
 import { getMsWeapon, getMsWeaponsForType } from '../data/ms-weapons'
@@ -25,6 +25,19 @@ function findMsEntity(msKey: string) {
   return null
 }
 
+// Task 8 — the retrofit panel now opens from depot scenes too (the
+// msTerminal reachability fix in interaction.ts), whose WorldProvider is
+// scoped to that depot scene, not playerShipInterior. PlayerPartsInventory
+// is a singleton that only ever lives in playerShipInterior, so it must be
+// resolved via a direct getWorld(SHIP_SCENE_ID) query (like findMsEntity
+// above) rather than useQueryFirst, which reads the *active* WorldProvider
+// scene and would silently miss it from any other scene.
+function findPartsEntity() {
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const ent of w.query(PlayerPartsInventory)) return ent
+  return null
+}
+
 export function MsRetrofitPanel() {
   const msRetrofitKey = useUI((s) => s.msRetrofitKey)
   const setMsRetrofit = useUI((s) => s.setMsRetrofit)
@@ -32,7 +45,7 @@ export function MsRetrofitPanel() {
   const msEnt = msRetrofitKey ? findMsEntity(msRetrofitKey) : null
   const msData = useTrait(msEnt ?? null, Ms)
 
-  const partsEnt = useQueryFirst(PlayerPartsInventory)
+  const partsEnt = findPartsEntity()
   const partsData = useTrait(partsEnt, PlayerPartsInventory)
 
   if (!msRetrofitKey || !msData || !partsData) return null
@@ -127,7 +140,7 @@ export function MsRetrofitPanel() {
 
   return (
     <div className="status-overlay" onClick={onClose}>
-      <div className="status-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="status-panel" data-testid="ms-retrofit-panel" onClick={(e) => e.stopPropagation()}>
         <header className="status-header">
           <h2>MS 终端 · {msData.name || cls.nameZh}</h2>
           <button className="status-close" onClick={onClose} aria-label="关闭">✕</button>
@@ -192,6 +205,7 @@ export function MsRetrofitPanel() {
                     </span>
                     <button
                       className="status-close"
+                      data-install-frame-mod={def.id}
                       disabled={tooBig}
                       style={{ marginLeft: 8, fontSize: '0.8em', padding: '2px 8px' }}
                       onClick={() => onInstallMod(def.id)}

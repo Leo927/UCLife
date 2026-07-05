@@ -14,7 +14,12 @@ export interface PoiSnapshot {
 }
 export interface ShipSnapshot {
   x: number; y: number; vx: number; vy: number
-  course: { tx: number; ty: number; destPoiId: string | null; active: boolean } | null
+  course: {
+    tx: number; ty: number
+    destPoiId: string | null
+    destEnemyKey: string | null
+    active: boolean
+  } | null
 }
 export interface EnemyShipSnapshot {
   /** Persistent key from EntityKey trait — used to dedupe DisplayObjects across frames. */

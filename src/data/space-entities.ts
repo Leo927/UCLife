@@ -33,6 +33,11 @@ export interface SpaceEntity {
   patrolPath?: SpacePos[]
   aggroRadius: number
   fleeHullPct: number
+  // Optional orbit anchor: a celestialBodies.json5 body id. When set, the
+  // authored spawn / patrol coords are absolute at t=0 but track the body's
+  // live position at runtime (offset preserved), so a near-moon patrol
+  // follows the orbiting moon rather than being left behind as it drifts.
+  anchorBodyId?: string
 }
 
 interface SpaceEntitiesFile {
@@ -105,6 +110,9 @@ for (const e of parsed.entities) {
       // special-npcs.json5 roster is checked by the sim-layer wiring
       // when it spawns the EnemyAI entities.
     }
+  }
+  if (e.anchorBodyId !== undefined && (typeof e.anchorBodyId !== 'string' || !e.anchorBodyId)) {
+    throw new Error(`space-entities.json5: entity "${e.id}" anchorBodyId must be a non-empty string`)
   }
   if (e.aiMode === 'patrol' && (!e.patrolPath || e.patrolPath.length < 2)) {
     throw new Error(`space-entities.json5: entity "${e.id}" patrol path needs >= 2 points`)

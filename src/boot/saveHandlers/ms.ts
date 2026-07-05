@@ -14,7 +14,8 @@ import { attachFormulas, serializeSheet, type SerializedSheet } from '../../stat
 import { rebuildSheetFromEffects, type Effect } from '../../stats/effects'
 import { attachMsStatSheet, ammoCapsForMs } from '../../ecs/msEffects'
 import { getMsClass } from '../../data/ms'
-import { grantStarterMsToFlagship, refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
+import { refreshMsLayout, refreshAllDepotMsLayouts } from '../../ecs/spawn'
+import { computeMsDamageState, type MsDamageState } from '../../ecs/msDamage'
 
 const SHIP_SCENE_ID: SceneId = 'playerShipInterior'
 
@@ -50,6 +51,11 @@ interface MsBlock {
   currentAmmoByWeapon?: Record<string, number | 'Inf'>
   currentLifeSupport?: number
   frameMods?: string[]
+  // Task 9 (W1 playable-loop) — repair-lifecycle state. Optional so pre-
+  // Task-9 saves round-trip cleanly; restoreMs recomputes it from
+  // hull/armor + dockedAtPoiId when absent (computeMsDamageState is a
+  // pure function of exactly those fields, so this is never stale).
+  damageState?: MsDamageState
 }
 
 interface PartsBlock {
@@ -97,6 +103,7 @@ function snapshotMs(): MsRosterBlock | undefined {
       currentAmmoByWeapon: ammoSerialized,
       currentLifeSupport: ms.currentLifeSupport,
       frameMods: ms.frameMods.length > 0 ? [...ms.frameMods] : undefined,
+      damageState: ms.damageState,
     })
   }
   if (roster.length === 0) return undefined
@@ -123,8 +130,10 @@ function restoreMs(saved: unknown): void {
   for (const ent of w.query(PlayerPartsInventory)) doomed.push(ent)
   for (const ent of doomed) ent.destroy()
 
+  // W1 Task 5 — a save with no MS roster (a no-MS game, or a pre-6.2.5 save)
+  // restores to an empty roster. The starter MS is no longer auto-granted
+  // here; it's earned aboard the player's first bought hull.
   if (!saved || typeof saved !== 'object') {
-    grantStarterMsToFlagship()
     refreshMsLayout()
     refreshAllDepotMsLayouts()
     return
@@ -132,7 +141,6 @@ function restoreMs(saved: unknown): void {
 
   const block = saved as MsRosterBlock
   if (!Array.isArray(block.roster) || block.roster.length === 0) {
-    grantStarterMsToFlagship()
     refreshMsLayout()
     refreshAllDepotMsLayouts()
     return
@@ -148,6 +156,12 @@ function restoreMs(saved: unknown): void {
         ammoRestored[hpId] = count === 'Inf' ? Infinity : (count as number)
       }
     }
+    const dockedAtPoiId = b.dockedAtPoiId ?? ''
+    const damageState = b.damageState ?? computeMsDamageState({
+      hullCurrent: b.hullCurrent, hullMax: b.hullMax,
+      armorCurrent: b.armorCurrent, armorMax: b.armorMax,
+      dockedAtPoiId,
+    })
     const msEnt = w.spawn(
       Ms({
         templateId: b.templateId,
@@ -159,7 +173,7 @@ function restoreMs(saved: unknown): void {
         mountedWeapons: b.mountedWeapons ?? {},
         storedOnShipKey: b.storedOnShipKey ?? '',
         bayIndex: b.bayIndex ?? 0,
-        dockedAtPoiId: b.dockedAtPoiId ?? '',
+        dockedAtPoiId,
         pilotId: b.pilotId ?? '',
         transitDestinationId: b.transitDestinationId ?? '',
         transitArrivalDay: b.transitArrivalDay ?? 0,
@@ -170,6 +184,7 @@ function restoreMs(saved: unknown): void {
         currentAmmoByWeapon: ammoRestored,
         currentLifeSupport: b.currentLifeSupport ?? 0,
         frameMods: b.frameMods ?? [],
+        damageState,
       }),
       EntityKey({ key: b.entityKey }),
     )
@@ -228,7 +243,9 @@ function resetMs(): void {
   for (const ent of w.query(Ms)) doomed.push(ent)
   for (const ent of w.query(PlayerPartsInventory)) doomed.push(ent)
   for (const ent of doomed) ent.destroy()
-  grantStarterMsToFlagship()
+  // W1 Task 5 — a fresh world owns no ship, so no starter MS is granted at
+  // reset. It arrives with the player's first bought hull. Refresh clears
+  // any stale MS sprites left over from the previous world.
   refreshMsLayout()
   refreshAllDepotMsLayouts()
 }

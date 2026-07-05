@@ -1,6 +1,6 @@
 // Active-fleet auto-launch + cross-POI transit + formation flying smoke.
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -28,12 +28,11 @@ const REQUIRED_HANDLES = [
 const STEP_BUDGET_MIN = 60
 
 test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   // The original check-fleet-launch.mjs also filters one specific React
   // canvas-render console error during the same scene swap.
   sim.allowConsoleError((t) => t.includes('The above error occurred in the <PixiCanvas>'))
   sim.allowConsoleError((t) => /Cannot read properties of undefined \(reading 'push'\)/.test(t))
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.cheatMoney(2_000_000))

@@ -13,7 +13,7 @@
 // CLAUDE.md § Smoke-test reliability. Salvage is deterministic by
 // construction: pirate_raider's table has a chance:1.0 ms-ballisticGun drop.
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -43,7 +43,6 @@ const BUY_FRAMEMOD = 'autoloader'
 const SALVAGE_WEAPON = 'ms-ballisticGun'   // pirate_raider chance:1.0 drop
 
 test('ms-parts: buy at dealer, salvage from combat, install on MS', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   await sim.boot({ fixture: 'ms-parts', requireHandles: REQUIRED_HANDLES })
 
   // ── 1. The AE parts dealer is seated at world-init ─────────────────────

@@ -8,7 +8,7 @@
 //   6. takeFlagshipControl() → tactical re-opens, piloting='flagship'.
 //   7. fastWinCombat → combat resolves cleanly.
 
-import { test, expect, isKnownPixiBatcherStartup } from './_fixtures'
+import { test, expect } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -24,8 +24,7 @@ const REQUIRED_HANDLES = [
 const STEP_BUDGET_MIN = 60
 
 test('cockpit: launch MS, dock, re-helm flagship', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
-  await sim.boot({ requireHandles: REQUIRED_HANDLES })
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
 
   // Boot + board + helm + jump into combat.
   const setupOk = await sim.page.evaluate(() => {

@@ -1,6 +1,11 @@
-// Phase 6.2.5.A — player aboard the flagship (playerShipInterior) with
-// auto-granted starter MS in the hangar. Drives the ms-starter-retrofit
-// smoke: assert Ms entity grant, walk to terminal, swap weapon.
+// Phase 6.2.5.A — player aboard the flagship (playerShipInterior) with a
+// starter MS in the hangar. Drives the ms-starter-retrofit smoke: assert Ms
+// entity, walk to terminal, swap weapon.
+//
+// W1 Task 5 — the starter MS is no longer boot-granted; this fixture pins it.
+// It is a `gm_pre` (hp-0 default = ms-beamRifle) so the retrofit smoke's swap
+// to ms-ballisticGun is a real change (the current civilian mobileWorker
+// starter already mounts ms-ballisticGun, which would make the swap a no-op).
 {
   seed: 'ms-starter-001',
   startDate: '2026-05-27T08:00:00Z',
@@ -13,11 +18,21 @@
   },
 
   ships: [
-    {
-      id: 'ship',
-      template: 'lightFreighter',
-      name: '自由号',
-      dockedAt: 'vonBraun',
-    },
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun', flagship: true },
   ],
+
+  ms: [
+    { key: 'ms-player-0', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 0 },
+  ],
+
+  parts: {
+    weapons: { 'ms-ballisticGun': 1, 'ms-missileRack': 1 },
+    frameMods: {
+      extPropellantTank: 1,
+      autoloader: 1,
+      lifeSupportPod: 1,
+      armorPlating: 1,
+      subThruster: 1,
+    },
+  },
 }

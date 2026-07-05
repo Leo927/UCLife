@@ -5,7 +5,7 @@
 //   4. fastWinCombat + endCombatCheat('victory') drive resolution.
 //   5. Verify combat closed, clock.mode === 'normal', enemy entity destroyed.
 
-import { test, expect, DOM_COMMIT_TIMEOUT_MS, isKnownPixiBatcherStartup, isKnownPixiResolutionTeardown } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS, isKnownPixiResolutionTeardown } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -24,7 +24,6 @@ const STARTUP_MONEY = 80_000
 const STARTUP_PILOTING = 10
 
 test('space combat: engagement loop with victory cleanup', async ({ sim }) => {
-  sim.allowConsoleError(isKnownPixiBatcherStartup)
   sim.allowConsoleError(isKnownPixiResolutionTeardown)
   await sim.boot({ requireHandles: REQUIRED_HANDLES })
 

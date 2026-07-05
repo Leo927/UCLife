@@ -68,8 +68,19 @@ export function PixiCanvas(props: Props): JSX.Element {
         // Halt the auto-render ticker before destroy so no queued frame
         // renders the half-torn-down Application (renderer goes null →
         // `_resolution` read on the next auto-render tick).
+        //
+        // rendererDestroyOptions must NOT be `true` (or carry
+        // `releaseGlobalResources: true`): that flag makes Pixi's renderer
+        // call GlobalResourceRegistry.release(), which clears every shared
+        // object pool (BigPool, TexturePool, CanvasPool) used by ALL live
+        // Pixi Applications on the page — not just this cancelled one.
+        // Multiple Applications coexist for this app's lifetime (Game's
+        // ground renderer stays mounted while TacticalView/SpaceView pop
+        // in and out), so nuking the shared pools mid-render on another
+        // app's next tick is exactly the "Cannot read properties of null
+        // (reading 'clear')" batcher crash seen on combat entry.
         a.stop()
-        a.destroy(true, { children: true, texture: true })
+        a.destroy({ removeView: true }, { children: true, texture: true })
         return
       }
       // Make the canvas CSS-fit its host. Pixi's autoDensity sets explicit
