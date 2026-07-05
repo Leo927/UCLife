@@ -124,6 +124,9 @@
 
     // ── Tactical view ───────────────────────────────────────────────
     'ui.tactical.toggle-pause':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.tactical.order-pick':      { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.tactical.order-issue':     { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
+    'ui.tactical.order-cancel':    { clip: 'audio/ui/dummy.mp3', volume: 1.0 },
 
     // ── Conversations ───────────────────────────────────────────────
     'ui.hr.accept':                { clip: 'audio/ui/dummy.mp3', volume: 1.0 },

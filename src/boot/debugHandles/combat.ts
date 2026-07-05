@@ -8,12 +8,15 @@ import { getWorld, SCENE_IDS } from '../../ecs/world'
 import type { Entity } from 'koota'
 import {
   Position, CombatShipState, EnemyAI, EntityKey, IsPlayer, IsInActiveFleet,
-  Ship, WasCaptured, IsFlagshipMark,
+  Ship, WasCaptured, IsFlagshipMark, WeaponMount,
 } from '../../ecs/traits'
 import {
   useCombatStore, startCombat, combatSystem, endCombat,
-  breakDownEnemiesForVictory, type CombatOutcome,
+  breakDownEnemiesForVictory, getPlayerMountShotCounts, type CombatOutcome,
 } from '../../systems/combat'
+import {
+  issueRally, issueFocusFire, issueRegroup, activeOrders,
+} from '../../systems/fleetOrders'
 import {
   capturePrisoner, interrogatePrisoner, ransomPrisoner, recruitPrisoner,
   executePrisoner, handOverPrisoner, releasePrisoner, tickBrigConditionsNow,
@@ -100,6 +103,22 @@ registerDebugHandle('breakDownEnemiesCheat', () => {
   return true
 })
 
+// W2 command layer — drive a fleet order without a UI surface. `point` /
+// `enemyKey` are only read for the matching `kind`; the smoke passes the
+// whole payload through to the corresponding issue* function.
+type FleetOrderDebugPayload =
+  | { kind: 'rally'; point: { x: number; y: number } }
+  | { kind: 'focusFire'; enemyKey: string }
+  | { kind: 'regroup' }
+registerDebugHandle('issueFleetOrderDebug', (order: FleetOrderDebugPayload) => {
+  if (order.kind === 'rally') return issueRally(order.point)
+  if (order.kind === 'focusFire') return issueFocusFire(order.enemyKey)
+  return issueRegroup()
+})
+
+// Read-only mirror of the standing fleet orders (rallyPoint/focusTargetKey).
+registerDebugHandle('fleetOrdersDescribe', () => activeOrders())
+
 registerDebugHandle('listEnemies', () => {
   const w = getWorld('spaceCampaign')
   const out: { key: string; pos: { x: number; y: number }; mode: string }[] = []
@@ -121,6 +140,52 @@ registerDebugHandle('launchPlayerMs', () => launchMs())
 registerDebugHandle('dockPlayerMs', (force: boolean = false) => dockMs({ force }))
 registerDebugHandle('takeFlagshipControl', () => takeFlagshipControl())
 registerDebugHandle('leaveBridgeCheat', () => { leaveBridge(); return true })
+
+// W2 command layer (Task 5) — every shipped ship class currently authors
+// only one defaultWeapons entry, so the flagship's second+ hardpoints spawn
+// empty (WeaponMount.weaponId === ''). The fire-mode smoke needs two armed
+// mounts on the same ship to prove "hold on mount 0 doesn't block mount 1's
+// auto-fire" — this test-only setup verb arms an existing (possibly empty)
+// mount without touching ship-classes.json5 content/balance. The optional
+// firingArcRad override lets the volley-targeting smoke guarantee two
+// enemies are simultaneously in-arc without depending on live heading.
+registerDebugHandle('armWeaponMountForTest', (
+  mountIdx: number, weaponId: string, firingArcRad?: number,
+): boolean => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(WeaponMount)) {
+    const m = e.get(WeaponMount)!
+    if (m.mountIdx !== mountIdx) continue
+    e.set(WeaponMount, {
+      ...m,
+      weaponId,
+      chargeSec: 0,
+      ready: false,
+      firingArcRad: firingArcRad ?? m.firingArcRad,
+    })
+    return true
+  }
+  return false
+})
+
+// Per-mount shot count + last-fired-at target — the fire-mode smoke's only
+// way to observe "did this mount fire" without asserting on hull numbers
+// (which auto-fire from other mounts / enemies would also move).
+registerDebugHandle('playerMountShotCounts', () => getPlayerMountShotCounts())
+
+// Live enemy key + world position — the volley-targeting smoke reads this
+// to aim at a specific enemy without hardcoding spawn-slot math (enemies
+// close toward the player over the drive, so spawn coordinates go stale).
+registerDebugHandle('combatEnemySnapshot', () => {
+  const w = getWorld('playerShipInterior')
+  const out: { key: string; pos: { x: number; y: number } }[] = []
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    const cs = e.get(CombatShipState)!
+    if (cs.side !== 'enemy' || cs.isFlagship || cs.isPlayer) continue
+    out.push({ key: e.get(EntityKey)!.key, pos: { x: cs.pos.x, y: cs.pos.y } })
+  }
+  return out
+})
 
 registerDebugHandle('combatEntities', () => {
   const w = getWorld('playerShipInterior')

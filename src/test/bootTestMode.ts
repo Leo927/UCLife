@@ -27,6 +27,7 @@ import { step } from './runtime'
 import {
   getEntityScreenCoords, getEntityScreenCoordsClamped, getPoiScreenCoords, getPoiScreenCoordsClamped,
   getEnemyScreenCoords, getEnemyScreenCoordsClamped, getEntityWorldPos,
+  getTacticalEnemyScreenCoords, getTacticalWorldScreenCoords,
 } from './canvasHitTest'
 import { getGameState } from './gameStateView'
 import { useDebug } from '../debug/store'
@@ -152,6 +153,8 @@ export default async function bootTestMode(params: TestBootParams): Promise<void
   handle.getPoiScreenCoordsClamped = getPoiScreenCoordsClamped
   handle.getEnemyScreenCoords = getEnemyScreenCoords
   handle.getEnemyScreenCoordsClamped = getEnemyScreenCoordsClamped
+  handle.getTacticalEnemyScreenCoords = getTacticalEnemyScreenCoords
+  handle.getTacticalWorldScreenCoords = getTacticalWorldScreenCoords
   // Phase 5 will replace this with a real navigable view; we wire the
   // function reference here so the runtime surface (smoke checks +
   // calling code) stays stable across the Phase 5 swap.

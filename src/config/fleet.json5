@@ -360,8 +360,7 @@
 
     // Per-tactical-tick CP regen. `regenPerSec` accumulates fractional CP
     // each combat tick; the pool only increments by whole points (the
-    // fractional remainder carries). A `CP regen` info log fires on each
-    // whole-point gain so the player sees bandwidth recover.
+    // fractional remainder carries).
     regenPerSec: 0.15,
 
     // Per-day campaign partial refill — applied on day rollover so a long
@@ -376,7 +375,6 @@
     orderCosts: {
       rally: 1,
       focusFire: 1,
-      retreat: 2,
       formationChange: 1,
       msLaunchAuth: 2,
     },

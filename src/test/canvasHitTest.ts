@@ -9,9 +9,10 @@
 // <canvas> child, located via document.querySelector at call time.
 
 import { getWorld, getActiveSceneId } from '../ecs/world'
-import { EntityKey, Position, IsPlayer, PoiTag, EnemyAI } from '../ecs/traits'
+import { EntityKey, Position, IsPlayer, PoiTag, EnemyAI, CombatShipState } from '../ecs/traits'
 import { useCamera } from '../render/cameraStore'
 import { testConfig } from './test-config'
+import { ARENA_W, ARENA_H } from '../systems/combat'
 
 export interface ScreenCoords {
   x: number
@@ -239,4 +240,54 @@ export function getEnemyScreenCoordsClamped(enemyKey: string): ScreenCoords | nu
 export function getPoiScreenCoordsClamped(poiId: string): ScreenCoords | null {
   const poi = spacePoiWorldPos(poiId)
   return poi ? spaceClampedTowardWorld(poi) : null
+}
+
+// ── Tactical-combat arena world→screen projection ───────────────────────
+//
+// PixiTacticalRenderer (src/render/space/PixiTacticalRenderer.ts) letterbox-
+// fits the fixed ARENA_W×ARENA_H arena into whatever viewport TacticalView
+// gives it, centered, with the shorter screen-axis setting the scale
+// (applyFit()). The renderer instance itself is a React-local ref with no
+// global handle, but the fit is a pure function of the canvas's own
+// bounding rect + the fixed arena size — recomputing it here (mirroring
+// applyFit()/screenToWorld() exactly, including the `Math.round` on the
+// offsets) needs no access to the live renderer.
+const TACTICAL_SCENE_ID = 'playerShipInterior'
+
+function tacticalCanvasRect(): DOMRect | null {
+  const canvasEl = document.querySelector<HTMLCanvasElement>('.tactical-canvas-host canvas')
+  return canvasEl ? canvasEl.getBoundingClientRect() : null
+}
+
+function tacticalWorldToScreen(world: { x: number; y: number }, rect: DOMRect): ScreenCoords {
+  const viewW = rect.width
+  const viewH = rect.height
+  const scale = Math.min(viewW / ARENA_W, viewH / ARENA_H)
+  const offX = Math.round((viewW - ARENA_W * scale) / 2)
+  const offY = Math.round((viewH - ARENA_H * scale) / 2)
+  return { x: rect.left + offX + world.x * scale, y: rect.top + offY + world.y * scale }
+}
+
+/**
+ * Screen coords of an arbitrary tactical-arena world point (e.g. a rally
+ * target), projected through the live tactical viewport. Returns null when
+ * the tactical overlay isn't mounted.
+ */
+export function getTacticalWorldScreenCoords(world: { x: number; y: number }): ScreenCoords | null {
+  const rect = tacticalCanvasRect()
+  return rect ? tacticalWorldToScreen(world, rect) : null
+}
+
+/**
+ * Screen coords of a tactical-arena CombatShipState entity (by EntityKey),
+ * projected through the live tactical viewport. Returns null when the
+ * overlay isn't mounted or no such entity exists in the ship-interior world.
+ */
+export function getTacticalEnemyScreenCoords(enemyKey: string): ScreenCoords | null {
+  const w = getWorld(TACTICAL_SCENE_ID)
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== enemyKey) continue
+    return getTacticalWorldScreenCoords(e.get(CombatShipState)!.pos)
+  }
+  return null
 }

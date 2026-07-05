@@ -365,4 +365,10 @@ export const CombatShipState = trait(() => ({
     hardpointId: string
   }[],
   ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 160 },
+  // W2 command layer — the hostile EntityKey this ship's unified directive
+  // resolved to this tick (nearest hostile, or a standing focus-fire order's
+  // target for escorts). '' when no hostile resolved. Debug-snapshot mirror of
+  // the per-tick resolvedTargets used by §4b's weapon-fire block; kept in sync
+  // so inspection tools can correlate firing targets with directive state.
+  currentTargetKey: '',
 }))

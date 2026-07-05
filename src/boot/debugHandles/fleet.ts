@@ -476,6 +476,11 @@ interface CombatPlayerSideSnapshot {
   // aggression slider's maintainRangeMul). Smoke asserts cautious holds at a
   // wider range than aggressive.
   aiMaintainRange: number
+  // W2 command layer — the hostile EntityKey this ship's directive resolved
+  // to on the last tick ('' before the first tick, or with no live
+  // hostile). Smoke asserts an escort's targetKey tracks a standing
+  // focus-fire order's enemyKey.
+  targetKey: string
 }
 registerDebugHandle('combatPlayerSideSnapshot', (): CombatPlayerSideSnapshot[] => {
   const w = getWorld('playerShipInterior')
@@ -494,6 +499,7 @@ registerDebugHandle('combatPlayerSideSnapshot', (): CombatPlayerSideSnapshot[] =
       weaponsCount: cs.weapons.length,
       aiAggression: cs.ai.aggression,
       aiMaintainRange: cs.ai.maintainRange,
+      targetKey: cs.currentTargetKey,
     })
   }
   return out

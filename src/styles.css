@@ -2038,6 +2038,11 @@ html, body, #root {
   inset: 0;
   background: #050509;
 }
+/* W2 Task 2 — click-target mode cursor feedback while a rally/focus-fire
+   order is pending resolution by the next arena click. */
+.tactical-canvas-host.is-targeting {
+  cursor: cell;
+}
 .tactical-topbar {
   position: absolute;
   top: 12px;
@@ -2099,14 +2104,14 @@ html, body, #root {
   pointer-events: none;
   z-index: 1;
 }
-.tactical-hud-player { left: 12px; border-color: #14532d; }
+.tactical-hud-player { border-color: #14532d; }
 .tactical-hud-enemy  { right: 12px; border-color: #7f1d1d; }
-/* Phase 6.1 — player MS HUD sits below the flagship HUD on the left,
-   in friendly-MS blue to match the renderer color and the climbIntoMs
-   floor tile. */
+/* Phase 6.1 — player MS HUD, in friendly-MS blue to match the renderer
+   color and the climbIntoMs floor tile. Vertical placement below the
+   flagship HUD comes from .tactical-player-stack (Task 7), not a fixed
+   top offset — the stack lets it, the flagship HUD, and the combat log
+   flow one below the other regardless of any of their content heights. */
 .tactical-hud-ms {
-  left: 12px;
-  top: 198px;
   width: 220px;
   border-color: #1e3a8a;
 }
@@ -2118,6 +2123,39 @@ html, body, #root {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
+}
+/* W2 Task 2 — command-point pool gauge, topbar. */
+.tactical-cp-gauge {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: #1f1f27;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* W2 Task 2 — fleet-order palette, floats under the topbar. */
+.tactical-order-palette {
+  position: absolute;
+  top: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 1;
+}
+/* Shared armed-state cue — the order palette's rally/focusFire/withdraw
+   buttons and the topbar's withdraw quick-verb (W2 Task 3) both use it. */
+.tactical-btn.is-pending {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tactical-order-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .tactical-enemy-stack {
   position: absolute;
@@ -2133,6 +2171,29 @@ html, body, #root {
   position: relative;
   top: auto;
   right: auto;
+}
+/* Task 7 (W2 command layer) — the flagship HUD, MS HUD (when launched),
+   and combat log used to each be independently `position: absolute` at
+   the same top-left corner, so the log (higher z-index) rendered on top
+   of the flagship HUD and hid hull/armor mid-fight. Stacking them as flex
+   children — mirroring .tactical-enemy-stack's pattern above — makes each
+   element's actual height push the next one down, so they can never
+   overlap regardless of HUD content or combat-log line count. */
+.tactical-player-stack {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 1;
+}
+.tactical-player-stack .tactical-hud {
+  position: relative;
+  top: auto;
+  left: auto;
 }
 .tactical-hud-title {
   font-size: 13px;
@@ -2222,9 +2283,43 @@ html, body, #root {
   grid-template-columns: 1fr 2fr;
   gap: 12px;
   align-items: center;
+  /* The panel itself is pointer-events:none so blank space lets arena
+     mouse/aim tracking through; individual rows opt back in below. */
+  pointer-events: auto;
 }
 .tactical-weapon-row.is-empty {
   opacity: 0.4;
+  pointer-events: none;
+}
+/* W2 command layer (Task 5) — a row only fires on click while in volley
+   mode with a ready charge; the cursor communicates that affordance. */
+.tactical-weapon-row.is-volley-ready {
+  cursor: pointer;
+  border-color: var(--accent);
+}
+.tactical-weapon-row-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.tactical-weapon-mode {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: #16161c;
+  color: var(--muted);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.tactical-weapon-mode.is-hold {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.tactical-weapon-mode.is-volley {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .tactical-weapon-name {
   font-size: 12px;
@@ -2320,18 +2415,18 @@ html, body, #root {
 
 /* Combat event log — Phase 6.0. Top-left fading scroll, Starsector shape.
    Sits over the tactical canvas; pointer-events allow Tab toggle but the
-   log itself is read-only. Severity tier drives left-border color. */
+   log itself is read-only. Severity tier drives left-border color.
+   Task 7 (W2 command layer) — flows as the last child of
+   .tactical-player-stack, below the flagship/MS HUDs, instead of its own
+   `position: absolute` at the same top-left corner (which used to render
+   on top of the HUDs — see the stack's own comment above). */
 .combat-log {
-  position: absolute;
-  top: 12px;
-  left: 12px;
   width: 320px;
   max-height: 50vh;
   display: flex;
   flex-direction: column;
   gap: 4px;
   pointer-events: none;
-  z-index: 2;
 }
 .combat-log-entry {
   padding: 5px 9px;

@@ -33,11 +33,15 @@
 
   ships: [
     {
-      // First entry = flagship (applyShips marks i===0 with IsFlagshipMark).
+      // Explicit flagship: true (not just i===0) so applyShips seeds the
+      // flagship's interior layout (rooms + kiosks) at boot — Task 4's
+      // war-room-dp smoke walks onto the bridge's warRoom kiosk and needs a
+      // walkable interior without boarding first.
       id: 'ship',
       template: 'lightFreighter',
       name: '自由号',
       dockedAt: 'vonBraun',
+      flagship: true,
     },
     {
       id: 'escort-a',

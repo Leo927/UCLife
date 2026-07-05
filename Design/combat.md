@@ -293,6 +293,14 @@ bridge — Ship Command + Tactics make this AI better. The player can
 return any time by ejecting or docking back into the hangar, then
 walking to the bridge.
 
+The flagship's per-mount manual fire modes (auto / hold / volley) are
+bridge controls: they only take effect while the player is at the
+helm. The instant the player leaves for the cockpit (or walks off the
+bridge), the flagship reverts to AI, which fires every charged mount on
+auto regardless of what the player last selected — the selections
+themselves aren't lost, they simply resume the moment the player
+retakes the helm.
+
 **Switching is the design's central tension.** The player constantly
 chooses between piloting (high direct impact, no command) and bridge
 (coordinating, but no MS in the field). The walking-transit cost makes
@@ -571,6 +579,8 @@ Combat must work under both settings:
 - Crew loss is the same (already permanent without the toggle).
 
 Withdraw is always available pre-commit (matching the MW sim's design).
+Mid-combat withdraw is a bridge verb (flagship command authority only). MS
+pilots dock back to the flagship personally via 返航 (回收).
 
 ## Settled commitments
 

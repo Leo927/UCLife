@@ -40,6 +40,8 @@ export function bindUi(): void {
   onSim('ui:open-war-room', () => useUI.getState().setWarRoom(true))
   onSim('ui:open-ms-retrofit', ({ msKey }) => useUI.getState().setMsRetrofit(msKey))
   onSim('ui:open-combat-tally', (t) => useUI.getState().setCombatTally(t))
+  // W2 Task 6 — defeat / flee debrief beat.
+  onSim('ui:open-combat-debrief', (d) => useUI.getState().setCombatDebrief(d))
   // Issue #71 — recoverables dialogue opens before the tally.
   onSim('ui:open-recoverables', () => useUI.getState().setRecoverables(true))
   // Phase 6.3.A — colony claim panel.

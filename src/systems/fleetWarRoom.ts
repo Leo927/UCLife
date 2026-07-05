@@ -21,6 +21,7 @@ import { getWorld } from '../ecs/world'
 import { fleetConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
 import { recomputeFleetPool } from '../ecs/fleetPool'
+import { dpCostForShip } from './fleetCommandPoints'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -34,6 +35,9 @@ export interface WarRoomShipRow {
   isInActiveFleet: boolean
   formationSlot: number
   aggression: Aggression
+  // Task 4 (W2 command layer) — surfaced so the war-room DP section needs
+  // no ECS reads of its own; dpCostForShip reads the ship's StatSheet.
+  dpCost: number
 }
 
 export interface WarRoomSnapshot {
@@ -73,6 +77,7 @@ export function warRoomDescribe(): WarRoomSnapshot {
       isInActiveFleet: active,
       formationSlot: s.formationSlot,
       aggression: s.aggression,
+      dpCost: dpCostForShip(e),
     }
     ships.push(row)
     if (active && s.formationSlot >= 0) {

@@ -39,8 +39,12 @@ const BOARD_PAD_KEY = 'gate-vonBraunCity-vonBraun-S1-board'
 const HELM_KEY = 'ship-kiosk-bridge-0'
 const DISEMBARK_KEY = 'ship-kiosk-hangarBay-0'        // 下船 kiosk in the ship hangar bay
 const ENEMY_KEY = 'enemy-pirate-lunar-starter'        // the sole weak pirate covering Von Braun
+const COMBAT_ENEMY_KEY = 'enemy-ship-0'               // its tactical-arena slot-0 CombatShipState (combat.ts spawns enemy-ship-${idx})
 const DOCK_POI = 'vonBraun'
 const TILE_PX = 32                                     // worldConfig.tilePx (map viewBox is tile-space)
+
+// ── Command layer (W2) ─────────────────────────────────────────────────
+const ORDER_COST_FOCUS_FIRE = 1                        // fleetConfig.commandPoints.orderCosts.focusFire
 
 // ── Economy ────────────────────────────────────────────────────────────
 const HULL_PRICE = 4200
@@ -349,6 +353,51 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isOpen()),
     'engaging must open the tactical view',
   ).toBe(true)
+
+  // ── W2 command layer — issue one focus-fire order during the pause ────
+  // Tactical opens paused on the first-contact briefing (the planning
+  // moment), and the flagship order palette accepts orders right there —
+  // proven at the system level in fleet-orders.spec.ts; this is the
+  // journey's minimal real-input command-layer pass. Combat already opens
+  // paused, so rather than pressing Space to pause (which would UNpause and
+  // defeat the "orders work while paused" proof) the leg asserts the pause,
+  // issues the order under it, then presses Space to resume. Wait for the
+  // arena <canvas> first (the world→screen helper projects through it), arm
+  // 集火 via its palette button, then click the sole enemy at its projected
+  // arena coords. CP spend is asserted against the pre-order pool with NO
+  // sim step between the two reads, so regen can't perturb the delta.
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isPaused()),
+    'tactical opens paused on first contact — the order is issued during this planning pause',
+  ).toBe(true)
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+
+  const cpBeforeOrder = await sim.page.evaluate(() =>
+    (window as any).__uclife__.getGameState().getCombat().getCommandPool())
+  expect(
+    cpBeforeOrder.current,
+    'the command pool seeds full at engagement start, covering a focus-fire order',
+  ).toBeGreaterThanOrEqual(ORDER_COST_FOCUS_FIRE)
+
+  await sim.page.locator('[data-tactical-order="focusFire"]').click()
+  const enemyArenaPt = await sim.page.evaluate(
+    (k: string) => (window as any).__uclife__.getTacticalEnemyScreenCoords(k), COMBAT_ENEMY_KEY)
+  expect(enemyArenaPt, `${COMBAT_ENEMY_KEY} must project onto the tactical arena to click-focus it`).toBeTruthy()
+  await sim.page.mouse.click(enemyArenaPt!.x, enemyArenaPt!.y)
+
+  expect(
+    (await sim.page.evaluate(() =>
+      (window as any).__uclife__.getGameState().getCombat().getCommandPool())).current,
+    'issuing a focus-fire order must spend exactly orderCosts.focusFire command points',
+  ).toBe(cpBeforeOrder.current - ORDER_COST_FOCUS_FIRE)
+
+  // Space (real keyboard) resumes the fight; the drive loop below then runs
+  // without needing to click 继续 on its first pass.
+  await sim.page.keyboard.press('Space')
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isPaused()),
+    'Space toggles the tactical pause — the fight is now running',
+  ).toBe(false)
 
   // Combat opens paused on the first-contact briefing. Resume via the real
   // tactical control and advance sim time in stages until the fight resolves;

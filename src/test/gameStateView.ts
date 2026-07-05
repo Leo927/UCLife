@@ -5,6 +5,7 @@ import {
   EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche, Action,
 } from '../ecs/traits'
 import { useCombatStore } from '../systems/combat'
+import { commandPoolDescribe } from '../systems/fleetCommandPoints'
 import { temperamentOf, sympathiesOf } from '../character/psychology'
 import { getStat, type StatSheet } from '../stats/sheet'
 import { useUI } from '../ui/uiStore'
@@ -90,6 +91,10 @@ export interface EngagementView {
 export interface CombatView {
   isOpen(): boolean
   isPaused(): boolean
+  // W2 Task 8 — the command-point pool (current/max), mirroring
+  // commandPoolDescribe(). The journey smoke reads it to assert that
+  // issuing a fleet order debits exactly its CP cost.
+  getCommandPool(): { current: number; max: number }
 }
 
 export interface FactionView {
@@ -456,6 +461,7 @@ export function getGameState(): GameStateView {
       return {
         isOpen: () => useCombatStore.getState().open,
         isPaused: () => useCombatStore.getState().paused,
+        getCommandPool: () => commandPoolDescribe(),
       }
     },
     getFaction(id: string): FactionView | null {

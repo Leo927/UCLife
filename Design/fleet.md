@@ -217,7 +217,7 @@ maxCommandPoints =
   + commArrayShipCount * 1            // dedicated comm-relay ships, later phase
 ```
 
-CP is *spent* by fleet-wide commands during tactical (rally to point, focus fire, retreat order, formation change, MS launch authorization). Out of CP, the fleet acts on standing doctrine sliders only. This is the player-skill-gated comm bandwidth, justified diegetically by Minovsky particle scatter.
+CP is *spent* by fleet-wide commands during tactical (rally to point, focus fire, formation change, MS launch authorization). Out of CP, the fleet acts on standing doctrine sliders only. This is the player-skill-gated comm bandwidth, justified diegetically by Minovsky particle scatter.
 
 ### Deployment points
 

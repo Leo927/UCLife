@@ -70,6 +70,7 @@ import {
   initCommandPoolForEngagement, clearDeploymentCommit, regenCommandPoints,
   doctrineForAggression, commandPoolDescribe, useCpDp,
 } from './fleetCommandPoints'
+import { activeOrders, clearStaleFocusTarget, resetFleetOrders } from './fleetOrders'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -170,6 +171,32 @@ function resolveCombatWeaponDef(weaponId: string): WeaponDef {
 let nextProjectileId = 1
 const projectiles: ProjectileSnap[] = []
 
+// W2 command layer (Task 5) — per-mount shot bookkeeping for the fire-mode
+// smoke (asserting hold blocks fire, volley fires exactly once). Not
+// surfaced to players; a debug-only read (getPlayerMountShotCounts) mirrors
+// this for tests. Reset per engagement alongside the projectile pool.
+const playerMountShotCounts = new Map<number, { count: number; lastTargetKey: string }>()
+
+function recordPlayerMountShot(mountIdx: number, targetEnt: Entity): void {
+  const prior = playerMountShotCounts.get(mountIdx)
+  playerMountShotCounts.set(mountIdx, {
+    count: (prior?.count ?? 0) + 1,
+    lastTargetKey: targetEnt.get(EntityKey)?.key ?? '',
+  })
+}
+
+export interface PlayerMountShotSnapshot {
+  mountIdx: number
+  count: number
+  lastTargetKey: string
+}
+
+export function getPlayerMountShotCounts(): PlayerMountShotSnapshot[] {
+  return Array.from(playerMountShotCounts.entries()).map(([mountIdx, v]) => ({
+    mountIdx, count: v.count, lastTargetKey: v.lastTargetKey,
+  }))
+}
+
 // Campaign-world EntityKey of the enemy that triggered the engagement —
 // stored so endCombat('victory') can destroy it (otherwise the same
 // pirate re-prompts engagement after the cooldown expires).
@@ -204,10 +231,29 @@ export function getCombatPlayerHeading(): number {
   return e.get(CombatShipState)!.heading
 }
 
+// W2 command layer (Task 5) — per-mount manual fire control. `auto` is the
+// pre-Task-5 behavior (fire on the nearest in-arc, in-range hostile the
+// instant the charge is ready). `hold` accumulates charge but never fires —
+// a trigger discipline for players who don't want to spend flux/ammo on a
+// marginal shot. `volley` also withholds auto-fire; a ready volley mount
+// only fires once the player spends a single-shot request via
+// requestVolleyFire (row click in the UI), and picks the in-arc target
+// nearest the aim cursor rather than the flagship's nearest-hostile default.
+// These modes are bridge controls: combatSystem §3 only honors them while
+// the player is piloting the flagship. The moment they leave the helm (MS
+// sortie or walking off the bridge) every mount reverts to 'auto' — the
+// stored selection is untouched and simply resumes when they retake the helm.
+export type FireMode = 'auto' | 'hold' | 'volley'
+
+const FIRE_MODE_CYCLE: Record<FireMode, FireMode> = {
+  auto: 'hold',
+  hold: 'volley',
+  volley: 'auto',
+}
+
 interface CombatState {
   open: boolean
   paused: boolean
-  selectedMountIdx: number | null
   // Recent flash banner (e.g. weapon hit)
   lastFlashZh: string
   lastFlashAtMs: number
@@ -221,12 +267,20 @@ interface CombatState {
   // its current orientation — the helm never auto-aims at the enemy.
   aimAtMouse: boolean
   aimMouse: { x: number; y: number } | null
+  // Per-WeaponMount fire mode, keyed by WeaponMount.mountIdx. A mount
+  // absent from the map defaults to 'auto' (today's behavior).
+  fireModeByMount: Record<number, FireMode>
+  // Single-shot volley request per mount, set by the UI row click and
+  // consumed by §3 of combatSystem the instant it fires. Switching a mount
+  // away from 'volley' discards any pending request — see cycleFireMode.
+  volleyRequested: Record<number, boolean>
   setOpen: (open: boolean) => void
   togglePause: () => void
-  setSelectedMount: (idx: number | null) => void
   setInputAxis: (axis: { forward: number; strafe: number }) => void
   setAimAtMouse: (on: boolean) => void
   setAimMouse: (m: { x: number; y: number } | null) => void
+  cycleFireMode: (mountIdx: number) => void
+  requestVolleyFire: (mountIdx: number) => void
   flash: (textZh: string) => void
   reset: () => void
   // Snapshot of projectiles — UI reads this each render. Not persisted
@@ -237,32 +291,46 @@ interface CombatState {
 export const useCombatStore = create<CombatState>((set) => ({
   open: false,
   paused: true,
-  selectedMountIdx: null,
   lastFlashZh: '',
   lastFlashAtMs: 0,
   inputAxis: { forward: 0, strafe: 0 },
   aimAtMouse: false,
   aimMouse: null,
+  fireModeByMount: {},
+  volleyRequested: {},
   setOpen: (open) => set({ open }),
   togglePause: () => set((s) => {
     const next = !s.paused
     useClock.getState().setSpeed(next ? 0 : 1)
     return { paused: next }
   }),
-  setSelectedMount: (selectedMountIdx) => set({ selectedMountIdx }),
   setInputAxis: (inputAxis) => set({ inputAxis }),
   setAimAtMouse: (aimAtMouse) => set({ aimAtMouse }),
   setAimMouse: (aimMouse) => set({ aimMouse }),
+  cycleFireMode: (mountIdx) => set((s) => {
+    const current = s.fireModeByMount[mountIdx] ?? 'auto'
+    const next = FIRE_MODE_CYCLE[current]
+    const volleyRequested = { ...s.volleyRequested }
+    if (current === 'volley' && next !== 'volley') delete volleyRequested[mountIdx]
+    return {
+      fireModeByMount: { ...s.fireModeByMount, [mountIdx]: next },
+      volleyRequested,
+    }
+  }),
+  requestVolleyFire: (mountIdx) => set((s) => ({
+    volleyRequested: { ...s.volleyRequested, [mountIdx]: true },
+  })),
   flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: simNow() }),
   reset: () => set({
     open: false,
     paused: true,
-    selectedMountIdx: null,
     lastFlashZh: '',
     lastFlashAtMs: 0,
     inputAxis: { forward: 0, strafe: 0 },
     aimAtMouse: false,
     aimMouse: null,
+    fireModeByMount: {},
+    volleyRequested: {},
   }),
   getProjectiles: () => projectiles.slice(),
 }))
@@ -386,6 +454,7 @@ function spawnEnemyShip(
         retreatThreshold: blueprint.ai.retreatThresholdPct,
         maintainRange: blueprint.ai.maintainRange,
       },
+      currentTargetKey: '',
     }),
     EntityKey({ key: `enemy-ship-${slotIdx}` }),
   )
@@ -480,6 +549,7 @@ function spawnActiveFleetEscorts(w: World): void {
         retreatThreshold,
         maintainRange,
       },
+      currentTargetKey: '',
     }))
   }
 }
@@ -504,6 +574,7 @@ export function startCombat(
     else e.destroy()
   }
   projectiles.length = 0
+  playerMountShotCounts.clear()
   salvageAccum = []   // Issue #64 — fresh salvage tally per engagement
   resetRecoverables() // Issue #71 — fresh recoverables accumulator per fight
   activeCampaignEnemyKey = campaignEnemyKey ?? null
@@ -564,6 +635,7 @@ export function startCombat(
           maintainRange: cls.ai.maintainRange * d.maintainRangeMul,
         }
       })(),
+      currentTargetKey: '',
     }))
   }
 
@@ -595,6 +667,9 @@ export function startCombat(
   // tally only lists POWs taken this fight (not cumulative across a
   // multi-engagement session).
   clearBrigPendingTally()
+  // W2 command layer — a fresh engagement starts order-free; standing
+  // rally/focus-fire orders don't carry across engagements.
+  resetFleetOrders()
   // Issue #69 — seed the Command-Point pool full for this engagement and
   // surface the starting bandwidth in the log. The pre-engagement DP commit
   // set carries into this fight (the war room set it before launch); the
@@ -620,17 +695,6 @@ export function startCombat(
 }
 
 export type CombatOutcome = 'victory' | 'defeat' | 'flee'
-
-// Flee penalties — Starsector "you can't run for free" feel.
-// Hull lands the bigger hit; armor depletes (regenerates between
-// encounters); CR drains heavily so back-to-back flees stack.
-const FLEE_HULL_LOSS_PCT = 0.35
-const FLEE_CR_DRAIN = 50
-
-// Defeat: stripped to the survivor floor. Money goes to a small
-// rescue-stipend amount; the player has to ground-game back into a
-// new ship.
-const DEFEAT_SURVIVOR_MONEY = 200
 
 // Ground scenes the rescue transport might drop a defeated player at,
 // alongside the POI that scene's port maps to (used to keep ship state
@@ -772,31 +836,80 @@ function destroyCampaignEnemyByKey(key: string): void {
   }
 }
 
-// Public so the engagement modal's flee choice (which closes the modal
-// without entering combat) shares one penalty path with in-combat retreat.
-export function applyFleePenalty(): void {
+// W2 Task 3 — the computed deltas are returned (not just logged) so the
+// single call site in endCombat's flee branch has them in one place for a
+// future debrief payload (Task 6), without a second parallel computation.
+export interface FleePenaltyResult {
+  hullLoss: number
+  crDrain: number
+}
+
+// Not exported — the penalty must never fire without also opening the
+// debrief, so every caller goes through resolveFleeWithDebrief() below.
+function applyFleePenalty(): FleePenaltyResult {
+  const { hullLossPct, crDrain } = combatConfig.fleePenalty
   const ship = getPlayerShip()
-  if (!ship) return
+  if (!ship) return { hullLoss: 0, crDrain: 0 }
   const s = ship.get(Ship)!
-  const hullLoss = Math.floor(s.hullCurrent * FLEE_HULL_LOSS_PCT)
+  const hullLoss = Math.floor(s.hullCurrent * hullLossPct)
   ship.set(Ship, {
     ...s,
     hullCurrent: Math.max(1, s.hullCurrent - hullLoss),
     armorCurrent: 0,
   })
-  drainCR(FLEE_CR_DRAIN)
-  logEvent(`脱离接触 · 船体受创 -${hullLoss} · 战备 -${FLEE_CR_DRAIN}`)
+  drainCR(crDrain)
+  logEvent(`脱离接触 · 船体受创 -${hullLoss} · 战备 -${crDrain}`)
+  return { hullLoss, crDrain }
 }
 
-function applyDefeatConsequence(): void {
+// Critical-review fix (W2 Task 6) — the ONE flee resolution path: applies
+// the penalty exactly once, builds the debrief payload, and emits it. Both
+// the pre-combat engagement modal's flee choice (sim/engagement.ts) and
+// mid-combat withdraw (endCombat('flee') below) call this instead of
+// duplicating the payload construction — so the two surfaces can never
+// drift out of sync again.
+export function resolveFleeWithDebrief(): void {
+  const penalty = applyFleePenalty()
+  emitSim('ui:open-combat-debrief', {
+    outcome: 'flee',
+    lines: [
+      { labelZh: '船体受创', valueZh: `-${penalty.hullLoss}` },
+      { labelZh: '战备损耗', valueZh: `-${penalty.crDrain}` },
+    ],
+  })
+}
+
+// W2 Task 3 — mid-combat withdraw. Locked decision: always available and
+// CP-free (no orderCosts row — unlike rally/focusFire/regroup, this isn't a
+// comm-authority order, it's an emergency disengage). Routes through the
+// same endCombat('flee') → resolveFleeWithDebrief() path as the pre-combat
+// engagement modal's flee choice, so both surfaces cost identically.
+export function withdrawFromCombat(): void {
+  if (!useCombatStore.getState().open) return
+  endCombat('flee')
+}
+
+// W2 Task 6 — the deltas applyDefeatConsequence already computes (survivor
+// stipend, MS lost with the ship, drop location) are returned so endCombat's
+// debrief payload can capture them instead of recomputing.
+interface DefeatConsequenceResult {
+  shipNameZh: string
+  lostMsCount: number
+  survivorMoney: number
+  dropSceneNameZh: string
+}
+
+function applyDefeatConsequence(): DefeatConsequenceResult {
   // Pick a random ground colony (rescue transport drop-off).
   const drop = getSimRng().pick(DEFEAT_DROP_OPTIONS)
+  const dropSceneNameZh = drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'
 
   // Reset the player's pockets to a survivor stipend. Other progression
   // (skills, perks, relationships, ambitions) survives — the run continues.
   const player = findPlayer()
+  const survivorMoney = combatConfig.defeat.survivorMoney
   if (player) {
-    player.set(Money, { amount: DEFEAT_SURVIVOR_MONEY })
+    player.set(Money, { amount: survivorMoney })
   }
 
   // Eject the player to the rescue colony before destroying the ship —
@@ -815,6 +928,8 @@ function applyDefeatConsequence(): void {
   // escorts (if any) survive — the player can promote one to flagship at
   // the war room when they next board.
   const ship = getFlagshipEntity()
+  const shipData = ship?.get(Ship)
+  const shipNameZh = shipData?.name || (shipData ? getShipClass(shipData.templateId).nameZh : '旗舰')
   const lostShipKey = ship?.get(EntityKey)?.key ?? ''
   if (ship) ship.destroy()
 
@@ -825,8 +940,8 @@ function applyDefeatConsequence(): void {
   // upkeep in perpetuity, and grantStarterMsToShip's idempotency check keys
   // on the starter MS entity existing at all — leaving it alive would block
   // the starter bundle from ever re-granting on the player's next hull.
+  let lostMsCount = 0
   if (lostShipKey) {
-    let lostMsCount = 0
     for (const msEnt of shipWorld().query(Ms)) {
       if (msEnt.get(Ms)!.storedOnShipKey !== lostShipKey) continue
       msEnt.destroy()
@@ -840,7 +955,9 @@ function applyDefeatConsequence(): void {
   }
 
   emitSim('toast', { textZh: '飞船被毁 · 救援运输船把你丢在了另一颗殖民地' })
-  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'}`)
+  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${dropSceneNameZh}`)
+
+  return { shipNameZh, lostMsCount, survivorMoney, dropSceneNameZh }
 }
 
 export function endCombat(outcome: CombatOutcome): void {
@@ -940,9 +1057,23 @@ export function endCombat(outcome: CombatOutcome): void {
       emitSim('ui:open-combat-tally', tallyPayload)
     }
   } else if (outcome === 'defeat') {
-    applyDefeatConsequence()
+    const result = applyDefeatConsequence()
+    // W2 Task 6 — debrief beat. Fires AFTER applyDefeatConsequence's scene
+    // transition, so the panel renders over the drop city, not the dead ship.
+    emitSim('ui:open-combat-debrief', {
+      outcome: 'defeat',
+      lines: [
+        { labelZh: '座舰', valueZh: `${result.shipNameZh} · 已损毁` },
+        { labelZh: '随舰损失MS', valueZh: `${result.lostMsCount} 台` },
+        { labelZh: '生还资金', valueZh: `¥${result.survivorMoney}` },
+        { labelZh: '流落地点', valueZh: result.dropSceneNameZh },
+      ],
+    })
   } else {
-    applyFleePenalty()
+    // Critical-review fix — penalty + debrief payload + emit all live in
+    // resolveFleeWithDebrief(); this branch must not apply the penalty a
+    // second time.
+    resolveFleeWithDebrief()
   }
 }
 
@@ -1106,6 +1237,68 @@ function inArc(targetAngle: number, mountFacing: number, arcWidth: number): bool
 
 function dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+interface EnemyCandidate {
+  ent: Entity
+  pos: { x: number; y: number }
+}
+
+// W2 command layer (Task 5) — every hostile within a mount's arc + range,
+// shared by both 'auto' (picks nearest to the flagship) and 'volley'
+// (picks nearest to the aim cursor) target resolution so the two modes
+// agree on what counts as a legal shot.
+function inArcEnemyCandidates(
+  enemies: Entity[],
+  originPos: { x: number; y: number },
+  mountFacingWorld: number,
+  arcWidth: number,
+  range: number,
+): EnemyCandidate[] {
+  const out: EnemyCandidate[] = []
+  for (const en of enemies) {
+    const enemyState = en.get(CombatShipState)
+    if (!enemyState) continue
+    if (dist(originPos, enemyState.pos) > range) continue
+    const ang = angleBetween(originPos, enemyState.pos)
+    if (!inArc(ang, mountFacingWorld, arcWidth)) continue
+    out.push({ ent: en, pos: enemyState.pos })
+  }
+  return out
+}
+
+function nearestCandidateTo(candidates: EnemyCandidate[], point: { x: number; y: number }): EnemyCandidate | null {
+  let best: EnemyCandidate | null = null
+  let bestDist = Infinity
+  for (const c of candidates) {
+    const d = dist(point, c.pos)
+    if (d < bestDist) { bestDist = d; best = c }
+  }
+  return best
+}
+
+// Defensive clamp for a rally point into the arena bounds. Rally points are
+// always player-clicked inside the arena (Task 2 guarantees this at issue
+// time), but the directive loop clamps anyway rather than trust an
+// out-of-bounds order to fight the same edge clamp ships already obey.
+function clampToArena(p: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(p.x, ARENA_EDGE_PAD), ARENA_W - ARENA_EDGE_PAD),
+    y: Math.min(Math.max(p.y, ARENA_EDGE_PAD), ARENA_H - ARENA_EDGE_PAD),
+  }
+}
+
+// Resolve a standing focus-fire order's key against the live enemy list.
+// Returns null when the key is unset or the named enemy is dead/gone.
+function findEnemyByKey(enemies: Entity[], key: string): Entity | null {
+  for (const e of enemies) {
+    if (e.get(EntityKey)?.key === key) return e
+  }
+  return null
+}
+
+function keyOf(e: Entity | null): string {
+  return e?.get(EntityKey)?.key ?? ''
 }
 
 // Bang-bang torque controller — drive `angVel` toward a desired heading
@@ -1374,9 +1567,31 @@ export function combatSystem(_world: World, dtMs: number): void {
   // hands the helm back to AI immediately.
   const playerSide = getPlayerSideEntities()
   const allShips: Entity[] = [...playerSide, ...enemies]
+  // W2 command layer — the target each ship's directive resolves to this
+  // tick (plain nearest-hostile, or an escort's focus-fire override).
+  // §4b's weapon-fire block reads this instead of re-deriving nearest, so
+  // shots track the same target the directive steers/aims toward.
+  const resolvedTargets = new Map<Entity, Entity | null>()
+  // W2 command-layer review rider — a standing focus-fire order is a
+  // single fleet-wide target, so resolve it once per tick instead of once
+  // per escort. The pre-rider code re-ran findEnemyByKey's O(enemies) scan
+  // for every escort even though every escort reads the same answer.
+  const focusOrderKey = activeOrders().focusTargetKey
+  let focusOrderEnt: Entity | null = null
+  if (focusOrderKey) {
+    focusOrderEnt = findEnemyByKey(enemies, focusOrderKey)
+    if (!focusOrderEnt) {
+      // Stale key (target already dead/gone) is cleared here — the very
+      // next tick reads a null focusTargetKey, so this log fires exactly
+      // once per staleness event, not every tick.
+      clearStaleFocusTarget()
+      pushCombatLog('目标已失去 · 舰队恢复常规交战', 'info')
+    }
+  }
   for (const self of allShips) {
     const cs = self.get(CombatShipState)!
     const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
+    const isEscort = cs.side === 'player' && !cs.pilotedByPlayer && !cs.isMs && !cs.isFlagship
     const hostiles = isPlayerSide ? enemies : playerSide
     let nearest: Entity | null = null
     let nearestRange = Infinity
@@ -1384,6 +1599,12 @@ export function combatSystem(_world: World, dtMs: number): void {
       const hs = h.get(CombatShipState)!
       const r = dist(cs.pos, hs.pos)
       if (r < nearestRange) { nearestRange = r; nearest = h }
+    }
+
+    // A standing focus-fire order overrides an escort's target selection.
+    if (isEscort && focusOrderEnt) {
+      nearest = focusOrderEnt
+      nearestRange = dist(cs.pos, focusOrderEnt.get(CombatShipState)!.pos)
     }
 
     let thrustWorld = { x: 0, y: 0 }
@@ -1400,6 +1621,23 @@ export function combatSystem(_world: World, dtMs: number): void {
       thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
       aimAngle = toAng
     }
+
+    // A standing rally order overrides an escort's movement (not aim — the
+    // escort keeps facing/firing at its resolved hostile) until it arrives
+    // within rallyArriveRadiusPx, then normal maintainRange movement
+    // resumes. Priority: rally movement > default maintainRange movement.
+    if (isEscort) {
+      const rallyPoint = activeOrders().rallyPoint
+      if (rallyPoint) {
+        const rp = clampToArena(rallyPoint)
+        if (dist(cs.pos, rp) > combatConfig.rallyArriveRadiusPx) {
+          const moveAng = angleBetween(cs.pos, rp)
+          thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
+        }
+      }
+    }
+
+    resolvedTargets.set(self, nearest)
 
     if (cs.pilotedByPlayer) {
       // WASD overrides AI thrust whenever any axis is held. Phase
@@ -1469,6 +1707,7 @@ export function combatSystem(_world: World, dtMs: number): void {
       pos, vel,
       heading: helm.heading,
       angVel: helm.angVel,
+      currentTargetKey: keyOf(nearest),
     })
   }
 
@@ -1491,34 +1730,74 @@ export function combatSystem(_world: World, dtMs: number): void {
   const playerPos = playerCsNow.pos
   const playerHeading = playerCsNow.heading
 
-  // -- 3. Player weapon charge + auto-fire ----------------------------------
-  // Each WeaponMount entity picks the closest in-arc, in-range enemy.
+  // -- 3. Player weapon charge + fire-mode-gated fire -----------------------
+  // Each WeaponMount always charges regardless of fire mode; whether (and
+  // at what) a ready mount fires depends on Task 5's per-mount mode:
+  //   - 'auto'   (default): fires the nearest in-arc, in-range enemy the
+  //              instant it's ready — pre-Task-5 behavior.
+  //   - 'hold':  charges but never fires; the player is banking the shot.
+  //   - 'volley': charges but only fires when the UI has queued a
+  //              single-shot request for this mount (store.volleyRequested),
+  //              targeting the in-arc enemy nearest the aim cursor
+  //              (fallback: nearest in-arc) rather than nearest-to-flagship.
+  //
+  // Task 5 review — these are all flagship WeaponMount entities (the ECS
+  // WeaponMount trait is only ever spawned on the flagship; MS weapons live
+  // in CombatShipState.weapons instead), so the fire-mode gates are a bridge
+  // control surface, not a fleet-wide one. Per Design/combat.md the flagship
+  // is on AI whenever the player isn't at the helm — same invariant §1
+  // already applies to WASD/aim via `cs.pilotedByPlayer`. So while the
+  // player is piloting the MS or has left the bridge, every mount is forced
+  // to 'auto' here regardless of its stored mode: the AI flagship fires all
+  // its charged guns, exactly like pre-Task-5. `fireModeByMount` itself is
+  // never written in that branch — the player's selections are a standing
+  // preference that must survive the AI interlude and resume the instant
+  // they retake the helm.
+  const flagshipPiloted = playerCsNow.pilotedByPlayer
+  // A queued volley request, unlike the mode selection, is a one-shot
+  // trigger pull rather than a standing preference — leaving it queued
+  // while the AI has the conn would let a stale pre-departure click fire
+  // the instant the player retakes the helm. Clearing it is the
+  // deterministic choice (the alternative, leaving it queued, would make
+  // "did that shot come from me" depend on exactly when the mount finished
+  // charging relative to the helm swap).
+  if (!flagshipPiloted && Object.keys(store.volleyRequested).length > 0) {
+    useCombatStore.setState({ volleyRequested: {} })
+  }
   for (const e of w.query(WeaponMount)) {
     const m = e.get(WeaponMount)!
     if (!m.weaponId) continue
     const def = getWeapon(m.weaponId)
     let charge = Math.min(def.chargeSec, m.chargeSec + dtSec)
     let ready = charge >= def.chargeSec
-    if (ready) {
+    const mode = flagshipPiloted ? (store.fireModeByMount[m.mountIdx] ?? 'auto') : 'auto'
+    if (ready && mode !== 'hold') {
       const mountFacing = playerHeading + m.facingRad
-      let target: { ent: Entity; pos: { x: number; y: number } } | null = null
-      let bestRange = Infinity
-      for (const en of enemies) {
-        const enemyState = en.get(CombatShipState)
-        if (!enemyState) continue
-        const range = dist(playerPos, enemyState.pos)
-        if (range > def.range) continue
-        const ang = angleBetween(playerPos, enemyState.pos)
-        if (!inArc(ang, mountFacing, m.firingArcRad)) continue
-        if (range < bestRange) {
-          bestRange = range
-          target = { ent: en, pos: enemyState.pos }
+      const candidates = inArcEnemyCandidates(enemies, playerPos, mountFacing, m.firingArcRad, def.range)
+      if (mode === 'auto') {
+        const target = nearestCandidateTo(candidates, playerPos)
+        if (target) {
+          fireWeapon('player', def, playerPos, target.pos, target.ent)
+          recordPlayerMountShot(m.mountIdx, target.ent)
+          charge = 0
+          ready = false
         }
-      }
-      if (target) {
-        fireWeapon('player', def, playerPos, target.pos, target.ent)
-        charge = 0
-        ready = false
+      } else if (store.volleyRequested[m.mountIdx]) {
+        const aimPoint = store.aimMouse
+        const target = aimPoint
+          ? nearestCandidateTo(candidates, aimPoint)
+          : nearestCandidateTo(candidates, playerPos)
+        if (target) {
+          fireWeapon('player', def, playerPos, target.pos, target.ent)
+          recordPlayerMountShot(m.mountIdx, target.ent)
+          charge = 0
+          ready = false
+          useCombatStore.setState((s) => {
+            const volleyRequested = { ...s.volleyRequested }
+            delete volleyRequested[m.mountIdx]
+            return { volleyRequested }
+          })
+        }
       }
     }
     if (ready !== m.ready || charge !== m.chargeSec) {
@@ -1580,9 +1859,12 @@ export function combatSystem(_world: World, dtMs: number): void {
   // Phase 6.1 added the MS branch; Phase 6.2.E2 extends to non-flagship
   // active-fleet ships (CombatShipState rows with side='player' +
   // isFlagship=false + isMs=false). Both share the inline weapons array
-  // — same closest-in-arc rule as enemies, targeting the nearest
-  // hostile. The flagship branch (isFlagship=true) keeps using
-  // WeaponMount entities via section 3 above.
+  // — same closest-in-arc rule as enemies. Targeting reuses §1's
+  // resolvedTargets (plain nearest-hostile for MS; an escort's standing
+  // focus-fire override when one is active) instead of re-deriving nearest,
+  // so shots track the same target the directive steers/aims toward. The
+  // flagship branch (isFlagship=true) keeps using WeaponMount entities via
+  // section 3 above.
   for (const psEnt of playerSide) {
     const psState = psEnt.get(CombatShipState)
     if (!psState) continue
@@ -1590,13 +1872,9 @@ export function combatSystem(_world: World, dtMs: number): void {
     const msPos = psState.pos
     const msHeading = psState.heading
 
-    let target: { ent: Entity; pos: { x: number; y: number } } | null = null
-    let bestRange = Infinity
-    for (const en of enemies) {
-      const es = en.get(CombatShipState)!
-      const r = dist(msPos, es.pos)
-      if (r < bestRange) { bestRange = r; target = { ent: en, pos: es.pos } }
-    }
+    const targetEnt = resolvedTargets.get(psEnt) ?? null
+    const target = targetEnt ? { ent: targetEnt, pos: targetEnt.get(CombatShipState)!.pos } : null
+    const bestRange = target ? dist(msPos, target.pos) : Infinity
 
     const updatedWeapons = psState.weapons.map((wpn) => {
       const def = resolveCombatWeaponDef(wpn.weaponId)
@@ -1638,8 +1916,7 @@ export function combatSystem(_world: World, dtMs: number): void {
   }
 
   // -- 5c. Issue #69 — Command-Point regen ---------------------------------
-  // O(1) pool increment (no per-unit work); a `CP regen` info log fires on
-  // each whole-point gain. Profile behind CPDP_PROF=1.
+  // O(1) pool increment (no per-unit work). Profile behind CPDP_PROF=1.
   regenCommandPoints(dtSec)
 
   // -- 5b. Phase 6.2.5.C sortie loop: door cycles, resupply, tug ------------

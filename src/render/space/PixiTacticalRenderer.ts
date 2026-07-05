@@ -168,6 +168,12 @@ export class PixiTacticalRenderer {
 
   // Letterbox-fit ARENA_W × ARENA_H into the current viewport. Centered;
   // shorter screen-axis sets the scale so the whole arena always fits.
+  //
+  // This math is duplicated in src/test/canvasHitTest.ts's
+  // tacticalWorldToScreen() — the renderer instance lives only on a
+  // React-local ref with no global handle, so smoke tests can't call
+  // applyFit()/screenToWorld() directly. Changing this formula requires
+  // updating that mirror too.
   private applyFit(): void {
     const sx = this.viewW / this.arenaW
     const sy = this.viewH / this.arenaH
@@ -177,7 +183,8 @@ export class PixiTacticalRenderer {
     this.root.y = Math.round((this.viewH - this.arenaH * s) / 2)
   }
 
-  // Screen pixel → arena world coords. Inverse of applyFit().
+  // Screen pixel → arena world coords. Inverse of applyFit(). See the
+  // mirror note on applyFit() above.
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     const s = this.root.scale.x || 1
     return { x: (sx - this.root.x) / s, y: (sy - this.root.y) / s }
