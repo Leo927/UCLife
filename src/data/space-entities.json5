@@ -84,15 +84,44 @@
     // from Von Braun. pirate_skirmisher entries are weaker patrol craft;
     // pirate_raider is the fleet anchor.
     //
-    // W1 Task 7 review fix — the uniform 5x aggroRadius scale (see
-    // pirate-lunar-4 below) left all four of these groups' circles covering
-    // every near-moon dock anchor (vonBraun/vonBraunDrydock/marikoRefinery)
-    // at t=0, so an undock triggered the whole cluster into chase at once.
-    // Only pirate-lunar-4 is authored to reach that far (it's the intended
-    // "genuinely pursues" group, sized to the spec's 1/8-sector-width
-    // target); pirate-lunar-1/2/3 are staggered back down so their circles
-    // exclude every near-moon dock anchor with a >=20% distance margin —
-    // orbits move, so a hairline miss today becomes a hit tomorrow.
+    // W1 Task 10 — the earned-start LOOP needs a FIRST fight a stock
+    // lightFreighter can actually win, near enough to Von Braun to complete
+    // undock → intercept → fight → return inside the 60-fuel tank. That role
+    // is pirate-lunar-starter below: a SINGLE weak pirateLight (no escorts,
+    // 1-v-1, empirically winnable at ~70% hull), patrolling within ~1200 px of
+    // the Von Braun orbit. It is the sole authored group covering every
+    // near-moon dock anchor (vonBraun / vonBraunDrydock / marikoRefinery) at
+    // t=0, and it inherits the "genuinely pursues from far" role — its aggro
+    // is the spec's 1/8-sector-width (3750 = 30000/8), so an undock anywhere
+    // near the moon is noticed and chased down to contact.
+    //
+    // Every OTHER near-moon group is staggered so its circle EXCLUDES all three
+    // dock anchors with a >=20% distance margin (orbits move, so a hairline
+    // miss today becomes a hit tomorrow). This keeps the home-port undock a
+    // single-pirate encounter, never a multi-group ambush — see
+    // space-entities.test.ts. Char Aznable's raider (pirate-lunar-4) keeps its
+    // heavier 1-v-3 as reachable mid-game content, but its aggro is shrunk
+    // below its own dock distances so it no longer covers the starter's turf.
+    {
+      // W1 Task 10 — the winnable starter encounter. One weak pirateLight,
+      // no escorts, patrolling a tight loop just off the Von Braun approach.
+      id: 'pirate-lunar-starter',
+      kind: 'enemyShip',
+      shipClassId: 'pirateLight',
+      spawn: { x: 19180, y: 13050 },
+      aiMode: 'patrol',
+      patrolPath: [
+        { x: 19180, y: 13050 },
+        { x: 19900, y: 12800 },
+        { x: 19600, y: 11900 },
+        { x: 18700, y: 12300 },
+      ],
+      // 1/8-sector-width reach (30000 / 8), transferred here from
+      // pirate-lunar-4: the sole near-moon patrol that "genuinely pursues"
+      // an undocking ship, so the earned-start intercept reliably converges.
+      aggroRadius: 3750,
+      fleeHullPct: 0.2,
+    },
     {
       id: 'pirate-lunar-1',
       kind: 'enemyShip',
@@ -155,10 +184,13 @@
         { x: 21000, y: 12000 },
         { x: 20000, y: 11200 },
       ],
-      // W1 Task 7 — the raider anchor's radius scales to exactly
-      // 1/8 the sector width (30000px), the spec's stated target for
-      // "genuinely pursues" — the heaviest patrol notices the farthest.
-      aggroRadius: 3750,
+      // W1 Task 10 — the 1/8-sector "genuinely pursues" reach moved to
+      // pirate-lunar-starter (the winnable first fight). Char's raider is
+      // now mid-game content: its aggro is shrunk below its own distance to
+      // every near-moon dock anchor (min 480px to marikoRefinery) with a
+      // >=20% margin, so it no longer covers the home-port turf. The player
+      // must fly out to it, not stumble into a 1-v-3 on their first undock.
+      aggroRadius: 350,
       fleeHullPct: 0.15,
     },
 
