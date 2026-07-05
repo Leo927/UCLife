@@ -713,11 +713,10 @@ function CombatLogPanel() {
 //   piloting=null       : the overlay was closed externally (e.g. by
 //                         leaveBridge); shouldn't normally render here
 //                         since we early-return on !open above.
-// W2 Task 3 — the topbar 撤退 verb is shown regardless of piloting state:
-// it's an emergency disengage of the whole engagement, not a fleet-comm
-// order (unlike the palette's rally/focusFire/regroup, which need comm
-// authority and so are flagship-only). A player piloting the MS can still
-// pull the whole fight out.
+// W2 Task 3 — the topbar 撤退 verb requires flagship comm authority.
+// Fleet-withdraw is a bridge order, not an emergency MS-override disengage.
+// Only the flagship's comm suite can terminate the entire engagement; MS
+// pilots dock back personally via 返航.
 function CockpitTopbar(props: {
   paused: boolean
   flagshipName: string
@@ -765,13 +764,15 @@ function CockpitTopbar(props: {
       {piloting === 'ms' && (
         <button className="tactical-btn" onClick={onDock}>返航 (回收)</button>
       )}
-      <button
-        className={`tactical-btn${withdrawArmed ? ' is-pending' : ''}`}
-        data-tactical-topbar-withdraw="true"
-        onClick={() => onWithdrawClick(props.pendingOrder, props.setPendingOrder)}
-      >
-        {withdrawArmed ? '撤退 · 确认?' : '撤退'}
-      </button>
+      {piloting === 'flagship' && (
+        <button
+          className={`tactical-btn${withdrawArmed ? ' is-pending' : ''}`}
+          data-tactical-topbar-withdraw="true"
+          onClick={() => onWithdrawClick(props.pendingOrder, props.setPendingOrder)}
+        >
+          {withdrawArmed ? '撤退 · 确认?' : '撤退'}
+        </button>
+      )}
     </div>
   )
 }

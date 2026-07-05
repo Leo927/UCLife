@@ -571,6 +571,8 @@ Combat must work under both settings:
 - Crew loss is the same (already permanent without the toggle).
 
 Withdraw is always available pre-commit (matching the MW sim's design).
+Mid-combat withdraw is a bridge verb (flagship command authority only). MS
+pilots dock back to the flagship personally via 返航 (回收).
 
 ## Settled commitments
 

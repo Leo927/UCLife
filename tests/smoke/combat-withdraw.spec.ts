@@ -32,6 +32,9 @@ const REQUIRED_HANDLES = [
   '__uclife__.useCombatStore',
   '__uclife__.getShipState',
   '__uclife__.getGameState',
+  '__uclife__.launchPlayerMs',
+  '__uclife__.cheatPiloting',
+  '__uclife__.cheatMoney',
 ]
 
 // src/config/combat.json5 fleePenalty — mirrored here as named constants
@@ -132,4 +135,62 @@ test('mid-combat withdraw: real click confirm, flee penalty applied, no instant 
     await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getEngagement().isOpen()),
     'engagement must not re-prompt while the ship never left contact range',
   ).toBe(false)
+})
+
+test('fleet-withdraw button gated to flagship: MS pilot must not see topbar withdraw', async ({ sim }) => {
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
+
+  await sim.page.evaluate(() => {
+    const u = (window as any).__uclife__
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
+  })
+
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.page.waitForFunction(
+    () => (window as any).__uclife__.getGameState().getScene().getId() === 'playerShipInterior',
+    null, { timeout: DOM_COMMIT_TIMEOUT_MS })
+  const helm = await sim.page.evaluate(() => (window as any).__uclife__.takeHelmCheat())
+  expect(helm?.ok, `takeHelmCheat failed: ${helm?.message}`).toBe(true)
+  await sim.page.waitForFunction(
+    () => (window as any).__uclife__.getGameState().getScene().getId() === 'spaceCampaign',
+    null, { timeout: DOM_COMMIT_TIMEOUT_MS })
+
+  await sim.page.evaluate(() => (window as any).__uclife__.setInfiniteFuelSupply(true))
+
+  const enemies = await sim.page.evaluate(() => (window as any).__uclife__.listEnemies())
+  expect(enemies.length, 'no campaign enemies to engage').toBeGreaterThan(0)
+  const target = enemies[0]
+
+  const navRes = await sim.page.evaluate(
+    (key: string) => (window as any).__uclife__.debugNavigate({ kind: 'enemy', enemyKey: key }),
+    target.key,
+  )
+  expect(navRes.ok, `debugNavigate({kind:'enemy'}) failed: ${navRes.message}`).toBe(true)
+
+  await sim.page.evaluate((p: { x: number; y: number }) => (window as any).__uclife__.moveShipTo(p.x, p.y), target.pos)
+  await sim.page.evaluate((dt: number) => (window as any).__uclife__.tickSpace(dt), CONTACT_TICK_DT_SEC)
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getEngagement().isOpen()),
+    'contact must prompt the engagement modal',
+  ).toBe(true)
+
+  await sim.page.evaluate(() => (window as any).__uclife__.useEngagement.getState().resolve('engage'))
+  await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+
+  // Launch the player MS — piloting='ms' now
+  const launchRes = await sim.page.evaluate(
+    () => (window as any).__uclife__.launchPlayerMs(),
+  )
+  expect(launchRes?.ok, `launchPlayerMs should succeed; got ${JSON.stringify(launchRes)}`).toBe(true)
+
+  // ── fleet withdraw requires flagship comm authority ───────────────────
+  // The topbar withdraw button must NOT exist while piloting the MS.
+  // MS pilots cannot disengage the whole engagement — only the flagship
+  // has fleet-comm authority. MS pilots dock back personally (返航 verb).
+  const withdrawBtn = sim.page.locator('[data-tactical-topbar-withdraw="true"]')
+  await expect(
+    withdrawBtn,
+    'fleet withdraw requires flagship comm authority: topbar withdraw must not render for MS pilots',
+  ).toHaveCount(0)
 })
