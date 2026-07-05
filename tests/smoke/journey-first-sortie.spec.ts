@@ -37,7 +37,9 @@ const REP_KEY = 'npc-spec-苏珊·哈丁'                  // AE ship-sales rep 
 const MGR_KEY = 'hangarMgr'                            // hangar manager (fixture NPC)
 const BOARD_PAD_KEY = 'gate-vonBraunCity-vonBraun-S1-board'
 const HELM_KEY = 'ship-kiosk-bridge-0'
-const ENEMY_KEY = 'enemy-pirate-lunar-4'              // the only pirate covering Von Braun
+const DISEMBARK_KEY = 'ship-kiosk-hangarBay-0'        // 下船 kiosk in the ship hangar bay
+const ENEMY_KEY = 'enemy-pirate-lunar-starter'        // the sole weak pirate covering Von Braun
+const DOCK_POI = 'vonBraun'
 const TILE_PX = 32                                     // worldConfig.tilePx (map viewBox is tile-space)
 
 // ── Economy ────────────────────────────────────────────────────────────
@@ -55,9 +57,18 @@ const DIALOGUE_BUDGET_MIN = 120
 const RECEIVE_BUDGET_MIN = 120
 const DELIVERY_WAIT_MIN = 2 * 24 * 60 + 240   // 2 game-days + margin, lands mid-afternoon
 const CONTACT_BUDGET_MIN = 60 * 12
-const SPACE_HOP_STAGES = 16        // right-click hops to bring the far pirate into view
-const SPACE_HOP_STAGE_MIN = 2      // fine sim-minutes per hop (space physics)
+const SPACE_HOP_STAGES = 24        // right-click hops to bring the pirate into view
+const SPACE_HOP_STAGE_MIN = 0.2    // fine sim-minutes per hop — short steps keep the
+                                   // ship inside the close starter's aggro so it keeps
+                                   // chasing instead of the ship overshooting past it
 const CAMERA_TIMEOUT_MS = 15_000
+const COMBAT_DRIVE_STAGES = 20     // resume-and-advance stages (fight resolves in ~1)
+const COMBAT_STAGE_MIN = 1         // fine sim-minutes per stage (~3750 tactical ticks)
+const DOCK_HOP_STAGES = 30         // right-click hops to close on static VB
+const DOCK_HOP_STAGE_MIN = 0.1     // per-hop step; VB doesn't chase back
+const DOCK_NEAR_PX = 500           // world proximity at which VB is reliably on-screen
+const DOCK_BUDGET_MIN = 60 * 12    // fly-home + autodock budget
+const JOURNEY_TIMEOUT_MS = 150_000  // whole end-to-end loop headroom past the 60s default
 
 async function screenCoords(sim: any, key: string): Promise<{ x: number; y: number } | null> {
   return sim.page.evaluate((k: string) => (window as any).__uclife__.getEntityScreenCoords(k), key)
@@ -168,7 +179,11 @@ async function interactToScene(sim: any, key: string, targetScene: string): Prom
   await waitForScene(sim, targetScene)
 }
 
-test('journey: buy → board → helm → undock → intercept → engagement → break off', async ({ sim }) => {
+test('journey: buy → board → helm → intercept → engage → win → tally → dock home → disembark', async ({ sim }) => {
+  // Full W1 loop through real input — city crossing + delivery wait + space
+  // sortie + tactical fight + return runs long; give it headroom past the 60s
+  // default so a slow-but-correct pass isn't clipped into a false failure.
+  test.setTimeout(JOURNEY_TIMEOUT_MS)
   sim.allowConsoleError(isExpectedTestModePortraitMissing) // dialogue portraits (skipAssets)
   sim.allowConsoleError(isKnownPixiResolutionTeardown)     // scene-swap Pixi teardown race
   await sim.boot({ fixture: 'earned-start', params: { freezeNeeds: 1 } })
@@ -262,26 +277,21 @@ test('journey: buy → board → helm → undock → intercept → engagement �
   await sim.page.waitForSelector('.space-view canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
 
   // ── 6. Undock → close on the pirate covering Von Braun ───────────────
-  // The raider patrols thousands of px off-canvas but its aggro circle covers
-  // Von Braun. Right-click quick-navigate toward it (a raw fixed-point course,
-  // not an orbiting POI) undocks and heads the ship at it; the aggroed raider
-  // pursues, so they converge. A few closing stages shrink the gap; then the
-  // pursuit closes the rest and contact opens the engagement modal. (The
-  // right-click's screen→world mapping rides the RAF-lagged space viewport, so
-  // the exact heading varies run-to-run — but the deterministic pursuit makes
-  // contact the reliable outcome, which the final wait catches.)
-  // The raider patrols well outside its aggro range of the dock, so it won't
-  // pursue from here. Right-click quick-navigate toward it hops the ship a
-  // bounded step (raw fixed-point course) — repeat toward its live position
-  // until it enters view, then click 拦截: that commits an intercept course
-  // that chases the raider's live position, and the faster lightFreighter
-  // (topSpeed 60 vs 55) runs it down to contact.
+  // The starter pirate patrols just off the Von Braun approach, and its aggro
+  // circle (1/8-sector reach) covers the dock. Right-click quick-navigate
+  // toward it (a raw fixed-point course, not an orbiting POI) undocks and heads
+  // the ship at it; the aggroed pirate pursues, so they converge. A few closing
+  // stages shrink the gap until it enters view; then click 拦截, which commits
+  // an intercept course chasing the pirate's live position until contact opens
+  // the engagement modal. (The right-click's screen→world mapping rides the
+  // RAF-lagged space viewport, so the exact heading varies run-to-run — but the
+  // deterministic pursuit makes contact the reliable outcome.)
   for (let i = 0; i < SPACE_HOP_STAGES; i++) {
-    const done = await sim.page.evaluate(() => {
+    const done = await sim.page.evaluate((k: string) => {
       const u = (window as any).__uclife__
-      return u.getEnemyScreenCoords('enemy-pirate-lunar-4') != null
+      return u.getEnemyScreenCoords(k) != null
         || u.getGameState().getEngagement().isOpen()
-    })
+    }, ENEMY_KEY)
     if (done) break
     const pt = await sim.page.evaluate(
       (k: string) => (window as any).__uclife__.getEnemyScreenCoordsClamped(k), ENEMY_KEY)
@@ -303,40 +313,136 @@ test('journey: buy → board → helm → undock → intercept → engagement �
   await sim.stepUntil(() =>
     (window as any).__uclife__.getGameState().getEngagement().isOpen(), CONTACT_BUDGET_MIN)
 
-  // ── 7. Disengage from the intercept ──────────────────────────────────
-  // The raider group covering Von Braun is Char Aznable's lunar raider + two
-  // skirmisher escorts — a 1-v-3 the civilian starter freighter can't win on
-  // auto-fire (its beam can't out-DPS three hulls, and it loses the exchange).
-  // The brief assumed a "single pirateLight"; the shipped campaign enemy is far
-  // heavier. So the journey breaks off the engagement and returns home — the
-  // fight-and-win leg is a documented W1 balance gap (see task-10-report.md).
-  await sim.page.locator('.status-panel').getByRole('button', { name: '脱离' })
-    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
-  await sim.stepUntil(() =>
-    !(window as any).__uclife__.getGameState().getEngagement().isOpen(), 30)
+  // The starter pirate is the sole group covering the home approach corridor
+  // (space-entities.json5 keeps the heavier lunar groups clear of it), so the
+  // first contact is deterministically the winnable 1-v-1 — assert it before
+  // committing, so a stray heavier contact fails loud instead of silently
+  // losing the fight.
+  expect(
+    await sim.page.evaluate(() =>
+      (window as any).__uclife__.getGameState().getEngagement().getEnemyKey()),
+    'first contact must be the winnable starter pirate',
+  ).toBe(ENEMY_KEY)
 
-  // ── 8. Journey end (W1 scope) ────────────────────────────────────────
-  // The intercept reached the engagement and we broke off cleanly, proving the
-  // earned-start LOOP end to end via real input: buy → board → helm → intercept
-  // → engagement → break off. The fight-and-win + return-and-disembark legs are
-  // blocked in the SHIPPED game (see .superpowers/sdd/task-10-report.md):
-  //   - pirate-lunar-4 is Char Aznable's lunar raider + two skirmisher escorts,
-  //     not the brief's "single pirateLight" — a starter freighter loses the
-  //     1-v-3 on auto-fire (and losing also crashes combatSystem: an undefined-
-  //     hull read in the flagship auto-pause);
-  //   - it patrols ~6550px from Von Braun — outside its own 3750 aggro radius,
-  //     so it never pursues on undock, and a manual round trip that far exceeds
-  //     the 60-unit fuel tank, stranding the ship short of home.
-  // These are balance/content gaps for follow-up, not test-harness gaps.
+  // ── 7. Engage and win on auto-fire ───────────────────────────────────
+  // The Von Braun coverer is now a single weak pirateLight (no escorts): a
+  // 1-v-1 the stock lightFreighter reliably wins on auto-fire, ending well
+  // above the 25% flagship-hull auto-pause, so the fight runs uninterrupted.
+  const moneyBeforeFight = await sim.page.evaluate(() =>
+    (window as any).__uclife__.getGameState().getPlayerCharacter().getResource('Money'))
+
+  await sim.page.locator('.status-panel').getByRole('button', { name: '交战' })
+    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isOpen()),
+    'engaging must open the tactical view',
+  ).toBe(true)
+
+  // Combat opens paused on the first-contact briefing. Resume via the real
+  // tactical control and advance sim time in stages until the fight resolves;
+  // re-click 继续 on any auto-pause (the fight ends above 25% hull, so none is
+  // expected — the guard just keeps a stray threshold pause from stalling).
+  for (let i = 0; i < COMBAT_DRIVE_STAGES; i++) {
+    const st = await sim.page.evaluate(() => {
+      const c = (window as any).__uclife__.getGameState().getCombat()
+      return { open: c.isOpen(), paused: c.isPaused() }
+    })
+    if (!st.open) break
+    if (st.paused) {
+      await sim.page.locator('.tactical-topbar').getByRole('button', { name: /继续/ })
+        .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+    }
+    await sim.stepFor(COMBAT_STAGE_MIN)
+  }
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isOpen()),
+    'the auto-fire engagement must resolve within the drive budget',
+  ).toBe(false)
+
+  // Victory keeps the ship on the starmap (defeat would migrate it to a
+  // rescue colony); the earned hull survives the sortie.
   await waitForScene(sim, 'spaceCampaign')
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount()),
+    'the earned hull survived the fight (victory, not defeat)',
+  ).toBe(1)
+
+  // ── 8. Clear the recoverables (if any) + tally via real DOM input ────
+  // On a win the recoverables dialogue fires first only when the kill leaves a
+  // survivor hull / pod; otherwise the tally opens directly. Handle both.
+  const recoverablesConfirm = sim.page.locator('[data-recoverables-confirm]')
+  if (await recoverablesConfirm.isVisible().catch(() => false)) {
+    await recoverablesConfirm.click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  }
+  const tallyPanel = sim.page.locator('.status-panel', { hasText: '战斗结算' })
+  await tallyPanel.waitFor({ state: 'visible', timeout: DOM_COMMIT_TIMEOUT_MS })
+  await tallyPanel.getByRole('button', { name: '返回舰桥' }).click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await tallyPanel.waitFor({ state: 'detached', timeout: DOM_COMMIT_TIMEOUT_MS })
+
+  expect(
+    await sim.page.evaluate(() =>
+      (window as any).__uclife__.getGameState().getPlayerCharacter().getResource('Money')),
+    'winning the fight must credit the tally reward',
+  ).toBeGreaterThan(moneyBeforeFight)
+
+  // ── 9. Dock home at Von Braun via the POI context menu ───────────────
+  // Von Braun is off-screen after the running fight; right-click quick-navigate
+  // toward it until the ship is close enough that VB is reliably on-screen,
+  // then left-click it and pick 停泊 — dockAt commits an auto-dock course that
+  // flies the last leg and parks on arrival. Break on WORLD proximity (not
+  // screen visibility) so overshoot past this static point can't oscillate the
+  // ship on/off-screen forever.
+  for (let i = 0; i < DOCK_HOP_STAGES; i++) {
+    const near = await sim.page.evaluate((arg: { p: string; nearPx: number }) => {
+      const u = (window as any).__uclife__
+      const s = u.shipPos()
+      const vb = u.getEntityWorldPos('poi-' + arg.p)
+      return vb ? Math.hypot(s.x - vb.x, s.y - vb.y) < arg.nearPx : false
+    }, { p: DOCK_POI, nearPx: DOCK_NEAR_PX })
+    if (near) break
+    const pt = await sim.page.evaluate((p: string) => {
+      const u = (window as any).__uclife__
+      return u.getPoiScreenCoords(p) ?? u.getPoiScreenCoordsClamped(p)
+    }, DOCK_POI)
+    expect(pt, `${DOCK_POI} must exist to navigate toward`).toBeTruthy()
+    await sim.page.mouse.click(pt!.x, pt!.y, { button: 'right' })
+    await sim.stepFor(DOCK_HOP_STAGE_MIN)
+  }
+  const poiPt = await sim.page.evaluate((p: string) =>
+    (window as any).__uclife__.getPoiScreenCoords(p), DOCK_POI)
+  expect(poiPt, `${DOCK_POI} must be on-screen to open its dock menu`).toBeTruthy()
+  await sim.page.mouse.click(poiPt!.x, poiPt!.y)
+  await sim.page.locator('.space-view').getByText('停泊', { exact: true })
+    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  // stepUntil stringifies its predicate to run in-page, so the POI id must be
+  // an inline literal (a Node-side const isn't in scope there).
+  await sim.stepUntil(() =>
+    (window as any).__uclife__.getGameState().getPlayerFleet().getDockedPoiId() === 'vonBraun',
+    DOCK_BUDGET_MIN)
+
+  // Bonus invariant: the round trip fit the tank — the ship never stranded,
+  // so it still holds fuel at the dock.
+  expect(
+    await sim.page.evaluate(() =>
+      (window as any).__uclife__.getGameState().getPlayerFleet().getFuel().current),
+    'the sortie round trip must not strand the ship (fuel remains at dock)',
+  ).toBeGreaterThan(0)
+
+  // ── 10. Leave the helm and disembark into the city ───────────────────
+  // Docking parks the flagship but leaves the player at the helm. Step off the
+  // helm (back to the ship interior), then walk to the 下船 kiosk and interact
+  // — a single-dockScene POI disembarks straight into vonBraunCity.
+  await sim.page.locator('.space-view').getByText('离开操舵台 (ESC)', { exact: true })
+    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await waitForScene(sim, 'playerShipInterior')
+
+  await walkOnScreen(sim, DISEMBARK_KEY)
+  await interactToScene(sim, DISEMBARK_KEY, 'vonBraunCity')
+
   expect(
     await sim.page.evaluate(() =>
       (window as any).__uclife__.getGameState().getScene().getId()),
-    'breaking off leaves the ship on the starmap',
-  ).toBe('spaceCampaign')
-  expect(
-    await sim.page.evaluate(() =>
-      (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount()),
-    'the earned hull survived the sortie',
-  ).toBe(1)
+    'disembarking lands the player back in the city',
+  ).toBe('vonBraunCity')
 })
