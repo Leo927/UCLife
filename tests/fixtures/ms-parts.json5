@@ -2,16 +2,15 @@
 //
 // Player aboard the flagship at Von Braun with cash + piloting skill so the
 // boardShip + startCombat cheats unlock. The starter MS (ms-player-0) +
-// PlayerPartsInventory are granted at boot (grantStarterMsToFlagship), so
-// the smoke can buy parts at the AE dealer, salvage parts from a broken-down
-// pirate_raider, and install the acquired weapon on the starter MS.
+// PlayerPartsInventory are normally granted on first hull delivery
+// (grantStarterMsToShip in src/systems/shipDelivery.ts), not at boot; this
+// fixture pins them directly so the smoke can buy parts at the AE dealer,
+// salvage parts from a broken-down pirate_raider, and install the acquired
+// weapon on the starter MS.
 //
 // Same baseline shape as ms-sortie, minus the recovery-tug captain (this
-// smoke never strands an MS).
-//
-// W1 Task 5 — the starter MS + parts inventory are no longer boot-granted;
-// this fixture pins them (a `gm_pre`, as before). buyPartCheat needs the
-// PlayerPartsInventory singleton to exist, and the install step needs the MS.
+// smoke never strands an MS). buyPartCheat needs the PlayerPartsInventory
+// singleton to exist, and the install step needs the MS.
 {
   seed: 'ms-parts-001',
   startDate: '2026-05-27T08:00:00Z',

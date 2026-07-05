@@ -11,6 +11,7 @@ import {
   IsPlayer, Position, MoveTarget, Action, Bed, Workstation,
   Ship, EntityKey, Owner, IsFlagshipMark, IsInActiveFleet,
 } from '../ecs/traits'
+import { recomputeFleetPool } from '../ecs/fleetPool'
 import { migratePlayerEntity } from '../character/migrate'
 import { markPathfindingDirty, warmPathfinding } from '../systems/pathfinding'
 import { getSceneConfig, type ShipSceneConfig } from '../data/scenes'
@@ -166,8 +167,16 @@ export function boardShipByKey(targetShipKey: string): { ok: true } | { ok: fals
     }
   }
   target.add(IsFlagshipMark)
-  if (!target.has(IsInActiveFleet)) target.add(IsInActiveFleet)
+  const wasActiveAlready = target.has(IsInActiveFleet)
+  if (!wasActiveAlready) target.add(IsInActiveFleet)
   target.set(Ship, { ...ship, formationSlot: fleetConfig.activeFleetGrid.flagshipSlot })
+  // A reserve ship (no IsInActiveFleet) can be boarded directly — the target
+  // isn't required to already be in the active fleet. Boarding it here just
+  // promoted it, so the roster sumStat() draws from grew; recompute the
+  // pool's capacity to match. No `topUp` — boarding is routine transit, not
+  // a free refuel (see grantFirstHullOnboarding for the one place a top-up
+  // is warranted: the dealer's delivered-fuelled first hull).
+  if (!wasActiveAlready) recomputeFleetPool()
 
   tearDownShipSceneLayout(shipWorld)
   seedShipSceneLayout(targetCls, shipWorld)
