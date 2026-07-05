@@ -72,6 +72,22 @@ describe('getGameState', () => {
     expect(getGameState().getPlayerFleet().getShipCount()).toBe(1)
   })
 
+  it('getPlayerFleet.getDockedPoiId reports the fixture dock binding', () => {
+    applyFixture('starter-fleet')
+    expect(getGameState().getPlayerFleet().getDockedPoiId()).toBe('vonBraun')
+  })
+
+  it('getPlayerFleet.getFuel reads the topped-off fixture fuel pool', () => {
+    applyFixture('starter-fleet')
+    expect(getGameState().getPlayerFleet().getFuel()).toBeGreaterThan(0)
+  })
+
+  it('getEngagement.isOpen is false when no encounter has been prompted', () => {
+    applyFixture('minimal-player-only')
+    expect(getGameState().getEngagement().isOpen()).toBe(false)
+    expect(getGameState().getEngagement().getEnemyKey()).toBeNull()
+  })
+
   it('getFaction reads the post-fixture fund as a "Money" resource', () => {
     applyFixture('amuro-at-recruit-office')
     const ae = getGameState().getFaction('anaheim')

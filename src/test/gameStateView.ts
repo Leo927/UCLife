@@ -20,6 +20,8 @@ import {
   getAllDiplomaticRecords, getDiplomaticRecord, getAllMeetingRequests,
   type DiplomaticRecord, type MeetingRequest,
 } from '../sim/diplomacy'
+import { getFleetPool, getDockedPoiId as getFleetDockedPoiId } from '../sim/ship'
+import { useEngagement } from '../sim/engagement'
 import { IsPlayerFaction, FactionEffectsList, FactionSheet } from '../ecs/traits'
 import { factionPerkStoreView, type FactionPerkRow } from '../systems/factionPerks'
 import type { FactionStatId } from '../stats/factionSchema'
@@ -58,8 +60,21 @@ export interface ShipView {
 
 // W1 Task 5 — the player's owned hulls. getShipCount() is 0 on a fresh
 // boot now that the flagship is bought, not boot-granted.
+// W1 Task 6 — getFuel()/getDockedPoiId() read the flagship's live fleet-
+// pool fuel and the campaign-world dock binding, for smokes driving the
+// starmap navigation/dock loop deterministically.
 export interface FleetView {
   getShipCount(): number
+  getFuel(): number
+  getDockedPoiId(): string | null
+}
+
+// W1 Task 6 — space-engagement modal state (src/sim/engagement.ts),
+// surfaced read-only for smokes that drive an intercept course to
+// contact without clicking through the modal itself.
+export interface EngagementView {
+  isOpen(): boolean
+  getEnemyKey(): string | null
 }
 
 export interface FactionView {
@@ -123,6 +138,8 @@ export interface GameStateView {
   // W1 Task 5 — the player's fleet (owned Ship entities). Used by the
   // no-ship-start smoke to prove a fresh boot owns nothing.
   getPlayerFleet(): FleetView
+  // W1 Task 6 — read-only space-engagement modal state.
+  getEngagement(): EngagementView
   getFaction(id: string): FactionView | null
   getDialogue(): DialogueView | null
   getScene(): SceneView
@@ -400,7 +417,17 @@ export function getGameState(): GameStateView {
       return makeShipView(hit.entity)
     },
     getPlayerFleet(): FleetView {
-      return { getShipCount: countPlayerShips }
+      return {
+        getShipCount: countPlayerShips,
+        getFuel: () => getFleetPool().fuelCurrent,
+        getDockedPoiId: getFleetDockedPoiId,
+      }
+    },
+    getEngagement(): EngagementView {
+      return {
+        isOpen: () => useEngagement.getState().open,
+        getEnemyKey: () => useEngagement.getState().enemyKey,
+      }
     },
     getFaction(id: string): FactionView | null {
       if (!FACTION_IDS.has(id)) return null

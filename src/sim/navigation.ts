@@ -9,7 +9,9 @@ import { getShipState, getFleetPool, spendFuel, clearDocked, setDockedPoi, setFl
 import { getPoi } from '../data/pois'
 import { takeoffFuelCostFor, derivedPoiPos } from './helm'
 import { getWorld } from '../ecs/world'
-import { IsPlayer, ShipBody, Course, PoiTag, Position, Velocity } from '../ecs/traits'
+import {
+  IsPlayer, ShipBody, Course, PoiTag, Position, Velocity, EnemyAI, EntityKey,
+} from '../ecs/traits'
 import { useClock, gameDayNumber } from './clock'
 import { emitSim } from './events'
 import { useDebug } from '../debug/store'
@@ -18,8 +20,9 @@ import { spaceConfig } from '../config'
 export type NavTarget =
   | { kind: 'poi'; poiId: string }
   | { kind: 'point'; x: number; y: number }
+  | { kind: 'enemy'; enemyKey: string }
 
-function poiLivePos(poiId: string): { x: number; y: number } | null {
+export function poiLivePos(poiId: string): { x: number; y: number } | null {
   const space = getWorld('spaceCampaign')
   for (const e of space.query(PoiTag, Position)) {
     if (e.get(PoiTag)!.poiId === poiId) {
@@ -28,6 +31,17 @@ function poiLivePos(poiId: string): { x: number; y: number } | null {
     }
   }
   return derivedPoiPos(poiId)
+}
+
+function enemyLivePos(enemyKey: string): { x: number; y: number } | null {
+  const space = getWorld('spaceCampaign')
+  for (const e of space.query(EnemyAI, Position, EntityKey)) {
+    if (e.get(EntityKey)!.key === enemyKey) {
+      const p = e.get(Position)!
+      return { x: p.x, y: p.y }
+    }
+  }
+  return null
 }
 
 // Charges takeoff fuel + clears the dock binding if the ship is currently
@@ -77,11 +91,20 @@ export function navigateTo(target: NavTarget): { ok: boolean; message?: string }
   if (target.kind === 'poi') {
     const live = poiLivePos(target.poiId) ?? { x: 0, y: 0 }
     player.set(Course, {
-      tx: live.x, ty: live.y, destPoiId: target.poiId, active: true, autoDock: false,
+      tx: live.x, ty: live.y, destPoiId: target.poiId, destEnemyKey: null,
+      active: true, autoDock: false,
+    })
+  } else if (target.kind === 'enemy') {
+    const live = enemyLivePos(target.enemyKey)
+    if (!live) return { ok: false, message: '目标已消失' }
+    player.set(Course, {
+      tx: live.x, ty: live.y, destPoiId: null, destEnemyKey: target.enemyKey,
+      active: true, autoDock: false,
     })
   } else {
     player.set(Course, {
-      tx: target.x, ty: target.y, destPoiId: null, active: true, autoDock: false,
+      tx: target.x, ty: target.y, destPoiId: null, destEnemyKey: null,
+      active: true, autoDock: false,
     })
   }
   return { ok: true }
@@ -114,7 +137,9 @@ export function dockAt(poiId: string): { ok: boolean; message?: string } {
     setFleetPos(live)
     player.set(Position, { x: live.x, y: live.y })
     player.set(Velocity, { vx: 0, vy: 0 })
-    player.set(Course, { tx: 0, ty: 0, destPoiId: null, active: false, autoDock: false })
+    player.set(Course, {
+      tx: 0, ty: 0, destPoiId: null, destEnemyKey: null, active: false, autoDock: false,
+    })
     const poi = getPoi(poiId)
     emitSim('log', {
       textZh: `已停泊 · ${poi?.nameZh ?? poiId}`,
@@ -131,7 +156,7 @@ export function dockAt(poiId: string): { ok: boolean; message?: string } {
   const takeoff = takeoffIfDocked()
   if (!takeoff.ok) return takeoff
   player.set(Course, {
-    tx: live.x, ty: live.y, destPoiId: poiId, active: true, autoDock: true,
+    tx: live.x, ty: live.y, destPoiId: poiId, destEnemyKey: null, active: true, autoDock: true,
   })
   return { ok: true }
 }

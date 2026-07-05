@@ -13,6 +13,7 @@ import { IsPlayer, Position, Body, PoiTag, Velocity, Course, EnemyAI, EntityKey 
 import { dialogueText } from '../data/dialogueText'
 import { CELESTIAL_BODIES } from '../data/celestialBodies'
 import { POIS, type Poi, poiIdForScene } from '../data/pois'
+import { getEnemyShip } from '../data/enemyShips'
 import { regionPoiIds } from '../data/scenes'
 import { orbitalLifts } from '../data/orbitalLifts'
 import { spaceConfig } from '../config'
@@ -121,7 +122,12 @@ function readShip(): ShipSnapshot | null {
   const cc = playerEnt.get(Course) ?? null
   return {
     x: pp.x, y: pp.y, vx: vv.vx, vy: vv.vy,
-    course: cc ? { tx: cc.tx, ty: cc.ty, destPoiId: cc.destPoiId, active: cc.active } : null,
+    course: cc
+      ? {
+        tx: cc.tx, ty: cc.ty, destPoiId: cc.destPoiId, destEnemyKey: cc.destEnemyKey,
+        active: cc.active,
+      }
+      : null,
   }
 }
 
@@ -161,15 +167,30 @@ function findNearbyPoi(pois: PoiSnapshot[], wx: number, wy: number): Poi | null 
   return best
 }
 
-// Starsector-style: a small floating menu anchored at the cursor when the
-// player left-clicks a POI. screenX/screenY are the click coords, used to
-// position the absolute-div; poiId names the target. Closing the menu just
-// nulls this state — clicking a menu item commits the action then closes.
-interface ContextMenuState {
-  poiId: string
-  screenX: number
-  screenY: number
+function findNearbyEnemy(
+  enemies: EnemyShipSnapshot[], wx: number, wy: number,
+): EnemyShipSnapshot | null {
+  let best: EnemyShipSnapshot | null = null
+  let bestD2 = spaceConfig.enemyPickRadius * spaceConfig.enemyPickRadius
+  for (const es of enemies) {
+    const dx = es.x - wx
+    const dy = es.y - wy
+    const d2 = dx * dx + dy * dy
+    if (d2 < bestD2) {
+      bestD2 = d2
+      best = es
+    }
+  }
+  return best
 }
+
+// Starsector-style: a small floating menu anchored at the cursor when the
+// player left-clicks a POI or an enemy ship. screenX/screenY are the click
+// coords, used to position the absolute-div. Closing the menu just nulls
+// this state — clicking a menu item commits the action then closes.
+type ContextMenuState =
+  | { kind: 'poi'; poiId: string; screenX: number; screenY: number }
+  | { kind: 'enemy'; enemyKey: string; screenX: number; screenY: number }
 
 interface FleetSupplyHud {
   supplyCurrent: number; supplyMax: number;
@@ -215,6 +236,7 @@ export function SpaceView() {
   // Snapshot kept on the ref so canvas-click handlers see the same data the
   // last frame rendered without re-snapping.
   const lastPoisRef = useRef<PoiSnapshot[]>([])
+  const lastEnemiesRef = useRef<EnemyShipSnapshot[]>([])
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
@@ -254,9 +276,14 @@ export function SpaceView() {
         const enemies = readEnemies()
         const ship = readShip()
         lastPoisRef.current = pois
+        lastEnemiesRef.current = enemies
         const sz = sizeRef.current
         const fitOn = fitModeRef.current
         const fit = fitOn ? fitTransform(bodies, pois, enemies, ship, sz.w, sz.h) : null
+        // Single source of truth with the spaceSim autopilot retarget
+        // (systems/spaceSim.ts): both walk the same live PoiTag/EnemyAI
+        // query results this frame, so the preview line never drifts
+        // from where the ship is actually thrusting toward.
         let coursePreview: SpaceSnapshot['coursePreview'] = null
         if (ship && ship.course?.active) {
           let tx = ship.course.tx
@@ -264,16 +291,20 @@ export function SpaceView() {
           if (ship.course.destPoiId) {
             const found = pois.find((p) => p.poi.id === ship.course!.destPoiId)
             if (found) { tx = found.x; ty = found.y }
+          } else if (ship.course.destEnemyKey) {
+            const found = enemies.find((en) => en.key === ship.course!.destEnemyKey)
+            if (found) { tx = found.x; ty = found.y }
           }
           coursePreview = { fromX: ship.x, fromY: ship.y, toX: tx, toY: ty }
         }
+        const hoveredMenu = menuRef.current
         r.update({
           bodies, pois, liftLines: readLiftLines(poiById), enemies, ship,
           dockSnapRadius: spaceConfig.dockSnapRadius,
           fitMode: fitOn,
           fit,
           coursePreview,
-          hoveredPoiId: menuRef.current?.poiId ?? null,
+          hoveredPoiId: hoveredMenu?.kind === 'poi' ? hoveredMenu.poiId : null,
           dtSec,
         })
       }
@@ -310,11 +341,12 @@ export function SpaceView() {
   // tree, but we already have a screen→world transform + linear scan that
   // honors the snap-radius semantics — keep it simple.
   //
-  // Left-click on a POI opens the Starsector-style context menu near the
-  // cursor (Navigate / Dock). Left-click on empty space closes any open
-  // menu. Right-click anywhere is the quick-navigate shortcut: targets a
-  // POI if hovered, otherwise the raw click point. Both navigation paths
-  // funnel through navigateTo()/dockAt() so takeoff is paid exactly once.
+  // Left-click on a POI or an enemy ship opens the Starsector-style context
+  // menu near the cursor (Navigate / Dock, or Intercept). Left-click on
+  // empty space closes any open menu. Right-click anywhere is the quick-
+  // navigate shortcut: targets a POI if hovered, otherwise the raw click
+  // point. Both navigation paths funnel through navigateTo()/dockAt() so
+  // takeoff is paid exactly once.
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = rendererRef.current
     if (!r) return
@@ -345,11 +377,19 @@ export function SpaceView() {
       return
     }
 
-    // Left-click. Hits a POI ⇒ open context menu; empty space ⇒ close.
+    // Left-click. Hits a POI ⇒ open Navigate/Dock menu; hits an enemy ⇒
+    // open Intercept menu; empty space ⇒ close. POI takes priority when
+    // both snap radii overlap (POIs and patrols rarely coincide).
     const near = findNearbyPoi(lastPoisRef.current, wp.x, wp.y)
     if (near) {
       playUi('ui.space.left-poi')
-      setMenu({ poiId: near.id, screenX: e.clientX, screenY: e.clientY })
+      setMenu({ kind: 'poi', poiId: near.id, screenX: e.clientX, screenY: e.clientY })
+      return
+    }
+    const nearEnemy = findNearbyEnemy(lastEnemiesRef.current, wp.x, wp.y)
+    if (nearEnemy) {
+      playUi('ui.space.left-enemy')
+      setMenu({ kind: 'enemy', enemyKey: nearEnemy.key, screenX: e.clientX, screenY: e.clientY })
     } else {
       playUi('ui.space.left-empty')
       setMenu(null)
@@ -360,18 +400,28 @@ export function SpaceView() {
     e.preventDefault()
   }
 
-  const menuPoi = menu ? poiDataById.get(menu.poiId) ?? null : null
+  const menuPoi = menu?.kind === 'poi' ? poiDataById.get(menu.poiId) ?? null : null
+  const menuEnemy = menu?.kind === 'enemy'
+    ? lastEnemiesRef.current.find((en) => en.key === menu.enemyKey) ?? null
+    : null
   const onNavigate = () => {
-    if (!menu) return
+    if (menu?.kind !== 'poi') return
     playUi('ui.space.menu-navigate')
     const res = navigateTo({ kind: 'poi', poiId: menu.poiId })
     if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
     setMenu(null)
   }
   const onDock = () => {
-    if (!menu) return
+    if (menu?.kind !== 'poi') return
     playUi('ui.space.menu-dock')
     const res = dockAt(menu.poiId)
+    if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
+    setMenu(null)
+  }
+  const onIntercept = () => {
+    if (menu?.kind !== 'enemy') return
+    playUi('ui.space.menu-intercept')
+    const res = navigateTo({ kind: 'enemy', enemyKey: menu.enemyKey })
     if (!res.ok && res.message) emitSim('toast', { textZh: res.message })
     setMenu(null)
   }
@@ -430,7 +480,7 @@ export function SpaceView() {
       >
         离开操舵台 (ESC)
       </button>
-      {menu && menuPoi && (() => {
+      {menu && (menuPoi || menuEnemy) && (() => {
         // Clamp the menu inside the viewport so a click near the right/bottom
         // edge doesn't push half the menu off-screen. 180×~92 covers the
         // current item set; refresh if the menu grows.
@@ -438,6 +488,7 @@ export function SpaceView() {
         const H = 92
         const left = Math.min(menu.screenX + 6, window.innerWidth - W - 8)
         const top = Math.min(menu.screenY + 6, window.innerHeight - H - 8)
+        const title = menuPoi ? menuPoi.nameZh : getEnemyShip(menuEnemy!.shipClassId).nameZh
         return (
           <div
             onPointerDown={(e) => e.stopPropagation()}
@@ -454,10 +505,16 @@ export function SpaceView() {
               padding: '6px 10px', borderBottom: '1px solid #334155',
               color: '#cbd5e1', fontSize: 12, fontWeight: 600,
             }}>
-              {menuPoi.nameZh}
+              {title}
             </div>
-            <ContextMenuItem label="前往" onClick={onNavigate} />
-            <ContextMenuItem label="停泊" onClick={onDock} />
+            {menuPoi ? (
+              <>
+                <ContextMenuItem label="前往" onClick={onNavigate} />
+                <ContextMenuItem label="停泊" onClick={onDock} />
+              </>
+            ) : (
+              <ContextMenuItem label="拦截" onClick={onIntercept} />
+            )}
           </div>
         )
       })()}

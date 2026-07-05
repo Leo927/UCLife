@@ -16,6 +16,7 @@ import { enemyAISystem } from './enemyAI'
 import { fleetFormationSystem } from './fleetFormation'
 import { useEngagement } from '../sim/engagement'
 import { spendFuel, getFleetPool, getDockedPoiId, setDockedPoi, setFleetPos, getFlagshipEntity } from '../sim/ship'
+import { derivedPoiPos } from '../sim/helm'
 import { emitSim } from '../sim/events'
 import { simNow } from '../sim/time'
 
@@ -110,9 +111,12 @@ export function spaceSimSystem(world: World, dtSec: number): void {
   // Pin a docked player ship to the live POI position. Without this the
   // POI orbits its parent each frame while the ship stays put in absolute
   // space, reading as drift even though the player issued no command.
+  // Falls back to derivedPoiPos() when the POI entity's per-frame cache
+  // misses (e.g. a transient scene-teardown frame) instead of silently
+  // leaving the ship at a stale snapshot.
   const dockedPoiId = getDockedPoiId()
   if (dockedPoiId) {
-    const dp = poiPosById.get(dockedPoiId)
+    const dp = poiPosById.get(dockedPoiId) ?? derivedPoiPos(dockedPoiId)
     if (dp) {
       for (const pe of world.query(IsPlayer, ShipBody, Position, Velocity)) {
         pe.set(Position, { x: dp.x, y: dp.y })
@@ -141,23 +145,50 @@ export function spaceSimSystem(world: World, dtSec: number): void {
 
     if (course.active) {
       // If destPoiId set, retarget to the live POI position each frame.
+      // Falls back to derivedPoiPos() on a poiPosById cache miss instead
+      // of silently coasting toward a stale snapshot — a real orbiting
+      // POI is always resolvable this way even on a frame where the
+      // O(1) per-frame cache above didn't populate it.
       let tx = course.tx
       let ty = course.ty
+      let targetGone = false
       if (course.destPoiId) {
-        const pp = poiPosById.get(course.destPoiId)
+        const pp = poiPosById.get(course.destPoiId) ?? derivedPoiPos(course.destPoiId)
         if (pp) {
           tx = pp.x
           ty = pp.y
         }
+      } else if (course.destEnemyKey) {
+        // Intercept course: retarget to the named enemy's live position
+        // each frame. If the target is gone (destroyed / left the
+        // campaign world), the course has nothing left to chase — halt
+        // it here rather than coasting toward its last known position.
+        let live: { x: number; y: number } | null = null
+        for (const en of world.query(EnemyAI, Position, EntityKey)) {
+          if (en.get(EntityKey)!.key === course.destEnemyKey) {
+            live = en.get(Position)!
+            break
+          }
+        }
+        if (live) {
+          tx = live.x
+          ty = live.y
+        } else {
+          e.set(Course, { ...course, active: false, destEnemyKey: null })
+          e.set(Thrust, { ax: 0, ay: 0 })
+          targetGone = true
+        }
       }
-      const r = thrustToward(
-        { pos, vel: { x: vel.vx, y: vel.vy } },
-        { x: tx, y: ty },
-        spaceConfig.thrustAccel,
-        maxSpeed,
-        spaceConfig.autopilotArriveRadiusPx,
-      )
-      e.set(Thrust, { ax: r.thrust.ax, ay: r.thrust.ay })
+      const r = targetGone
+        ? { thrust: { ax: 0, ay: 0 }, arrived: false }
+        : thrustToward(
+          { pos, vel: { x: vel.vx, y: vel.vy } },
+          { x: tx, y: ty },
+          spaceConfig.thrustAccel,
+          maxSpeed,
+          spaceConfig.autopilotArriveRadiusPx,
+        )
+      if (!targetGone) e.set(Thrust, { ax: r.thrust.ax, ay: r.thrust.ay })
       if (r.arrived) {
         e.set(Course, { ...course, active: false, autoDock: false })
         // autoDock courses (set by dockAt() in navigation.ts) snap the

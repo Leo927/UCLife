@@ -48,6 +48,12 @@
   // this, clicks resolve to free-space coordinates.
   dockSnapRadius: 80,
 
+  // Click-target snap radius for enemy ships, in world px. Same role as
+  // dockSnapRadius but for the Intercept context-menu action — enemy
+  // sprites don't have a fixed dock marker, so this owns its own tunable
+  // rather than reusing dockSnapRadius by coincidence.
+  enemyPickRadius: 80,
+
   // Autopilot arrival tolerance, in world px. The ship declares the
   // course complete once it is within this distance and below
   // arrivalSpeed. Keep small so free-space "go here" clicks land at the
