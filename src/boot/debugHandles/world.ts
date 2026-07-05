@@ -6,7 +6,7 @@ import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import {
   IsPlayer, Position, MoveTarget, Money, Road, Building, Wall, Path,
-  Character, EntityKey, Action, Job, Workstation,
+  Character, EntityKey, Action, Job, Workstation, QueuedInteract,
 } from '../../ecs/traits'
 import { worldConfig } from '../../config'
 
@@ -36,6 +36,21 @@ registerDebugHandle('setMoveTarget', (target: { x: number; y: number }) => {
   const player = world.queryFirst(IsPlayer)
   if (!player) return false
   player.set(MoveTarget, target)
+  return true
+})
+
+// Task 8 smoke helper — queue an interact against whatever Interactable
+// is nearest the player right now. Mirrors the production "go to work"
+// click (StatusPanel.tsx: MoveTarget + QueuedInteract), which is the
+// ECS-level equivalent of a real click on a sprite; deterministic-tests
+// rule 1 (drive through __uclife__, not the DOM/canvas) applies to the
+// *walk-and-click* motion the same way it does to state reads. Call
+// after movePlayerTo() has already placed the player within
+// worldConfig.ranges.playerInteract of the target.
+registerDebugHandle('queueInteract', () => {
+  const player = world.queryFirst(IsPlayer, Position, MoveTarget, Action)
+  if (!player) return false
+  if (!player.has(QueuedInteract)) player.add(QueuedInteract)
   return true
 })
 

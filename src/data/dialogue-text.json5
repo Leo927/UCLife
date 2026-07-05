@@ -340,6 +340,20 @@
       msTransferToastQueued: '{ms} 已从 {from} 启运 · 目的地 {to} · {days} 天后抵达 (合计 ¥{cost})。',
       msTransferToastFailed: '调度失败：{reason}',
       msTransferDestNoCarrier: '目的地无 MS 泊位',
+      // Task 8 — ship <-> depot MS custody verbs (unload/load).
+      msUnloadHeader: 'MS 卸运',
+      msUnloadIntro: '将舰载 MS 卸运至本机库存放，以便进行框架改装。',
+      msUnloadEmpty: '当前没有停靠于本机库的舰载 MS 可供卸运。',
+      msUnloadConfirmButton: '卸运MS至本机库',
+      msUnloadToastDone: '{ms} 已卸运至本机库。',
+      msLoadHeader: 'MS 装载',
+      msLoadIntro: '将本机库内的 MS 装载至有空余机库的飞船。',
+      msLoadEmpty: '当前没有可装载的 MS，或没有停靠于本机库且有空余机库的飞船。',
+      msLoadPickMsLabel: '选择 MS',
+      msLoadPickShipLabel: '选择飞船',
+      msLoadConfirmButton: '装载MS上舰',
+      msLoadToastDone: '{ms} 已装载至 {ship}。',
+      msLoadBack: '返回 MS 列表',
     },
     // Phase 6.2.F — AE supply dealer dialog. The "title" line is the
     // greeting; the two action verbs (orderSupply / orderFuel) live on

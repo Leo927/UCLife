@@ -160,6 +160,21 @@ export interface DialogueText {
       msTransferToastQueued: string
       msTransferToastFailed: string
       msTransferDestNoCarrier: string
+      // Task 8 — ship <-> depot MS custody verbs (unload/load), the frame-
+      // mod retrofit catch-22 fix.
+      msUnloadHeader: string
+      msUnloadIntro: string
+      msUnloadEmpty: string
+      msUnloadConfirmButton: string
+      msUnloadToastDone: string
+      msLoadHeader: string
+      msLoadIntro: string
+      msLoadEmpty: string
+      msLoadPickMsLabel: string
+      msLoadPickShipLabel: string
+      msLoadConfirmButton: string
+      msLoadToastDone: string
+      msLoadBack: string
     }
     aeSupplyDealer: {
       titleSuffix: string

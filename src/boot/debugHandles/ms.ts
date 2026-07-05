@@ -13,7 +13,7 @@ import { poiIdForHangar } from '../../data/pois'
 import {
   Ms, MsStatSheet, PlayerPartsInventory, EntityKey, Building, Hangar, Character,
   EmployedAsPilot, RecruitedTo, IsPlayer, Money, ResupplyState,
-  CombatShipState,
+  CombatShipState, MsRef, Interactable, Position,
 } from '../../ecs/traits'
 import { useUI } from '../../ui/uiStore'
 import { enqueueMsDelivery, receiveMsDelivery, msDeliverySystem } from '../../systems/msDelivery'
@@ -21,7 +21,7 @@ import { enqueueMsTransfer, msTransitSystem } from '../../systems/msTransfer'
 import { autoAssignPilotForMs, assignPilotToMs } from '../../systems/msPilotAssign'
 import { buyPart } from '../../systems/partsSales'
 import { refreshAllDepotMsLayouts } from '../../ecs/spawn'
-import { fleetConfig } from '../../config'
+import { fleetConfig, worldConfig } from '../../config'
 import { useClock, gameDayNumber } from '../../sim/clock'
 import {
   installFrameModEffect, uninstallFrameModEffect,
@@ -187,6 +187,24 @@ registerDebugHandle('listHangarsForMs', (): Array<{
     }
   }
   return out
+})
+
+// Task 8 smoke helper — tile position of the depot msTerminal sprite for
+// a given MS, spawned by refreshDepotMsLayout. Lets the smoke movePlayerTo
+// + queueInteract deterministically instead of hunting canvas pixels.
+registerDebugHandle('depotMsTerminalTile', (
+  sceneId: string,
+  msKey: string,
+): { x: number; y: number } | null => {
+  const w = getWorld(sceneId)
+  const tile = worldConfig.tilePx
+  for (const ent of w.query(MsRef, Interactable, Position)) {
+    if (ent.get(MsRef)!.msKey !== msKey) continue
+    if (ent.get(Interactable)!.kind !== 'msTerminal') continue
+    const p = ent.get(Position)!
+    return { x: p.x / tile, y: p.y / tile }
+  }
+  return null
 })
 
 registerDebugHandle('getPendingMsDeliveries', (): Array<{

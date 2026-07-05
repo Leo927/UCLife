@@ -15,7 +15,7 @@ import { useClock } from '../sim/clock'
 import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
 import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
-import { Ship, IsFlagshipMark } from '../ecs/traits'
+import { Ship, IsFlagshipMark, Ms } from '../ecs/traits'
 import { boardShip, boardShipByKey, disembarkShip, migratePlayerToScene } from '../sim/scene'
 import { getShipClass } from '../data/ship-classes'
 import { takeHelm } from '../sim/helm'
@@ -103,6 +103,18 @@ function playerOwnsAnyShip(): boolean {
     if (e.get(Owner)!.kind === 'character') return true
   }
   return false
+}
+
+// Task 8 — Ms entities always live in playerShipInterior regardless of
+// custody state (storedOnShipKey vs dockedAtPoiId); this resolves the
+// custody state for the climbIntoMs / msTerminal depot-reachability check.
+function findMsDockedAtPoiId(msKey: string): string {
+  if (!msKey) return ''
+  const shipWorld = getWorld('playerShipInterior')
+  for (const ent of shipWorld.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key === msKey) return ent.get(Ms)!.dockedAtPoiId
+  }
+  return ''
 }
 
 export function interactionSystem(world: World) {
@@ -319,7 +331,18 @@ export function interactionSystem(world: World) {
       continue
     }
     if (nearestKind === 'climbIntoMs') {
+      const msKey = nearestEnt?.get(MsRef)?.msKey ?? ''
+      const atDepot = msKey !== '' && findMsDockedAtPoiId(msKey) !== ''
+      // Task 8 — depot MS also carry a climbIntoMs sprite (refreshDepotMsLayout).
+      // Outside combat there's nothing to sortie into from the ground, so
+      // repurpose the click as a retrofit-panel shortcut instead of a dead-
+      // end rejection toast. In-combat behavior is unchanged: sortie launch
+      // still requires the flagship's own hangar bay.
       if (getActiveSceneId() !== 'playerShipInterior') {
+        if (atDepot && useClock.getState().mode !== 'combat') {
+          emitSim('ui:open-ms-retrofit', { msKey })
+          continue
+        }
         emitSim('toast', { textZh: '只能在机库内登舱出击' })
         continue
       }
@@ -327,17 +350,21 @@ export function interactionSystem(world: World) {
         emitSim('toast', { textZh: '尚未进入战斗 · 无需出击' })
         continue
       }
-      const msKey = nearestEnt?.get(MsRef)?.msKey ?? ''
       const r = launchMs(msKey || undefined)
       if (!r.ok && r.reasonZh) emitSim('toast', { textZh: r.reasonZh })
       continue
     }
     if (nearestKind === 'msTerminal') {
-      if (getActiveSceneId() !== 'playerShipInterior') {
+      const msKey = nearestEnt?.get(MsRef)?.msKey ?? ''
+      // Task 8 — depot terminals (refreshDepotMsLayout) are reachable
+      // whenever the MS they reference is actually parked at a depot
+      // (dockedAtPoiId set); the terminal entity only ever exists in the
+      // scene it was spawned into, so no cross-scene lookup is needed.
+      const atDepot = msKey !== '' && findMsDockedAtPoiId(msKey) !== ''
+      if (getActiveSceneId() !== 'playerShipInterior' && !atDepot) {
         emitSim('toast', { textZh: 'MS 终端仅在机库内可用' })
         continue
       }
-      const msKey = nearestEnt?.get(MsRef)?.msKey ?? ''
       if (!msKey) {
         emitSim('toast', { textZh: 'MS 终端数据异常' })
         continue

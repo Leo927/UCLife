@@ -23,6 +23,10 @@ import {
   enqueueMsTransfer, listMsTransferableAtPoi, listMsTransferDestinations,
   type MsTransferableMs, type MsTransferDestination,
 } from '../../../systems/msTransfer'
+import {
+  unloadMsToDepot, loadMsAboard, listShipAboardMsAtPoi, listDepotMsAtPoi,
+  listShipsWithFreeBaysAtPoi, type CustodyMsRow, type CustodyShipRow,
+} from '../../../systems/msCustody'
 import { getShipClass } from '../../../data/ship-classes'
 import { getMsClass } from '../../../data/ms'
 import { getPoi } from '../../../data/pois'
@@ -82,6 +86,8 @@ function HangarManagerPanel({ manager }: { manager: Entity }) {
       {sceneId && <RepairPriorityPanel hangar={building} sceneId={sceneId} />}
       {poiId && <TransferPanel poiId={poiId} />}
       {poiId && <MsTransferPanel poiId={poiId} />}
+      {poiId && <MsUnloadPanel poiId={poiId} />}
+      {poiId && <MsLoadPanel poiId={poiId} />}
     </>
   )
 }
@@ -649,6 +655,128 @@ function MsDestinationPicker({
 
 function destinationsForMs(msKey: string): MsTransferDestination[] {
   return listMsTransferDestinations(msKey)
+}
+
+// ─── Task 8 — ship <-> depot MS custody verbs ──────────────────────────
+
+function MsUnloadPanel({ poiId }: { poiId: string }) {
+  const t = dialogueText.branches.hangarManager
+  const showToast = useUI((s) => s.showToast)
+  const [, bump] = useState(0)
+  const aboard = listShipAboardMsAtPoi(poiId)
+
+  const onUnload = (ms: CustodyMsRow) => {
+    const r = unloadMsToDepot(ms.msKey, poiId)
+    if (!r.ok) {
+      showToast(r.reasonZh)
+      return
+    }
+    showToast(t.msUnloadToastDone.replace('{ms}', ms.msName))
+    bump((n) => n + 1)
+  }
+
+  return (
+    <section style={{ marginTop: 12 }} data-ms-unload>
+      <h3>{t.msUnloadHeader}</h3>
+      <div className="hr-intro">{t.msUnloadIntro}</div>
+      {aboard.length === 0 ? (
+        <p className="hr-intro" data-ms-unload-empty>{t.msUnloadEmpty}</p>
+      ) : (
+        <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+          {aboard.map((ms) => (
+            <li key={ms.msKey} className="dev-row" data-ms-unload-row={ms.msKey}>
+              <span className="dev-key">{ms.msName}</span>
+              <button
+                className="dialog-option"
+                data-ms-unload-confirm={ms.msKey}
+                onClick={() => onUnload(ms)}
+              >
+                {t.msUnloadConfirmButton}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function MsLoadPanel({ poiId }: { poiId: string }) {
+  const t = dialogueText.branches.hangarManager
+  const showToast = useUI((s) => s.showToast)
+  const [, bump] = useState(0)
+  const depotMs = listDepotMsAtPoi(poiId)
+  const [pickedMsKey, setPickedMsKey] = useState<string | null>(null)
+  const pickedMs = pickedMsKey
+    ? depotMs.find((m) => m.msKey === pickedMsKey) ?? null
+    : null
+  const ships = pickedMsKey ? listShipsWithFreeBaysAtPoi(poiId) : []
+
+  const onLoad = (ship: CustodyShipRow) => {
+    if (!pickedMsKey || !pickedMs) return
+    const r = loadMsAboard(pickedMsKey, ship.shipKey)
+    if (!r.ok) {
+      showToast(r.reasonZh)
+      return
+    }
+    showToast(
+      t.msLoadToastDone.replace('{ms}', pickedMs.msName).replace('{ship}', ship.shipName),
+    )
+    setPickedMsKey(null)
+    bump((n) => n + 1)
+  }
+
+  return (
+    <section style={{ marginTop: 12 }} data-ms-load>
+      <h3>{t.msLoadHeader}</h3>
+      <div className="hr-intro">{t.msLoadIntro}</div>
+      {depotMs.length === 0 ? (
+        <p className="hr-intro" data-ms-load-empty>{t.msLoadEmpty}</p>
+      ) : pickedMsKey === null ? (
+        <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+          <li className="dev-row"><span className="dev-key">{t.msLoadPickMsLabel}</span></li>
+          {depotMs.map((ms) => (
+            <li key={ms.msKey} className="dev-row" data-ms-load-ms={ms.msKey}>
+              <span className="dev-key">{ms.msName}</span>
+              <button
+                className="dialog-option"
+                data-ms-load-pick={ms.msKey}
+                onClick={() => setPickedMsKey(ms.msKey)}
+              >
+                {t.msLoadPickShipLabel}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="dialog-options" style={{ listStyle: 'none', padding: 0 }}>
+          <li className="dev-row">
+            <span className="dev-key">{pickedMs?.msName}</span>
+            <button className="dialog-option" data-ms-load-back="1" onClick={() => setPickedMsKey(null)}>
+              {t.msLoadBack}
+            </button>
+          </li>
+          {ships.length === 0 ? (
+            <li className="dev-row" data-ms-load-no-ship>
+              <span className="dev-key">{t.msLoadEmpty}</span>
+            </li>
+          ) : ships.map((ship) => (
+            <li key={ship.shipKey} className="dev-row" data-ms-load-ship={ship.shipKey}>
+              <span className="dev-key">{ship.shipName}</span>
+              <span data-ms-load-free-bays>{ship.freeBays} / {ship.hangarCapacity}</span>
+              <button
+                className="dialog-option"
+                data-ms-load-confirm={ship.shipKey}
+                onClick={() => onLoad(ship)}
+              >
+                {t.msLoadConfirmButton}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 // Silence unused-import lint for the Ms trait we reference indirectly
