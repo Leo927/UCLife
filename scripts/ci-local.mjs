@@ -147,16 +147,28 @@ async function main() {
 
   try {
     // 1. Playwright Test discovers + runs everything under tests/smoke/.
-    // Two-pass split: renderer-pixel tests (portrait*, sprite*) thrash the
-    // shared Vite dev server when run concurrently with other asset-heavy
-    // tests — Vite's SVG/sprite middleware serializes file reads, and
-    // multiple chromium contexts racing for the same sprites starves the
-    // renderer's composeSheet batch. Pass 1: everything EXCEPT renderer-
-    // pixel, in parallel. Pass 2: renderer-pixel, workers=1.
+    // Two-pass split: known CPU/IO-heavy specs thrash when run concurrently
+    // with other tests on a CI runner's limited (2-core) budget, so they get
+    // a dedicated workers=1 pass with nothing else competing for the CPU.
+    // Two distinct causes land in the same bucket because the mitigation
+    // (drop worker parallelism to 1) is identical:
+    //   - renderer-pixel tests (portrait*, sprite*): the shared Vite dev
+    //     server serializes SVG/sprite reads, and concurrent chromium
+    //     contexts racing for the same sprites starve composeSheet.
+    //   - combat-withdraw / journey-first-sortie: sustained Pixi tactical-
+    //     canvas rendering + live spaceSim ticking are CPU-bound; under
+    //     2-worker parallel contention on a 2-core runner a real DOM click
+    //     can starve past its actionability/actionTimeout window even
+    //     though the target element already resolved as visible and stable
+    //     (observed: CI run 28754499193 — both failures timed out inside
+    //     Playwright's own post-actionability click/navigation-settle step,
+    //     never in "waiting for element", so no app-side wait was missing).
+    // Pass 1: everything EXCEPT the heavy bucket, in parallel.
+    // Pass 2: the heavy bucket, workers=1.
     //
     // If --grep was passed in passthrough, the split is skipped and the
     // user's filter applies to a single pass.
-    const RENDERER_FILTER = '(portrait|sprite).*\\.spec\\.ts'
+    const HEAVY_SERIAL_FILTER = '(portrait|sprite|combat-withdraw|journey-first-sortie).*\\.spec\\.ts'
     const hasGrep = args.passthrough.some((a) => a === '--grep' || a.startsWith('--grep='))
 
     let pwCode = 0
@@ -168,15 +180,15 @@ async function main() {
       pwCode = await run('npx', pwArgs, childEnv)
     } else {
       const dataWorkers = args.workers ?? (process.env.CI ? '2' : undefined)
-      const dataArgs = ['playwright', 'test', `--grep-invert=${RENDERER_FILTER}`]
+      const dataArgs = ['playwright', 'test', `--grep-invert=${HEAVY_SERIAL_FILTER}`]
       if (dataWorkers != null) dataArgs.push(`--workers=${dataWorkers}`)
       dataArgs.push(...args.passthrough)
       console.log(`\n[ci-local] pass 1/2 (parallel, data): npx ${dataArgs.join(' ')}`)
       const dataCode = await run('npx', dataArgs, childEnv)
 
-      const renderArgs = ['playwright', 'test', `--grep=${RENDERER_FILTER}`, '--workers=1']
+      const renderArgs = ['playwright', 'test', `--grep=${HEAVY_SERIAL_FILTER}`, '--workers=1']
       renderArgs.push(...args.passthrough)
-      console.log(`\n[ci-local] pass 2/2 (serial, renderer): npx ${renderArgs.join(' ')}`)
+      console.log(`\n[ci-local] pass 2/2 (serial, heavy): npx ${renderArgs.join(' ')}`)
       const renderCode = await run('npx', renderArgs, childEnv)
 
       pwCode = dataCode === 0 && renderCode === 0 ? 0 : 1
