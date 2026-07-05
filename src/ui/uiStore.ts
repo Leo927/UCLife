@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Entity } from 'koota'
+import type { CombatDebriefEventPayload } from '../sim/events'
 
 export interface Toast {
   id: number
@@ -92,6 +93,10 @@ interface UIState {
   // Phase 6.0 post-combat tally — null while no engagement has just
   // resolved with a payout. Set when 'ui:open-combat-tally' fires.
   combatTally: CombatTallyPayload | null
+  // W2 Task 6 — defeat / flee debrief beat. Set when 'ui:open-combat-debrief'
+  // fires from endCombat's non-victory branches (src/systems/combat.ts);
+  // null while no non-victory outcome is awaiting acknowledgement.
+  combatDebrief: CombatDebriefEventPayload | null
   // Issue #71 — recoverables dialogue. Open while the player resolves
   // survivor hulls / ejected pods; fires BEFORE the tally. The panel reads
   // the live list from systems/recoverables via the __uclife__ surface;
@@ -134,6 +139,7 @@ interface UIState {
   setWarRoom: (open: boolean) => void
   setMsRetrofit: (msKey: string | null) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
+  setCombatDebrief: (d: CombatDebriefEventPayload | null) => void
   setRecoverables: (open: boolean) => void
   setColonyClaimPoiId: (poiId: string | null) => void
   setDraftNotice: (notice: { refusalChance: number; bribeCost: number } | null) => void
@@ -172,6 +178,7 @@ export const useUI = create<UIState>((set) => ({
   warRoomOpen: false,
   msRetrofitKey: null,
   combatTally: null,
+  combatDebrief: null,
   recoverablesOpen: false,
   colonyClaimPoiId: null,
   draftNotice: null,
@@ -204,6 +211,7 @@ export const useUI = create<UIState>((set) => ({
   setWarRoom: (open) => set({ warRoomOpen: open }),
   setMsRetrofit: (msKey) => set({ msRetrofitKey: msKey }),
   setCombatTally: (t) => set({ combatTally: t }),
+  setCombatDebrief: (d) => set({ combatDebrief: d }),
   setRecoverables: (open) => set({ recoverablesOpen: open }),
   setColonyClaimPoiId: (poiId) => set({ colonyClaimPoiId: poiId }),
   setDraftNotice: (notice) => set({ draftNotice: notice }),

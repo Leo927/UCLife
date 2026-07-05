@@ -114,6 +114,23 @@ test('combat defeat: flagship destroyed mid-tick resolves cleanly (no crash)', a
     'losing the fight destroys the flagship',
   ).toBe(0)
 
+  // W2 Task 6 — defeat must not dead-end: the debrief beat renders over the
+  // drop city with the outcome + losses (ship, MS count, survivor stipend,
+  // drop location), and continue is the only way to close it.
+  await sim.page.waitForSelector('[data-combat-debrief]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  const debrief = sim.page.locator('[data-combat-debrief]')
+  await expect(debrief, 'defeat must announce the defeat outcome').toHaveAttribute(
+    'data-combat-debrief-outcome', 'defeat',
+  )
+  const debriefText = await debrief.innerText()
+  expect(debriefText, 'debrief heading must show the 战败 outcome').toContain('战败')
+  expect(debriefText, 'debrief must report MS lost with the ship').toMatch(/随舰损失MS/)
+  expect(debriefText, 'debrief must report the survivor stipend').toContain('¥')
+  expect(debriefText, 'debrief must report the drop location').toMatch(/冯·布劳恩|祖姆市/)
+
+  await sim.page.locator('[data-combat-debrief-continue]').click()
+  await expect(debrief, 'continue must close the debrief beat into the city scene').toBeHidden()
+
   // Finding 2 — the starter-fleet fixture stows ms-player-0 aboard the lost
   // flagship (storedOnShipKey: 'ship'). It must be destroyed with the ship,
   // not orphaned with a dangling reference to the dead key.

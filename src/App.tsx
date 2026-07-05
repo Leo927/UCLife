@@ -34,6 +34,7 @@ import { PilotRosterPanel } from './ui/PilotRosterPanel'
 import { WarRoomPanel } from './ui/WarRoomPanel'
 import { MsRetrofitPanel } from './ui/MsRetrofitPanel'
 import { CombatTallyPanel } from './ui/CombatTallyPanel'
+import { CombatDebriefPanel } from './ui/CombatDebriefPanel'
 import { RecoverablesPanel } from './ui/RecoverablesPanel'
 import { ColonyClaimPanel } from './ui/ColonyClaimPanel'
 import { DraftNoticePanel } from './ui/DraftNoticePanel'
@@ -86,6 +87,7 @@ export function App() {
       <ColonyClaimPanel />
       <DraftNoticePanel />
       <CombatTallyPanel />
+      <CombatDebriefPanel />
       <PortraitModal />
       <DeathModal />
       <Toasts />

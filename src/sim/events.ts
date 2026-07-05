@@ -81,6 +81,11 @@ export interface SimEventPayloads {
   // Fires when tactical resolves in the player's favor; the combat
   // tally panel listens.
   'ui:open-combat-tally': CombatTallyEventPayload
+  // W2 Task 6 — defeat / flee debrief beat. Fires from endCombat's two
+  // non-victory branches (victory keeps its own recoverables → tally path
+  // above) with the deltas already computed there — no second computation
+  // in the panel. A beat, not a menu: one continue button, no choices.
+  'ui:open-combat-debrief': CombatDebriefEventPayload
   // Issue #71 — recoverables dialogue. Fires at combat resolution BEFORE
   // the tally when there are survivor hulls / ejected pods to resolve.
   // The panel reads the full list via the __uclife__ / recoverables
@@ -145,6 +150,14 @@ export interface CombatTallyEventPayload {
     nameZh: string
     qty: number
   }[]
+}
+
+// W2 Task 6 — exported so uiStore + boot/uiBindings can type the store slice
+// without duplicating the shape (unlike the pre-existing CombatTallyPayload/
+// CombatTallyEventPayload split above).
+export interface CombatDebriefEventPayload {
+  outcome: 'defeat' | 'flee'
+  lines: { labelZh: string; valueZh: string }[]
 }
 
 export type SimEventName = keyof SimEventPayloads

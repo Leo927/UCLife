@@ -872,15 +872,27 @@ export function withdrawFromCombat(): void {
   endCombat('flee')
 }
 
-function applyDefeatConsequence(): void {
+// W2 Task 6 — the deltas applyDefeatConsequence already computes (survivor
+// stipend, MS lost with the ship, drop location) are returned so endCombat's
+// debrief payload can capture them instead of recomputing.
+interface DefeatConsequenceResult {
+  shipNameZh: string
+  lostMsCount: number
+  survivorMoney: number
+  dropSceneNameZh: string
+}
+
+function applyDefeatConsequence(): DefeatConsequenceResult {
   // Pick a random ground colony (rescue transport drop-off).
   const drop = getSimRng().pick(DEFEAT_DROP_OPTIONS)
+  const dropSceneNameZh = drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'
 
   // Reset the player's pockets to a survivor stipend. Other progression
   // (skills, perks, relationships, ambitions) survives — the run continues.
   const player = findPlayer()
+  const survivorMoney = combatConfig.defeat.survivorMoney
   if (player) {
-    player.set(Money, { amount: combatConfig.defeat.survivorMoney })
+    player.set(Money, { amount: survivorMoney })
   }
 
   // Eject the player to the rescue colony before destroying the ship —
@@ -899,6 +911,8 @@ function applyDefeatConsequence(): void {
   // escorts (if any) survive — the player can promote one to flagship at
   // the war room when they next board.
   const ship = getFlagshipEntity()
+  const shipData = ship?.get(Ship)
+  const shipNameZh = shipData?.name || (shipData ? getShipClass(shipData.templateId).nameZh : '旗舰')
   const lostShipKey = ship?.get(EntityKey)?.key ?? ''
   if (ship) ship.destroy()
 
@@ -909,8 +923,8 @@ function applyDefeatConsequence(): void {
   // upkeep in perpetuity, and grantStarterMsToShip's idempotency check keys
   // on the starter MS entity existing at all — leaving it alive would block
   // the starter bundle from ever re-granting on the player's next hull.
+  let lostMsCount = 0
   if (lostShipKey) {
-    let lostMsCount = 0
     for (const msEnt of shipWorld().query(Ms)) {
       if (msEnt.get(Ms)!.storedOnShipKey !== lostShipKey) continue
       msEnt.destroy()
@@ -924,7 +938,9 @@ function applyDefeatConsequence(): void {
   }
 
   emitSim('toast', { textZh: '飞船被毁 · 救援运输船把你丢在了另一颗殖民地' })
-  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${drop.sceneId === 'vonBraunCity' ? '冯·布劳恩' : '祖姆市'}`)
+  logEvent(`战斗失败 · 飞船与船员尽失 · 流落 ${dropSceneNameZh}`)
+
+  return { shipNameZh, lostMsCount, survivorMoney, dropSceneNameZh }
 }
 
 export function endCombat(outcome: CombatOutcome): void {
@@ -1024,9 +1040,29 @@ export function endCombat(outcome: CombatOutcome): void {
       emitSim('ui:open-combat-tally', tallyPayload)
     }
   } else if (outcome === 'defeat') {
-    applyDefeatConsequence()
+    const result = applyDefeatConsequence()
+    // W2 Task 6 — debrief beat. Fires AFTER applyDefeatConsequence's scene
+    // transition, so the panel renders over the drop city, not the dead ship.
+    emitSim('ui:open-combat-debrief', {
+      outcome: 'defeat',
+      lines: [
+        { labelZh: '座舰', valueZh: `${result.shipNameZh} · 已损毁` },
+        { labelZh: '随舰损失MS', valueZh: `${result.lostMsCount} 台` },
+        { labelZh: '生还资金', valueZh: `¥${result.survivorMoney}` },
+        { labelZh: '流落地点', valueZh: result.dropSceneNameZh },
+      ],
+    })
   } else {
-    applyFleePenalty()
+    const penalty = applyFleePenalty()
+    // W2 Task 6 — debrief beat for the flee outcome, same event as defeat;
+    // the panel's outcome field picks the heading + copy.
+    emitSim('ui:open-combat-debrief', {
+      outcome: 'flee',
+      lines: [
+        { labelZh: '船体受创', valueZh: `-${penalty.hullLoss}` },
+        { labelZh: '战备损耗', valueZh: `-${penalty.crDrain}` },
+      ],
+    })
   }
 }
 

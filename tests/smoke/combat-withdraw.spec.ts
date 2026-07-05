@@ -114,6 +114,21 @@ test('mid-combat withdraw: real click confirm, flee penalty applied, no instant 
     'confirmed withdraw must close tactical combat',
   ).toBe(false)
 
+  // W2 Task 6 — flee must not dead-end either: the debrief beat renders over
+  // the space view with the outcome + penalty lines, closed only by continue.
+  await sim.page.waitForSelector('[data-combat-debrief]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  const debrief = sim.page.locator('[data-combat-debrief]')
+  await expect(debrief, 'withdraw must announce the flee outcome').toHaveAttribute(
+    'data-combat-debrief-outcome', 'flee',
+  )
+  const debriefText = await debrief.innerText()
+  expect(debriefText, 'debrief heading must show the 脱离 outcome').toContain('脱离')
+  expect(debriefText, 'debrief must report the hull-loss penalty line').toMatch(/船体受创/)
+  expect(debriefText, 'debrief must report the CR-drain penalty line').toMatch(/战备/)
+
+  await sim.page.locator('[data-combat-debrief-continue]').click()
+  await expect(debrief, 'continue must close the debrief beat back to the space view').toBeHidden()
+
   // ── Penalty applied per combat.json5, from one shared computation ────
   const after = await sim.page.evaluate(() => (window as any).__uclife__.getShipState())
   const expectedHullLoss = Math.floor(before.hullCurrent * FLEE_HULL_LOSS_PCT)
