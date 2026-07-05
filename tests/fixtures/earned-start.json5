@@ -1,0 +1,49 @@
+// W1 Task 10 — the capstone journey ("earned start"): the player begins at
+// the Von Braun airport with a purse just over the starter hull's price and
+// NO ship. The journey EARNS the first hull at the AE broker, waits out the
+// delivery, receives it, boards, sorties, fights, and comes home — all through
+// real input (see tests/smoke/journey-first-sortie.spec.ts).
+//
+// Staffing: the AE ship-sales rep (苏珊·哈丁, workstation ae_ship_sales_vb) is
+// a special NPC seated at world-init — the journey drives her by her stable
+// key `npc-spec-苏珊·哈丁`. The state hangar's manager seat is unoccupied at
+// boot, so we author one here (fixture loader links it to the free
+// `hangar_manager` workstation). Both vendors only expose their buy/receive
+// dialogue branch once the behaviour tree flips them to `working`; the spec
+// waits on that via getActionKind rather than assuming it.
+//
+// Time: 09:00 keeps both 08–20 vendor shifts open at boot in both UTC (CI)
+// and +8 (local dev). The journey freezes player needs at boot (&freezeNeeds=1)
+// so the mandatory 2-day delivery lead can't starve the idle player.
+{
+  seed: 'journey-first-sortie-001',
+  startDate: '2026-05-18T09:00:00Z',
+  scene: 'vonBraunCity',
+
+  // Starter lightFreighter is ¥4,200; a small margin over covers the buy and
+  // leaves the purse non-empty for the post-buy assertion.
+  player: {
+    money: 6000,
+    location: { scene: 'vonBraunCity', x: 120, y: 31 },
+    // Veteran pilot (XP ≈ level 50) so the starter freighter's flagship auto-
+    // fire out-damages the raider covering Von Braun within the fight budget.
+    skills: { piloting: 5000 },
+  },
+
+  npcs: [
+    // State-hangar manager, seated at the (unoccupied-at-boot) hangar_manager
+    // workstation inside the surface hangar. Placed ON her workstation tile so
+    // she works in place (no walk-to-station) and holds a stable position the
+    // journey can approach without overlapping her.
+    {
+      id: 'hangarMgr',
+      name: '机库主管',
+      at: { scene: 'vonBraunCity', x: 319, y: 201 },
+      workstation: 'hangar_manager',
+      faction: 'anaheim',
+    },
+  ],
+
+  // No ships block — Task 5 removed the boot flagship; the loop earns the
+  // first hull at the broker.
+}
