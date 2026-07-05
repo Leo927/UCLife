@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { applyFixture, __registerInlineFixtureForTest } from './fixtures'
 import { getGameState } from './gameStateView'
+import { commandPoolDescribe } from '../systems/fleetCommandPoints'
 import { getWorld, SCENE_IDS } from '../ecs/world'
 import { Building, EntityKey } from '../ecs/traits'
 import { worldConfig } from '../config'
@@ -100,6 +101,13 @@ describe('getGameState', () => {
     applyFixture('minimal-player-only')
     expect(getGameState().getCombat().isOpen()).toBe(false)
     expect(getGameState().getCombat().isPaused()).toBe(true)
+  })
+
+  it('getCombat.getCommandPool mirrors commandPoolDescribe (empty pool pre-engagement)', () => {
+    applyFixture('minimal-player-only')
+    const pool = getGameState().getCombat().getCommandPool()
+    expect(pool).toEqual(commandPoolDescribe())
+    expect(pool).toEqual({ current: 0, max: 0 })
   })
 
   it('getFaction reads the post-fixture fund as a "Money" resource', () => {

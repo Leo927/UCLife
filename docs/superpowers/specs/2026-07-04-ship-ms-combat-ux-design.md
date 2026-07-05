@@ -171,6 +171,59 @@ current location, continue. Victory keeps recoverables → tally.
 
 Also here: fix the combat log overlapping the player status panel in `TacticalView.tsx`.
 
+### W2 shipped status
+
+- **W2.1 Order palette — shipped.** Flagship-only command strip in `TacticalView.tsx`
+  (`OrderPalette`): 集结 (rally), 集火 (focusFire), 重整队形 (regroup → `formationChange`
+  cost), 撤退 (withdraw). Rally/focus-fire arm a click-target mode on the arena
+  (`orderPickRadiusPx`); regroup is one-shot. All routed through `issueFleetOrder`, debiting
+  the `orderCosts` config. Orders issue **while paused** (the pause is the planning moment) and
+  unpaused. Out of CP → `指挥点不足` refusal toast, standing fleet-order state untouched, fleet
+  falls back to doctrine. Coverage: `tests/smoke/fleet-orders.spec.ts` (backend effects +
+  real-input palette).
+- **W2.2 CP gauge — shipped.** Persistent 指挥点 `current/max` readout in the tactical topbar,
+  carrying `data-tactical-cp="current/max"`; the read-only `getCombat().getCommandPool()` view
+  mirrors `commandPoolDescribe()`. The per-point CP-regen info log line was removed.
+- **W2.3 Mid-combat withdraw — shipped.** 撤退 in the topbar + palette → `endCombat('flee')` +
+  `applyFleePenalty`; flee consequences stated on the pre-combat modal button. Coverage:
+  `tests/smoke/combat-withdraw.spec.ts`.
+- **W2.4 DP commit in the war room — shipped.** War-room deployment view: DP cap, per-ship/MS
+  `dpCost` chips, commit toggles; empty commit still deploys everything. Coverage:
+  `tests/smoke/war-room-dp.spec.ts`.
+- **W2.5 Manual fire control — shipped.** Per-mount fire modes (auto / hold / volley); volley
+  fires when charged at the aim cursor. Coverage: `tests/smoke/fire-control.spec.ts`.
+- **W2.6 Non-victory post-combat beats — shipped.** Defeat and flee share one debrief beat on
+  the tally infrastructure (losses, location, continue); modal flee and mid-combat withdraw
+  route through the same flee resolution. Victory keeps recoverables → tally.
+- **Combat-log overlap — fixed.** `.combat-log` no longer covers `.tactical-hud-player`;
+  regression-guarded at the default and a small (1024×600) viewport in `fleet-orders.spec.ts`.
+- **Capstone (Task 8) — shipped.** `tests/smoke/journey-first-sortie.spec.ts` gained a minimal
+  real-input command-layer leg: during the first-contact pause it reads CP via
+  `getCombat().getCommandPool()`, arms 集火 through its palette button, clicks the sole enemy
+  (`enemy-ship-0`) at its projected arena coords, asserts CP debited by exactly
+  `orderCosts.focusFire`, then presses Space to resume into the existing auto-fire win.
+
+**Locked deviations from the W2 plan:**
+
+- **MS launch authorization deferred to W3.** The order palette ships **without** the
+  `msLaunchAuth` order (`orderCosts.msLaunchAuth` stays in config, unused by the palette). MS
+  launch authorization lands with W3's MS combat identity, where hostile/AI MS wings give it
+  something to authorize. The palette is four orders: rally, focus-fire, regroup, withdraw.
+- **Withdraw is CP-free.** 撤退 is always enabled, carries no `orderCosts` row, no CP gating,
+  and no disabled/tooltip state — a fleet can always disengage regardless of command-point
+  exhaustion. It is deliberately not a `issueFleetOrder` CP spend.
+
+**Scope notes:**
+
+- **Volley is target-picked, not a fire group.** Manual-volley fires the charged mount at the
+  current aim cursor — it is not Starsector-style weapon-groups-with-flux-venting. The dead
+  `selectedMountIdx` state was resolved along the way.
+- **Fire modes are bridge controls.** A mount's mode toggle and volley trigger only accept real
+  input while the player pilots the **flagship** (mirroring `OrderPalette`'s comm-authority
+  gate): `combatSystem` §3 forces every mount to `auto` the instant the player isn't at the
+  flagship helm (the AI flagship fires all charged guns). The weapon queue stays visible but
+  read-only in that state, for situational awareness.
+
 ## Workstream 3 — MS combat identity
 
 **W3.1 Distinct flight model.** Per-frame handling in `ms-classes.json5`: much higher
