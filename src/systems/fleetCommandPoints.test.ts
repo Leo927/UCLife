@@ -37,7 +37,7 @@ describe('fleetCommandPoints — CP pool spend / refuse', () => {
 
   it('refuses an order when the pool is too low, without debiting', () => {
     useCpDp.getState().setCp(0, 7)
-    const r = issueFleetOrder('retreat')
+    const r = issueFleetOrder('rally')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toBe('insufficient_cp')
     expect(useCpDp.getState().cpCurrent).toBe(0)

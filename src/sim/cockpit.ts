@@ -237,6 +237,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
         retreatThreshold: ms.ai.retreatThresholdPct,
         maintainRange: ms.ai.maintainRange,
       },
+      currentTargetKey: '',
     }),
     EntityKey({ key: PLAYER_MS_KEY }),
   )

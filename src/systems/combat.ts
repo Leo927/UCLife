@@ -70,6 +70,7 @@ import {
   initCommandPoolForEngagement, clearDeploymentCommit, regenCommandPoints,
   doctrineForAggression, commandPoolDescribe, useCpDp,
 } from './fleetCommandPoints'
+import { activeOrders, clearStaleFocusTarget, resetFleetOrders } from './fleetOrders'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -386,6 +387,7 @@ function spawnEnemyShip(
         retreatThreshold: blueprint.ai.retreatThresholdPct,
         maintainRange: blueprint.ai.maintainRange,
       },
+      currentTargetKey: '',
     }),
     EntityKey({ key: `enemy-ship-${slotIdx}` }),
   )
@@ -480,6 +482,7 @@ function spawnActiveFleetEscorts(w: World): void {
         retreatThreshold,
         maintainRange,
       },
+      currentTargetKey: '',
     }))
   }
 }
@@ -564,6 +567,7 @@ export function startCombat(
           maintainRange: cls.ai.maintainRange * d.maintainRangeMul,
         }
       })(),
+      currentTargetKey: '',
     }))
   }
 
@@ -595,6 +599,9 @@ export function startCombat(
   // tally only lists POWs taken this fight (not cumulative across a
   // multi-engagement session).
   clearBrigPendingTally()
+  // W2 command layer — a fresh engagement starts order-free; standing
+  // rally/focus-fire orders don't carry across engagements.
+  resetFleetOrders()
   // Issue #69 — seed the Command-Point pool full for this engagement and
   // surface the starting bandwidth in the log. The pre-engagement DP commit
   // set carries into this fight (the war room set it before launch); the
@@ -1108,6 +1115,30 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }): number 
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+// Defensive clamp for a rally point into the arena bounds. Rally points are
+// always player-clicked inside the arena (Task 2 guarantees this at issue
+// time), but the directive loop clamps anyway rather than trust an
+// out-of-bounds order to fight the same edge clamp ships already obey.
+function clampToArena(p: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(p.x, ARENA_EDGE_PAD), ARENA_W - ARENA_EDGE_PAD),
+    y: Math.min(Math.max(p.y, ARENA_EDGE_PAD), ARENA_H - ARENA_EDGE_PAD),
+  }
+}
+
+// Resolve a standing focus-fire order's key against the live enemy list.
+// Returns null when the key is unset or the named enemy is dead/gone.
+function findEnemyByKey(enemies: Entity[], key: string): Entity | null {
+  for (const e of enemies) {
+    if (e.get(EntityKey)?.key === key) return e
+  }
+  return null
+}
+
+function keyOf(e: Entity | null): string {
+  return e?.get(EntityKey)?.key ?? ''
+}
+
 // Bang-bang torque controller — drive `angVel` toward a desired heading
 // with at most `angularAccel` rad/sec², capped at `maxAngVel`. The
 // "brake distance" check (angVel² / 2*angularAccel — angle covered before
@@ -1374,9 +1405,15 @@ export function combatSystem(_world: World, dtMs: number): void {
   // hands the helm back to AI immediately.
   const playerSide = getPlayerSideEntities()
   const allShips: Entity[] = [...playerSide, ...enemies]
+  // W2 command layer — the target each ship's directive resolves to this
+  // tick (plain nearest-hostile, or an escort's focus-fire override).
+  // §4b's weapon-fire block reads this instead of re-deriving nearest, so
+  // shots track the same target the directive steers/aims toward.
+  const resolvedTargets = new Map<Entity, Entity | null>()
   for (const self of allShips) {
     const cs = self.get(CombatShipState)!
     const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
+    const isEscort = cs.side === 'player' && !cs.pilotedByPlayer && !cs.isMs && !cs.isFlagship
     const hostiles = isPlayerSide ? enemies : playerSide
     let nearest: Entity | null = null
     let nearestRange = Infinity
@@ -1384,6 +1421,24 @@ export function combatSystem(_world: World, dtMs: number): void {
       const hs = h.get(CombatShipState)!
       const r = dist(cs.pos, hs.pos)
       if (r < nearestRange) { nearestRange = r; nearest = h }
+    }
+
+    // A standing focus-fire order overrides an escort's target selection.
+    // A stale key (target already dead/gone) is cleared here — the very
+    // next tick reads a null focusTargetKey, so the "目标已失去" log below
+    // fires exactly once per staleness event, not every tick.
+    if (isEscort) {
+      const focusKey = activeOrders().focusTargetKey
+      if (focusKey) {
+        const focusEnt = findEnemyByKey(enemies, focusKey)
+        if (focusEnt) {
+          nearest = focusEnt
+          nearestRange = dist(cs.pos, focusEnt.get(CombatShipState)!.pos)
+        } else {
+          clearStaleFocusTarget()
+          pushCombatLog('目标已失去 · 舰队恢复常规交战', 'info')
+        }
+      }
     }
 
     let thrustWorld = { x: 0, y: 0 }
@@ -1400,6 +1455,23 @@ export function combatSystem(_world: World, dtMs: number): void {
       thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
       aimAngle = toAng
     }
+
+    // A standing rally order overrides an escort's movement (not aim — the
+    // escort keeps facing/firing at its resolved hostile) until it arrives
+    // within rallyArriveRadiusPx, then normal maintainRange movement
+    // resumes. Priority: rally movement > default maintainRange movement.
+    if (isEscort) {
+      const rallyPoint = activeOrders().rallyPoint
+      if (rallyPoint) {
+        const rp = clampToArena(rallyPoint)
+        if (dist(cs.pos, rp) > combatConfig.rallyArriveRadiusPx) {
+          const moveAng = angleBetween(cs.pos, rp)
+          thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
+        }
+      }
+    }
+
+    resolvedTargets.set(self, nearest)
 
     if (cs.pilotedByPlayer) {
       // WASD overrides AI thrust whenever any axis is held. Phase
@@ -1469,6 +1541,7 @@ export function combatSystem(_world: World, dtMs: number): void {
       pos, vel,
       heading: helm.heading,
       angVel: helm.angVel,
+      currentTargetKey: keyOf(nearest),
     })
   }
 
@@ -1580,9 +1653,12 @@ export function combatSystem(_world: World, dtMs: number): void {
   // Phase 6.1 added the MS branch; Phase 6.2.E2 extends to non-flagship
   // active-fleet ships (CombatShipState rows with side='player' +
   // isFlagship=false + isMs=false). Both share the inline weapons array
-  // — same closest-in-arc rule as enemies, targeting the nearest
-  // hostile. The flagship branch (isFlagship=true) keeps using
-  // WeaponMount entities via section 3 above.
+  // — same closest-in-arc rule as enemies. Targeting reuses §1's
+  // resolvedTargets (plain nearest-hostile for MS; an escort's standing
+  // focus-fire override when one is active) instead of re-deriving nearest,
+  // so shots track the same target the directive steers/aims toward. The
+  // flagship branch (isFlagship=true) keeps using WeaponMount entities via
+  // section 3 above.
   for (const psEnt of playerSide) {
     const psState = psEnt.get(CombatShipState)
     if (!psState) continue
@@ -1590,13 +1666,9 @@ export function combatSystem(_world: World, dtMs: number): void {
     const msPos = psState.pos
     const msHeading = psState.heading
 
-    let target: { ent: Entity; pos: { x: number; y: number } } | null = null
-    let bestRange = Infinity
-    for (const en of enemies) {
-      const es = en.get(CombatShipState)!
-      const r = dist(msPos, es.pos)
-      if (r < bestRange) { bestRange = r; target = { ent: en, pos: es.pos } }
-    }
+    const targetEnt = resolvedTargets.get(psEnt) ?? null
+    const target = targetEnt ? { ent: targetEnt, pos: targetEnt.get(CombatShipState)!.pos } : null
+    const bestRange = target ? dist(msPos, target.pos) : Infinity
 
     const updatedWeapons = psState.weapons.map((wpn) => {
       const def = resolveCombatWeaponDef(wpn.weaponId)

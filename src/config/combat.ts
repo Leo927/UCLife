@@ -10,6 +10,7 @@ export interface CombatConfig {
   tallyCreditsMax: number
   tallySuppliesGain: number
   tallyFuelGain: number
+  rallyArriveRadiusPx: number
 }
 
 export const combatConfig = json5.parse(raw) as CombatConfig

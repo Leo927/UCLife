@@ -300,9 +300,8 @@ export function issueFleetOrder(orderId: string): OrderResult {
 }
 
 // Per-tactical-tick CP regen. Accumulates fractional CP; the pool only
-// increments by whole points (fractional remainder carries). On each whole-
-// point gain a `CP regen` info log fires. O(1) — no per-unit work. Returns
-// the whole points gained this tick (0 normally).
+// increments by whole points (fractional remainder carries). O(1) — no
+// per-unit work. Returns the whole points gained this tick (0 normally).
 export function regenCommandPoints(dtSec: number): number {
   const t0 = CPDP_PROF ? performance.now() : 0
   const cfg = fleetConfig.commandPoints
@@ -315,9 +314,7 @@ export function regenCommandPoints(dtSec: number): number {
       gained += 1
     }
     if (gained > 0) {
-      const next = Math.min(s.cpMax, s.cpCurrent + gained)
-      s.setCpCurrent(next)
-      pushCombatLog(`指挥点恢复 · ${next}/${s.cpMax}`, 'info')
+      s.setCpCurrent(Math.min(s.cpMax, s.cpCurrent + gained))
     }
     s.setCpRegenAccum(accum)
   }

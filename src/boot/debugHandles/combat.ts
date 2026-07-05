@@ -15,6 +15,9 @@ import {
   breakDownEnemiesForVictory, type CombatOutcome,
 } from '../../systems/combat'
 import {
+  issueRally, issueFocusFire, issueRegroup, activeOrders,
+} from '../../systems/fleetOrders'
+import {
   capturePrisoner, interrogatePrisoner, ransomPrisoner, recruitPrisoner,
   executePrisoner, handOverPrisoner, releasePrisoner, tickBrigConditionsNow,
 } from '../../systems/prisoners'
@@ -99,6 +102,22 @@ registerDebugHandle('breakDownEnemiesCheat', () => {
   breakDownEnemiesForVictory()
   return true
 })
+
+// W2 command layer — drive a fleet order without a UI surface. `point` /
+// `enemyKey` are only read for the matching `kind`; the smoke passes the
+// whole payload through to the corresponding issue* function.
+type FleetOrderDebugPayload =
+  | { kind: 'rally'; point: { x: number; y: number } }
+  | { kind: 'focusFire'; enemyKey: string }
+  | { kind: 'regroup' }
+registerDebugHandle('issueFleetOrderDebug', (order: FleetOrderDebugPayload) => {
+  if (order.kind === 'rally') return issueRally(order.point)
+  if (order.kind === 'focusFire') return issueFocusFire(order.enemyKey)
+  return issueRegroup()
+})
+
+// Read-only mirror of the standing fleet orders (rallyPoint/focusTargetKey).
+registerDebugHandle('fleetOrdersDescribe', () => activeOrders())
 
 registerDebugHandle('listEnemies', () => {
   const w = getWorld('spaceCampaign')

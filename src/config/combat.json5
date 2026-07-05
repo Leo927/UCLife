@@ -27,4 +27,12 @@
   tallyCreditsMax: 1500,
   tallySuppliesGain: 6,
   tallyFuelGain: 2,
+
+  // W2 command layer — an escort under a standing rally order steers toward
+  // the rally point until within this many arena units, then resumes normal
+  // maintainRange movement (close/back/strafe against its resolved
+  // hostile). Small relative to the arena (1000x600) and to ship
+  // maintainRange values (160-320) so "arrived" reads as "holding station
+  // near the point," not "still crossing the arena."
+  rallyArriveRadiusPx: 40,
 }
