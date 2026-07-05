@@ -280,6 +280,17 @@ export function syncMsCombatDamageToRoster(msKey: string): void {
   }
 }
 
+// Issue #163 — sync whichever roster Ms currently backs the deployed clone,
+// or no-op when nothing is launched. `dockMs` / `onMsDestroyed` already
+// sync-then-clear `activeMsRosterKey` on their own exits, so calling this
+// again afterward (e.g. from `endCombat`'s teardown) is harmless. Exported
+// so `endCombat` can write back damage BEFORE its destroy loop despawns the
+// clone — the scenario this reset path used to miss entirely (winning or
+// withdrawing while still piloting the MS undocked).
+export function syncActiveMsToRosterIfLaunched(): void {
+  if (activeMsRosterKey) syncMsCombatDamageToRoster(activeMsRosterKey)
+}
+
 function getHangarBayCenter(): { x: number; y: number } | null {
   const cfg = getSceneConfig(SHIP_SCENE_ID) as ShipSceneConfig
   const cls = getShipClass(cfg.shipClassId)
@@ -370,7 +381,7 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
 
   // Issue #163 — write combat damage back to the roster before the clone
   // is destroyed.
-  if (activeMsRosterKey) syncMsCombatDamageToRoster(activeMsRosterKey)
+  syncActiveMsToRosterIfLaunched()
 
   despawnPlayerMs()
   useCockpit.getState().setPiloting(null)
@@ -409,7 +420,7 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
 export function onMsDestroyed(): void {
   // Issue #163 — write hull 0 (and whatever armor deficit remains) back
   // to the roster before the clone is destroyed, same helper dockMs uses.
-  if (activeMsRosterKey) syncMsCombatDamageToRoster(activeMsRosterKey)
+  syncActiveMsToRosterIfLaunched()
   activeMsRosterKey = ''
 
   despawnPlayerMs()
@@ -491,11 +502,12 @@ export function leaveBridge(): void {
 // Reset cockpit state — called by combat.ts:endCombat so the next
 // engagement starts cleanly (no stale piloting flag, no orphan MS).
 export function resetCockpitForEndCombat(): void {
-  // Issue #163 scope note: combat ending while an MS is still launched
-  // and undocked discards damage taken since launch — dockMs/onMsDestroyed
-  // are the two write-back exits; this reset path isn't one of them (the
-  // flagship has already lost its CombatShipState row by the time this
-  // runs, so there's no clone left to read from anyway).
+  // Issue #163 — combat ending while an MS is still launched and undocked
+  // (the common "win while piloting" case) used to discard damage taken
+  // since launch: the destroy loop in endCombat wiped the clone before this
+  // ran. endCombat now calls syncActiveMsToRosterIfLaunched() at the top of
+  // its teardown, before that destroy loop, so by the time this runs the
+  // write-back is already done (or activeMsRosterKey is already clear).
   if (getPlayerMs()) despawnPlayerMs()
   activeMsRosterKey = ''
   useCockpit.getState().setPiloting(null)

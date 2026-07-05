@@ -13,7 +13,7 @@
 // (starter-fleet's `ms-player-0`), and a third pass proves the destruction
 // exit writes hull 0.
 
-import { test, expect } from './_fixtures'
+import { test, expect, type Sim } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife_test__.step',
@@ -27,6 +27,7 @@ const REQUIRED_HANDLES = [
   '__uclife__.getMs',
   '__uclife__.setPilotedMsHullCheat',
   '__uclife__.onMsDestroyedCheat',
+  '__uclife__.endCombatCheat',
 ]
 
 const STARTER_MS_KEY = 'ms-player-0'
@@ -278,4 +279,161 @@ test('cockpit: launch MS, dock, re-helm flagship', async ({ sim }) => {
       maxGameMinutes: mins,
     })
   }, STEP_BUDGET_MIN)
+})
+
+// Issue #163 — endCombat's teardown destroyed the piloted MS's tactical
+// clone in its CombatShipState cleanup loop BEFORE resetCockpitForEndCombat
+// ran, so combat ending while the player was still flying the MS undocked
+// (the common way fights end — winning while piloting) discarded the
+// clone's damage and the roster MS came back pristine. Shared setup for the
+// two regressions below: boot, board, helm, jump into combat, launch the MS
+// and damage its clone, all WITHOUT docking back.
+async function launchDamagedUndockedMs(sim: Sim): Promise<void> {
+  await sim.boot({ fixture: 'starter-fleet', requireHandles: REQUIRED_HANDLES })
+
+  const setupOk = await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u = (window as any).__uclife__
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
+  })
+  expect(setupOk, 'cheatMoney+cheatPiloting failed at setup').toBeTruthy()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.page.evaluate(async (mins) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).__uclife_test__.step({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      until: () => (window as any).__uclife__.useScene.getState().activeId === 'playerShipInterior',
+      maxGameMinutes: mins,
+    })
+  }, STEP_BUDGET_MIN)
+
+  const helmRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.takeHelmCheat(),
+  )
+  expect(helmRes?.ok, `takeHelmCheat should succeed; got ${JSON.stringify(helmRes)}`).toBe(true)
+
+  const enemies = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.listEnemies(),
+  )
+  expect(enemies && enemies.length > 0, 'no enemies present in spaceCampaign').toBeTruthy()
+
+  await sim.page.evaluate((key) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__uclife__.startCombatCheat('pirateLight', [], key)
+  }, enemies[0].key)
+
+  await sim.page.evaluate(async (mins) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).__uclife_test__.step({
+      until: () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__uclife__.useCombatStore.getState().open === true
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        && (window as any).__uclife__.useCockpit.getState().piloting === 'flagship',
+      maxGameMinutes: mins,
+    })
+  }, STEP_BUDGET_MIN)
+
+  const launchRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.launchPlayerMs(),
+  )
+  expect(launchRes?.ok, `launchPlayerMs should succeed; got ${JSON.stringify(launchRes)}`).toBe(true)
+  await sim.page.evaluate(async (mins) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).__uclife_test__.step({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      until: () => (window as any).__uclife__.useCockpit.getState().piloting === 'ms',
+      maxGameMinutes: mins,
+    })
+  }, STEP_BUDGET_MIN)
+
+  const damageOk = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.setPilotedMsHullCheat(90, 5),
+  )
+  expect(damageOk, 'setPilotedMsHullCheat should succeed while an MS is deployed').toBe(true)
+}
+
+test('cockpit: endCombat(victory) while piloting an undocked MS syncs damage to the roster (#163)', async ({ sim }) => {
+  await launchDamagedUndockedMs(sim)
+
+  // Resolve WITHOUT docking first — this is the scenario the destroy loop
+  // used to race: it wiped the clone before resetCockpitForEndCombat ran.
+  await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.endCombatCheat('victory'),
+  )
+  await sim.page.evaluate(async (mins) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).__uclife_test__.step({
+      until: () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__uclife__.useCombatStore.getState().open === false
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        && (window as any).__uclife__.useCockpit.getState().piloting === null,
+      maxGameMinutes: mins,
+    })
+  }, STEP_BUDGET_MIN)
+
+  const cloneAfter = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.msState(),
+  )
+  expect(cloneAfter, 'the clone must be gone once combat has ended').toBeNull()
+
+  const rosterAfter = await sim.page.evaluate(
+    (key) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.getMs(key),
+    STARTER_MS_KEY,
+  )
+  expect(rosterAfter, 'roster MS should still exist after a won fight').toBeTruthy()
+  expect(
+    rosterAfter!.hullCurrent,
+    'endCombat must write the undocked clone\'s damage back to the roster before destroying it',
+  ).toBe(90)
+  expect(
+    rosterAfter!.armorCurrent,
+    'endCombat must write the undocked clone\'s armor damage back to the roster before destroying it',
+  ).toBe(5)
+})
+
+test('cockpit: endCombat(defeat) does not throw when the roster MS is destroyed with the lost flagship (#163)', async ({ sim }) => {
+  await launchDamagedUndockedMs(sim)
+
+  // The starter-fleet fixture stows ms-player-0 aboard the flagship
+  // (storedOnShipKey: 'ship'), which applyDefeatConsequence destroys.
+  // syncActiveMsToRosterIfLaunched must write back the clone's damage
+  // before that destroy loop runs, and the subsequent loss of the roster
+  // entity to applyDefeatConsequence must not throw (interaction guard —
+  // the sync's own no-op-on-missing-entity behavior is exercised once the
+  // roster entity is gone on any later call, not this one).
+  await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.endCombatCheat('defeat'),
+  )
+  await sim.page.evaluate(async (mins) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).__uclife_test__.step({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      until: () => (window as any).__uclife__.useClock.getState().mode === 'normal',
+      maxGameMinutes: mins,
+    })
+  }, STEP_BUDGET_MIN)
+
+  const rosterAfterDefeat = await sim.page.evaluate(
+    (key) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.getMs(key),
+    STARTER_MS_KEY,
+  )
+  expect(
+    rosterAfterDefeat,
+    'the starter MS aboard the lost flagship must be destroyed with it, not orphaned',
+  ).toBeNull()
 })

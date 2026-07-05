@@ -52,6 +52,7 @@ import { pushCombatLog, useCombatLog } from '../sim/combatLog'
 import { combatConfig, cockpitConfig, worldConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
+  syncActiveMsToRosterIfLaunched,
 } from '../sim/cockpit'
 import {
   tickDoorsFrame, type DoorCycleCompletion,
@@ -962,6 +963,14 @@ function applyDefeatConsequence(): DefeatConsequenceResult {
 
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
+  // Issue #163 — write back the piloted MS's in-flight combat damage
+  // BEFORE the destroy loop below despawns its clone. Winning or
+  // withdrawing while still undocked is the common way fights end; without
+  // this the clone's damage was silently discarded and the roster MS came
+  // back pristine. No-ops if the player already docked (dockMs synced) or
+  // the MS was already destroyed in-tactical (onMsDestroyed synced) — both
+  // clear activeMsRosterKey on their own exit.
+  syncActiveMsToRosterIfLaunched()
   // Three-way split per CombatShipState owner:
   //   - flagship row sits on the persistent flagship Ship entity →
   //     just remove the trait.
