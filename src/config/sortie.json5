@@ -66,6 +66,15 @@
   // floating-point precision margin.
   wingRelaunchPropellantFrac: 0.999,
 
+  // ── W3 (ms-identity) Task 6 — cockpit HUD low-resource cue ─────────────
+  // Fraction of cap (propellant / life-support / per-hardpoint ammo) at or
+  // below which the cockpit HUD gauge switches to its "low" visual (the
+  // player's "dock now or fight on dry?" cue). Deliberately a separate knob
+  // from wingResupplyThresholdPct above — that one drives AI wing behavior,
+  // this one drives a player-facing display threshold, and the two may
+  // diverge in future tuning.
+  cockpitLowResourceFrac: 0.3,
+
   // ── Stranded-MS recovery tug (Design/sortie.md) ───────────────────────
   // Speed of the recovery tug in tactical-arena units per second.
   // Faster than a stranded MS but slower than an MS at full thrust so

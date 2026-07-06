@@ -2115,6 +2115,28 @@ html, body, #root {
   width: 220px;
   border-color: #1e3a8a;
 }
+/* W3 (ms-identity) Task 6 — cockpit HUD: propellant/life-support/ammo/boost
+   gauges, flagship sliver, and fleet resupply rows. Sits in the same
+   .tactical-player-stack flow as the flagship + MS HUDs above, so it never
+   overlaps regardless of gauge count. */
+.tactical-cockpit-panel {
+  width: 220px;
+  border-color: #1e3a8a;
+}
+.tactical-cockpit-gauge .tactical-stat-fill { background: #38bdf8; }
+.tactical-cockpit-gauge.is-low .tactical-stat-fill { background: var(--danger); }
+.tactical-cockpit-gauge.is-low .tactical-stat-value { color: var(--danger); }
+.tactical-cockpit-gauge .tactical-stat-fill.is-boosting { background: var(--warn); }
+.tactical-cockpit-flagship-sliver {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+.tactical-cockpit-resupply {
+  font-size: 11px;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+}
 .tactical-piloting {
   font-size: 11px;
   letter-spacing: 1px;

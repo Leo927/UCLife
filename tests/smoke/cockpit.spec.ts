@@ -437,3 +437,221 @@ test('cockpit: endCombat(defeat) does not throw when the roster MS is destroyed 
     'the starter MS aboard the lost flagship must be destroyed with it, not orphaned',
   ).toBeNull()
 })
+
+// W3 (ms-identity) Task 6 — cockpit HUD gauges. The player must be able to
+// answer "dock now or fight on dry?" from the HUD alone: propellant, per-
+// hardpoint ammo, and life-support gauges must render (with machine-readable
+// `data-cockpit-*` value attributes) only while piloting the launched MS, and
+// must track the roster entity's live resources under real input.
+const GAUGE_REQUIRED_HANDLES = [
+  '__uclife_test__.step',
+  '__uclife__.cheatMoney',
+  '__uclife__.cheatPiloting',
+  '__uclife__.boardShip',
+  '__uclife__.takeHelmCheat',
+  '__uclife__.listEnemies',
+  '__uclife__.startCombatCheat',
+  '__uclife__.useCombatStore',
+  '__uclife__.useScene',
+  '__uclife__.useCockpit',
+  '__uclife__.launchPlayerMs',
+  '__uclife__.dockPlayerMs',
+  '__uclife__.getMs',
+  '__uclife__.swapMsWeapon',
+  '__uclife__.setMsSortieResources',
+  '__uclife__.getPilotedMsState',
+]
+
+const GAUGE_STEP_BUDGET_MIN = 60
+const GAUGE_ROSTER_MS_KEY = 'ms-player-0'   // ms-sortie fixture's pinned starter key
+const GAUGE_HARDPOINT_ID = 'hp-0'
+// ms-weapons.json5 ms-ballisticGun.ammoCapacity — a finite-ammo swap-in so
+// this test's real auto-fire visibly depletes the ammo gauge (gm_pre's
+// default hp-0 mount, ms-beamRifle, is Infinity ammo and never moves).
+const BALLISTIC_GUN_AMMO_CAP = 30
+
+test('cockpit: HUD gauges render only while piloting and track real propellant/ammo/boost', async ({ sim }) => {
+  await sim.boot({ fixture: 'ms-sortie', requireHandles: GAUGE_REQUIRED_HANDLES })
+
+  const setupOk = await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u = (window as any).__uclife__
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
+  })
+  expect(setupOk, 'cheatMoney+cheatPiloting setup').toBeTruthy()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useScene.getState().activeId === 'playerShipInterior',
+    GAUGE_STEP_BUDGET_MIN,
+  )
+
+  const helmRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.takeHelmCheat(),
+  )
+  expect(helmRes?.ok, `takeHelmCheat: ${JSON.stringify(helmRes)}`).toBe(true)
+
+  const enemies = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.listEnemies(),
+  )
+  expect(enemies && enemies.length > 0, 'spaceCampaign should have enemies for startCombatCheat').toBeTruthy()
+
+  await sim.page.evaluate((key) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__uclife__.startCombatCheat('pirateLight', [], key)
+  }, enemies[0].key)
+
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useCombatStore.getState().open === true,
+    GAUGE_STEP_BUDGET_MIN,
+  )
+
+  // Combat opens auto-paused on first contact — unpause so the tactical
+  // physics tick actually advances while we drive real input below.
+  await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cs = (window as any).__uclife__.useCombatStore.getState()
+    if (cs.paused) cs.togglePause()
+  })
+
+  // Swap hp-0 to a finite-ammo ballistic gun BEFORE launch — gm_pre's
+  // default beamRifle never depletes (Infinity ammo), so this test's real
+  // auto-fire would otherwise never move the ammo gauge.
+  const swapOk = await sim.page.evaluate(
+    ({ msKey, hpId }: { msKey: string; hpId: string }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.swapMsWeapon(msKey, hpId, 'ms-ballisticGun'),
+    { msKey: GAUGE_ROSTER_MS_KEY, hpId: GAUGE_HARDPOINT_ID },
+  )
+  expect(swapOk, 'swapMsWeapon to ms-ballisticGun should succeed').toBe(true)
+
+  // swapMsWeapon only rewrites mountedWeapons — currentAmmoByWeapon re-caps
+  // on resupply completion (sortieResupply.ts), not on swap. Seed it to the
+  // new weapon's cap explicitly (same convention as ms-sortie-loop.spec.ts)
+  // so this test's ammo gauge starts from a known, finite value.
+  const seedAmmoOk = await sim.page.evaluate(
+    ({ msKey, hpId, cap }: { msKey: string; hpId: string; cap: number }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.setMsSortieResources(msKey, { currentAmmoByWeapon: { [hpId]: cap } }),
+    { msKey: GAUGE_ROSTER_MS_KEY, hpId: GAUGE_HARDPOINT_ID, cap: BALLISTIC_GUN_AMMO_CAP },
+  )
+  expect(seedAmmoOk, 'setMsSortieResources ammo seed should succeed').toBe(true)
+
+  // ── Not piloting yet — no cockpit gauges in the DOM ────────────────────
+  expect(
+    await sim.page.evaluate(() => document.querySelectorAll('[data-cockpit-gauge]').length),
+    'cockpit gauges must not render before the MS is launched',
+  ).toBe(0)
+
+  const launchRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.launchPlayerMs(),
+  )
+  expect(launchRes?.ok, `launchPlayerMs: ${JSON.stringify(launchRes)}`).toBe(true)
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useCockpit.getState().piloting === 'ms',
+    GAUGE_STEP_BUDGET_MIN,
+  )
+
+  // ── Gauges present while piloting ──────────────────────────────────────
+  const propellantGauge = sim.page.locator('[data-cockpit-gauge="propellant"]')
+  const lifeSupportGauge = sim.page.locator('[data-cockpit-gauge="lifeSupport"]')
+  const boostGauge = sim.page.locator('[data-cockpit-gauge="boost"]')
+  const ammoGauge = sim.page.locator(`[data-cockpit-ammo="${GAUGE_HARDPOINT_ID}"]`)
+  const flagshipSliver = sim.page.locator('[data-cockpit-flagship-sliver]')
+  await expect(propellantGauge, 'propellant gauge must render while piloting the MS').toHaveCount(1)
+  await expect(lifeSupportGauge, 'life-support gauge must render while piloting the MS').toHaveCount(1)
+  await expect(boostGauge, 'boost gauge must render while piloting the MS').toHaveCount(1)
+  await expect(ammoGauge, `ammo gauge must render for ${GAUGE_HARDPOINT_ID}`).toHaveCount(1)
+  await expect(flagshipSliver, 'flagship status sliver must render while piloting the MS').toHaveCount(1)
+
+  const ammoAtLaunch = Number(await ammoGauge.getAttribute('data-cockpit-value'))
+  expect(ammoAtLaunch, 'ammo gauge should read the swapped ballistic gun cap at launch').toBe(BALLISTIC_GUN_AMMO_CAP)
+
+  const propellantAtLaunch = Number(await propellantGauge.getAttribute('data-cockpit-value'))
+  expect(propellantAtLaunch, 'propellant gauge should read a positive roster value at launch').toBeGreaterThan(0)
+
+  const boostCooldownAtLaunch = Number(await boostGauge.getAttribute('data-cockpit-cooldown'))
+  expect(boostCooldownAtLaunch, 'boost gauge cooldown must read 0 before any boost is triggered').toBe(0)
+
+  // ── Real KeyW thrust drains the propellant gauge ───────────────────────
+  await sim.page.keyboard.down('KeyW')
+  await sim.stepFor(0.05)
+  await sim.page.keyboard.up('KeyW')
+  await expect
+    .poll(
+      async () => Number(await propellantGauge.getAttribute('data-cockpit-value')),
+      { message: 'propellant gauge must decrease under real KeyW thrust' },
+    )
+    .toBeLessThan(propellantAtLaunch)
+
+  // ── Real weapon auto-fire drains the ammo gauge ────────────────────────
+  await sim.stepUntil(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ms = (window as any).__uclife__.getMs('ms-player-0')
+    return ms !== null && (ms.currentAmmoByWeapon['hp-0'] as number) < 30
+  }, GAUGE_STEP_BUDGET_MIN)
+  await expect
+    .poll(
+      async () => Number(await ammoGauge.getAttribute('data-cockpit-value')),
+      { message: 'ammo gauge must decrease once real auto-fire consumes a round' },
+    )
+    .toBeLessThan(BALLISTIC_GUN_AMMO_CAP)
+
+  // ── Low-resource visual cue (sortie.json5 cockpitLowResourceFrac) ──────
+  // Also disarms hp-0 (0 rounds) so the boost/cooldown scenario below has a
+  // stable live target — same mitigation ms-boost.spec.ts uses: without it,
+  // the MS's own continuing auto-fire can end the fight (or trigger the
+  // first-contact/hull-threshold auto-pause) mid-stepUntil, freezing
+  // boostCooldownSec's countdown along with the rest of combatSystem.
+  const lowSeedOk = await sim.page.evaluate(
+    ({ msKey, hpId }: { msKey: string; hpId: string }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.setMsSortieResources(msKey, { currentAmmoByWeapon: { [hpId]: 0 } }),
+    { msKey: GAUGE_ROSTER_MS_KEY, hpId: GAUGE_HARDPOINT_ID },
+  )
+  expect(lowSeedOk, 'setMsSortieResources should succeed').toBe(true)
+  await expect(ammoGauge, 'ammo gauge must switch to its low-resource visual near depletion').toHaveClass(/is-low/)
+
+  // ── Real KeyF boost sets the cooldown gauge, which clears over sim time ─
+  await sim.page.keyboard.press('KeyF')
+  await expect
+    .poll(
+      async () => Number(await boostGauge.getAttribute('data-cockpit-cooldown')),
+      { message: 'boost gauge cooldown must go positive immediately after a real KeyF trigger' },
+    )
+    .toBeGreaterThan(0)
+  await sim.stepUntil(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = (window as any).__uclife__.getPilotedMsState()
+    return !!s && s.boostCooldownSec <= 0
+  }, GAUGE_STEP_BUDGET_MIN)
+  await expect
+    .poll(
+      async () => Number(await boostGauge.getAttribute('data-cockpit-cooldown')),
+      { message: 'boost gauge cooldown must clear back to 0 once combat.ts\'s cooldown timer elapses' },
+    )
+    .toBe(0)
+
+  // ── Dock — gauges vanish ────────────────────────────────────────────────
+  const dockRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.dockPlayerMs(true),
+  )
+  expect(dockRes?.ok, `dockPlayerMs: ${JSON.stringify(dockRes)}`).toBe(true)
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useCockpit.getState().piloting === null,
+    GAUGE_STEP_BUDGET_MIN,
+  )
+  await expect(
+    sim.page.locator('[data-cockpit-gauge]'),
+    'cockpit gauges must not render after docking',
+  ).toHaveCount(0)
+})
