@@ -262,6 +262,68 @@ to the real hangar boss + mechanic crew when W4.3 lands.
 "rehearsal becomes the fight" through-line. The `mw_pilot` ambition-verb gap gets a
 tracking issue (see ledger).
 
+### W3 shipped status
+
+- **W3.1 Distinct flight model — shipped.** `ms-classes.json5` authors a per-frame
+  `hitRadiusPx` and `boost` (`speedMul`/`durationSec`/`cooldownSec`/`propellantCost`); KeyF
+  triggers the vernier boost; MS hit profiles (7–10 px) sit below the extracted ship default
+  (`combat.json5 defaultShipHitRadiusPx: 12`). Projectiles resolve the geometric hit test
+  per-row against that radius; beams stay hitscan by design (no geometry to miss with).
+  Coverage: `tests/smoke/ms-boost.spec.ts`.
+- **W3.2 Hostile MS + pilots — shipped.** `enemyShips.json5` gains `isMs` + `pilot`
+  (`reactionSec`/`aimJitterRad`/`boostUse`) rows (`pirate_junkerMs`, `pirate_junkerMs_gun`,
+  both strictly weaker than the player's starter frame on every axis); `space-entities.json5`
+  groups gain `msComplement` to field them. Rider: fixed the inherited #165 unarmed-mount gap
+  and a same-tick stale-target crash surfaced by fielding a second enemy.
+- **W3.3 AI MS wings — shipped.** `msLaunchAuth` bridge order (CP cost 2) launches every
+  eligible MS through the existing hangar-door queue; role tags (skirmisher / fireSupport /
+  antiMs / antiShip) live on the `Ms` trait, are editable on the retrofit panel, and drive
+  wing-AI targeting + maintain-range; a threshold-driven (`wingResupplyThresholdPct`)
+  dock-resupply-relaunch loop runs per wing; per-member damage sync uses a parameterized
+  `spawnMsClone`/`syncMsCloneToRoster` (no shared-key aliasing across wing members).
+- **W3.4 Cockpit HUD — shipped.** `CockpitPanel` renders only while piloting an MS: propellant
+  + life-support gauges, per-hardpoint ammo gauges (energy weapons show `∞`, exempt from the
+  low-resource cue), a boost-cooldown readout, a one-line flagship status sliver (hull % +
+  AI stance), and a resupply-progress row for any MS (own or a wing's) currently cycling a
+  hangar bay. Adjudicated Important finding during review, **filed as #167, not fixed in
+  W3**: `dockMs()` unconditionally exits `piloting` the instant a dock is requested, so the
+  player's own MS resupply cycle can never be watched live from the cockpit — the HUD's
+  resupply row can only ever show a wing's cycle. Predates W3; needs a stay-seated dock
+  state machine.
+- **W3.5 Ejection with stakes — shipped.** Player MS hull-0 or life-support-0 triggers
+  auto-pause + an eject confirmation; a confirmed eject spawns a drifting, non-targetable pod
+  (pods aren't `CombatShipState` rows, so they fall outside both sides' target scans by
+  construction); a seeded hostile-approach roll attempts capture before recovery. Permadeath
+  off (default) routes a failed/forced eject through a physiology injury arc
+  (`forceOnset` → `concussion`); permadeath on is a seeded survival roll. NPC wing pilots get
+  the same pod-fate roll; death routes through `Health.dead`, same as any other crew loss.
+- **W3.6 Crew-driven resupply — shipped as scoped.** The resupply formula's placeholder
+  constants (`defaultHangarBossPerformance`, fixed crew count) already sit behind one config
+  flag, as W3.6 asked. Wiring to the *real* hangar boss + mechanic crew stats is explicitly
+  deferred to W4.3 — the hangar-boss crew role doesn't exist yet, so there is nothing real to
+  wire to until then.
+- **Interstitial fix — Task 3b, the resource layer was inert in real play.** Task 3's review
+  traced an Important finding: `combat.ts`'s ambient drain/ammo/strand call sites (§1 thrust
+  drain, §3 fire-path ammo check, stranding) keyed off `cockpit.ts`'s `PLAYER_MS_KEY` — the
+  **transient tactical clone's** own key — while the `Ms` trait those fields live on is the
+  **persistent roster** entity. Every one of those calls silently no-op'd in actual gameplay:
+  held thrust never drained propellant, the MS never stranded, and — most severely — the
+  player's own MS-mounted weapon never fired at all. Rekeyed all three call sites to
+  `getActiveMsRosterKey()` (matching the pattern `tryBoost` already used correctly) before
+  Task 5's wing drain and Task 6's gauges could be built on top of a working resource layer.
+- **W3.7 Doc amendment — this task.** `Design/combat.md` and `Design/mobile-worker.md`
+  amended per above; this spec's W3 status recorded here.
+
+**Issues filed:**
+
+- **[#167](https://github.com/Leo927/UCLife/issues/167)** — player can't stay in the cockpit
+  during resupply; `dockMs()` exits piloting before resupply starts, so `sortie.md`'s live
+  resupply-timer moment is unreachable for the player's own MS. Predates W3, scoped out of it.
+- **[#168](https://github.com/Leo927/UCLife/issues/168)** — `mw_pilot` ambition has no
+  training verb; the civilian MW minigame (Phase 5.4) remains unbuilt. W3 formally retires
+  the "rehearsal becomes the fight" through-line, so the ambition currently progresses only
+  via passive piloting XP until Phase 5.4 content lands on its own schedule.
+
 ## Workstream 4 — Embodied ship + presentation
 
 **W4.1 Crew live aboard.** Hired crew NPCs seed into the flagship interior with on-duty

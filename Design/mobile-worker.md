@@ -4,8 +4,16 @@
 `mw_pilot` ambition. Industrial work is the on-ramp; AE prototype
 validation, AE MS-handling simulators, and Federation reservist drills
 ship as scenario reskins of the same primitives so combat-flavored
-piloting content exists pre-war without needing live combat. Real
-mobile-suit combat waits for Phase 7. Phase 5.4.*
+piloting content exists pre-war without needing live combat. Phase 5.4,
+still unbuilt — tracked as
+[#168](https://github.com/Leo927/UCLife/issues/168) (mw_pilot has no
+training verb yet).*
+
+> **Superseded 2026-07 (W3):** this minigame trains piloting XP and
+> narrative flavor only. It is **not** the input model for real MS
+> combat — that ships independently as direct flight control (WASD +
+> aim + boost), available starting Phase 6.1, well before Phase 7. See
+> [combat.md § Cockpit mode](combat.md#cockpit-mode-ms-as-fighter-wing-the-player-can-pilot).
 
 ## Why this exists
 
@@ -223,28 +231,32 @@ job listings, which is exactly the integration phase 5.0 designed for.
 | **5.4d** | Tuning pass: rebalance XP yields, tolerance curves, money cost/payout against playtest data. |
 | **5.5** | Zeon sympathizer cell sim — clandestine entry point gated by Zeon rep, reusing existing primitives with Zeon-side scenario copy. Bridges `zeon_volunteer`'s piloting requirement. |
 | **6+** | Spacecraft reskin (same input model, new primitives: docking, Lagrange-point coast). |
-| **7+** | Live mobile-suit combat. The simulator content shipped in 5.4c was the rehearsal — Phase 7 turns the rehearsal into a fight. |
+| **7+** | Wartime escalation only (see [combat.md](combat.md) Phase 7.1 — `mw_pilot` players assigned to NPC-captained ships under real stakes). Direct-control MS combat itself already shipped independently in Phase 6.1; this minigame's piloting XP feeds that existing combat rather than unlocking a new one. |
 
 ## What this minigame is NOT
 
 - **Not live combat.** No actual hostile pilot is on the other side of
   these scenarios. Military rehearsal, AE MS-handling simulators, and
   Federation reservist live-fire drills are all canonical UC 0077
-  content and the minigame wears those clothes from day one. What
-  waits for Phase 7 is *real* combat with stakes the player can die
-  from.
+  content and the minigame wears those clothes from day one. Real
+  combat with stakes the player can die from ships independently, as
+  direct-control MS piloting (see [combat.md](combat.md)), available
+  from Phase 6.1 onward — it is not gated behind this minigame, and
+  Phase 7 only adds wartime stakes on top of combat that already
+  exists.
 - **Not a separate mode.** It's a verb the player triggers from a
   walk-up interactable, same as eating or reading. The sim clock pauses
   during a session; the player returns to Von Braun afterward with money
   / XP / rep deltas applied through the standard channels.
-- **Not the only way to grind piloting.** Spacecraft and (Phase 7+)
-  mobile suit subsystems will share the piloting skill pool. A player
-  who hates this minigame must have an alternative path eventually —
-  but for Phase 5.4 this is the only path, and it has to carry.
+- **Not the only way to grind piloting.** Spacecraft reskins and real
+  MS sorties (direct-control combat, shipping independently from Phase
+  6.1) share the piloting skill pool. A player who hates this minigame
+  must have an alternative path eventually — but for Phase 5.4 this is
+  the only path, and it has to carry.
 
 ## Related
 
-- [combat.md](combat.md) — defines hostile primitive variants and where this minigame engine ends up under wartime stakes
+- [combat.md](combat.md) — defines the shipped direct-control MS combat model this minigame no longer feeds into mechanically; still the destination for the piloting XP this verb trains
 - [social/ambitions.md](social/ambitions.md) — `mw_pilot` ambition stages this verb fulfills
 - [characters/skills.md](characters/skills.md) — piloting skill XP pool
 - [characters/attributes.md](characters/attributes.md) — Reflex / Endurance / Intelligence inputs

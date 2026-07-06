@@ -37,7 +37,7 @@ escort ships in their fleet — with one critical difference: **the player
 can leave the tactical view at any moment by walking from the bridge to
 the hangar and climbing into a mobile suit.** The MS launches as one of
 the fleet's fighter wings, but with the player personally in the cockpit
-running the MS minigame.
+flying it directly.
 
 ```
         Campaign layer (Starsector-shape)
@@ -59,17 +59,18 @@ running the MS minigame.
         │  Used for: mode switch, downtime,    │
         │  social, repair, story beats         │
         ├──────────────────────────────────────┤
-        │  Cockpit layer (MS minigame)         │
-        │  Engage / Evade / Suppress / Breach  │
-        │  primitives, hostile-pilot reskins   │
+        │  Cockpit layer (direct MS control)    │
+        │  WASD flight + shift-aim + vernier    │
+        │  boost; per-sortie resources + HUD;   │
+        │  hostile MS wings with pilot AI       │
         └──────────────────────────────────────┘
 ```
 
 The flagship is **a koota scene like Von Braun**. The player walks its
 rooms in real-time when not in tactical or cockpit view. **The walkable
 scene is not the combat UI.** During combat, the player is in tactical
-view (Starsector top-down) OR in the cockpit (MS minigame). The walking
-view exists for:
+view (Starsector top-down) OR in the cockpit (direct MS control). The
+walking view exists for:
 
 - Pre/post-deployment downtime — sleep, eat, train crew, talk to NPCs aboard
 - The **mode-switch transition** — to climb into an MS the player physically walks bridge → hangar; to return to fleet command they walk hangar → bridge
@@ -131,7 +132,7 @@ player and combat determines mode.
 | **Witness** | In Von Braun, never on a combat ship | Newsfeed, dome events, neighbors disappearing, prices shifting | Live their life under wartime pressure |
 | **Embodied** | Walking their ship (or a city) | Walkable koota scene; named crew at stations | Sleep, eat, train, talk, transition between Tactical and Cockpit |
 | **Tactical** | At the bridge during combat | Starsector-shape top-down 2D: flagship + escorts + enemy ships, hardpoints, flux, shields, fighter wings | Fly the flagship; issue orders to escorts; launch MS wings; active-pause to plan |
-| **Cockpit** | Inside an MS launched from the hangar | MS minigame view | Run Engage/Evade/Suppress/Breach primitives against hostile pilots/drones/ships |
+| **Cockpit** | Inside an MS launched from the hangar | Direct-control MS view: cockpit HUD over the tactical arena | Fly WASD + shift-aim + KeyF vernier boost; manage per-sortie propellant/ammo/life-support against hostile MS and ships |
 
 A single character moves between Tactical and Cockpit **by walking** to
 the bridge or the hangar. That walk is where Embodied lives during
@@ -263,28 +264,89 @@ panic when the flagship takes hull damage.
 
 ## Cockpit mode (MS as fighter wing the player can pilot)
 
-The player walks (Embodied) to the hangar, climbs into an MS. The
-cockpit minigame takes over. Same input model as the MW sim:
+> **Superseded 2026-07 (W3): direct control is canon.** The cockpit
+> minigame primitives below (Engage/Evade/Suppress/Breach) were the
+> pre-W3 design and were **never built**. What shipped instead — and
+> what this section now specifies — is direct flight control. The
+> historical primitive table is kept below for the record; treat it as
+> abandoned, not aspirational.
+>
+> <details><summary>Superseded design: hostile-primitive minigame</summary>
+>
+> The player walks (Embodied) to the hangar, climbs into an MS. The
+> cockpit minigame takes over. Same input model as the MW sim:
+>
+> | Hostile primitive | Built from MW primitive |
+> |---|---|
+> | **Engage** | Weld — track an evading target |
+> | **Evade** | Stack — keep yourself outside an enemy's lock cone |
+> | **Suppress** | Salvage — rapid target acquisition under decoy density |
+> | **Breach** | Lift — waypoint navigation under suppression |
+>
+> A skirmish would have been a sequence of these primitives, reskinned
+> from the MW sim's engine ([mobile-worker.md](mobile-worker.md)).
+>
+> </details>
 
-| Hostile primitive | Built from MW primitive |
-|---|---|
-| **Engage** | Weld — track an evading target |
-| **Evade** | Stack — keep yourself outside an enemy's lock cone |
-| **Suppress** | Salvage — rapid target acquisition under decoy density |
-| **Breach** | Lift — waypoint navigation under suppression |
+The player walks (Embodied) to the hangar, climbs into an MS, and flies
+it directly — no minigame layer between the player and the stick.
 
-A skirmish is a sequence of these primitives. The MS has integrity
-(HP-like, 0 = ejection, returns the player to a launch bay or to space
-in an escape pod). MS damage persists between sorties until repaired by
-the hangar crew.
-
-The full per-sortie lifecycle — launch from a per-ship-class hangar
-door, in-tactical resource economy (`currentPropellant`, per-weapon
-ammo, life support), dock-back, mid-combat resupply protocol (~15s
-tactical-time base, modified by hangar boss + crew + boost) — lives in
-[sortie.md](sortie.md). The cockpit minigame doesn't stop being itself
-when the MS runs dry; the dry-MS choice ("dock now or fight on without
-that weapon") is the moment the resource layer earns its keep.
+- **Flight model.** WASD moves the MS; holding shift locks aim
+  independent of heading (strafe-and-shoot) so the player can face a
+  target while thrusting elsewhere. KeyF fires a **vernier boost** — a
+  short high-speed dash, per-frame-authored (speed multiplier,
+  duration, cooldown), that drinks propellant. MS frames get
+  meaningfully higher thrust-to-mass, tighter turning, and a smaller
+  hit profile than ships — an MS reads as a fighter, not a slow hull.
+- **Hit resolution is per-row, not a single global radius.** Projectiles
+  resolve a real geometric hit test against each target's own
+  `hitRadiusPx` (MS frames author a smaller radius than the ship
+  default), so a small fast MS can out-dodge incoming fire that would
+  have hit a ship dead-on. Beams stay hitscan — a locked-on, in-arc beam
+  always lands; there's no geometry for a beam to miss with, and giving
+  beams a miss chance is explicitly out of scope (that's accuracy RNG,
+  which lives on the *pilot*, not the weapon — see hostile pilot AI
+  below).
+- **Per-sortie resources are real in play**, not cosmetic gauges:
+  propellant (drained by thrust and boost), per-weapon ammo (a
+  depleted mount goes silent until resupply), and life support (hits
+  zero → forced ejection). The full lifecycle — launch from a
+  per-ship-class hangar door, in-tactical resource economy, dock-back,
+  mid-combat resupply protocol (~15s tactical-time base, modified by
+  hangar boss + crew + boost) — lives in [sortie.md](sortie.md). The
+  dry-MS choice ("dock now or fight on without that weapon") is the
+  moment the resource layer earns its keep, exactly as designed —
+  only the moment-to-moment control model changed, not that stake.
+- **Cockpit HUD** overlays the tactical arena while piloting: propellant
+  and life-support gauges, per-hardpoint ammo gauges (energy weapons
+  show `∞` and never flag low), a boost-cooldown readout, a one-line
+  flagship status sliver (hull % + AI stance) for situational awareness
+  without leaving the seat, and a resupply-progress row for any MS
+  currently cycling through a hangar bay. In practice that row only ever
+  shows an AI wing's cycle today — docking exits the player's own
+  cockpit immediately, before resupply starts, so the player can't watch
+  their own MS's timer live (tracked as
+  [#167](https://github.com/Leo927/UCLife/issues/167); predates W3).
+- **Hostile MS carry pilot AI**, not scripted hit-scan: a pilot stat
+  block (`reactionSec`, `aimJitterRad`, `boostUse`) drives how fast a
+  hostile MS reacts, how much its aim wanders, and how readily it burns
+  its own boost — the source of miss chance and skill variance that a
+  hitscan beam or a fixed-radius hit test can't provide on its own.
+- **AI-piloted wings.** MS with an assigned crew pilot launch as wings
+  through the bridge's MS launch-authorization order (Workstream 2's
+  order palette, CP-gated) via the same hangar-door queue the player
+  uses. A wing's role tag (skirmisher / fire-support / anti-MS /
+  anti-ship) selects its AI targeting behavior; wings drain their own
+  sortie resources and auto-dock to resupply when a threshold is
+  crossed, independent of the player's own MS.
+- **Ejection has stakes.** Player MS hull reaching 0 (or life support
+  reaching 0) triggers auto-pause and an eject confirmation, per the
+  designed auto-pause set. A confirmed eject spawns a drifting,
+  non-targetable pod; a hostile that reaches it before recovery rolls a
+  capture attempt. With permadeath off, a failed/forced ejection routes
+  through a physiology injury arc; with permadeath on, it's a seeded
+  survival roll. NPC wing pilots get the same pod-fate roll, with death
+  routing through `Health.dead` like any other crew loss.
 
 The tactical battle continues while the player is in cockpit. The
 player hears bridge chatter (zh-CN voice / log lines via the combat
@@ -645,7 +707,7 @@ The Starsector-shape calls are now locked. Specifically:
 |---|---|
 | **5.4c** | Cockpit minigame primitives ship in **simulator-only** form. AE MS-handling sim, Federation reservist drills. No real combat, no hostile NPCs, no ship. The player is still in Von Braun. |
 | **6.0** | Starsector-shape tactical foundation. Single-ship pre-war merc work. Walkable flagship as scene + walkable **captain's office** room (single-ship; pre-launch readiness summary). Tactical view (top-down 2D, real-time + pause). Hardpoint weapons, flux, shields, hull. **Combat event log** (top-left, fading scroll, severity tiers); **tactical auto-pause set narrowed** to first-contact + flagship 25% / 10% + boarders + player-eject. **Tally dialogue minimum** (credits + supplies + fuel). Encounter generator. Player buys their first ship as a Phase 6.0 capstone. See [post-combat.md](post-combat.md). |
-| **6.1** | Bridge ↔ hangar walkable transit. Player pilots an MS personally; cockpit primitives now have hostile counterparts (Engage/Evade/Suppress/Breach against NPC pilots with their own piloting/reflex stats). MS wings AI-piloted while player is at bridge. Walking-transit cost on flagship AI. **MS launch + cockpit transition + dock-back** (single placeholder hangar door per ship); **no per-MS resources yet** — MS combat is hull-only. Combat event log gets full content. See [sortie.md](sortie.md). |
+| **6.1** | Bridge ↔ hangar walkable transit. Player pilots an MS personally via direct WASD/aim control (superseded the planned Engage/Evade/Suppress/Breach primitive reskin — see §Cockpit mode). MS wings AI-piloted while player is at bridge. Walking-transit cost on flagship AI. **MS launch + cockpit transition + dock-back** (single placeholder hangar door per ship); **no per-MS resources yet** — MS combat is hull-only. Combat event log gets full content. See [sortie.md](sortie.md). |
 | **6.1.5** | Singleton-to-plural ship structural prep (no player-visible content). See [fleet.md](fleet.md). |
 | **6.2** | Multi-ship fleet MVP. Two more ship classes (escort + small freighter). Per-ship + crew supply economics (Starsector model). Fleet roster + crew assignment screens. Hire-as-captain / hire-as-crew dialogue branches (stub; full hire flow in faction-management). Buy-ship dialog at brokers. Mothballing. Doctrine slider per ship. Persistent fleet damage between encounters. Debug "grant fleet" populates a 2-ship fleet + ~30 hired NPCs. **Comm panel relocates to captain's office; officer-led crew auto-man verb. `brigCapacity` + brig as ship-class room (no prisoner verbs yet). Tally dialogue full (loot routing + named POW reveal); notable-hostile authoring on `space-entities.json5` rows.** See [fleet.md](fleet.md), [post-combat.md](post-combat.md). |
 | **6.2.5** | MS + pilot layer. `ms-classes.json5`, MS runtime entity, hangar UI, pilot roster + assignment, per-MS + per-MS-repair supply economics. **Per-MS sortie resources** (`currentPropellant`, per-weapon ammo, life support); **mid-combat resupply protocol** (15s base, full crew/boost formula); **per-ship-class `hangarDoors[]` + door queueing**; stranded-MS recovery tug. **Prisoner verbs** + brig upkeep; **MS-parts loot** via salvage table. See [sortie.md](sortie.md), [post-combat.md](post-combat.md). |
@@ -661,9 +723,12 @@ The Starsector-shape calls are now locked. Specifically:
 
 - **Not the heart of the game.** The heart is daily life under sim.
   Combat is one of several payoffs that life can lead toward.
-- **Not Gundam Battle Operation.** No twin-stick MS action. The cockpit
-  minigame primitive model is the ceiling. Tactical scale is fleet, not
-  individual MS dogfight.
+- **Not Gundam Battle Operation.** Direct WASD/aim MS control is canon
+  (superseded the earlier primitive-minigame ceiling — see §Cockpit
+  mode), but tactical scale stays fleet-first: the player is one pilot
+  among a fleet's escorts and MS wings, not the center of an
+  arena-shooter. Leaving the bridge for the cockpit costs the flagship
+  its captain, by design.
 - **Not skippable for combatants.** A `mw_pilot` who reaches Phase 7
   expects to fight. Auto-resolve from the simulator does **not** apply
   to real combat.
@@ -685,7 +750,7 @@ The Starsector-shape calls are now locked. Specifically:
 - [sortie.md](sortie.md) — in-tactical MS lifecycle: per-sortie resources, mid-combat resupply, hangar-door queueing, pilot recovery
 - [post-combat.md](post-combat.md) — combat event log + narrowed tactical auto-pause set; recoverables / tally / prisoner dialogues; named-hostile authoring
 - [encounters.md](encounters.md) — form of node events; combat is reached through them, not directly
-- [mobile-worker.md](mobile-worker.md) — cockpit minigame engine, primitive set, hostile reskins
+- [mobile-worker.md](mobile-worker.md) — civilian MW minigame engine (Phase 5.4 pre-war training content only; no longer the combat input model — see §Cockpit mode)
 - [social/ambitions.md](social/ambitions.md) — `warPayoff` routes pilot ambitions onto ships; non-pilot ambitions stay in Von Braun
 - [social/faction-management.md](social/faction-management.md) — Phase 6 fleet + colony layer; this is where the Starsector shape ships
 - [social/newsfeed.md](social/newsfeed.md) — strategic war's primary delivery channel; civilian-war texture
