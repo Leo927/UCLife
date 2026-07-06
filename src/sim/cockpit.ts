@@ -154,16 +154,45 @@ function resolvePlayerMsEntity(msKey?: string) {
   return { msEnt, ms: cls, msInst }
 }
 
-// Spawn the MS at flagship.pos + cockpitConfig.launchOffset, rotated by
-// the flagship's heading. Returns the new entity, or null if there's no
-// flagship combat row (combat not open). Reads weapons from the Ms
-// entity's mountedWeapons (per-instance retrofit) rather than hardcoded
-// class defaults.
-function spawnPlayerMs(msKey?: string): Entity | null {
+// Exact-match roster resolver (no fallback). Used by the shared spawner so a
+// wing member only ever clones the roster Ms it was told to.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function resolveMsEntityExact(msKey: string) {
+  if (!msKey) return null
+  const w = shipWorld()
+  for (const e of w.query(Ms, EntityKey)) {
+    if (e.get(EntityKey)!.key !== msKey) continue
+    const msInst = e.get(Ms)!
+    return { msEnt: e, ms: getMsClass(msInst.templateId), msInst }
+  }
+  return null
+}
+
+// W3 (ms-identity) Task 5 — shared MS-clone spawner. Builds a tactical
+// CombatShipState row from a persistent roster Ms entity: weapons from the
+// per-instance mountedWeapons, hull/armor from the roster, launch geometry
+// from the hosting ship's authored hangar door. Extracted from the former
+// spawnPlayerMs without behavior change so the player launch path
+// (launchMs → PLAYER_MS_KEY, pilotedByPlayer=true) and AI wing members
+// (systems/msWings.ts → `wing-<rosterKey>`, pilotedByPlayer=false + a role
+// maintainRange multiplier) share ONE construction site. Each caller owns
+// its own clone key + roster key, so drain / ammo / boost / damage-sync all
+// resolve per member (never through the single getActiveMsRosterKey slot,
+// which is the player's launched MS only).
+export interface SpawnMsCloneOpts {
+  rosterKey: string
+  cloneKey: string
+  pilotedByPlayer: boolean
+  // Wings scale the frame's authored maintainRange by their role-tag table
+  // multiplier (config/ms.json5 roleTagAi). Player path leaves it at 1.
+  maintainRangeMul?: number
+}
+
+export function spawnMsClone(opts: SpawnMsCloneOpts): Entity | null {
   const flagshipEnt = findFlagshipCombat()
   if (!flagshipEnt) return null
   const fcs = flagshipEnt.get(CombatShipState)!
-  const resolved = resolvePlayerMsEntity(msKey)
+  const resolved = resolveMsEntityExact(opts.rosterKey)
   if (!resolved) return null
   const { ms, msInst } = resolved
 
@@ -199,7 +228,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
     // Fire (or enqueue) the door cycle. Even if the cycle would queue,
     // we still spawn the MS so the launch flow can proceed visually;
     // the lock just gates the next cycle on this door.
-    requestLaunch(hostShipKey, PLAYER_MS_KEY, pickedDoorId)
+    requestLaunch(hostShipKey, opts.cloneKey, pickedDoorId)
   }
   void sortieConfig
   const w = shipWorld()
@@ -229,7 +258,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       side: 'player',
       isFlagship: false,
       isMs: true,
-      pilotedByPlayer: true,
+      pilotedByPlayer: opts.pilotedByPlayer,
       isPlayer: false,
       pos,
       vel,
@@ -250,7 +279,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       ai: {
         aggression: ms.ai.aggression,
         retreatThreshold: ms.ai.retreatThresholdPct,
-        maintainRange: ms.ai.maintainRange,
+        maintainRange: ms.ai.maintainRange * (opts.maintainRangeMul ?? 1),
       },
       currentTargetKey: '',
       hitRadiusPx: ms.hitRadiusPx,
@@ -262,7 +291,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       pendingTargetSec: 0,
       boostDecisionTimerSec: 0,
     }),
-    EntityKey({ key: PLAYER_MS_KEY }),
+    EntityKey({ key: opts.cloneKey }),
   )
   return ent
 }
@@ -284,8 +313,17 @@ function despawnPlayerMs(): void {
 // call it once per member.
 export function syncMsCombatDamageToRoster(msKey: string): void {
   const clone = getPlayerMs()
-  if (!clone) return
-  const cs = clone.get(CombatShipState)!
+  if (clone) syncMsCloneToRoster(clone, msKey)
+}
+
+// W3 (ms-identity) Task 5 — parameterized write-back: copies a specific
+// combat clone's hull/armor onto the roster Ms `msKey` + recomputes
+// damageState. Task 5 wings call this once per member with their OWN
+// `wing-<rosterKey>` clone entity, so each member's damage lands on its own
+// roster row rather than the player's (getActiveMsRosterKey) slot.
+export function syncMsCloneToRoster(clone: Entity, msKey: string): void {
+  const cs = clone.get(CombatShipState)
+  if (!cs) return
   const w = shipWorld()
   for (const ent of w.query(Ms, EntityKey)) {
     if (ent.get(EntityKey)!.key !== msKey) continue
@@ -345,12 +383,17 @@ export function launchMs(msKey?: string): { ok: boolean; reasonZh?: string } {
   const fcs = flagship.get(CombatShipState)!
   flagship.set(CombatShipState, { ...fcs, pilotedByPlayer: false })
 
-  const ent = spawnPlayerMs(msKey)
+  // Resolve the roster Ms once (fallback to the first stored MS when no key
+  // was passed) so the concrete roster key threads into both the shared
+  // spawner AND activeMsRosterKey — combat.ts's drain / ammo / boost debit
+  // path targets that exact entity.
+  const resolved = resolvePlayerMsEntity(msKey)
+  const rosterKey = resolved && resolved.msEnt.has(EntityKey) ? resolved.msEnt.get(EntityKey)!.key : ''
+  const ent = spawnMsClone({ rosterKey, cloneKey: PLAYER_MS_KEY, pilotedByPlayer: true })
   if (!ent) return { ok: false, reasonZh: '出击失败 · 旗舰状态异常' }
 
-  const resolved = resolvePlayerMsEntity(msKey)
   const nameZh = resolved ? resolved.ms.nameZh : 'MS'
-  activeMsRosterKey = resolved && resolved.msEnt.has(EntityKey) ? resolved.msEnt.get(EntityKey)!.key : ''
+  activeMsRosterKey = rosterKey
 
   useCockpit.getState().setPiloting('ms')
   useCockpit.getState().bumpMs()
@@ -391,7 +434,13 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
   // Pick a door + fire/queue the dock cycle. Even if the door is busy,
   // we still fade the cockpit immediately — the resupply timer starts
   // when the cycle completes, not when the player releases controls.
-  const hostShipKey = findHostShipKeyForMs(PLAYER_MS_KEY) || 'ship'
+  // findHostShipKeyForMs matches roster Ms keys, so it must be given the
+  // ROSTER key (activeMsRosterKey), not PLAYER_MS_KEY (the tactical clone's
+  // own key) — the latter never matched any roster row and always fell back
+  // to 'ship', which happened to be right only because the flagship is
+  // keyed 'ship' today. Threading the roster key keeps host resolution
+  // correct once multi-carrier custody lands.
+  const hostShipKey = findHostShipKeyForMs(activeMsRosterKey) || 'ship'
   const pick = pickDoorForLaunch(hostShipKey)  // same picker; queue logic identical
   if (pick) requestDock(hostShipKey, PLAYER_MS_KEY, pick.doorId)
 
