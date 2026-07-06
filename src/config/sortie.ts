@@ -13,6 +13,7 @@ export interface SortieConfig {
   propellantDrainPerThrustSec: number
   lifeSupportDrainPerSec: number
   wingResupplyThresholdPct: number
+  wingRelaunchPropellantFrac: number
   tugSpeedUnitsPerSec: number
   tugSkillThreshold: number
   tugGrappleRadiusPx: number

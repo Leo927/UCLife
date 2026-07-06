@@ -60,6 +60,11 @@
   // left to fly home and dock before stranding — the return leg itself
   // burns propellant at propellantDrainPerThrustSec. Fraction in (0, 1).
   wingResupplyThresholdPct: 0.35,
+  // Propellant fraction threshold at which a resupplying wing relaunches.
+  // Once the resupply timer completes, the wing waits for propellant to
+  // restore to (near) cap before re-engaging. Tolerance allows for
+  // floating-point precision margin.
+  wingRelaunchPropellantFrac: 0.999,
 
   // ── Stranded-MS recovery tug (Design/sortie.md) ───────────────────────
   // Speed of the recovery tug in tactical-arena units per second.

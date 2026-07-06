@@ -1535,9 +1535,12 @@ export function tryBoost(entity: Entity): boolean {
   if (cs.boostCooldownSec > 0) return false
   // Locked decision: only the player's own piloted MS has a persistent
   // propellant ledger (the Ms trait on the roster entity, drained via the
-  // sortie-loop system). Enemy MS and future AI wings are pure
-  // CombatShipState rows with no resource pool of their own today, so their
-  // boost is free of the propellant ledger — cooldown is their only gate.
+  // sortie-loop system). Enemy MS are pure CombatShipState rows with no
+  // resource pool of their own, so their boost is free of the propellant
+  // ledger — cooldown is their only gate. AI wings now have per-member
+  // roster propellant ledgers (msWings.ts resupply loop); wing-boost AI is
+  // currently unwired. When wired, it must debit the wing's OWN roster key
+  // (per-member pattern), never the player's getActiveMsRosterKey.
   if (cs.pilotedByPlayer && cs.isMs) {
     if (!spendPropellant(getActiveMsRosterKey(), def.propellantCost)) return false
   }

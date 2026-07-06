@@ -75,6 +75,9 @@ export function msWingRosterKeyForClone(ent: Entity): string {
 
 type WingPhase = 'deployed' | 'returning' | 'resupplying'
 
+// Track which wings have logged hold-for-door to avoid spamming logs
+const wingWaitingForDoorLogged = new Set<string>()
+
 interface WingMember {
   phase: WingPhase
   targetPreference: WingTargetPreference
@@ -228,6 +231,7 @@ export function onWingDestroyed(cloneEnt: Entity): void {
   if (rosterKey) {
     syncMsCloneToRoster(cloneEnt, rosterKey)
     wings.delete(rosterKey)
+    wingWaitingForDoorLogged.delete(rosterKey)
   }
   cloneEnt.destroy()
 }
@@ -260,6 +264,7 @@ export function tickWings(dtSec: number): void {
       const clone = findCombatRowByKey(wingCloneKey(rosterKey))
       if (!clone) {
         // Clone vanished (e.g. destroyed elsewhere) — drop the wing.
+        wingWaitingForDoorLogged.delete(rosterKey)
         wings.delete(rosterKey)
         continue
       }
@@ -272,7 +277,15 @@ export function tickWings(dtSec: number): void {
         // restore when the door cycle + resupply timer complete.
         const hostKey = findHostShipKeyForMs(rosterKey) || flagshipShipKey() || 'ship'
         const doorId = firstFreeDoorId(hostKey)
-        if (!doorId) continue   // no free door yet — keep station, retry
+        if (!doorId) {
+          // No free door — log once per hold episode, then keep station and retry.
+          if (!wingWaitingForDoorLogged.has(rosterKey)) {
+            pushCombatLog(`僚机等待机库门 · ${m.name}`, 'info')
+            wingWaitingForDoorLogged.add(rosterKey)
+          }
+          continue
+        }
+        wingWaitingForDoorLogged.delete(rosterKey)
         requestDock(hostKey, rosterKey, doorId)
         syncMsCloneToRoster(clone, rosterKey)
         clone.destroy()
@@ -287,7 +300,7 @@ export function tickWings(dtSec: number): void {
     // ResupplyState yet and propellant is still low, so keying the relaunch
     // on "propellant back at cap" (only true after tickResupply completes)
     // avoids that race without inspecting ResupplyState timing.
-    if (!msEnt.has(ResupplyState) && frac >= 0.999) {
+    if (!msEnt.has(ResupplyState) && frac >= sortieConfig.wingRelaunchPropellantFrac) {
       const ent = spawnWing(rosterKey)   // re-registers phase='deployed'
       if (ent) pushCombatLog(`${m.name} · 补给完毕 · 再次出击`, 'info')
     }
@@ -311,4 +324,5 @@ export function syncAllWingsToRoster(): void {
 // combat.ts strip loops (transient side='player' rows with no Ship trait).
 export function resetWings(): void {
   wings.clear()
+  wingWaitingForDoorLogged.clear()
 }
