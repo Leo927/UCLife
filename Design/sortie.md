@@ -107,7 +107,16 @@ Recovery of a *destroyed* MS (or a stranded one with `currentPropellant = 0`) is
 
 ## Pilot recovery
 
-A pilot who ejects in-tactical drifts at their ejection point. The flagship recovers them by maneuvering within recovery range (config: `pilotRecoveryRadiusPx`); pilots inside the radius automatically dock to a hangar bay's life-support cradle, no door required. Hostile fleets may recover before the player does — the pilot is then captured by the hostiles. The symmetric case (player recovers a hostile pod) feeds the prisoner system in [post-combat.md](post-combat.md#prisoners).
+**Shipped (W3 Task 7 — ejection with stakes).** An MS at hull 0 (or with life support drained to 0 — a *forced* ejection) auto-pauses the tactical into a one-button eject-confirm beat (per [post-combat.md](post-combat.md)'s designed pause set). Confirming spawns an escape pod that drifts at a fraction of the MS's last velocity (config: `sortie.json5 → ejection.podDriftSpeedFrac` / `podMaxDriftSpeed`); the pod is not a combat row, so no weapon targets it. The player watches the rest of the fight as observer (tactical stays open).
+
+Resolution is event-driven:
+
+- **Victory / withdraw with the flagship alive** → pod recovered. Permadeath-off applies an ejection injury through the physiology path (`ejection.pilotInjuryConditionId`).
+- **Hostile reach** — a hostile MS/ship inside `ejection.podCaptureRadiusPx` rolls a seeded capture (`podCaptureProbability`, once per approach episode; driving the hostile off re-arms the roll). Captured = defeat-grade loss: permadeath-off is a rescued-later beat (injury + log); permadeath-on rolls `podSurvivalRollPermadeath` — failure ends the run through the standard death path.
+- **Defeat** → capture-grade loss; the defeat debrief lists the pod's fate.
+- **AI wing pilots** eject the same way; at engagement end a seeded fate roll (`wingPodRecoveryProbability` / `wingPodInjuryProbability`) recovers them (possibly injured) or kills the pilot NPC — crew loss is independent of the permadeath toggle per [combat.md](combat.md#permadeath-and-combat).
+
+**Future:** in-fight recovery by maneuvering the flagship within `pilotRecoveryRadiusPx` (auto-dock to a life-support cradle, no door) instead of waiting for engagement end; the symmetric case (player recovers a hostile pod) feeds the prisoner system in [post-combat.md](post-combat.md#prisoners).
 
 ## Save / load
 
