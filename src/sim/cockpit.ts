@@ -75,6 +75,14 @@ function shipWorld() { return getWorld(SHIP_SCENE_ID) }
 // always targets the right entity without re-resolving fallback guesses.
 let activeMsRosterKey = ''
 
+// W3 (ms-identity) Task 3 — the piloted MS's persistent roster key, so
+// combat.ts's boost propellant-debit can target the same Ms entity
+// syncMsCombatDamageToRoster writes hull/armor back to. '' when no MS is
+// currently launched.
+export function getActiveMsRosterKey(): string {
+  return activeMsRosterKey
+}
+
 function ensureTacticalOpen(open: boolean): void {
   emitSim('combat:set-overlay-open', { open })
 }
@@ -245,6 +253,9 @@ function spawnPlayerMs(msKey?: string): Entity | null {
         maintainRange: ms.ai.maintainRange,
       },
       currentTargetKey: '',
+      hitRadiusPx: ms.hitRadiusPx,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
     }),
     EntityKey({ key: PLAYER_MS_KEY }),
   )

@@ -515,6 +515,10 @@ registerDebugHandle('getPilotedMsState', (): {
   vel: { x: number; y: number }
   heading: number
   weapons: Array<{ weaponId: string; hardpointId: string; ready: boolean; chargeSec: number }>
+  // W3 (ms-identity) Task 3 — boostState readable per MS row (Task 6's
+  // cooldown gauge consumes this shape).
+  boostRemainingSec: number
+  boostCooldownSec: number
 } | null => {
   const w = getWorld(SHIP_SCENE_ID)
   for (const ent of w.query(CombatShipState, EntityKey)) {
@@ -530,6 +534,8 @@ registerDebugHandle('getPilotedMsState', (): {
         ready: w0.ready,
         chargeSec: w0.chargeSec,
       })),
+      boostRemainingSec: cs.boostRemainingSec,
+      boostCooldownSec: cs.boostCooldownSec,
     }
   }
   return null

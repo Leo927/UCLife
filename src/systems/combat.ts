@@ -41,6 +41,7 @@ import { getShipClass } from '../data/ship-classes'
 import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
 import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
 import { getMsFrameMod } from '../data/ms-frame-mods'
+import { getMsClass, type MsBoostDef } from '../data/ms'
 import { useClock } from '../sim/clock'
 import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel, grantSupplies } from '../sim/ship'
@@ -53,13 +54,15 @@ import { pushCombatLog, useCombatLog } from '../sim/combatLog'
 import { combatConfig, cockpitConfig, worldConfig } from '../config'
 import {
   onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
-  syncActiveMsToRosterIfLaunched,
+  syncActiveMsToRosterIfLaunched, getActiveMsRosterKey,
 } from '../sim/cockpit'
 import {
   tickDoorsFrame, type DoorCycleCompletion,
 } from '../sim/hangarDoors'
 import { tickResupply, routeDockedMsToResupply } from '../sim/sortieResupply'
-import { drainPilotedMs, isMsStranded, tryConsumeAmmo } from '../sim/sortieDrain'
+import {
+  drainPilotedMs, isMsStranded, tryConsumeAmmo, spendPropellant,
+} from '../sim/sortieDrain'
 import { tickTugs } from '../sim/recoveryTug'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
 import { capturePrisoner } from './prisoners'
@@ -120,6 +123,16 @@ let nextBeamId = 1
 
 export function getBeamFlashes(): BeamFlash[] {
   return beamFlashes.slice()
+}
+
+// Test-only reset for hand-built-world unit tests that call combatSystem()
+// directly without going through startCombat/endCombat (which otherwise own
+// clearing this module-level pool). Without it, a projectile spawned by one
+// test's flight can still be flying when the next test's combatSystem()
+// call scans for a hit, corrupting an unrelated scenario.
+export function __resetCombatProjectilesForTest(): void {
+  projectiles.length = 0
+  beamFlashes.length = 0
 }
 
 // MS weapons (ms-weapons.json5) carry a narrower shape than ship
@@ -458,6 +471,12 @@ function buildEnemyCombatShipState(
       maintainRange: blueprint.ai.maintainRange,
     },
     currentTargetKey: '',
+    // W3 (ms-identity) Task 3 — isMs rows author their own (smaller)
+    // hitRadiusPx; ship rows fall back to the config default. Boost decay
+    // fields always start clean per spawn.
+    hitRadiusPx: blueprint.isMs ? blueprint.hitRadiusPx! : combatConfig.defaultShipHitRadiusPx,
+    boostRemainingSec: 0,
+    boostCooldownSec: 0,
   })
 }
 
@@ -599,6 +618,11 @@ function spawnActiveFleetEscorts(w: World): void {
         maintainRange,
       },
       currentTargetKey: '',
+      // Ships get no boost (locked decision) and use the shared default
+      // hit radius — ship-classes.json5 doesn't author per-class values.
+      hitRadiusPx: combatConfig.defaultShipHitRadiusPx,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
     }))
   }
 }
@@ -685,6 +709,9 @@ export function startCombat(
         }
       })(),
       currentTargetKey: '',
+      hitRadiusPx: combatConfig.defaultShipHitRadiusPx,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
     }))
   }
 
@@ -1433,12 +1460,73 @@ function stepVelocity(
   }
 }
 
+// W3 (ms-identity) Task 3 — resolve the boost block for a CombatShipState
+// row, or null if this row has no boost (every non-MS ship — the locked
+// decision "ships get no boost"). shipClassId is a ms-classes.json5 id for
+// player-side MS rows, an enemyShips.json5 id for enemy-side MS rows.
+function resolveBoostDef(cs: { isMs: boolean; side: 'player' | 'enemy'; shipClassId: string }): MsBoostDef | null {
+  if (!cs.isMs) return null
+  if (cs.side === 'player') return getMsClass(cs.shipClassId).boost
+  return getEnemyShip(cs.shipClassId).boost ?? null
+}
+
+// W3 (ms-identity) Task 3 — activate `entity`'s vernier boost. Returns false
+// (no state mutated) when this row has no boost, the cooldown hasn't
+// cleared, or (player MS only) propellant can't cover propellantCost.
+// Task 4's enemy-MS AI and Task 5's wing AI call this directly with their
+// own CombatShipState entity; tryBoostPlayerMs (below) resolves the
+// keyboard-driven player MS and calls it too — one seam, every caller.
+export function tryBoost(entity: Entity): boolean {
+  const cs = entity.get(CombatShipState)
+  if (!cs) return false
+  const def = resolveBoostDef(cs)
+  if (!def) return false
+  if (cs.boostCooldownSec > 0) return false
+  // Locked decision: only the player's own piloted MS has a persistent
+  // propellant ledger (the Ms trait on the roster entity, drained via the
+  // sortie-loop system). Enemy MS and future AI wings are pure
+  // CombatShipState rows with no resource pool of their own today, so their
+  // boost is free of the propellant ledger — cooldown is their only gate.
+  if (cs.side === 'player' && cs.isMs) {
+    if (!spendPropellant(getActiveMsRosterKey(), def.propellantCost)) return false
+  }
+  entity.set(CombatShipState, {
+    ...cs,
+    boostRemainingSec: def.durationSec,
+    boostCooldownSec: def.durationSec + def.cooldownSec,
+  })
+  return true
+}
+
+// Resolve the player's currently-piloted MS clone (KeyF in TacticalView) and
+// trigger its boost. False if no MS is launched/piloted right now.
+export function tryBoostPlayerMs(): boolean {
+  for (const e of shipWorld().query(CombatShipState)) {
+    const cs = e.get(CombatShipState)!
+    if (cs.isMs && cs.side === 'player' && cs.pilotedByPlayer) return tryBoost(e)
+  }
+  return false
+}
+
 // Spawn a projectile or instant-hit for `weapon` from `from` toward `to`.
 // Beams (projectileSpeed === 0) resolve as instant hits at distance check.
 // `targetEnt` is the entity being shot at (an enemy ship if ownerSide is
 // 'player'; a player-side unit — flagship or MS — if ownerSide is 'enemy').
 // Required for beams to disambiguate when multiple targets exist; for
 // projectiles it's only used as a hint, projectile collision is geometric.
+//
+// W3 (ms-identity) Task 3 investigation — hitRadiusPx (see CombatShipState)
+// only gates PROJECTILE collision (tickProjectiles' `dist(p, s.pos) <
+// s.hitRadiusPx` scan below). Beams below deliberately do NOT check any
+// radius: a beam is a hitscan weapon — the target was already resolved by
+// arc+range at the firing call site (§3/§4/§4b), and firing a beam damages
+// that exact target unconditionally the instant it's charged and in arc.
+// There is no geometry for a beam to miss with — a locked-on beam always
+// hits. A small/fast MS still gets real dodge value from hitRadiusPx
+// against ballistic/missile fire (the more common enemy-MS armament here —
+// see enemyShips.json5's junker rows); it just can't out-maneuver an
+// already-aimed beam. This is the evidence-based seam the brief asked for:
+// projectile-only, not a schema change to beams.
 function fireWeapon(
   ownerSide: 'player' | 'enemy',
   weapon: WeaponDef,
@@ -1542,7 +1630,11 @@ function tickProjectiles(dtSec: number): void {
       for (const e of enemies) {
         const s = e.get(CombatShipState)
         if (!s) continue
-        if (dist(p, s.pos) < 12) { hit = e; break }
+        // W3 (ms-identity) Task 3 — per-row hitRadiusPx (was a hardcoded 12
+        // for every row). MS rows author a smaller radius than the ship
+        // default so a small fast frame can genuinely dodge a shot a ship
+        // hull wouldn't.
+        if (dist(p, s.pos) < s.hitRadiusPx) { hit = e; break }
       }
       if (hit) {
         const weapon = resolveCombatWeaponDef(p.weaponId)
@@ -1571,7 +1663,7 @@ function tickProjectiles(dtSec: number): void {
       for (const e of playerSide) {
         const s = e.get(CombatShipState)
         if (!s) continue
-        if (dist(p, s.pos) < 12) { hit = e; break }
+        if (dist(p, s.pos) < s.hitRadiusPx) { hit = e; break }
       }
       if (hit) {
         const weapon = resolveCombatWeaponDef(p.weaponId)
@@ -1743,8 +1835,28 @@ export function combatSystem(_world: World, dtMs: number): void {
       }
     }
 
+    // W3 (ms-identity) Task 3 — vernier boost. While boostRemainingSec > 0,
+    // topSpeed + accel multiply by the frame's speedMul; decel is
+    // unaffected (braking still feels normal). boostCooldownSec is set to
+    // durationSec+cooldownSec on activation (tryBoost) and decays here
+    // every tick regardless of boostRemainingSec, so it covers both the
+    // active window and the post-boost downtime before tryBoost can
+    // re-trigger.
+    //
+    // Perf: resolveBoostDef is an O(1) dict lookup (getMsClass/getEnemyShip
+    // are plain Record indexes); this loop already runs once per
+    // CombatShipState row per tick (N = ships + MS in one engagement,
+    // currently well under 20), so the added cost is O(1) extra work per
+    // existing O(N) iteration — no new full-scan system.
+    const boostDef = resolveBoostDef(cs)
+    const isBoosting = boostDef !== null && cs.boostRemainingSec > 0
+    const effAccel = isBoosting ? cs.accel * boostDef!.speedMul : cs.accel
+    const effTopSpeed = isBoosting ? cs.topSpeed * boostDef!.speedMul : cs.topSpeed
+    const nextBoostRemainingSec = Math.max(0, cs.boostRemainingSec - dtSec)
+    const nextBoostCooldownSec = Math.max(0, cs.boostCooldownSec - dtSec)
+
     const vel = { x: cs.vel.x, y: cs.vel.y }
-    stepVelocity(vel, thrustWorld, cs.accel, cs.decel, cs.topSpeed, dtSec)
+    stepVelocity(vel, thrustWorld, effAccel, cs.decel, effTopSpeed, dtSec)
     const pos = { x: cs.pos.x + vel.x * dtSec, y: cs.pos.y + vel.y * dtSec }
     if (pos.x < ARENA_EDGE_PAD) {
       pos.x = ARENA_EDGE_PAD
@@ -1770,6 +1882,8 @@ export function combatSystem(_world: World, dtMs: number): void {
       heading: helm.heading,
       angVel: helm.angVel,
       currentTargetKey: keyOf(nearest),
+      boostRemainingSec: nextBoostRemainingSec,
+      boostCooldownSec: nextBoostCooldownSec,
     })
   }
 

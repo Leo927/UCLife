@@ -61,4 +61,28 @@ describe('enemy ship loader — isMs / pilot schema', () => {
       expect(getEnemyShip(id).topSpeed).toBeGreaterThanOrEqual(120)
     }
   })
+
+  // W3 (ms-identity) Task 3 — every isMs row requires hitRadiusPx + boost,
+  // mirroring the pilot-block pair validation above; non-isMs rows must not
+  // declare either (ships get no boost — locked decision).
+  it('every isMs row declares a small hitRadiusPx + a valid boost block', () => {
+    for (const s of ENEMY_SHIP_LIST) {
+      if (!s.isMs) continue
+      expect(s.hitRadiusPx, `${s.id} hitRadiusPx`).toBeGreaterThan(0)
+      expect(s.hitRadiusPx, `${s.id} hitRadiusPx should be smaller than the ship default (12)`).toBeLessThan(12)
+      expect(s.boost, `${s.id} missing boost block`).toBeTruthy()
+      expect(s.boost!.speedMul, `${s.id} boost.speedMul`).toBeGreaterThan(1)
+      expect(s.boost!.durationSec, `${s.id} boost.durationSec`).toBeGreaterThan(0)
+      expect(s.boost!.cooldownSec, `${s.id} boost.cooldownSec`).toBeGreaterThanOrEqual(0)
+      expect(s.boost!.propellantCost, `${s.id} boost.propellantCost`).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('no non-isMs row declares hitRadiusPx or a boost block', () => {
+    for (const s of ENEMY_SHIP_LIST) {
+      if (s.isMs) continue
+      expect(s.hitRadiusPx, `${s.id} is not isMs but declares hitRadiusPx`).toBeUndefined()
+      expect(s.boost, `${s.id} is not isMs but declares a boost block`).toBeUndefined()
+    }
+  })
 })

@@ -47,6 +47,20 @@ export function drainPilotedMs(
   return { currentPropellant: nextProp, currentLifeSupport: nextLs }
 }
 
+// W3 (ms-identity) Task 3 — one-shot propellant debit for vernier boost, as
+// opposed to drainPilotedMs's continuous per-dt drain under thrust. A boost
+// either fully triggers or doesn't (no partial-charge boost) — returns false
+// (no state mutated) when the pool can't cover `cost` in full, or the MS
+// entity can't be found.
+export function spendPropellant(msKey: string, cost: number): boolean {
+  const ent = findMsByKey(msKey)
+  if (!ent) return false
+  const m = ent.get(Ms)!
+  if (m.currentPropellant < cost) return false
+  ent.set(Ms, { ...m, currentPropellant: m.currentPropellant - cost })
+  return true
+}
+
 export function isMsStranded(msKey: string): boolean {
   const ent = findMsByKey(msKey)
   if (!ent) return false

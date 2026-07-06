@@ -5,6 +5,7 @@ import type { MountSize } from './weapons'
 import { isMsWeaponId } from './ms-weapons'
 import { isMsFrameModId } from './ms-frame-mods'
 import { isShipClassId } from './ship-classes'
+import type { MsBoostDef } from './ms'
 
 // Issue #64 — per-enemy-class MS-parts salvage drop entry.
 export type SalvageKind = 'weapon' | 'frameMod'
@@ -62,6 +63,11 @@ export interface EnemyShipBlueprint {
   // spawnEnemyMsComplement); requires the `pilot` block below.
   isMs?: boolean
   pilot?: EnemyPilotQuality
+  // W3 (ms-identity) Task 3 — required iff isMs (mirrors the pilot block):
+  // collision radius (arena units, small relative to combat.json5's
+  // defaultShipHitRadiusPx) + vernier boost. Ships have neither field.
+  hitRadiusPx?: number
+  boost?: MsBoostDef
   // Issue #64 — optional MS-parts salvage table. Absent = no parts drop.
   salvage?: SalvageEntry[]
   // Issue #71 — recoverables. The ship-classes.json5 template id a Recover'd
@@ -181,8 +187,33 @@ for (const ship of parsed.ships) {
     ) {
       throw new Error(`enemyShips.json5: ship "${ship.id}" pilot.boostUse must be in [0,1]`)
     }
+    if (typeof ship.hitRadiusPx !== 'number' || ship.hitRadiusPx <= 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" isMs rows require hitRadiusPx > 0`)
+    }
+    if (!ship.boost || typeof ship.boost !== 'object') {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" isMs rows require a boost block`)
+    }
+    if (typeof ship.boost.speedMul !== 'number' || ship.boost.speedMul <= 1) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.speedMul must be a number > 1`)
+    }
+    if (typeof ship.boost.durationSec !== 'number' || ship.boost.durationSec <= 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.durationSec must be a number > 0`)
+    }
+    if (typeof ship.boost.cooldownSec !== 'number' || ship.boost.cooldownSec < 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.cooldownSec must be a number >= 0`)
+    }
+    if (typeof ship.boost.propellantCost !== 'number' || ship.boost.propellantCost < 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.propellantCost must be a number >= 0`)
+    }
   } else if (ship.pilot !== undefined) {
     throw new Error(`enemyShips.json5: ship "${ship.id}" pilot block is only valid on isMs rows`)
+  } else {
+    if (ship.hitRadiusPx !== undefined) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" hitRadiusPx is only valid on isMs rows`)
+    }
+    if (ship.boost !== undefined) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost block is only valid on isMs rows`)
+    }
   }
 
   if (!ship.recoverTemplateId || !isShipClassId(ship.recoverTemplateId)) {

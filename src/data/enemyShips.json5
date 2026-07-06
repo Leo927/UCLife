@@ -189,6 +189,11 @@
         aimJitterRad: 0.14,
         boostUse: 0.55,
       },
+      // W3 (ms-identity) Task 3 — small relative to the ship default (12,
+      // combat.json5). Boost mirrors the brawler's high boostUse above:
+      // a solid vernier kick it uses often to close distance.
+      hitRadiusPx: 9,
+      boost: { speedMul: 1.5, durationSec: 2.0, cooldownSec: 5, propellantCost: 20 },
       salvage: [
         { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.3, qty: 1 },
       ],
@@ -226,6 +231,11 @@
         aimJitterRad: 0.08,
         boostUse: 0.2,
       },
+      // Bulkier gun-mule frame — slightly bigger than the brawler but
+      // still small vs. the ship default (12). Weaker/rarer boost
+      // (matches its low boostUse above — it prefers to hang back).
+      hitRadiusPx: 10,
+      boost: { speedMul: 1.3, durationSec: 1.5, cooldownSec: 7, propellantCost: 20 },
       salvage: [
         { partId: 'ms-ballisticGun', kind: 'weapon', chance: 0.4, qty: 1 },
       ],

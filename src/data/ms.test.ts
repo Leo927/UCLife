@@ -69,4 +69,24 @@ describe('ms class loader', () => {
     }
     expect(isMsClassId('not-a-thing')).toBe(false)
   })
+
+  // W3 (ms-identity) Task 3 — every frame authors a small hitRadiusPx (so
+  // an MS is genuinely harder to hit than a ship hull, which defaults to
+  // combat.json5's defaultShipHitRadiusPx = 12) and a valid boost block.
+  it('every MS declares a small hitRadiusPx (below the 12-unit ship default)', () => {
+    for (const ms of MS_CLASS_LIST) {
+      expect(ms.hitRadiusPx, `${ms.id} hitRadiusPx`).toBeGreaterThan(0)
+      expect(ms.hitRadiusPx, `${ms.id} hitRadiusPx should be smaller than the ship default (12)`).toBeLessThan(12)
+    }
+  })
+
+  it('every MS declares a valid boost block', () => {
+    for (const ms of MS_CLASS_LIST) {
+      expect(ms.boost, `${ms.id} missing boost block`).toBeTruthy()
+      expect(ms.boost.speedMul, `${ms.id} boost.speedMul`).toBeGreaterThan(1)
+      expect(ms.boost.durationSec, `${ms.id} boost.durationSec`).toBeGreaterThan(0)
+      expect(ms.boost.cooldownSec, `${ms.id} boost.cooldownSec`).toBeGreaterThanOrEqual(0)
+      expect(ms.boost.propellantCost, `${ms.id} boost.propellantCost`).toBeGreaterThanOrEqual(0)
+    }
+  })
 })

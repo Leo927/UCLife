@@ -10,7 +10,7 @@ import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
-  withdrawFromCombat, type FireMode,
+  withdrawFromCombat, tryBoostPlayerMs, type FireMode,
 } from '../systems/combat'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { simNow } from '../sim/time'
@@ -194,6 +194,10 @@ interface MsSnap {
   heading: number
   hullCurrent: number; hullMax: number
   armorCurrent: number; armorMax: number
+  // W3 (ms-identity) Task 3 — boostState readable per MS row; Task 6's
+  // cooldown gauge reads this off the snapshot instead of re-querying ECS.
+  boostRemainingSec: number
+  boostCooldownSec: number
 }
 
 function snapshotPlayerMs(): MsSnap | null {
@@ -211,6 +215,8 @@ function snapshotPlayerMs(): MsSnap | null {
       heading: s.heading,
       hullCurrent: s.hullCurrent, hullMax: s.hullMax,
       armorCurrent: s.armorCurrent, armorMax: s.armorMax,
+      boostRemainingSec: s.boostRemainingSec,
+      boostCooldownSec: s.boostCooldownSec,
     }
   }
   return null
@@ -364,6 +370,12 @@ export function TacticalView() {
   // initial `null`.
   const pendingOrderRef = useRef(pendingOrder)
   pendingOrderRef.current = pendingOrder
+  // W3 (ms-identity) Task 3 — same stale-closure workaround as
+  // pendingOrderRef: the keydown effect below mounts once (deps=[open]),
+  // so KeyF needs a ref to read the CURRENT piloting mode rather than
+  // whatever it was when the effect was installed.
+  const pilotingRef = useRef(piloting)
+  pilotingRef.current = piloting
 
   // W2 Task 3 — the armed withdraw confirm auto-disarms after
   // combatConfig.withdrawConfirmWindowMs so a "confirm?" button never sits
@@ -468,6 +480,18 @@ export function TacticalView() {
       }
       if (ev.code === 'ShiftLeft' || ev.code === 'ShiftRight') {
         useCombatStore.getState().setAimAtMouse(true)
+        return
+      }
+      // W3 (ms-identity) Task 3 — vernier boost. Only meaningful while the
+      // player is piloting their own launched MS (not the flagship bridge,
+      // not AI) — tryBoostPlayerMs() itself already no-ops otherwise, but
+      // gating here avoids preventDefault-ing the key for no reason when
+      // it can't possibly do anything.
+      if (ev.code === 'KeyF') {
+        if (pilotingRef.current === 'ms') {
+          ev.preventDefault()
+          tryBoostPlayerMs()
+        }
         return
       }
       const k = map(ev.code)
@@ -601,7 +625,7 @@ export function TacticalView() {
       ? '点击战场选择集火目标 · Esc / 右键取消'
       : pendingOrder === 'withdraw'
         ? '再次点击撤退按钮确认撤退 · 点击战场 / Esc / 右键取消'
-        : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 点击武器行切换射击模式 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
+        : `WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 点击武器行切换射击模式 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击${piloting === 'ms' ? ' · F 分推加速' : ''}`
 
   // Task 5 review — fire-mode controls are bridge controls, mirroring
   // OrderPalette's comm-authority gate below: a mount's mode/volley trigger

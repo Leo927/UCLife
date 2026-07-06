@@ -68,6 +68,9 @@ function spawnFlagship(): Entity {
       weapons: [],
       ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 200 },
       currentTargetKey: '',
+      hitRadiusPx: 12,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
     }),
     EntityKey({ key: SHIP_KEY }),
   )

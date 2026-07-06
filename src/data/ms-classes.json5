@@ -34,6 +34,17 @@
 //   frameSlots    — Phase 6.2.5.C; integer slot budget for bolt-on frame
 //                   mods (extended tank, autoloader, …). Either a mod
 //                   fits or it doesn't — no OP/flux math.
+//   hitRadiusPx   — W3 (ms-identity) Task 3; projectile/beam collision
+//                   radius (arena units). Small relative to
+//                   combat.json5's defaultShipHitRadiusPx (12) so an MS is
+//                   genuinely harder to hit than a ship hull.
+//   boost         — W3 (ms-identity) Task 3; vernier boost. speedMul
+//                   multiplies topSpeed+accel for durationSec tactical
+//                   seconds; cooldownSec is extra downtime after that
+//                   window before it can trigger again; propellantCost is
+//                   debited from the pilot's propellant pool immediately
+//                   on activation (KeyF in the cockpit, or AI/wing use —
+//                   see systems/combat.ts's tryBoost).
 //   hardpoints[]  — mounting points the player can equip weapons into
 //     id            — stable key used in mountedWeapons Record
 //     type          — 'small-arms' | 'medium-beam' | 'missile-rack'
@@ -72,6 +83,11 @@
       propellantStorage: 240,
       lifeSupportMinutes: 15,
       frameSlots: 3,
+      // Small relative to the ship default (12) — a GM is a genuinely
+      // hard-to-hit MS-scale target. Boost: a solid mid-tier vernier kick;
+      // 240 propellant / 20 cost ≈ 12 uses per full tank.
+      hitRadiusPx: 8,
+      boost: { speedMul: 1.6, durationSec: 2.5, cooldownSec: 6, propellantCost: 20 },
       hardpoints: [
         {
           id: 'hp-0',
@@ -114,6 +130,10 @@
       propellantStorage: 150,
       lifeSupportMinutes: 10,
       frameSlots: 2,
+      // Smallest airframe in the catalog — the hardest MS to hit. Boost:
+      // fastest/shortest kick of the three, matching a lightweight fighter.
+      hitRadiusPx: 7,
+      boost: { speedMul: 1.5, durationSec: 2.0, cooldownSec: 5, propellantCost: 15 },
       hardpoints: [
         {
           id: 'hp-0',
@@ -158,6 +178,11 @@
       propellantStorage: 120,
       lifeSupportMinutes: 12,
       frameSlots: 2,
+      // Bulkiest of the three (labor-frame chassis) — still MS-scale
+      // small vs. the ship default (12). Boost: weakest kick + longest
+      // cooldown, matching a civilian frame's underpowered thrusters.
+      hitRadiusPx: 9,
+      boost: { speedMul: 1.3, durationSec: 1.8, cooldownSec: 8, propellantCost: 18 },
       hardpoints: [
         {
           id: 'hp-0',

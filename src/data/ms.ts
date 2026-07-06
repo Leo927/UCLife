@@ -15,6 +15,26 @@ export interface MsHardpointDef {
   defaultWeaponId: string
 }
 
+// W3 (ms-identity) Task 3 — vernier boost. Authored per-frame; ships
+// (ship-classes.json5 / non-isMs enemyShips.json5 rows) have no boost block
+// at all — locked decision, "ships get no boost."
+export interface MsBoostDef {
+  // Multiplier on topSpeed + accel while boostRemainingSec > 0. Must be > 1
+  // (a boost that doesn't speed anything up isn't a boost).
+  speedMul: number
+  // How long the speed multiplier stays active, in tactical seconds.
+  durationSec: number
+  // Extra downtime AFTER the active window before tryBoost() can fire
+  // again — combatSystem gates re-trigger on durationSec + cooldownSec
+  // combined (see CombatShipState.boostCooldownSec).
+  cooldownSec: number
+  // Propellant cost debited immediately on activation. Only the player's
+  // own piloted MS has a propellant ledger today (the Ms trait's
+  // currentPropellant) — enemy/wing MS boost is free of this ledger; see
+  // systems/combat.ts's tryBoost.
+  propellantCost: number
+}
+
 export interface MsClassDef {
   id: string
   nameZh: string
@@ -42,6 +62,11 @@ export interface MsClassDef {
   propellantStorage: number
   lifeSupportMinutes: number
   frameSlots: number
+  // W3 (ms-identity) Task 3 — projectile/beam collision radius (arena
+  // units). Small relative to combatConfig.defaultShipHitRadiusPx so an MS
+  // is genuinely harder to hit than a ship hull.
+  hitRadiusPx: number
+  boost: MsBoostDef
   hardpoints: MsHardpointDef[]
   ai: {
     aggression: number
@@ -96,6 +121,24 @@ for (const m of parsed.ms) {
   }
   if (!Number.isInteger(m.frameSlots) || m.frameSlots < 0) {
     throw new Error(`ms-classes.json5: ms "${m.id}" frameSlots must be a non-negative integer`)
+  }
+  if (typeof m.hitRadiusPx !== 'number' || m.hitRadiusPx <= 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" hitRadiusPx must be > 0`)
+  }
+  if (!m.boost || typeof m.boost !== 'object') {
+    throw new Error(`ms-classes.json5: ms "${m.id}" missing boost block`)
+  }
+  if (typeof m.boost.speedMul !== 'number' || m.boost.speedMul <= 1) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" boost.speedMul must be a number > 1`)
+  }
+  if (typeof m.boost.durationSec !== 'number' || m.boost.durationSec <= 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" boost.durationSec must be a number > 0`)
+  }
+  if (typeof m.boost.cooldownSec !== 'number' || m.boost.cooldownSec < 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" boost.cooldownSec must be a number >= 0`)
+  }
+  if (typeof m.boost.propellantCost !== 'number' || m.boost.propellantCost < 0) {
+    throw new Error(`ms-classes.json5: ms "${m.id}" boost.propellantCost must be a number >= 0`)
   }
   if (!m.ai) throw new Error(`ms-classes.json5: ms "${m.id}" missing ai block`)
   if (m.ai.aggression < 0 || m.ai.aggression > 1) {

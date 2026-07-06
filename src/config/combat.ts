@@ -6,6 +6,7 @@ export interface CombatConfig {
   logVisibleSec: number
   logFadeSec: number
   flagshipPauseHullPcts: number[]
+  defaultShipHitRadiusPx: number
   tallyCreditsMin: number
   tallyCreditsMax: number
   tallySuppliesGain: number
