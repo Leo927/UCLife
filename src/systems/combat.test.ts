@@ -4,7 +4,7 @@
 // unit via `ps.get(CombatShipState)!`. An earlier enemy's beam this same
 // tick can synchronously destroy a player-side row (escort destruction
 // strips CombatShipState via `tgt.remove(CombatShipState)` in fireWeapon;
-// the player-MS destruction path does the same via onMsDestroyed) — so by
+// the player-MS destruction path does the same via onMsEjected) — so by
 // the time a later enemy's turn runs in the same for-loop, `ps.get(...)!`
 // dereferences a trait that's already gone, and `.pos` throws on undefined.
 // This mirrors the same-tick-destroy bug §4b already guards against

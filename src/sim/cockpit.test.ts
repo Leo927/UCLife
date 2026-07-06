@@ -1,8 +1,9 @@
 // Issue #163 — MS combat damage never persisted to the roster. The clone
 // (`CombatShipState`, keyed `PLAYER_MS_KEY`) that `spawnPlayerMs` builds
-// for the tactical arena took all combat damage; `dockMs` / `onMsDestroyed`
-// despawned it without writing hull/armor back onto the persistent `Ms`
-// roster entity, so a limp-home MS re-launched at full hull next sortie.
+// for the tactical arena took all combat damage; `dockMs` / the destruction
+// exit (now `onMsEjected`, W3 Task 7) despawned it without writing
+// hull/armor back onto the persistent `Ms` roster entity, so a limp-home MS
+// re-launched at full hull next sortie.
 //
 // These tests spawn directly into the real `playerShipInterior` world
 // (same pattern as msCustody.test.ts) using the real `lightFreighter` /
@@ -16,7 +17,7 @@ import {
 } from '../ecs/traits'
 import { getWorld, setActiveSceneId } from '../ecs/world'
 import {
-  launchMs, dockMs, onMsDestroyed, getPlayerMs, syncMsCombatDamageToRoster,
+  launchMs, dockMs, onMsEjected, getPlayerMs, syncMsCombatDamageToRoster,
 } from './cockpit'
 import { routeDockedMsToResupply, tickResupply } from './sortieResupply'
 
@@ -207,21 +208,34 @@ describe('dockMs', () => {
   })
 })
 
-describe('onMsDestroyed', () => {
-  it('writes hull 0 back to the roster Ms entity on destruction', () => {
+describe('onMsEjected', () => {
+  it('writes hull 0 back to the roster Ms entity and returns the clone\'s last pose', () => {
     spawnFlagship()
     const ms = spawnRosterMs(MS_KEY)
     expect(launchMs(MS_KEY).ok).toBe(true)
 
     const clone = getPlayerMs()!
-    clone.set(CombatShipState, { ...clone.get(CombatShipState)!, hullCurrent: 0, armorCurrent: 0 })
+    clone.set(CombatShipState, {
+      ...clone.get(CombatShipState)!,
+      hullCurrent: 0, armorCurrent: 0,
+      pos: { x: 123, y: 456 }, vel: { x: 7, y: -8 },
+    })
 
-    onMsDestroyed()
+    const snap = onMsEjected()
 
+    expect(snap, 'onMsEjected must return the ejected clone snapshot').not.toBeNull()
+    expect(snap!.rosterKey, 'snapshot must carry the roster key for the pod').toBe(MS_KEY)
+    expect(snap!.pos, 'pod spawns where the MS died').toEqual({ x: 123, y: 456 })
+    expect(snap!.vel, 'pod drift derives from the MS\'s last velocity').toEqual({ x: 7, y: -8 })
     const after = ms.get(Ms)!
     expect(after.hullCurrent).toBe(0)
     expect(after.armorCurrent).toBe(0)
     expect(getPlayerMs()).toBeUndefined()
+  })
+
+  it('returns null when no MS is launched', () => {
+    spawnFlagship()
+    expect(onMsEjected()).toBeNull()
   })
 })
 

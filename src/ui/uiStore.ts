@@ -97,6 +97,11 @@ interface UIState {
   // fires from endCombat's non-victory branches (src/systems/combat.ts);
   // null while no non-victory outcome is awaiting acknowledgement.
   combatDebrief: CombatDebriefEventPayload | null
+  // W3 (ms-identity) Task 7 — eject-confirm beat. Non-null while the player's
+  // MS is destroyed (or life support hit 0) and the ejection awaits its one
+  // confirm click. Set when 'ui:open-eject-confirm' fires; cleared by the
+  // modal's confirm or by 'ui:close-eject-confirm'.
+  ejectConfirm: { titleZh: string; reasonZh: string } | null
   // Issue #71 — recoverables dialogue. Open while the player resolves
   // survivor hulls / ejected pods; fires BEFORE the tally. The panel reads
   // the live list from systems/recoverables via the __uclife__ surface;
@@ -140,6 +145,7 @@ interface UIState {
   setMsRetrofit: (msKey: string | null) => void
   setCombatTally: (t: CombatTallyPayload | null) => void
   setCombatDebrief: (d: CombatDebriefEventPayload | null) => void
+  setEjectConfirm: (p: { titleZh: string; reasonZh: string } | null) => void
   setRecoverables: (open: boolean) => void
   setColonyClaimPoiId: (poiId: string | null) => void
   setDraftNotice: (notice: { refusalChance: number; bribeCost: number } | null) => void
@@ -179,6 +185,7 @@ export const useUI = create<UIState>((set) => ({
   msRetrofitKey: null,
   combatTally: null,
   combatDebrief: null,
+  ejectConfirm: null,
   recoverablesOpen: false,
   colonyClaimPoiId: null,
   draftNotice: null,
@@ -212,6 +219,7 @@ export const useUI = create<UIState>((set) => ({
   setMsRetrofit: (msKey) => set({ msRetrofitKey: msKey }),
   setCombatTally: (t) => set({ combatTally: t }),
   setCombatDebrief: (d) => set({ combatDebrief: d }),
+  setEjectConfirm: (p) => set({ ejectConfirm: p }),
   setRecoverables: (open) => set({ recoverablesOpen: open }),
   setColonyClaimPoiId: (poiId) => set({ colonyClaimPoiId: poiId }),
   setDraftNotice: (notice) => set({ draftNotice: notice }),

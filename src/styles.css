@@ -2033,6 +2033,13 @@ html, body, #root {
   font-family: inherit;
   cursor: crosshair;
 }
+/* W3 Task 7 — eject-confirm beat. Rides the .status-overlay panel styling
+   but must stack ABOVE the tactical overlay (950): the beat fires while the
+   tactical canvas is fullscreen, and the confirm button has to be clickable
+   over it. */
+.eject-confirm-overlay {
+  z-index: 960;
+}
 .tactical-canvas-host {
   position: absolute;
   inset: 0;

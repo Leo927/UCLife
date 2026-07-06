@@ -32,6 +32,7 @@ import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
   EnemyAI, IsFlagshipMark, IsInActiveFleet, PlayerPartsInventory, Ms,
+  Health, Character,
 } from '../ecs/traits'
 import { refreshMsLayout, refreshAllDepotMsLayouts } from '../ecs/spawn'
 import { formationOffsetForSlot } from './fleetFormation'
@@ -44,7 +45,7 @@ import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
 import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
 import { getMsFrameMod } from '../data/ms-frame-mods'
 import { getMsClass, type MsBoostDef } from '../data/ms'
-import { useClock } from '../sim/clock'
+import { useClock, gameDayNumber } from '../sim/clock'
 import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel, grantSupplies } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
@@ -53,11 +54,18 @@ import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig } from '../data/scenes'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
-import { combatConfig, cockpitConfig, worldConfig } from '../config'
+import { combatConfig, cockpitConfig, worldConfig, sortieConfig } from '../config'
 import {
-  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
-  syncActiveMsToRosterIfLaunched, getActiveMsRosterKey,
+  onMsEjected, resetCockpitForEndCombat, onCombatStarted,
+  syncActiveMsToRosterIfLaunched, getActiveMsRosterKey, getPlayerMs,
 } from '../sim/cockpit'
+import {
+  spawnPlayerPod, hasAnyPod, tickPodDrift, checkHostileReachCaptures,
+  resolvePlayerPodAtEnd, resolveWingPodFates, decidePlayerCaptureFate,
+  resetEjection, type PlayerPodFate, type WingPodFate,
+} from '../sim/ejection'
+import { forceOnset } from './physiology'
+import { clearPilotAssignment } from './msPilotAssign'
 import {
   tickDoorsFrame, type DoorCycleCompletion,
 } from '../sim/hangarDoors'
@@ -773,6 +781,10 @@ export function startCombat(
   // W3 (ms-identity) Task 5 — clear the wing registry; the strip loop above
   // already destroyed any stale wing clones (transient side='player' rows).
   resetWings()
+  // W3 (ms-identity) Task 7 — fresh engagement starts pod-free; a stale
+  // confirm beat from a torn-down fight can't confirm into this one.
+  resetEjection()
+  pendingPlayerEject = null
   // Issue #69 — seed the Command-Point pool full for this engagement and
   // surface the starting bandwidth in the log. The pre-engagement DP commit
   // set carries into this fight (the war room set it before launch); the
@@ -1070,7 +1082,7 @@ export function endCombat(outcome: CombatOutcome): void {
   // withdrawing while still undocked is the common way fights end; without
   // this the clone's damage was silently discarded and the roster MS came
   // back pristine. No-ops if the player already docked (dockMs synced) or
-  // the MS was already destroyed in-tactical (onMsDestroyed synced) — both
+  // the MS was already destroyed in-tactical (onMsEjected synced) — both
   // clear activeMsRosterKey on their own exit.
   syncActiveMsToRosterIfLaunched()
   // W3 (ms-identity) Task 5 — write back every still-deployed wing's combat
@@ -1078,6 +1090,17 @@ export function endCombat(outcome: CombatOutcome): void {
   // registry (the loop below destroys the transient wing rows).
   syncAllWingsToRoster()
   resetWings()
+  // W3 (ms-identity) Task 7 — decide every drifting pod's fate off the
+  // outcome NOW (sim/ejection consumes + clears its state); the fates are
+  // ENACTED after the outcome branches below so injuries / run-end land on
+  // the post-consequence world (defeat migrates the player first). A confirm
+  // beat still waiting when combat resolves is void — close the modal.
+  const playerPodFate = resolvePlayerPodAtEnd(outcome)
+  const wingPodFates = resolveWingPodFates()
+  if (pendingPlayerEject) {
+    pendingPlayerEject = null
+    emitSim('ui:close-eject-confirm', { reason: 'combat-resolved' })
+  }
   // Three-way split per CombatShipState owner:
   //   - flagship row sits on the persistent flagship Ship entity →
   //     just remove the trait.
@@ -1176,6 +1199,8 @@ export function endCombat(outcome: CombatOutcome): void {
     const result = applyDefeatConsequence()
     // W2 Task 6 — debrief beat. Fires AFTER applyDefeatConsequence's scene
     // transition, so the panel renders over the drop city, not the dead ship.
+    // W3 Task 7 — a pod adrift at the loss shows up in the debrief: the
+    // pilot's fate is part of the defeat's tally.
     emitSim('ui:open-combat-debrief', {
       outcome: 'defeat',
       lines: [
@@ -1183,6 +1208,14 @@ export function endCombat(outcome: CombatOutcome): void {
         { labelZh: '随舰损失MS', valueZh: `${result.lostMsCount} 台` },
         { labelZh: '生还资金', valueZh: `¥${result.survivorMoney}` },
         { labelZh: '流落地点', valueZh: result.dropSceneNameZh },
+        ...(playerPodFate
+          ? [{
+              labelZh: '弹射逃生舱',
+              valueZh: playerPodFate.outcome === 'captured' && playerPodFate.runEnded
+                ? '信标消失 · 未能寻回'
+                : '被敌方捕获 · 战后获救',
+            }]
+          : []),
       ],
     })
   } else {
@@ -1191,6 +1224,11 @@ export function endCombat(outcome: CombatOutcome): void {
     // second time.
     resolveFleeWithDebrief()
   }
+
+  // W3 (ms-identity) Task 7 — enact the pod fates decided at the top of this
+  // teardown: player injury / capture / run-end, wing pilot survival rolls.
+  if (playerPodFate) applyPlayerPodFate(playerPodFate)
+  for (const fate of wingPodFates) applyWingPodFate(fate)
 }
 
 // Issue #64 — synchronously break down every hostile through the canonical
@@ -1204,6 +1242,153 @@ export function breakDownEnemiesForVictory(): void {
     e.destroy()
   }
   endCombat('victory')
+}
+
+// ============================================================================
+// W3 (ms-identity) Task 7 — ejection with stakes.
+//
+// Player MS hull 0 (or life support 0) → auto-pause + eject-confirm beat
+// (real DOM modal, one button — per post-combat.md's designed pause set).
+// Confirm spawns a drifting escape pod (sim/ejection.ts owns pod state);
+// combat continues with the player as observer. Resolution is event-driven:
+// victory/withdraw recovers the pod (permadeath-off → injury via the
+// physiology path); defeat = capture-grade loss; a hostile reaching the pod
+// mid-fight rolls a seeded capture. Permadeath-on losses roll survival —
+// failure routes through the existing Health.dead → DeathModal run-end.
+
+// Non-null while the confirm beat is waiting on the player's click. Guards
+// double-triggering when several hits land on the dead MS in one tick.
+let pendingPlayerEject: { titleZh: string; reasonZh: string } | null = null
+
+export function beginPlayerEject(reasonZh: string, titleZh = '机体损毁 · 弹射？'): void {
+  if (pendingPlayerEject) return
+  if (!getPlayerMs()) return
+  pendingPlayerEject = { titleZh, reasonZh }
+  pauseTactical(`${reasonZh} · 等待弹射确认`, 'crit')
+  emitSim('ui:open-eject-confirm', { titleZh, reasonZh })
+}
+
+// The modal's single button. Despawns the dead clone (damage write-back via
+// onMsEjected), spawns the pod at the MS's last pose, and resumes the fight
+// — the pause existed for the beat, and the confirm IS the beat's exit.
+export function confirmPlayerEject(): boolean {
+  if (!pendingPlayerEject) return false
+  pendingPlayerEject = null
+  const snap = onMsEjected()
+  if (!snap) return false
+  spawnPlayerPod(snap)
+  pushCombatLog('逃生舱弹出 · 在战场漂流 · 等待回收', 'crit')
+  const store = useCombatStore.getState()
+  if (store.paused) store.togglePause()
+  return true
+}
+
+export function isPlayerEjectPending(): boolean {
+  return pendingPlayerEject !== null
+}
+
+function findCharacterByKey(key: string): Entity | undefined {
+  if (!key) return undefined
+  for (const id of SCENE_IDS) {
+    for (const e of getWorld(id).query(Character, EntityKey)) {
+      if (e.get(EntityKey)!.key === key) return e
+    }
+  }
+  return undefined
+}
+
+function applyEjectionInjury(entity: Entity, sourceZh: string): void {
+  const day = gameDayNumber(useClock.getState().gameDate)
+  forceOnset(
+    entity,
+    sortieConfig.ejection.pilotInjuryConditionId,
+    sourceZh,
+    day,
+    sortieConfig.ejection.pilotInjuryBodyPart,
+  )
+}
+
+// Enact a decided player-pod fate (sim/ejection decides; this applies).
+function applyPlayerPodFate(fate: PlayerPodFate): void {
+  const player = findPlayer()
+  if (fate.outcome === 'captured' && fate.runEnded) {
+    // Permadeath-on survival roll failed — route through the existing
+    // Health.dead → DeathModal run-end (same gate physiology uses).
+    if (player) {
+      const h = player.get(Health)
+      if (h) player.set(Health, { ...h, dead: true })
+    }
+    pushCombatLog('逃生舱信标消失 · 机师阵亡', 'crit')
+    logEvent('弹射失败 · 你没能等到救援')
+    return
+  }
+  if (fate.injured && player) applyEjectionInjury(player, '弹射')
+  if (fate.outcome === 'captured') {
+    pushCombatLog('逃生舱被敌方捕获 · 机师被俘', 'crit')
+    logEvent(fate.injured ? '被俘获救回 · 弹射旧伤未愈' : '被俘获救回')
+  } else {
+    pushCombatLog(fate.injured ? '逃生舱回收 · 机师负伤归舰' : '逃生舱回收 · 机师平安归舰', 'warn')
+    logEvent(fate.injured ? '弹射回收 · 弹射受伤' : '弹射回收 · 机师平安')
+  }
+}
+
+// A hostile reached the player's pod mid-fight and the capture roll hit.
+// Defeat-grade loss for the pilot, resolved immediately; combat continues
+// (the flagship is still fighting).
+function applyPlayerPodCapturedMidCombat(): void {
+  pushCombatLog('敌军逼近逃生舱 · 捕获', 'crit')
+  applyPlayerPodFate(decidePlayerCaptureFate())
+}
+
+// Crew-loss routing for a wing pilot who didn't make it: Health.dead on the
+// pilot NPC (the same flag every downstream system — BT, save alive-count,
+// hiring — already respects) + seat release so the wreck can be re-crewed.
+function applyWingPilotLost(pod: { rosterKey: string; pilotKey: string; nameZh: string }, reasonZh: string): void {
+  clearPilotAssignment(pod.rosterKey)
+  const npc = findCharacterByKey(pod.pilotKey)
+  if (npc) {
+    const h = npc.get(Health)
+    if (h) npc.set(Health, { ...h, dead: true })
+    const name = npc.get(Character)?.name ?? pod.nameZh
+    pushCombatLog(`${name} · ${reasonZh}`, 'crit')
+    logEvent(`僚机机师阵亡 · ${name}`)
+  } else {
+    // Pilot key with no live Character entity (synthetic fixture pilot) —
+    // the seat is already cleared; log the loss so it isn't silent.
+    pushCombatLog(`${pod.nameZh} 机师 · ${reasonZh}`, 'crit')
+    logEvent(`僚机机师失踪 · ${pod.nameZh}`)
+  }
+}
+
+function applyWingPodFate(fate: WingPodFate): void {
+  if (fate.outcome === 'lost') {
+    applyWingPilotLost(fate, '逃生舱未能回收 · 阵亡')
+    return
+  }
+  const npc = findCharacterByKey(fate.pilotKey)
+  const name = npc?.get(Character)?.name ?? `${fate.nameZh} 机师`
+  if (fate.injured && npc) applyEjectionInjury(npc, '弹射受伤')
+  pushCombatLog(fate.injured ? `${name} · 获救 · 负伤` : `${name} · 获救`, 'warn')
+  logEvent(`僚机机师获救 · ${name}`)
+}
+
+// Per-tick pod upkeep while any pod exists: drift + ONE distance check per
+// pod against the live hostiles (O(P × H), single digits each — see
+// sim/ejection.ts header). Captures resolve immediately.
+function tickEjectionPods(dtSec: number): void {
+  if (!hasAnyPod()) return
+  tickPodDrift(dtSec)
+  const hostiles: { x: number; y: number }[] = []
+  for (const e of getEnemyEntities()) {
+    const s = e.get(CombatShipState)!
+    hostiles.push({ x: s.pos.x, y: s.pos.y })
+  }
+  if (hostiles.length === 0) return
+  const { wingCaptured, playerCaptured } = checkHostileReachCaptures(hostiles)
+  for (const pod of wingCaptured) {
+    applyWingPilotLost(pod, '逃生舱被敌方捕获')
+  }
+  if (playerCaptured) applyPlayerPodCapturedMidCombat()
 }
 
 // Damage routing on a specific enemy. Shields-up: incoming damage builds
@@ -1624,7 +1809,7 @@ function fireWeapon(
       if (r.destroyed) {
         if (tgtCs?.isMs && tgtCs.pilotedByPlayer) {
           pushCombatLog(`MS 损毁 · ${tgtCs.nameZh}`, 'crit')
-          onMsDestroyed()
+          beginPlayerEject(`${tgtCs.nameZh} 损毁`)
         } else if (tgtCs?.isMs && tgt) {
           // W3 (ms-identity) Task 5 — a wing member (not player-piloted):
           // write its loss back to the roster + despawn via msWings.
@@ -1848,7 +2033,7 @@ function tickProjectiles(dtSec: number): void {
         if (r.destroyed) {
           if (hitCs.isMs && hitCs.pilotedByPlayer) {
             pushCombatLog(`MS 损毁 · ${hitCs.nameZh}`, 'crit')
-            onMsDestroyed()
+            beginPlayerEject(`${hitCs.nameZh} 损毁`)
           } else if (hitCs.isMs) {
             // W3 (ms-identity) Task 5 — wing member destroyed (see beam path).
             pushCombatLog(`僚机损毁 · ${hitCs.nameZh}`, 'crit')
@@ -2092,7 +2277,13 @@ export function combatSystem(_world: World, dtMs: number): void {
           // Drain propellant + life support proportional to input. AI-
           // piloted MS don't drain here (drain is only for the
           // player-cockpit's MS; per the 6.2.5.C smoke and design).
-          drainPilotedMs(rosterKey, effectiveAxisLen, dtSec)
+          const drained = drainPilotedMs(rosterKey, effectiveAxisLen, dtSec)
+          // W3 (ms-identity) Task 7 — life support at zero forces the
+          // ejection (same confirm-beat flow as hull 0, auto-triggered).
+          // The drain is real since Task 3b, so this floor is reachable.
+          if (drained.currentLifeSupport <= 0) {
+            beginPlayerEject('座舱生命维持归零', '生命维持耗尽 · 强制弹射')
+          }
         }
       }
       if (effectiveAxisLen > 0) {
@@ -2305,7 +2496,7 @@ export function combatSystem(_world: World, dtMs: number): void {
       // enemies in different corners can target different player units).
       // playerSide was snapshot once at the top of this tick — an earlier
       // enemy's shot this same tick may have already destroyed one of these
-      // entities (player MS -> onMsDestroyed -> entity.destroy(); escort ->
+      // entities (player MS -> eject beat -> onMsEjected despawn; escort ->
       // CombatShipState removed), so re-check liveness rather than trusting
       // the cached ref (mirrors the §4b re-check below).
       for (const ps of playerSide) {
@@ -2450,6 +2641,11 @@ export function combatSystem(_world: World, dtMs: number): void {
   // return-to-dock + relaunch. Runs after the door/resupply ticks so a wing
   // that docks this tick sees its door cycle start next tick.
   tickWings(dtSec)
+
+  // -- 5d. W3 (ms-identity) Task 7 — escape-pod drift + hostile-reach ------
+  // No-op unless a pod exists (event-driven beyond one distance check per
+  // pod while it drifts).
+  tickEjectionPods(dtSec)
 
   // -- 6. Flagship hull threshold auto-pause (narrowed set, Phase 6.0) ----
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.

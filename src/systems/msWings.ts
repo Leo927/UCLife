@@ -38,6 +38,7 @@ import { getMsClass } from '../data/ms'
 import { sortieConfig, msConfig } from '../config'
 import type { WingTargetPreference } from '../config/ms'
 import { spawnMsClone, syncMsCloneToRoster, getActiveMsRosterKey } from '../sim/cockpit'
+import { spawnWingPod } from '../sim/ejection'
 import {
   requestDock, findHostShipKeyForMs, getDoorSnapshot,
 } from '../sim/hangarDoors'
@@ -221,15 +222,29 @@ export function isWingReturning(cloneKey: string): boolean {
 // ── Destruction ───────────────────────────────────────────────────────────
 
 // A wing clone's hull crossed the eject floor. Write the (zeroed) hull back
-// to the roster so the loss persists, unregister, and despawn the clone.
-// TODO(Task 7 — ejection with stakes): spawn a pilot pod + run the wing
-// pilot's fate roll. For now the pilot NPC survives (EmployedAsPilot stays)
-// and the roster MS is left at hull 0 → damageState 'in-repair'.
+// to the roster so the loss persists, unregister, despawn the clone, and —
+// W3 Task 7 — eject the pilot into a drifting pod at the wreck's pose. The
+// pod's fate (recovered / recovered-injured / lost → crew death) rolls at
+// engagement end in combat.ts via sim/ejection's seeded fate resolver; a
+// hostile reaching the pod mid-fight can also capture it there.
 export function onWingDestroyed(cloneEnt: Entity): void {
   const ek = cloneEnt.get(EntityKey)
   const rosterKey = ek ? rosterKeyFromWingCloneKey(ek.key) : ''
   if (rosterKey) {
     syncMsCloneToRoster(cloneEnt, rosterKey)
+    const cs = cloneEnt.get(CombatShipState)
+    const msEnt = findMsByKey(rosterKey)
+    const m = msEnt?.get(Ms)
+    if (cs && m && m.pilotId) {
+      spawnWingPod({
+        rosterKey,
+        pilotKey: m.pilotId,
+        nameZh: m.name,
+        pos: { x: cs.pos.x, y: cs.pos.y },
+        vel: { x: cs.vel.x, y: cs.vel.y },
+      })
+      pushCombatLog(`${m.name} · 机师弹射 · 逃生舱漂流`, 'crit')
+    }
     wings.delete(rosterKey)
     wingWaitingForDoorLogged.delete(rosterKey)
   }

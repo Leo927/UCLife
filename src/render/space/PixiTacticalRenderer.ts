@@ -56,6 +56,14 @@ export interface EnemyShipSnap extends ShipSnap {
   id: number
 }
 
+// W3 (ms-identity) Task 7 — a drifting escape pod. Not a ship: drawn as a
+// small pulsing dot so it reads as a beacon, not a combatant.
+export interface PodVisual {
+  id: number
+  x: number
+  y: number
+}
+
 export interface TacticalSnapshot {
   arenaW: number
   arenaH: number
@@ -68,6 +76,8 @@ export interface TacticalSnapshot {
   // hull so it reads as an MS in the arena. Null when the MS is not
   // currently in flight.
   playerMs: ShipSnap | null
+  // W3 Task 7 — drifting escape pods (player + wing). Usually empty.
+  pods: PodVisual[]
 }
 
 const PROJECTILE_COLOR = {
@@ -79,6 +89,13 @@ const BEAM_COLOR = {
   player: 0x86efac,
   enemy: 0xfb923c,
 } as const
+
+// Escape-pod beacon: amber core + faint halo ring, sized like a projectile
+// (a pod is a capsule, not a hull) but visually distinct from any weapon fire.
+const POD_CORE_COLOR = 0xfbbf24
+const POD_CORE_RADIUS = 4
+const POD_HALO_RADIUS = 8
+const POD_HALO_ALPHA = 0.35
 
 interface ShipNode { hull: Graphics; shield: Graphics }
 
@@ -105,6 +122,7 @@ export class PixiTacticalRenderer {
   private projectileLayer: Container
   private beamLayer: Graphics
   private projectileNodes = new Map<number, Graphics>()
+  private podNodes = new Map<number, Graphics>()
   private destroyed = false
   private beamLayerAttached = false
   private playerAttached = false
@@ -199,6 +217,7 @@ export class PixiTacticalRenderer {
     // to traverse and chokes on the null-geometry batcher path.
     this.destroyed = true
     this.projectileNodes.clear()
+    this.podNodes.clear()
   }
 
   update(snap: TacticalSnapshot): void {
@@ -213,6 +232,7 @@ export class PixiTacticalRenderer {
     this.syncPlayerMs(snap.playerMs)
     this.syncEnemies(snap.enemies)
     this.syncProjectiles(snap.projectiles)
+    this.syncPods(snap.pods)
     this.syncBeams(snap.beams)
 
     if (PROF) {
@@ -323,6 +343,32 @@ export class PixiTacticalRenderer {
       if (!seen.has(id)) {
         g.destroy()
         this.projectileNodes.delete(id)
+      }
+    }
+  }
+
+  // W3 Task 7 — escape pods, pooled by id like projectiles. P is 0 almost
+  // always and single-digit at worst, so this adds nothing measurable to
+  // the <2ms/frame budget.
+  private syncPods(pods: PodVisual[]): void {
+    const seen = new Set<number>()
+    for (const p of pods) {
+      seen.add(p.id)
+      let g = this.podNodes.get(p.id)
+      if (!g) {
+        g = new Graphics()
+        g.circle(0, 0, POD_HALO_RADIUS).stroke({ color: POD_CORE_COLOR, width: 1, alpha: POD_HALO_ALPHA })
+        g.circle(0, 0, POD_CORE_RADIUS).fill(POD_CORE_COLOR)
+        this.projectileLayer.addChild(g)
+        this.podNodes.set(p.id, g)
+      }
+      g.x = p.x
+      g.y = p.y
+    }
+    for (const [id, g] of this.podNodes) {
+      if (!seen.has(id)) {
+        g.destroy()
+        this.podNodes.delete(id)
       }
     }
   }

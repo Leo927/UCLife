@@ -35,6 +35,7 @@ import { playUi } from '../audio/player'
 import {
   useCockpit, dockMs, leaveBridge, getActiveMsRosterKey,
 } from '../sim/cockpit'
+import { getPods, hasPlayerPod } from '../sim/ejection'
 import { emitSim } from '../sim/events'
 import { issueRally, issueFocusFire, issueRegroup, issueMsLaunchAuth } from '../systems/fleetOrders'
 import { commandPoolDescribe, type OrderResult } from '../systems/fleetCommandPoints'
@@ -677,6 +678,10 @@ export function TacticalView() {
               id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
             })),
             beams: beamVisuals(),
+            // W3 Task 7 — drifting escape pods. Index-keyed: pods are
+            // few (player + wings) and removal-order churn only swaps
+            // which pooled dot renders which pod — visually identical.
+            pods: getPods().map((pod, i) => ({ id: i, x: pod.pos.x, y: pod.pos.y })),
           })
         }
       }
@@ -943,6 +948,11 @@ export function TacticalView() {
       <div className="tactical-player-stack">
         <PlayerHud title={playerCls.nameZh} snap={player} />
         {ms && <PlayerMsHud snap={ms} />}
+        {hasPlayerPod() && (
+          <div className="tactical-hud tactical-hud-ms" data-eject-pod-indicator>
+            <div className="tactical-hud-title">逃生舱 · 漂流中 · 等待回收</div>
+          </div>
+        )}
         {piloting === 'ms' && ms && (
           <CockpitPanel
             resources={cockpitResources}

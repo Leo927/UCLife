@@ -1,0 +1,43 @@
+// W3 (ms-identity) Task 7 smoke fixture — ejection with stakes.
+//
+// Player aboard the flagship with:
+//   - ms-player-0: unassigned (the player's own ride — launchMs's fallback
+//     resolver picks the FIRST stored Ms, so it is declared first).
+//   - ms-w: pilot-assigned wing MS; its pilot NPC (pilot-w) is a REAL
+//     Character entity in Von Braun so the wing-pod fate roll can route a
+//     loss through the crew-death path (Health.dead) and a recovery through
+//     the physiology injury path.
+// The smoke enters combat via startCombatCheat, destroys the piloted MS /
+// drains life support / destroys the wing, and drives the eject-confirm
+// beat through the real DOM modal.
+//
+// piloting skill authored high so the CP pool covers msLaunchAuth (2).
+{
+  seed: 'ms-ejection-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 100000,
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
+    skills: { piloting: 5000 },
+  },
+
+  ships: [
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun', flagship: true },
+  ],
+
+  ms: [
+    { key: 'ms-player-0', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 0 },
+    { key: 'ms-w', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 1, pilotId: 'pilot-w', roleTag: 'skirmisher' },
+  ],
+
+  npcs: [
+    { id: 'pilot-w', name: '雷·卡佳', at: { scene: 'vonBraunCity', x: 32, y: 18 } },
+  ],
+
+  parts: {
+    weapons: {},
+    frameMods: {},
+  },
+}

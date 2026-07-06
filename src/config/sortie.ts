@@ -19,6 +19,20 @@ export interface SortieConfig {
   tugSkillThreshold: number
   tugGrappleRadiusPx: number
   tugHandoffRadiusPx: number
+  ejection: EjectionConfig
+}
+
+export interface EjectionConfig {
+  podDriftSpeedFrac: number
+  podMaxDriftSpeed: number
+  podCaptureRadiusPx: number
+  podCaptureProbability: number
+  podSurvivalRollPermadeath: number
+  wingPodRecoveryProbability: number
+  wingPodInjuryProbability: number
+  permadeathDefault: boolean
+  pilotInjuryConditionId: string
+  pilotInjuryBodyPart: string
 }
 
 export const sortieConfig = json5.parse(raw) as SortieConfig

@@ -204,6 +204,10 @@ test('cockpit: launch MS, dock, re-helm flagship', async ({ sim }) => {
     () => (window as any).__uclife__.onMsDestroyedCheat(),
   )
   expect(destroyRes, 'onMsDestroyedCheat should succeed').toBe(true)
+  // W3 Task 7 — destruction now arms the eject-confirm beat (auto-paused);
+  // the clone despawns on the real DOM confirm, into a drifting pod.
+  await sim.page.waitForSelector('[data-eject-confirm]', { timeout: 5_000 })
+  await sim.page.click('[data-eject-confirm-button]')
   await sim.page.evaluate(async (mins) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (window as any).__uclife_test__.step({

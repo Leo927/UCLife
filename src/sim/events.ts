@@ -86,6 +86,14 @@ export interface SimEventPayloads {
   // above) with the deltas already computed there — no second computation
   // in the panel. A beat, not a menu: one continue button, no choices.
   'ui:open-combat-debrief': CombatDebriefEventPayload
+  // W3 (ms-identity) Task 7 — the player's MS hull hit 0 (or life support
+  // drained to 0) mid-sortie. The tactical auto-pauses and this event opens
+  // the eject-confirm modal (a beat, not a choice — one confirm button).
+  // Confirm spawns the drifting escape pod (sim/ejection.ts).
+  'ui:open-eject-confirm': { titleZh: string; reasonZh: string }
+  // Combat resolved while the confirm was still open (cheat/withdraw edge)
+  // — close the modal so it can't confirm into a torn-down engagement.
+  'ui:close-eject-confirm': { reason: string }
   // Issue #71 — recoverables dialogue. Fires at combat resolution BEFORE
   // the tally when there are survivor hulls / ejected pods to resolve.
   // The panel reads the full list via the __uclife__ / recoverables

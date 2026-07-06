@@ -8,12 +8,18 @@ import { getWorld, SCENE_IDS } from '../../ecs/world'
 import type { Entity } from 'koota'
 import {
   Position, CombatShipState, EnemyAI, EntityKey, IsPlayer, IsInActiveFleet,
-  Ship, WasCaptured, IsFlagshipMark, WeaponMount,
+  Ship, WasCaptured, IsFlagshipMark, WeaponMount, Character, Health, Conditions,
 } from '../../ecs/traits'
 import {
   useCombatStore, startCombat, combatSystem, endCombat,
   breakDownEnemiesForVictory, getPlayerMountShotCounts, type CombatOutcome,
+  beginPlayerEject, isPlayerEjectPending,
 } from '../../systems/combat'
+import { getPods } from '../../sim/ejection'
+import { setPermadeath, isPermadeathEnabled } from '../../sim/permadeath'
+import { sortieConfig } from '../../config'
+import type { EjectionConfig } from '../../config/sortie'
+import { onWingDestroyed, wingCloneKey } from '../../systems/msWings'
 import {
   issueRally, issueFocusFire, issueRegroup, activeOrders,
 } from '../../systems/fleetOrders'
@@ -31,7 +37,7 @@ import { useTransition } from '../../sim/transition'
 import { useEngagement } from '../../sim/engagement'
 import {
   useCockpit, launchMs, dockMs, takeFlagshipControl, leaveBridge,
-  getPlayerMs, PLAYER_MS_KEY, getAdjutant, onMsDestroyed,
+  getPlayerMs, PLAYER_MS_KEY, getAdjutant,
 } from '../../sim/cockpit'
 import { useBrig, getBrigOccupancy } from '../../sim/brig'
 import { useUI } from '../../ui/uiStore'
@@ -407,11 +413,99 @@ registerDebugHandle('setPilotedMsHullCheat', (hullCurrent: number, armorCurrent:
   return true
 })
 
-// Issue #163 — drive the destruction write-back exit directly, mirroring
-// how combatSystem calls onMsDestroyed() once a hit drops the clone's
-// hull to the eject floor. Pair with setPilotedMsHullCheat(0, 0).
+// Issue #163 / W3 Task 7 — drive the destruction path directly, mirroring
+// how combatSystem calls beginPlayerEject() once a hit drops the clone's
+// hull to the eject floor: auto-pause + the eject-confirm modal opens; the
+// test confirms via the REAL DOM button. Pair with setPilotedMsHullCheat(0, 0).
 registerDebugHandle('onMsDestroyedCheat', (): boolean => {
   if (!getPlayerMs()) return false
-  onMsDestroyed()
+  beginPlayerEject('机体损毁')
   return true
+})
+
+// ── W3 (ms-identity) Task 7 — ejection observability + determinism seams ──
+
+// Pod + confirm-beat snapshot for the ms-ejection smoke.
+registerDebugHandle('ejectionState', () => ({
+  pendingConfirm: isPlayerEjectPending(),
+  permadeath: isPermadeathEnabled(),
+  pods: getPods().map((p) => ({
+    kind: p.kind,
+    rosterKey: p.rosterKey,
+    pilotKey: p.pilotKey,
+    nameZh: p.nameZh,
+    pos: { x: p.pos.x, y: p.pos.y },
+    vel: { x: p.vel.x, y: p.vel.y },
+    captureArmed: p.captureArmed,
+  })),
+}))
+
+registerDebugHandle('setPermadeathCheat', (enabled: boolean): boolean => {
+  setPermadeath(enabled)
+  return true
+})
+
+// Pin an ejection roll probability to 0 or 1 so the smoke asserts BOTH
+// branches of a seeded roll without fishing for a seed that happens to land
+// on the wanted side (and without coupling the test to unrelated RNG
+// consumption order).
+registerDebugHandle('setEjectionConfigCheat', (patch: Partial<EjectionConfig>): boolean => {
+  Object.assign(sortieConfig.ejection, patch)
+  return true
+})
+
+// Drive a wing's destruction through the canonical onWingDestroyed path
+// (write-back + pod spawn + registry cleanup) without projectile RNG.
+registerDebugHandle('destroyWingCheat', (rosterKey: string): boolean => {
+  const w = getWorld('playerShipInterior')
+  const cloneKey = wingCloneKey(rosterKey)
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== cloneKey) continue
+    e.set(CombatShipState, { ...e.get(CombatShipState)!, hullCurrent: 0, armorCurrent: 0 })
+    onWingDestroyed(e)
+    return true
+  }
+  return false
+})
+
+// Health.dead readback for a character by EntityKey (wing-pilot fate
+// assertions). Searches every scene — pilots can idle anywhere.
+registerDebugHandle('npcHealthByKey', (key: string): { dead: boolean } | null => {
+  for (const id of SCENE_IDS) {
+    for (const e of getWorld(id).query(Character, EntityKey)) {
+      if (e.get(EntityKey)!.key !== key) continue
+      const h = e.get(Health)
+      return { dead: !!h?.dead }
+    }
+  }
+  return null
+})
+
+// Player Health.dead readback — the permadeath run-end assertion.
+registerDebugHandle('playerHealthState', (): { dead: boolean } | null => {
+  const p = findAnyPlayer()
+  if (!p) return null
+  const h = p.get(Health)
+  return { dead: !!h?.dead }
+})
+
+// Player condition template ids, scene-agnostic (the physiology handles'
+// getConditions is pinned to the city world; the ejection smokes keep the
+// player aboard playerShipInterior).
+registerDebugHandle('playerConditionsList', (): string[] => {
+  const p = findAnyPlayer()
+  const c = p?.get(Conditions)
+  return c ? c.list.map((i) => i.templateId) : []
+})
+
+// Condition template ids for a character by EntityKey, scene-agnostic —
+// wing-pilot injury assertions.
+registerDebugHandle('npcConditionsByKey', (key: string): string[] | null => {
+  for (const id of SCENE_IDS) {
+    for (const e of getWorld(id).query(Character, Conditions, EntityKey)) {
+      if (e.get(EntityKey)!.key !== key) continue
+      return e.get(Conditions)!.list.map((i) => i.templateId)
+    }
+  }
+  return null
 })
