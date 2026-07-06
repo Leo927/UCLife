@@ -53,7 +53,7 @@ import { getSceneConfig } from '../data/scenes'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
 import { combatConfig, cockpitConfig, worldConfig } from '../config'
 import {
-  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
+  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted,
   syncActiveMsToRosterIfLaunched, getActiveMsRosterKey,
 } from '../sim/cockpit'
 import {
@@ -1804,13 +1804,24 @@ export function combatSystem(_world: World, dtMs: number): void {
       const inputLen = Math.hypot(axis.forward, axis.strafe)
       let effectiveAxisLen = inputLen
       if (cs.isMs) {
-        if (isMsStranded(PLAYER_MS_KEY)) {
+        // W3 (ms-identity) Task 3b — the resource pool (Ms trait) lives on
+        // the persistent roster entity, keyed by getActiveMsRosterKey(),
+        // NOT on this tactical clone's own EntityKey (PLAYER_MS_KEY).
+        // findMsByKey queries Ms+EntityKey, and the clone never carries
+        // the Ms trait, so keying these calls by PLAYER_MS_KEY silently
+        // no-ops against every real roster entity. An empty roster key
+        // (no MS launched) is guarded explicitly rather than relying on
+        // findMsByKey's null-return no-op.
+        const rosterKey = getActiveMsRosterKey()
+        if (!rosterKey || isMsStranded(rosterKey)) {
           effectiveAxisLen = 0
         }
-        // Drain propellant + life support proportional to input. AI-
-        // piloted MS don't drain here (drain is only for the
-        // player-cockpit's MS; per the 6.2.5.C smoke and design).
-        drainPilotedMs(PLAYER_MS_KEY, effectiveAxisLen, dtSec)
+        if (rosterKey) {
+          // Drain propellant + life support proportional to input. AI-
+          // piloted MS don't drain here (drain is only for the
+          // player-cockpit's MS; per the 6.2.5.C smoke and design).
+          drainPilotedMs(rosterKey, effectiveAxisLen, dtSec)
+        }
       }
       if (effectiveAxisLen > 0) {
         const fwd = axis.forward / Math.max(1, effectiveAxisLen)
@@ -2080,9 +2091,17 @@ export function combatSystem(_world: World, dtMs: number): void {
           // refuse to fire on empty. Held-ready (charge clamped at
           // def.chargeSec) so the weapon resumes firing instantly on
           // resupply rather than ramping back up.
+          // W3 (ms-identity) Task 3b — ammo pools live on the roster Ms
+          // entity (getActiveMsRosterKey()), not this clone's own
+          // EntityKey (PLAYER_MS_KEY) — same rekey as the drain/stranded
+          // gates above. No roster key (shouldn't happen while a player
+          // MS row exists, but guarded explicitly) blocks fire rather
+          // than silently bypassing the ammo gate.
           const isPlayerMs = psState.isMs && wpn.hardpointId
-          if (isPlayerMs && !tryConsumeAmmo(PLAYER_MS_KEY, wpn.hardpointId)) {
-            // No ammo — hold ready (charge stays clamped) but skip fire.
+          const rosterKey = isPlayerMs ? getActiveMsRosterKey() : ''
+          if (isPlayerMs && !tryConsumeAmmo(rosterKey, wpn.hardpointId)) {
+            // No ammo (or no roster key resolved) — hold ready (charge
+            // stays clamped) but skip fire.
             return { ...wpn, chargeSec: charge, ready: false }
           }
           fireWeapon('player', def, msPos, target.pos, target.ent)

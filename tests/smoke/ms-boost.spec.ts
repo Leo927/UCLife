@@ -31,12 +31,23 @@ const REQUIRED_HANDLES = [
   '__uclife__.launchPlayerMs',
   '__uclife__.getPilotedMsState',
   '__uclife__.getMs',
+  '__uclife__.useClock',
+  '__uclife__.setMsSortieResources',
 ]
 
 const STEP_BUDGET_MIN = 60
 const ROSTER_MS_KEY = 'ms-player-0'   // ms-sortie fixture's pinned starter key
 const GM_PRE_TOP_SPEED = 180
 const GM_PRE_BOOST_PROPELLANT_COST = 20
+// src/test/test-config.json5 tickGameMs — advanceSimByGameMs's fixed per-tick
+// dt under a non-coarse sim.stepUntil; combatSystem(world, dtMs) receives
+// this exact slice every tick (src/test/clock.ts), so game-clock deltas
+// during a stepUntil window convert to an exact tick count.
+const TICK_GAME_MS = 16
+// src/config/sortie.json5 propellantDrainPerThrustSec — ambient thrust
+// drain rate consumed by combat.ts's drainPilotedMs (W3 Task 3b rekeyed
+// this to the roster entity so it actually fires in real play).
+const PROPELLANT_DRAIN_PER_THRUST_SEC = 6
 
 test('ms-boost: KeyF raises speed, drains propellant, cooldown blocks re-trigger', async ({ sim }) => {
   await sim.boot({ fixture: 'ms-sortie', requireHandles: REQUIRED_HANDLES })
@@ -98,6 +109,28 @@ test('ms-boost: KeyF raises speed, drains propellant, cooldown blocks re-trigger
     STEP_BUDGET_MIN,
   )
 
+  // W3 (ms-identity) Task 3b — this test drives real KeyW/KeyF over a real
+  // combat window purely to exercise thrust/boost/propellant; it isn't
+  // about weapon fire. Before the rekey fix, tryConsumeAmmo(PLAYER_MS_KEY,
+  // ...) always failed (wrong key → findMsByKey → null → false), so the
+  // player's MS weapon silently never fired in real combat — this test's
+  // multi-phase KeyW/KeyF drive happened to complete before pirateLight
+  // died to the flagship's own fire alone. Now that ammo is correctly
+  // rekeyed to the roster and gm_pre's default beamRifle has Infinity ammo,
+  // the MS's own weapon fires for real too, and the added damage can end
+  // the fight (victory) before this test's later phases run, despawning
+  // the piloted clone. Seeding the roster ammo pool to 0 here holds the
+  // weapon's fire (correctly, via the now-working ammo gate) so this
+  // propellant/boost scenario keeps a live target for its full duration —
+  // the ammo-depletion behavior itself is covered by ms-sortie-loop.spec.ts.
+  const disarmOk = await sim.page.evaluate(
+    ({ msKey, hpId }: { msKey: string; hpId: string }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.setMsSortieResources(msKey, { currentAmmoByWeapon: { [hpId]: 0 } }),
+    { msKey: ROSTER_MS_KEY, hpId: 'hp-0' },
+  )
+  expect(disarmOk, 'setMsSortieResources disarm should succeed').toBe(true)
+
   // ── Let the launch-kick velocity decay to ~0 before measuring ──────────
   await sim.stepUntil(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,7 +139,18 @@ test('ms-boost: KeyF raises speed, drains propellant, cooldown blocks re-trigger
   }, STEP_BUDGET_MIN)
 
   // ── 1. Hold real KeyW, confirm thrust works (speed rises under the
-  //      un-boosted cap) before boost enters the picture ──────────────────
+  //      un-boosted cap) before boost enters the picture. W3 Task 3b
+  //      regression: real thrust (no debug seeding anywhere in this test)
+  //      must drain the roster's propellant tank — before the rekey fix,
+  //      combat.ts's ambient drain called drainPilotedMs(PLAYER_MS_KEY, ...)
+  //      which silently no-op'd against every real roster entity (the
+  //      tactical clone's own EntityKey never carries the Ms trait
+  //      findMsByKey queries for), so currentPropellant never moved. ──────
+  const propellantAtLaunch = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (key) => (window as any).__uclife__.getMs(key)!.currentPropellant,
+    ROSTER_MS_KEY,
+  )
   await sim.page.keyboard.down('KeyW')
   await sim.stepUntil(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,6 +170,16 @@ test('ms-boost: KeyF raises speed, drains propellant, cooldown blocks re-trigger
     (key) => (window as any).__uclife__.getMs(key)!.currentPropellant,
     ROSTER_MS_KEY,
   )
+  expect(
+    propellantBefore,
+    'holding real KeyW (no debug seeding) must strictly drain the roster propellant tank — the ambient-drain regression this task fixes',
+  ).toBeLessThan(propellantAtLaunch)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gameMsBeforeBoostWindow = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useClock.getState().gameDate.getTime(),
+  )
   await sim.page.keyboard.press('KeyF')
 
   await sim.stepUntil(() => {
@@ -141,15 +195,33 @@ test('ms-boost: KeyF raises speed, drains propellant, cooldown blocks re-trigger
   })
   expect(speedBoosted, 'boost must raise speed above the un-boosted topSpeed cap').toBeGreaterThan(GM_PRE_TOP_SPEED)
 
+  const gameMsAfterBoostWindow = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useClock.getState().gameDate.getTime(),
+  )
   const propellantAfterBoost = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (key) => (window as any).__uclife__.getMs(key)!.currentPropellant,
     ROSTER_MS_KEY,
   )
+
+  // W3 Task 3b — now that ambient drain is rekeyed to the roster entity,
+  // holding KeyW through this stepUntil window ALSO drains propellant
+  // (previously silently absorbed by the bug). dtSec is fixed per tick
+  // (TICK_GAME_MS/1000) and KeyW-only input holds axisMagnitude at exactly
+  // 1 the whole window (not stranded — 240 propellant cap, 20-cost boost),
+  // so the ambient contribution is exactly ticks × drainPerTick.
+  const boostWindowTicks = (gameMsAfterBoostWindow - gameMsBeforeBoostWindow) / TICK_GAME_MS
+  expect(
+    Number.isInteger(boostWindowTicks),
+    `stepUntil should land on whole ${TICK_GAME_MS}ms ticks, got ${boostWindowTicks}`,
+  ).toBe(true)
+  const ambientDrainDuringBoostWindow = boostWindowTicks * PROPELLANT_DRAIN_PER_THRUST_SEC * (TICK_GAME_MS / 1000)
   expect(
     propellantBefore - propellantAfterBoost,
-    "boost must debit exactly gm_pre's boost.propellantCost",
-  ).toBe(GM_PRE_BOOST_PROPELLANT_COST)
+    "boost must debit exactly gm_pre's boost.propellantCost, plus the ambient thrust drain "
+      + `accrued over the ${boostWindowTicks}-tick window while KeyW was held (${ambientDrainDuringBoostWindow.toFixed(3)})`,
+  ).toBeCloseTo(GM_PRE_BOOST_PROPELLANT_COST + ambientDrainDuringBoostWindow, 5)
 
   // ── 3. Cooldown blocks an immediate re-trigger — no further debit ──────
   await sim.page.keyboard.press('KeyF')
