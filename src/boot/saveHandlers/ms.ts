@@ -7,7 +7,7 @@
 
 import { registerSaveHandler } from '../../save/registry'
 import { getWorld, type SceneId } from '../../ecs/world'
-import { Ms, PlayerPartsInventory, EntityKey, MsStatSheet, MsEffectsList } from '../../ecs/traits'
+import { Ms, PlayerPartsInventory, EntityKey, MsStatSheet, MsEffectsList, type MsRoleTag } from '../../ecs/traits'
 import type { MsStatId } from '../../stats/msSchema'
 import { MS_STAT_IDS, MS_STAT_FORMULAS } from '../../stats/msSchema'
 import { attachFormulas, serializeSheet, type SerializedSheet } from '../../stats/sheet'
@@ -56,6 +56,9 @@ interface MsBlock {
   // hull/armor + dockedAtPoiId when absent (computeMsDamageState is a
   // pure function of exactly those fields, so this is never stale).
   damageState?: MsDamageState
+  // W3 (ms-identity) Task 5 — wing-AI role tag. Optional so pre-Task-5
+  // saves round-trip cleanly (restoreMs defaults to 'skirmisher').
+  roleTag?: MsRoleTag
 }
 
 interface PartsBlock {
@@ -104,6 +107,7 @@ function snapshotMs(): MsRosterBlock | undefined {
       currentLifeSupport: ms.currentLifeSupport,
       frameMods: ms.frameMods.length > 0 ? [...ms.frameMods] : undefined,
       damageState: ms.damageState,
+      roleTag: ms.roleTag,
     })
   }
   if (roster.length === 0) return undefined
@@ -185,6 +189,7 @@ function restoreMs(saved: unknown): void {
         currentLifeSupport: b.currentLifeSupport ?? 0,
         frameMods: b.frameMods ?? [],
         damageState,
+        roleTag: b.roleTag ?? 'skirmisher',
       }),
       EntityKey({ key: b.entityKey }),
     )

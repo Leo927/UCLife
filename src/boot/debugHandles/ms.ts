@@ -56,6 +56,7 @@ interface MsSnapshot {
   currentLifeSupport: number
   frameMods: string[]
   damageState: MsDamageState
+  roleTag: string
   propellantStorageCap: number
   lifeSupportMinutesCap: number
   frameSlotsCap: number
@@ -98,6 +99,7 @@ function snapshotOneMs(ent: import('koota').Entity): MsSnapshot {
     currentLifeSupport: ms.currentLifeSupport,
     frameMods: [...ms.frameMods],
     damageState: ms.damageState,
+    roleTag: ms.roleTag,
     propellantStorageCap: propCap,
     lifeSupportMinutesCap: lsCap,
     frameSlotsCap: slotsCap,

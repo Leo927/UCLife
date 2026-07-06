@@ -18,6 +18,7 @@ import { isMsClassId } from '../data/ms'
 import { isMsWeaponId } from '../data/ms-weapons'
 import { isMsFrameModId } from '../data/ms-frame-mods'
 import { Ship, IsFlagshipMark, IsInActiveFleet, Owner, PlayerPartsInventory } from '../ecs/traits'
+import { MS_ROLE_TAGS, type MsRoleTag } from '../ecs/traits'
 import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
 import { recomputeFleetFuelMax } from '../ecs/fleetPool'
@@ -68,6 +69,8 @@ interface FixtureMs {
   // Task 9 (W1 playable-loop) — pre-damaged depot MS for the ms-repair
   // smoke. Omitted = full hull (the pre-existing default behavior).
   hullCurrent?: number
+  // W3 (ms-identity) Task 5 — wing-AI role tag. Omitted = 'skirmisher'.
+  roleTag?: MsRoleTag
 }
 
 // W1 Task 5 — the player parts inventory singleton (MS weapons + frame mods).
@@ -114,7 +117,7 @@ const LOCATION_KEYS: ReadonlySet<string> = new Set(['scene', 'x', 'y'])
 const FACTION_KEYS: ReadonlySet<string> = new Set(['id', 'money'])
 const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt', 'flagship'])
 const MS_KEYS: ReadonlySet<string> = new Set([
-  'key', 'template', 'storedOnShip', 'bayIndex', 'dockedAt', 'pilotId', 'hullCurrent',
+  'key', 'template', 'storedOnShip', 'bayIndex', 'dockedAt', 'pilotId', 'hullCurrent', 'roleTag',
 ])
 const PARTS_KEYS: ReadonlySet<string> = new Set(['weapons', 'frameMods'])
 const NPC_KEYS: ReadonlySet<string> = new Set([
@@ -312,6 +315,13 @@ function validate(name: string, raw: unknown): Fixture {
       if (r.dockedAt !== undefined) m.dockedAt = asString(name, `ms[${i}].dockedAt`, r.dockedAt)
       if (r.pilotId !== undefined) m.pilotId = asString(name, `ms[${i}].pilotId`, r.pilotId)
       if (r.hullCurrent !== undefined) m.hullCurrent = asNumber(name, `ms[${i}].hullCurrent`, r.hullCurrent)
+      if (r.roleTag !== undefined) {
+        const rt = asString(name, `ms[${i}].roleTag`, r.roleTag)
+        if (!(MS_ROLE_TAGS as readonly string[]).includes(rt)) {
+          fail(name, `ms[${i}].roleTag`, `"${rt}" not one of ${MS_ROLE_TAGS.join(', ')}`)
+        }
+        m.roleTag = rt as MsRoleTag
+      }
       return m
     })
   }
@@ -515,6 +525,7 @@ function applyMs(name: string, fx: Fixture): void {
       dockedAtPoiId: m.dockedAt,
       pilotId: m.pilotId,
       hullCurrent: m.hullCurrent,
+      roleTag: m.roleTag,
     })
   }
   // Re-place MS sprites for whatever is stowed aboard the flagship.

@@ -37,6 +37,26 @@
   terminalOffsetDx: 1.2,
   terminalOffsetDy: 0,
 
+  // W3 (ms-identity) Task 5 — wing-AI role-tag table. An AI wing member
+  // (systems/msWings.ts) reads its roster MS's `roleTag` here to steer two
+  // behaviors:
+  //   targetPreference — which hostile CLASS the wing prefers when picking a
+  //     target: 'ms' hunts enemy mobile suits first, 'ship' presses enemy
+  //     hulls first, 'nearest' takes whatever is closest (no class bias).
+  //     A preferred-class target is chosen when one exists; otherwise the wing
+  //     falls back to the nearest hostile of any class so it's never idle.
+  //   maintainRangeMul — multiplier on the frame's authored ai.maintainRange
+  //     standoff distance (same lever the aggression doctrine uses for ships):
+  //     < 1 closes in and brawls, > 1 holds at range and pokes.
+  // Values tuned so the four roles read distinctly in a mixed engagement;
+  // ignored entirely while an MS is player-piloted.
+  roleTagAi: {
+    skirmisher:  { labelZh: '游击', descZh: '贴身缠斗 · 就近目标', targetPreference: 'nearest', maintainRangeMul: 0.7 },
+    fireSupport: { labelZh: '火力支援', descZh: '远距压制 · 就近目标', targetPreference: 'nearest', maintainRangeMul: 1.6 },
+    antiMs:      { labelZh: '对空', descZh: '优先猎杀敌方 MS', targetPreference: 'ms',      maintainRangeMul: 0.9 },
+    antiShip:    { labelZh: '对舰', descZh: '优先攻击敌舰',      targetPreference: 'ship',    maintainRangeMul: 1.0 },
+  },
+
   // Phase 6.2.5.B — depot-bay offsets in tiles. Anchored to the Hangar
   // building's center inside surface / drydock scenes (where MS sprites
   // sit alongside parked Ships, not inside a flagship hangarBay room).

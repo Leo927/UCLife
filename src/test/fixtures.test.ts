@@ -207,6 +207,22 @@ describe('applyFixture', () => {
     expect(ms.get(Ms)!.damageState, 'damaged + docked at a depot => in-repair').toBe('in-repair')
   })
 
+  it('loads ms-wings: pilot-assigned MS carry their fixture roleTag', () => {
+    applyFixture('ms-wings')
+    const shipWorld = getWorld('playerShipInterior')
+    const byKey = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EntityKey)) byKey.set(e.get(EntityKey)!.key, e)
+
+    const msA = byKey.get('ms-a')!
+    const msB = byKey.get('ms-b')!
+    expect(msA, 'wing MS ms-a must exist').toBeTruthy()
+    expect(msA.get(Ms)!.pilotId, 'ms-a is pilot-assigned').toBe('pilot-a')
+    expect(msA.get(Ms)!.roleTag, 'ms-a role tag parses from the fixture').toBe('antiShip')
+    expect(msB.get(Ms)!.roleTag, 'ms-b role tag parses from the fixture').toBe('skirmisher')
+    // Default when unspecified: the starter MS in starter-fleet gets 'skirmisher'.
+    expect(byKey.get('ms-player-0'), 'unrelated fixture leaves ms-a/ms-b scoped').toBeUndefined()
+  })
+
   it('loads earned-start: player has starter-hull cash and the hangar manager seats', () => {
     // Unit world skips setupWorld, so the surface hangar's hangar_manager seat
     // doesn't exist — pre-spawn a free one for the fixture link to bind against

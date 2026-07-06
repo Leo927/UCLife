@@ -68,7 +68,19 @@ export const Ms = trait({
   // progress field: the deficit itself (hullCurrent/armorCurrent vs. max)
   // *is* the progress; a second field would just be able to drift from it.
   damageState: 'ready' as 'ready' | 'in-repair',
+  // W3 (ms-identity) Task 5 — wing-AI role tag. Set in the retrofit panel;
+  // consumed by AI wing members (systems/msWings.ts) as a target-class
+  // preference + a maintainRange multiplier (config/ms.json5 roleTagAi).
+  // Persisted (saveHandlers/ms.ts). Ignored while the MS is player-piloted.
+  roleTag: 'skirmisher' as MsRoleTag,
 })
+
+// W3 (ms-identity) Task 5 — the locked wing-AI role vocabulary. Order is
+// the retrofit-panel display order.
+export type MsRoleTag = 'skirmisher' | 'fireSupport' | 'antiMs' | 'antiShip'
+export const MS_ROLE_TAGS: readonly MsRoleTag[] = [
+  'skirmisher', 'fireSupport', 'antiMs', 'antiShip',
+]
 
 export const MsStatSheet = trait(() => ({
   sheet: createMsSheet(),

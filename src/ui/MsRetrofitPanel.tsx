@@ -4,8 +4,9 @@
 // writes mountedWeapons[hardpointId] and adjusts inventory count.
 
 import { useTrait } from 'koota/react'
-import { Ms, MsStatSheet, PlayerPartsInventory, EntityKey } from '../ecs/traits'
+import { Ms, MsStatSheet, PlayerPartsInventory, EntityKey, MS_ROLE_TAGS, type MsRoleTag } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
+import { msConfig } from '../config'
 import { getMsWeapon, getMsWeaponsForType } from '../data/ms-weapons'
 import { MS_FRAME_MOD_LIST, getMsFrameMod } from '../data/ms-frame-mods'
 import { useUI } from './uiStore'
@@ -105,6 +106,15 @@ export function MsRetrofitPanel() {
     playUi('ui.hr.accept')
   }
 
+  function onSetRoleTag(roleTag: MsRoleTag) {
+    const msE = findMsEntity(msRetrofitKey!)
+    if (!msE) return
+    const cur = msE.get(Ms)!
+    if (cur.roleTag === roleTag) return
+    msE.set(Ms, { ...cur, roleTag })
+    playUi('ui.hr.accept')
+  }
+
   function onSwap(hardpointId: string, newWeaponId: string) {
     const msE = findMsEntity(msRetrofitKey!)
     if (!msE) return
@@ -158,6 +168,35 @@ export function MsRetrofitPanel() {
           <div className="combat-tally-row">
             <span className="combat-tally-row-label">装甲</span>
             <span className="combat-tally-row-value">{msData.armorCurrent} / {msData.armorMax}</span>
+          </div>
+        </section>
+
+        <section className="status-section">
+          <h3 className="status-section-title">出击编队 · 角色</h3>
+          <div className="status-meta">决定僚机 AI 的目标偏好与交战距离；玩家亲自驾驶时忽略。</div>
+          <div style={{ marginTop: 8 }}>
+            {MS_ROLE_TAGS.map((tag) => {
+              const row = msConfig.roleTagAi[tag]
+              const active = msData.roleTag === tag
+              return (
+                <button
+                  key={tag}
+                  className="status-close"
+                  data-role-tag={tag}
+                  data-role-tag-active={active ? 'true' : 'false'}
+                  disabled={active}
+                  style={{
+                    marginRight: 6, marginTop: 4, fontSize: '0.85em', padding: '2px 8px',
+                    opacity: active ? 1 : 0.75,
+                    fontWeight: active ? 700 : 400,
+                  }}
+                  onClick={() => onSetRoleTag(tag)}
+                  title={row.descZh}
+                >
+                  {active ? `▸ ${row.labelZh}` : row.labelZh}
+                </button>
+              )
+            })}
           </div>
         </section>
 
