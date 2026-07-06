@@ -256,6 +256,11 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       hitRadiusPx: ms.hitRadiusPx,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      // W3 (ms-identity) Task 4 — pilot-AI transient state; unused on
+      // player-side rows (no pilot block), kept for shape parity.
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }),
     EntityKey({ key: PLAYER_MS_KEY }),
   )

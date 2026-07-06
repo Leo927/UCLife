@@ -71,6 +71,9 @@ function spawnFlagship(): Entity {
       hitRadiusPx: 12,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }),
     EntityKey({ key: SHIP_KEY }),
   )

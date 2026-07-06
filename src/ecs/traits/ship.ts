@@ -388,4 +388,21 @@ export const CombatShipState = trait(() => ({
   // both the active window and the post-boost downtime.
   boostRemainingSec: 0,
   boostCooldownSec: 0,
+  // W3 (ms-identity) Task 4 — enemy-MS pilot AI transient state (see
+  // systems/combat.ts's reaction-delay + boost-decision-window logic).
+  // Combat-only, like the boost fields above: stripped/destroyed at
+  // endCombat, so nothing needs resetting between engagements. Ships and
+  // player-side rows carry these fields (koota's AoS trait shape requires
+  // every construction site to supply every field) but never read or write
+  // them — only `side==='enemy' && isMs` rows do.
+  //   pendingTargetKey / pendingTargetSec — resolveReactionGatedTargetKey's
+  //   state machine: the candidate target this row is timing a switch
+  //   toward, and how long (seconds) that candidate has persisted.
+  //   boostDecisionTimerSec — counts up toward combatConfig.pilotAi's
+  //   boostDecisionWindowSec; on reaching it, the pilot rolls once (seeded)
+  //   whether to trigger boost while closing/disengaging, per its
+  //   enemyShips.json5 pilot.boostUse probability.
+  pendingTargetKey: '',
+  pendingTargetSec: 0,
+  boostDecisionTimerSec: 0,
 }))

@@ -35,7 +35,9 @@ import {
 } from '../ecs/traits'
 import { refreshMsLayout, refreshAllDepotMsLayouts } from '../ecs/spawn'
 import { formationOffsetForSlot } from './fleetFormation'
-import { getEnemyShip, isEnemyShipId, type EnemyShipBlueprint } from '../data/enemyShips'
+import {
+  getEnemyShip, isEnemyShipId, type EnemyShipBlueprint, type EnemyPilotQuality,
+} from '../data/enemyShips'
 import { getSpaceEntity } from '../data/space-entities'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
@@ -477,6 +479,11 @@ function buildEnemyCombatShipState(
     hitRadiusPx: blueprint.isMs ? blueprint.hitRadiusPx! : combatConfig.defaultShipHitRadiusPx,
     boostRemainingSec: 0,
     boostCooldownSec: 0,
+    // W3 (ms-identity) Task 4 — enemy-MS pilot AI transient state. Harmless
+    // defaults for ship rows (they never read/write these fields).
+    pendingTargetKey: '',
+    pendingTargetSec: 0,
+    boostDecisionTimerSec: 0,
   })
 }
 
@@ -623,6 +630,11 @@ function spawnActiveFleetEscorts(w: World): void {
       hitRadiusPx: combatConfig.defaultShipHitRadiusPx,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      // W3 (ms-identity) Task 4 — pilot-AI transient state; unused by
+      // non-MS rows (no pilot block), kept for CombatShipState shape parity.
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }))
   }
 }
@@ -712,6 +724,9 @@ export function startCombat(
       hitRadiusPx: combatConfig.defaultShipHitRadiusPx,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }))
   }
 
@@ -1377,11 +1392,17 @@ function clampToArena(p: { x: number; y: number }): { x: number; y: number } {
   }
 }
 
-// Resolve a standing focus-fire order's key against the live enemy list.
-// Returns null when the key is unset or the named enemy is dead/gone.
-function findEnemyByKey(enemies: Entity[], key: string): Entity | null {
-  for (const e of enemies) {
-    if (e.get(EntityKey)?.key === key) return e
+// Resolve an EntityKey against a live entity list, requiring the entity to
+// still carry CombatShipState (not just still exist) — a same-tick destroy
+// (escort-strip-trait or MS/ship .destroy()) makes a stale key resolve to
+// null rather than a half-dead entity. Generic over any CombatShipState
+// list: the standing focus-fire order resolves it against `enemies`; W3
+// (ms-identity) Task 4's reaction-gated MS targeting resolves it against
+// `hostiles`/`playerSide`.
+function findLiveEntityByKey(list: Entity[], key: string): Entity | null {
+  if (!key) return null
+  for (const e of list) {
+    if (e.get(EntityKey)?.key === key && e.has(CombatShipState)) return e
   }
   return null
 }
@@ -1604,6 +1625,118 @@ function fireWeapon(
   })
 }
 
+// ============================================================================
+// W3 (ms-identity) Task 4 — enemy-MS pilot AI
+//
+// Three enemyShips.json5 `pilot` fields (reactionSec / aimJitterRad /
+// boostUse) drive three independent behaviors, all gated on
+// `cs.side === 'enemy' && cs.isMs` in combatSystem — ships and player-side
+// units never carry a pilot block, so none of this runs for them (the
+// backward-compatible "zero-jitter/no-reaction-delay" path for everything
+// else is simply "this code never executes," not a zero-valued branch).
+// ============================================================================
+
+// Reaction delay (reactionSec) — a pure key-only state machine, deliberately
+// decoupled from koota Entity/liveness concerns so it's directly unit-
+// testable. `committedKey` is what this row is currently engaging;
+// `pendingKey`/`pendingElapsedSec` track a candidate replacement that has to
+// persist for `reactionSec` before it's promoted. Rules:
+//   - the raw nearest-hostile scan agrees with what's already committed →
+//     no pending switch, timer clears.
+//   - nothing was committed yet (first tick) → commit immediately, no delay
+//     on initial acquisition (reactionSec only gates SWITCHES).
+//   - the raw scan disagrees with the committed key → start (or continue)
+//     timing a switch to that candidate. A candidate that itself keeps
+//     changing (target juking, or the old one dying with no replacement
+//     yet — signaled by rawNearestKey === '') restarts the clock each time
+//     it changes, so a flickering scan can't rack up delay toward a target
+//     it hasn't actually settled on.
+//   - once the same candidate has persisted for >= reactionSec, commit to it.
+// The caller resolves `committedKey` back to a live Entity itself (a stale
+// key whose owner died mid-wait is the caller's problem — see
+// findLiveEntityByKey), so this function has no notion of "dead."
+export interface ReactionGateResult {
+  committedKey: string
+  pendingKey: string
+  pendingElapsedSec: number
+}
+export function resolveReactionGatedTargetKey(
+  committedKey: string,
+  pendingKey: string,
+  pendingElapsedSec: number,
+  rawNearestKey: string,
+  dtSec: number,
+  reactionSec: number,
+): ReactionGateResult {
+  if (rawNearestKey === committedKey) {
+    return { committedKey, pendingKey: '', pendingElapsedSec: 0 }
+  }
+  if (committedKey === '') {
+    return { committedKey: rawNearestKey, pendingKey: '', pendingElapsedSec: 0 }
+  }
+  const stillSameCandidate = pendingKey === rawNearestKey
+  const nextElapsed = stillSameCandidate ? pendingElapsedSec + dtSec : 0
+  if (nextElapsed >= reactionSec) {
+    return { committedKey: rawNearestKey, pendingKey: '', pendingElapsedSec: 0 }
+  }
+  return { committedKey, pendingKey: rawNearestKey, pendingElapsedSec: nextElapsed }
+}
+
+// aimJitterRad, projectile side — rotate the true bearing to target by a
+// seeded uniform draw over [-aimJitterRad, +aimJitterRad]. `uniformDraw01`
+// is a raw [0,1) roll (the caller supplies `getSimRng().next()`) so this
+// stays a pure function for unit testing. aimJitterRad<=0 short-circuits
+// without consuming the draw semantically (the math is a no-op either way),
+// matching "a zero-jitter pilot never misses."
+export function jitterAimAngle(baseAngle: number, aimJitterRad: number, uniformDraw01: number): number {
+  if (aimJitterRad <= 0) return baseAngle
+  return baseAngle + (uniformDraw01 * 2 - 1) * aimJitterRad
+}
+
+// aimJitterRad, beam side — beams are instant hitscan with no flight
+// geometry to miss with (Task 3's documented decision, see fireWeapon's
+// comment above). Jitter is instead converted into a MISS PROBABILITY:
+// model the jittered bearing as uniform over [-aimJitterRad, +aimJitterRad],
+// and the target as subtending a half-angle of
+// atan2(targetHitRadiusPx, distance) as seen from the shooter (the small-
+// angle "size over distance" view of hitRadiusPx). The fraction of that
+// uniform draw that lands within the target's half-angle is the hit
+// probability: min(1, targetHalfAngle / aimJitterRad). Callers roll once
+// against this returned chance (getSimRng().next() < chance). aimJitterRad
+// <= 0 always returns 1 (never misses) without evaluating the ratio, so a
+// zero-jitter pilot's beam is bit-for-bit the pre-Task-4 "always hits" path.
+export function beamHitChance(aimJitterRad: number, targetHitRadiusPx: number, distance: number): number {
+  if (aimJitterRad <= 0) return 1
+  const targetHalfAngleRad = Math.atan2(targetHitRadiusPx, distance)
+  return Math.min(1, targetHalfAngleRad / aimJitterRad)
+}
+
+// Dispatch one enemy-MS fire solution through the jitter model above, then
+// hand off to the ordinary fireWeapon() for damage/log/flash — this is the
+// ONLY difference from a plain enemy ship's shot (getEnemyShip(...).pilot is
+// undefined for ships, so they never reach this function at all).
+function fireEnemyMsWeaponWithJitter(
+  def: WeaponDef,
+  from: { x: number; y: number },
+  target: { ent: Entity; pos: { x: number; y: number }; hitRadiusPx: number },
+  aimJitterRad: number,
+): void {
+  const distance = dist(from, target.pos)
+  if (def.projectileSpeed === 0) {
+    const chance = beamHitChance(aimJitterRad, target.hitRadiusPx, distance)
+    if (getSimRng().next() >= chance) return   // missed — no damage, no flash, no log
+    fireWeapon('enemy', def, from, target.pos, target.ent)
+    return
+  }
+  const trueAngle = angleBetween(from, target.pos)
+  const aimAngle = jitterAimAngle(trueAngle, aimJitterRad, getSimRng().next())
+  const aimPoint = {
+    x: from.x + Math.cos(aimAngle) * distance,
+    y: from.y + Math.sin(aimAngle) * distance,
+  }
+  fireWeapon('enemy', def, from, aimPoint, target.ent)
+}
+
 function tickProjectiles(dtSec: number): void {
   const ship = getPlayerShip()
   if (!ship) return
@@ -1728,12 +1861,12 @@ export function combatSystem(_world: World, dtMs: number): void {
   const resolvedTargets = new Map<Entity, Entity | null>()
   // W2 command-layer review rider — a standing focus-fire order is a
   // single fleet-wide target, so resolve it once per tick instead of once
-  // per escort. The pre-rider code re-ran findEnemyByKey's O(enemies) scan
-  // for every escort even though every escort reads the same answer.
+  // per escort. The pre-rider code re-ran findLiveEntityByKey's O(enemies)
+  // scan for every escort even though every escort reads the same answer.
   const focusOrderKey = activeOrders().focusTargetKey
   let focusOrderEnt: Entity | null = null
   if (focusOrderKey) {
-    focusOrderEnt = findEnemyByKey(enemies, focusOrderKey)
+    focusOrderEnt = findLiveEntityByKey(enemies, focusOrderKey)
     if (!focusOrderEnt) {
       // Stale key (target already dead/gone) is cleared here — the very
       // next tick reads a null focusTargetKey, so this log fires exactly
@@ -1743,9 +1876,10 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
   }
   for (const self of allShips) {
-    const cs = self.get(CombatShipState)!
+    let cs = self.get(CombatShipState)!
     const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
     const isEscort = cs.side === 'player' && !cs.pilotedByPlayer && !cs.isMs && !cs.isFlagship
+    const isEnemyMs = cs.side === 'enemy' && cs.isMs
     const hostiles = isPlayerSide ? enemies : playerSide
     let nearest: Entity | null = null
     let nearestRange = Infinity
@@ -1760,17 +1894,45 @@ export function combatSystem(_world: World, dtMs: number): void {
       nearest = focusOrderEnt
       nearestRange = dist(cs.pos, focusOrderEnt.get(CombatShipState)!.pos)
     }
+    // W3 (ms-identity) Task 4 — enemy-MS pilot AI: reaction delay. A pilot
+    // doesn't instantly snap to a new target the moment the raw scan above
+    // changes its mind (its target died, or a closer one wandered into
+    // range) — it keeps engaging whatever it was already committed to for
+    // `reactionSec` more. resolveReactionGatedTargetKey is a pure key-only
+    // state machine (see its doc comment); `nearest` is then re-resolved
+    // against the COMMITTED key so movement/aim/the §4 fire loop below all
+    // read one source of truth. Ships and non-MS enemies have no pilot
+    // block — this is a no-op for them, `nearest` passes straight through.
+    let nextPendingTargetKey = cs.pendingTargetKey
+    let nextPendingTargetSec = cs.pendingTargetSec
+    let committedTargetKey = keyOf(nearest)
+    if (isEnemyMs) {
+      const pilot = getEnemyShip(cs.shipClassId).pilot as EnemyPilotQuality
+      const gate = resolveReactionGatedTargetKey(
+        cs.currentTargetKey, cs.pendingTargetKey, cs.pendingTargetSec,
+        keyOf(nearest), dtSec, pilot.reactionSec,
+      )
+      committedTargetKey = gate.committedKey
+      nextPendingTargetKey = gate.pendingKey
+      nextPendingTargetSec = gate.pendingElapsedSec
+      // A stale committed key (its owner died mid-reaction-window) resolves
+      // to null — the pilot has nothing to act on THIS tick even though the
+      // state machine keeps counting toward its next lock, so it holds
+      // position rather than steering at a destroyed entity's last pos.
+      nearest = findLiveEntityByKey(hostiles, committedTargetKey)
+    }
 
     let thrustWorld = { x: 0, y: 0 }
     let aimAngle: number | null = null
+    let msClosingOrDisengaging = false
     if (nearest) {
       const targetPos = nearest.get(CombatShipState)!.pos
       const toAng = angleBetween(cs.pos, targetPos)
-      const range = nearestRange
+      const range = dist(cs.pos, targetPos)
       const mr = cs.ai.maintainRange
       let moveAng: number
-      if (range < mr * 0.85) moveAng = toAng + Math.PI       // back away
-      else if (range > mr * 1.15) moveAng = toAng             // close in
+      if (range < mr * 0.85) { moveAng = toAng + Math.PI; msClosingOrDisengaging = true }   // back away
+      else if (range > mr * 1.15) { moveAng = toAng; msClosingOrDisengaging = true }        // close in
       else moveAng = toAng + Math.PI / 2                      // strafe
       thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
       aimAngle = toAng
@@ -1792,6 +1954,29 @@ export function combatSystem(_world: World, dtMs: number): void {
     }
 
     resolvedTargets.set(self, nearest)
+
+    // W3 (ms-identity) Task 4 — probabilistic boost use. An enemy-MS pilot
+    // re-rolls whether to trigger a vernier kick once per
+    // combatConfig.pilotAi.boostDecisionWindowSec (a decision WINDOW, not a
+    // per-tick coinflip — see the config comment), and only while actually
+    // closing or disengaging (msClosingOrDisengaging above) — a pilot
+    // holding station at maintainRange isn't reaching for the throttle.
+    // tryBoost mutates the entity's CombatShipState directly, so `cs` is
+    // refreshed immediately after a successful trigger — the "vernier
+    // boost" physics block right below reads cs.boostRemainingSec /
+    // cs.boostCooldownSec and must see this tick's activation, not stale
+    // pre-decision values.
+    let nextBoostDecisionTimerSec = cs.boostDecisionTimerSec
+    if (isEnemyMs) {
+      const pilot = getEnemyShip(cs.shipClassId).pilot as EnemyPilotQuality
+      nextBoostDecisionTimerSec += dtSec
+      if (nextBoostDecisionTimerSec >= combatConfig.pilotAi.boostDecisionWindowSec) {
+        nextBoostDecisionTimerSec -= combatConfig.pilotAi.boostDecisionWindowSec
+        if (msClosingOrDisengaging && getSimRng().next() < pilot.boostUse) {
+          if (tryBoost(self)) cs = self.get(CombatShipState)!
+        }
+      }
+    }
 
     if (cs.pilotedByPlayer) {
       // WASD overrides AI thrust whenever any axis is held. Phase
@@ -1892,9 +2077,12 @@ export function combatSystem(_world: World, dtMs: number): void {
       pos, vel,
       heading: helm.heading,
       angVel: helm.angVel,
-      currentTargetKey: keyOf(nearest),
+      currentTargetKey: committedTargetKey,
+      pendingTargetKey: nextPendingTargetKey,
+      pendingTargetSec: nextPendingTargetSec,
       boostRemainingSec: nextBoostRemainingSec,
       boostCooldownSec: nextBoostCooldownSec,
+      boostDecisionTimerSec: nextBoostDecisionTimerSec,
     })
   }
 
@@ -1997,26 +2185,48 @@ export function combatSystem(_world: World, dtMs: number): void {
   // be the flagship OR an MS. fireWeapon('enemy', ...) routes damage
   // through applyDamageToTarget against the chosen entity so MS hits
   // land on the MS's own CombatShipState hull, not the flagship's Ship trait.
+  //
+  // W3 (ms-identity) Task 4 — enemy-MS rows (e2.isMs) don't run the
+  // independent closest-scan below at all: they reuse §1's reaction-gated
+  // `currentTargetKey` (already committed for THIS tick by the time this
+  // section runs), so movement and firing always agree on the same locked
+  // target, and their shots go through fireEnemyMsWeaponWithJitter instead
+  // of the plain fireWeapon. Non-MS enemy ships are completely unaffected —
+  // no pilot block, same closest-scan + fireWeapon as before this task.
   for (const enemyEnt of enemies) {
     const e2 = enemyEnt.get(CombatShipState)
     if (!e2) continue
     const enemyPos = e2.pos
     const enemyHeading = e2.heading
+    const pilot = e2.isMs ? getEnemyShip(e2.shipClassId).pilot : undefined
 
-    // Pick the closest player-side unit (refresh per-enemy so two
-    // enemies in different corners can target different player units).
-    // playerSide was snapshot once at the top of this tick — an earlier
-    // enemy's shot this same tick may have already destroyed one of these
-    // entities (player MS -> onMsDestroyed -> entity.destroy(); escort ->
-    // CombatShipState removed), so re-check liveness rather than trusting
-    // the cached ref (mirrors the §4b re-check below).
-    let target: { ent: Entity; pos: { x: number; y: number } } | null = null
+    let target: { ent: Entity; pos: { x: number; y: number }; hitRadiusPx: number } | null = null
     let bestRange = Infinity
-    for (const ps of playerSide) {
-      const psState = ps.get(CombatShipState)
-      if (!psState) continue
-      const r = dist(enemyPos, psState.pos)
-      if (r < bestRange) { bestRange = r; target = { ent: ps, pos: psState.pos } }
+    if (pilot) {
+      // Liveness re-check: §4 itself can destroy a player-side unit
+      // mid-loop (an earlier enemy's shot this same tick), so a stale
+      // committed key must resolve to "no target," not a crash — same
+      // same-tick-destroy hazard the non-MS branch below already guards.
+      const gatedEnt = findLiveEntityByKey(playerSide, e2.currentTargetKey)
+      const gatedState = gatedEnt?.get(CombatShipState)
+      if (gatedEnt && gatedState) {
+        target = { ent: gatedEnt, pos: gatedState.pos, hitRadiusPx: gatedState.hitRadiusPx }
+        bestRange = dist(enemyPos, gatedState.pos)
+      }
+    } else {
+      // Pick the closest player-side unit (refresh per-enemy so two
+      // enemies in different corners can target different player units).
+      // playerSide was snapshot once at the top of this tick — an earlier
+      // enemy's shot this same tick may have already destroyed one of these
+      // entities (player MS -> onMsDestroyed -> entity.destroy(); escort ->
+      // CombatShipState removed), so re-check liveness rather than trusting
+      // the cached ref (mirrors the §4b re-check below).
+      for (const ps of playerSide) {
+        const psState = ps.get(CombatShipState)
+        if (!psState) continue
+        const r = dist(enemyPos, psState.pos)
+        if (r < bestRange) { bestRange = r; target = { ent: ps, pos: psState.pos, hitRadiusPx: psState.hitRadiusPx } }
+      }
     }
     const range = bestRange
 
@@ -2028,7 +2238,11 @@ export function combatSystem(_world: World, dtMs: number): void {
         const mountFacing = enemyHeading + wpn.facingRad
         const angToTarget = angleBetween(enemyPos, target.pos)
         if (inArc(angToTarget, mountFacing, wpn.firingArcRad)) {
-          fireWeapon('enemy', def, enemyPos, target.pos, target.ent)
+          if (pilot) {
+            fireEnemyMsWeaponWithJitter(def, enemyPos, target, pilot.aimJitterRad)
+          } else {
+            fireWeapon('enemy', def, enemyPos, target.pos, target.ent)
+          }
           charge = 0
           ready = false
         }

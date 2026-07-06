@@ -16,6 +16,7 @@ export interface CombatConfig {
   fleePenalty: { hullLossPct: number; crDrain: number }
   defeat: { survivorMoney: number }
   withdrawConfirmWindowMs: number
+  pilotAi: { boostDecisionWindowSec: number }
 }
 
 export const combatConfig = json5.parse(raw) as CombatConfig

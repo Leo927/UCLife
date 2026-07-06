@@ -26,9 +26,11 @@ import {
 import { getWorld, setActiveSceneId } from '../ecs/world'
 import {
   combatSystem, useCombatStore, tryBoost, __resetCombatProjectilesForTest,
+  resolveReactionGatedTargetKey, jitterAimAngle, beamHitChance,
 } from './combat'
 import { getWeapon } from '../data/weapons'
 import { getEnemyShip } from '../data/enemyShips'
+import { getSimRng, setSimRngSeed } from '../sim/rng'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 const ENEMY_BEAM_ID = 'pirateBeamMk0'
@@ -83,6 +85,9 @@ function spawnFlagship(): Entity {
       hitRadiusPx: 12,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }),
     EntityKey({ key: 'flagship-under-test' }),
   )
@@ -125,6 +130,9 @@ function spawnFragileEscort(): Entity {
       hitRadiusPx: 12,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }),
     EntityKey({ key: 'escort-under-test' }),
   )
@@ -177,6 +185,9 @@ function spawnReadyBeamEnemy(key: string, pos: { x: number; y: number }): Entity
       hitRadiusPx: 12,
       boostRemainingSec: 0,
       boostCooldownSec: 0,
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }),
     EntityKey({ key }),
   )
@@ -285,6 +296,9 @@ describe('combatSystem — tickProjectiles reads per-row hitRadiusPx (W3 Task 3)
         hitRadiusPx: 12,
         boostRemainingSec: 0,
         boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
       }),
       EntityKey({ key: 'flagship-flight-test' }),
     )
@@ -347,6 +361,9 @@ describe('combatSystem — tickProjectiles reads per-row hitRadiusPx (W3 Task 3)
         hitRadiusPx,
         boostRemainingSec: 0,
         boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
       }),
       EntityKey({ key: 'flight-test-target' }),
     )
@@ -430,6 +447,9 @@ describe('tryBoost (W3 Task 3)', () => {
         hitRadiusPx: 12,
         boostRemainingSec: 0,
         boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
       }),
       EntityKey({ key: 'plain-ship-under-test' }),
     )
@@ -468,6 +488,9 @@ describe('tryBoost (W3 Task 3)', () => {
         hitRadiusPx: bp.hitRadiusPx!,
         boostRemainingSec: 0,
         boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
       }),
       EntityKey({ key: 'enemy-ms-under-test' }),
     )
@@ -523,5 +546,305 @@ describe('tryBoost (W3 Task 3)', () => {
 
     expect(boostedSpeed, 'boosted accel must move the MS faster than the un-boosted baseline over the same window')
       .toBeGreaterThan(baselineSpeed * (bp.boost!.speedMul - 0.1))
+  })
+})
+
+// W3 (ms-identity) Task 4 — pilot-quality AI for hostile MS. Pure-math unit
+// tests for the three exported building blocks (reaction-delay state
+// machine, projectile jitter, beam miss-chance), plus one combatSystem-level
+// integration test proving the reaction-delay wiring end to end. All three
+// pure functions are deliberately decoupled from koota Entity/RNG objects
+// (they take plain keys / a raw [0,1) draw), so they're testable without any
+// world/entity setup at all.
+describe('resolveReactionGatedTargetKey (W3 Task 4 — pure)', () => {
+  const REACTION_SEC = 0.5
+
+  it('keeps the committed key with no pending switch when the raw scan agrees', () => {
+    const r = resolveReactionGatedTargetKey('a', '', 0, 'a', 0.1, REACTION_SEC)
+    expect(r).toEqual({ committedKey: 'a', pendingKey: '', pendingElapsedSec: 0 })
+  })
+
+  it('acquires a target immediately on first contact — no delay on initial acquisition', () => {
+    const r = resolveReactionGatedTargetKey('', '', 0, 'a', 0.1, REACTION_SEC)
+    expect(r).toEqual({ committedKey: 'a', pendingKey: '', pendingElapsedSec: 0 })
+  })
+
+  it('holds the old committed key while a new candidate is still within the reaction window', () => {
+    // Candidate 'b' has been pending for 0.3s of a 0.5s window; +0.1s more
+    // keeps it under the threshold.
+    const r = resolveReactionGatedTargetKey('a', 'b', 0.3, 'b', 0.1, REACTION_SEC)
+    expect(r.committedKey, 'must not have switched — still short of reactionSec').toBe('a')
+    expect(r.pendingKey).toBe('b')
+    expect(r.pendingElapsedSec).toBeCloseTo(0.4, 10)
+  })
+
+  it('commits to the new candidate once it has persisted for >= reactionSec', () => {
+    const r = resolveReactionGatedTargetKey('a', 'b', 0.45, 'b', 0.1, REACTION_SEC)
+    expect(r).toEqual({ committedKey: 'b', pendingKey: '', pendingElapsedSec: 0 })
+  })
+
+  it('restarts the timer when the candidate itself changes mid-wait', () => {
+    // Was timing a switch to 'b' for 0.4s; this tick the raw scan flips to
+    // 'c' instead — 'c' is a brand new candidate, so its clock starts at 0,
+    // not inheriting 'b'\'s progress.
+    const r = resolveReactionGatedTargetKey('a', 'b', 0.4, 'c', 0.1, REACTION_SEC)
+    expect(r).toEqual({ committedKey: 'a', pendingKey: 'c', pendingElapsedSec: 0 })
+  })
+
+  it('eventually commits to "no target" when the committed target dies and nothing replaces it', () => {
+    // rawNearestKey === '' (no hostiles left) persisting past reactionSec —
+    // the pilot gives up on the dead target rather than holding it forever.
+    const r = resolveReactionGatedTargetKey('a', '', 0.5, '', 0.1, REACTION_SEC)
+    expect(r).toEqual({ committedKey: '', pendingKey: '', pendingElapsedSec: 0 })
+  })
+})
+
+describe('jitterAimAngle (W3 Task 4 — pure)', () => {
+  it('passes the base angle through unchanged when aimJitterRad is 0, regardless of the draw', () => {
+    expect(jitterAimAngle(1.23, 0, 0)).toBe(1.23)
+    expect(jitterAimAngle(1.23, 0, 0.5)).toBe(1.23)
+    expect(jitterAimAngle(1.23, 0, 1)).toBe(1.23)
+  })
+
+  it('maps draw=0 to the minimum offset (-aimJitterRad) and draw=1 to the maximum (+aimJitterRad)', () => {
+    expect(jitterAimAngle(0, 0.2, 0)).toBeCloseTo(-0.2, 10)
+    expect(jitterAimAngle(0, 0.2, 1)).toBeCloseTo(0.2, 10)
+  })
+
+  it('maps draw=0.5 to exactly the base angle (the midpoint of the uniform range)', () => {
+    expect(jitterAimAngle(0.7, 0.3, 0.5)).toBeCloseTo(0.7, 10)
+  })
+})
+
+describe('beamHitChance (W3 Task 4 — pure)', () => {
+  it('is always 1 (never misses) when aimJitterRad is 0, at any distance', () => {
+    expect(beamHitChance(0, 9, 90)).toBe(1)
+    expect(beamHitChance(0, 9, 1)).toBe(1)
+  })
+
+  it('caps at 1 when the target\'s angular size exceeds the full jitter spread (close/large target)', () => {
+    // atan2(9, 10) ≈ 0.73 rad, larger than aimJitterRad=0.1 — even the
+    // widest possible jitter draw still lands on the target.
+    expect(beamHitChance(0.1, 9, 10)).toBe(1)
+  })
+
+  it('matches the documented formula exactly: min(1, atan2(hitRadiusPx, distance) / aimJitterRad)', () => {
+    const hitRadiusPx = 9
+    const distance = 90
+    const aimJitterRad = 0.6
+    const expected = Math.atan2(hitRadiusPx, distance) / aimJitterRad
+    expect(beamHitChance(aimJitterRad, hitRadiusPx, distance)).toBeCloseTo(expected, 10)
+    expect(expected).toBeLessThan(1)   // sanity — this case must NOT hit the cap
+  })
+
+  it('approaches 0 as aimJitterRad grows arbitrarily large relative to the target', () => {
+    expect(beamHitChance(1000, 9, 90)).toBeLessThan(0.001)
+  })
+})
+
+// Deterministic seeded-roll smoke: the exact formula a high-jitter enemy-MS
+// pilot's beam rolls against every shot, run over a fixed window of ROLLS
+// seeded draws. A zero-jitter pilot's chance is always 1 (never misses,
+// proven above), so it lands every roll; a jittery pilot's chance is well
+// under 1 (see the boundary test above for these exact parameters), so it
+// must land strictly fewer over the same seeded window. Same seed -> same
+// draw sequence -> the exact hit count below is reproducible on any machine.
+describe('enemy-MS pilot AI — high jitter lands fewer hits than zero jitter (W3 Task 4 smoke)', () => {
+  const HIT_RADIUS_PX = 9   // pirate_junkerMs's authored hitRadiusPx
+  const DISTANCE = 90       // pirate_junkerMs's authored maintainRange
+  const ROLLS = 500
+
+  function countHits(aimJitterRad: number, seed: string): number {
+    setSimRngSeed(seed)
+    const chance = beamHitChance(aimJitterRad, HIT_RADIUS_PX, DISTANCE)
+    let hits = 0
+    for (let i = 0; i < ROLLS; i++) {
+      if (getSimRng().next() < chance) hits += 1
+    }
+    return hits
+  }
+
+  it('a zero-jitter pilot never misses over the roll window', () => {
+    expect(countHits(0, 'w3-task4-jitter-zero')).toBe(ROLLS)
+  })
+
+  it('a high-jitter pilot lands strictly fewer hits than a zero-jitter pilot under the same seed', () => {
+    const SEED = 'w3-task4-jitter-cmp'
+    const zeroJitterHits = countHits(0, SEED)
+    const highJitterHits = countHits(0.6, SEED)
+    expect(zeroJitterHits, 'sanity — zero jitter must still be the perfect-hit baseline').toBe(ROLLS)
+    expect(highJitterHits, 'a 0.6 rad jitter pilot must miss noticeably more than a zero-jitter pilot').toBeLessThan(ROLLS)
+  })
+})
+
+describe('enemy-MS pilot AI — reaction delay wired into combatSystem (W3 Task 4 integration)', () => {
+  const ENEMY_MS_CLASS = 'pirate_junkerMs'   // reactionSec: 0.5
+
+  function spawnFrozenFlagship(pos: { x: number; y: number }, key: string): Entity {
+    const w = getWorld(SHIP_SCENE_ID)
+    const ent = w.spawn(
+      Ship({
+        templateId: 'lightFreighter',
+        hullCurrent: 800, hullMax: 800,
+        armorCurrent: 200, armorMax: 200,
+        fluxMax: 1500, fluxCurrent: 0, fluxDissipation: 75,
+        hasShield: false, shieldEfficiency: 1,
+        topSpeed: 0, accel: 0, decel: 0, angularAccel: 4, maxAngVel: 1.5,
+        crCurrent: 100, crMax: 100,
+        dockedAtPoiId: '',
+        fleetPos: { x: 0, y: 0 },
+        inCombat: true,
+      }),
+      IsFlagshipMark(),
+      CombatShipState({
+        shipClassId: 'lightFreighter',
+        nameZh: '旗舰',
+        captainId: '',
+        side: 'player',
+        isFlagship: true,
+        isMs: false,
+        pilotedByPlayer: false,
+        isPlayer: true,
+        pos: { ...pos },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: 800, hullMax: 800,
+        armorCurrent: 200, armorMax: 200,
+        fluxMax: 1500, fluxCurrent: 0, fluxDissipation: 75,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        // Zeroed physics — this test is about currentTargetKey bookkeeping,
+        // not motion; freezing every mover removes "did it also drift" as
+        // a confound.
+        topSpeed: 0, accel: 0, decel: 0, angularAccel: 4, maxAngVel: 1.5,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 999 },
+        currentTargetKey: '',
+        hitRadiusPx: 12,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key }),
+    )
+    spawned.push(ent)
+    return ent
+  }
+
+  function spawnFrozenEscort(pos: { x: number; y: number }, key: string): Entity {
+    const w = getWorld(SHIP_SCENE_ID)
+    const ent = w.spawn(
+      CombatShipState({
+        shipClassId: 'pirateLight',
+        nameZh: '测试护卫舰',
+        captainId: '',
+        side: 'player',
+        isFlagship: false,
+        isMs: false,
+        pilotedByPlayer: false,
+        isPlayer: false,
+        pos: { ...pos },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: 100, hullMax: 100,
+        armorCurrent: 0, armorMax: 0,
+        fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        topSpeed: 0, accel: 0, decel: 0, angularAccel: 3, maxAngVel: 1.2,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 999 },
+        currentTargetKey: '',
+        hitRadiusPx: 12,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key }),
+    )
+    spawned.push(ent)
+    return ent
+  }
+
+  function spawnEnemyMs(pos: { x: number; y: number }): Entity {
+    const bp = getEnemyShip(ENEMY_MS_CLASS)
+    const w = getWorld(SHIP_SCENE_ID)
+    const ent = w.spawn(
+      CombatShipState({
+        shipClassId: ENEMY_MS_CLASS,
+        nameZh: bp.nameZh,
+        captainId: '',
+        side: 'enemy',
+        isFlagship: false,
+        isMs: true,
+        pilotedByPlayer: false,
+        isPlayer: false,
+        pos: { ...pos },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: bp.hullMax, hullMax: bp.hullMax,
+        armorCurrent: bp.armorMax, armorMax: bp.armorMax,
+        fluxMax: 0, fluxCurrent: 0, fluxDissipation: 0,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        // Zeroed accel/topSpeed — same reasoning as the flagship/escort
+        // helpers above; only currentTargetKey bookkeeping is under test.
+        topSpeed: 0, accel: 0, decel: 0,
+        angularAccel: bp.angularAccel, maxAngVel: bp.maxAngVel,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: bp.ai.maintainRange },
+        currentTargetKey: '',
+        hitRadiusPx: bp.hitRadiusPx!,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key: 'enemy-ms-reaction-test' }),
+    )
+    spawned.push(ent)
+    return ent
+  }
+
+  it('holds the committed target through the reaction window, then switches once reactionSec elapses', () => {
+    const bp = getEnemyShip(ENEMY_MS_CLASS)
+    const w = getWorld(SHIP_SCENE_ID)
+    const enemyMs = spawnEnemyMs({ x: 500, y: 300 })
+    spawnFrozenFlagship({ x: 600, y: 300 }, 'target-a')
+
+    // Tick 1 — only target A exists yet — immediate first-acquisition lock.
+    combatSystem(w, 16)
+    expect(enemyMs.get(CombatShipState)!.currentTargetKey).toBe('target-a')
+
+    // Target B spawns closer than A — the raw nearest-hostile scan flips,
+    // but the pilot must keep engaging A for reactionSec more.
+    spawnFrozenEscort({ x: 510, y: 300 }, 'target-b')
+
+    // Advance well under reactionSec (0.5s) in small steps — must still
+    // read target-a on every one of these ticks.
+    const smallTickMs = 50
+    const stepsUnderWindow = Math.floor((bp.pilot!.reactionSec * 1000) / smallTickMs / 2)
+    for (let i = 0; i < stepsUnderWindow; i++) {
+      combatSystem(w, smallTickMs)
+      expect(
+        enemyMs.get(CombatShipState)!.currentTargetKey,
+        `tick ${i + 1}: well inside the ${bp.pilot!.reactionSec}s reaction window — must not have switched yet`,
+      ).toBe('target-a')
+    }
+
+    // One large tick, comfortably longer than reactionSec — must commit to B.
+    combatSystem(w, bp.pilot!.reactionSec * 1000 * 3)
+    expect(enemyMs.get(CombatShipState)!.currentTargetKey).toBe('target-b')
   })
 })

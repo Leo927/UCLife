@@ -192,6 +192,11 @@ registerDebugHandle('combatEntities', () => {
   const out: {
     key: string; side: string; isFlagship: boolean; isMs: boolean; piloted: boolean
     nameZh: string; hull: string; hullCurrent: number; hullMax: number
+    // W3 (ms-identity) Task 4 — pilot-AI smoke observability. currentTargetKey
+    // mirrors the reaction-gated committed target (see systems/combat.ts §1);
+    // boostCooldownSec > 0 is evidence a boost was triggered at some point
+    // this engagement (it's set to durationSec+cooldownSec on activation).
+    currentTargetKey: string; boostCooldownSec: number
   }[] = []
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
@@ -205,6 +210,8 @@ registerDebugHandle('combatEntities', () => {
       hull: `${cs.hullCurrent}/${cs.hullMax}`,
       hullCurrent: cs.hullCurrent,
       hullMax: cs.hullMax,
+      currentTargetKey: cs.currentTargetKey,
+      boostCooldownSec: cs.boostCooldownSec,
     })
   }
   return out

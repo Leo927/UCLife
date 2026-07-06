@@ -81,4 +81,16 @@
   // click, short enough that walking away and coming back later doesn't
   // leave a stale "confirm?" button armed.
   withdrawConfirmWindowMs: 3000,
+
+  // W3 (ms-identity) Task 4 — hostile-MS pilot AI knobs (reaction delay +
+  // aim jitter live entirely in each enemyShips.json5 row's `pilot` block;
+  // this is the one knob shared across every enemy-MS pilot).
+  pilotAi: {
+    // How often (in-tactical seconds) an enemy-MS pilot re-rolls whether to
+    // trigger its vernier boost while closing or disengaging (rolled against
+    // pilot.boostUse). A decision WINDOW, not a per-tick coinflip — rolling
+    // every tick would make boostUse behave like "fraction of time spent
+    // boosting" instead of "probability of choosing to boost this pass."
+    boostDecisionWindowSec: 1.0,
+  },
 }
