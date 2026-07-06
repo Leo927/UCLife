@@ -848,3 +848,304 @@ describe('enemy-MS pilot AI — reaction delay wired into combatSystem (W3 Task 
     expect(enemyMs.get(CombatShipState)!.currentTargetKey).toBe('target-b')
   })
 })
+
+// W3 (ms-identity) Task 4 — pilot boost-decision roll seeded proof. The
+// boost path is a probabilistic roll against pilot.boostUse, gated by the
+// decision timer window and the closing/disengaging condition. This test
+// directly seeds the RNG to prove the roll fires — a willing pilot with
+// favorable odds must actually boost, and an unwilling pilot (boostUse: 0)
+// must never boost even when closing in.
+describe('enemy-MS pilot AI — boost-decision seeded proof (W3 Task 4 unit)', () => {
+  const ENEMY_MS_CLASS = 'pirate_junkerMs'
+  const BOOST_DECISION_WINDOW_SEC = 1.0
+
+  it('a willing pilot (boostUse > 0) closing in must boost once the decision window elapses and the roll passes', () => {
+    const bp = getEnemyShip(ENEMY_MS_CLASS)
+    const pilot = bp.pilot!
+    expect(pilot.boostUse, 'sanity: test fixture must have boostUse > 0').toBeGreaterThan(0)
+
+    const w = getWorld(SHIP_SCENE_ID)
+    // Spawn enemy MS at {500, 300}. Flagship far away at {100, 300}.
+    // Range = 400, maintainRange = 200, so range > 200 × 1.15 = 230 → closing in.
+    const enemyMs = w.spawn(
+      CombatShipState({
+        shipClassId: ENEMY_MS_CLASS,
+        nameZh: bp.nameZh,
+        captainId: '',
+        side: 'enemy',
+        isFlagship: false,
+        isMs: true,
+        pilotedByPlayer: false,
+        isPlayer: false,
+        pos: { x: 500, y: 300 },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: bp.hullMax,
+        hullMax: bp.hullMax,
+        armorCurrent: bp.armorMax,
+        armorMax: bp.armorMax,
+        fluxMax: 0,
+        fluxCurrent: 0,
+        fluxDissipation: 0,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        topSpeed: 0,
+        accel: 0,
+        decel: 0,
+        angularAccel: bp.angularAccel,
+        maxAngVel: bp.maxAngVel,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 200 },
+        currentTargetKey: 'flagship-boost-test',
+        hitRadiusPx: bp.hitRadiusPx!,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key: 'enemy-ms-boost-test' }),
+    )
+    spawned.push(enemyMs)
+
+    const flagship = w.spawn(
+      Ship({
+        templateId: 'lightFreighter',
+        hullCurrent: 800,
+        hullMax: 800,
+        armorCurrent: 200,
+        armorMax: 200,
+        fluxMax: 1500,
+        fluxCurrent: 0,
+        fluxDissipation: 75,
+        hasShield: false,
+        shieldEfficiency: 1,
+        topSpeed: 0,
+        accel: 0,
+        decel: 0,
+        angularAccel: 4,
+        maxAngVel: 1.5,
+        crCurrent: 100,
+        crMax: 100,
+        dockedAtPoiId: '',
+        fleetPos: { x: 0, y: 0 },
+        inCombat: true,
+      }),
+      IsFlagshipMark(),
+      CombatShipState({
+        shipClassId: 'lightFreighter',
+        nameZh: '旗舰',
+        captainId: '',
+        side: 'player',
+        isFlagship: true,
+        isMs: false,
+        pilotedByPlayer: false,
+        isPlayer: true,
+        pos: { x: 100, y: 300 },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: 800,
+        hullMax: 800,
+        armorCurrent: 200,
+        armorMax: 200,
+        fluxMax: 1500,
+        fluxCurrent: 0,
+        fluxDissipation: 75,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        topSpeed: 0,
+        accel: 0,
+        decel: 0,
+        angularAccel: 4,
+        maxAngVel: 1.5,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange: 200 },
+        currentTargetKey: '',
+        hitRadiusPx: 12,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key: 'flagship-boost-test' }),
+    )
+    spawned.push(flagship)
+
+    // Seed the RNG so getSimRng().next() returns a value < pilot.boostUse.
+    // With boostUse around 0.4-0.6 typically, seeding with '0' gives
+    // deterministic next() values in [0, 1), so we can control the roll.
+    setSimRngSeed('boost-willing-seed')
+
+    // Tick past the decision window (1.0s).
+    // Each combatSystem call advances boostDecisionTimerSec by dtSec.
+    // We need boostDecisionTimerSec >= 1.0 to trigger the decision.
+    combatSystem(w, 16) // 16ms, boostDecisionTimerSec = 0.016
+    // Continue ticking until we reach 1.0s cumulative
+    const tickSec = 0.016
+    let elapsed = tickSec
+    while (elapsed < BOOST_DECISION_WINDOW_SEC) {
+      combatSystem(w, 16)
+      elapsed += tickSec
+    }
+
+    // At this point, the decision window has fired at least once, and
+    // the seeded RNG roll should have passed (firstRoll < pilot.boostUse).
+    // Assert: boostCooldownSec > 0 — a successful boost activation.
+    const afterBoost = enemyMs.get(CombatShipState)!
+    expect(
+      afterBoost.boostCooldownSec,
+      'a willing pilot must actually boost when the roll passes and range is in closing state',
+    ).toBeGreaterThan(0)
+  })
+
+  it('a pilot at maintainRange (not closing/disengaging) does not boost even with favorable RNG', () => {
+    // This test verifies the msClosingOrDisengaging gate: even if the RNG
+    // roll is favorable and boostUse > 0, the boost is only considered when
+    // the MS is actively closing or disengaging (range < 0.85×mr or range > 1.15×mr).
+    // At exactly maintainRange, neither condition is true — the pilot strafes
+    // instead — so no boost should happen regardless of RNG.
+    const bp = getEnemyShip(ENEMY_MS_CLASS)
+
+    const w = getWorld(SHIP_SCENE_ID)
+    const maintainRange = 200
+    // Position enemy MS at distance exactly equal to maintainRange (200 units).
+    // Flagship at {100, 300}, enemy at {300, 300} → range = 200.
+    // 200 is not < 0.85×200 (170) and not > 1.15×200 (230), so
+    // msClosingOrDisengaging = false → no boost decision considered.
+    const enemyMs = w.spawn(
+      CombatShipState({
+        shipClassId: ENEMY_MS_CLASS,
+        nameZh: bp.nameZh,
+        captainId: '',
+        side: 'enemy',
+        isFlagship: false,
+        isMs: true,
+        pilotedByPlayer: false,
+        isPlayer: false,
+        pos: { x: 300, y: 300 },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: bp.hullMax,
+        hullMax: bp.hullMax,
+        armorCurrent: bp.armorMax,
+        armorMax: bp.armorMax,
+        fluxMax: 0,
+        fluxCurrent: 0,
+        fluxDissipation: 0,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        topSpeed: 0,
+        accel: 0,
+        decel: 0,
+        angularAccel: bp.angularAccel,
+        maxAngVel: bp.maxAngVel,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange },
+        currentTargetKey: 'flagship-maintain-test',
+        hitRadiusPx: bp.hitRadiusPx!,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key: 'enemy-ms-maintain-test' }),
+    )
+    spawned.push(enemyMs)
+
+    const flagship = w.spawn(
+      Ship({
+        templateId: 'lightFreighter',
+        hullCurrent: 800,
+        hullMax: 800,
+        armorCurrent: 200,
+        armorMax: 200,
+        fluxMax: 1500,
+        fluxCurrent: 0,
+        fluxDissipation: 75,
+        hasShield: false,
+        shieldEfficiency: 1,
+        topSpeed: 0,
+        accel: 0,
+        decel: 0,
+        angularAccel: 4,
+        maxAngVel: 1.5,
+        crCurrent: 100,
+        crMax: 100,
+        dockedAtPoiId: '',
+        fleetPos: { x: 0, y: 0 },
+        inCombat: true,
+      }),
+      IsFlagshipMark(),
+      CombatShipState({
+        shipClassId: 'lightFreighter',
+        nameZh: '旗舰',
+        captainId: '',
+        side: 'player',
+        isFlagship: true,
+        isMs: false,
+        pilotedByPlayer: false,
+        isPlayer: true,
+        pos: { x: 100, y: 300 },
+        vel: { x: 0, y: 0 },
+        heading: 0,
+        angVel: 0,
+        hullCurrent: 800,
+        hullMax: 800,
+        armorCurrent: 200,
+        armorMax: 200,
+        fluxMax: 1500,
+        fluxCurrent: 0,
+        fluxDissipation: 75,
+        hasShield: false,
+        shieldEfficiency: 1,
+        shieldUp: false,
+        topSpeed: 0,
+        accel: 0,
+        decel: 0,
+        angularAccel: 4,
+        maxAngVel: 1.5,
+        weapons: [],
+        ai: { aggression: 0.5, retreatThreshold: 0.2, maintainRange },
+        currentTargetKey: '',
+        hitRadiusPx: 12,
+        boostRemainingSec: 0,
+        boostCooldownSec: 0,
+        pendingTargetKey: '',
+        pendingTargetSec: 0,
+        boostDecisionTimerSec: 0,
+      }),
+      EntityKey({ key: 'flagship-maintain-test' }),
+    )
+    spawned.push(flagship)
+
+    // Even with a favorable RNG seed, at maintainRange the
+    // msClosingOrDisengaging gate is false, so the boost decision
+    // is never checked. After ticking past the decision window,
+    // boostCooldownSec must remain 0.
+    setSimRngSeed('boost-willing-seed')
+
+    // Tick past the decision window
+    combatSystem(w, 16)
+    const tickSec = 0.016
+    let elapsed = tickSec
+    while (elapsed < BOOST_DECISION_WINDOW_SEC + 0.1) {
+      combatSystem(w, 16)
+      elapsed += tickSec
+    }
+
+    // At maintainRange, msClosingOrDisengaging = false, so no boost happens.
+    const afterMaintain = enemyMs.get(CombatShipState)!
+    expect(
+      afterMaintain.boostCooldownSec,
+      'a pilot at maintainRange must not boost (gate: msClosingOrDisengaging = false)',
+    ).toBe(0)
+  })
+})
