@@ -31,8 +31,9 @@ import {
   useCockpit, dockMs, leaveBridge,
 } from '../sim/cockpit'
 import { emitSim } from '../sim/events'
-import { issueRally, issueFocusFire, issueRegroup } from '../systems/fleetOrders'
+import { issueRally, issueFocusFire, issueRegroup, issueMsLaunchAuth } from '../systems/fleetOrders'
 import { commandPoolDescribe, type OrderResult } from '../systems/fleetCommandPoints'
+import { countLaunchableWings } from '../systems/msWings'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -63,8 +64,10 @@ function onWithdrawClick(pendingOrder: PendingOrder, setPendingOrder: (o: Pendin
   setPendingOrder('withdraw')
 }
 
-function orderRefusalZh(reason: 'unknown_order' | 'insufficient_cp'): string {
-  return reason === 'insufficient_cp' ? '指挥点不足 · 指令未下达' : '未知指令'
+function orderRefusalZh(reason: 'unknown_order' | 'insufficient_cp' | 'no_launchable_ms'): string {
+  if (reason === 'insufficient_cp') return '指挥点不足 · 指令未下达'
+  if (reason === 'no_launchable_ms') return '无可出击的 MS · 需先分配机师并停靠旗舰'
+  return '未知指令'
 }
 
 // Toast the refusal reason; a successful order already narrates itself via
@@ -204,7 +207,10 @@ function snapshotPlayerMs(): MsSnap | null {
   const w = getWorld(SHIP_SCENE_ID)
   for (const e of w.query(CombatShipState)) {
     const s = e.get(CombatShipState)!
-    if (!s.isMs || s.side !== 'player') continue
+    // W3 (ms-identity) Task 5 — the player HUD tracks the PLAYER-piloted MS
+    // only. With AI wings now spawning as side='player' isMs rows, gate on
+    // pilotedByPlayer so a wing member never shadows the player's own MS.
+    if (!s.isMs || !s.pilotedByPlayer) continue
     const ek = e.get(EntityKey)
     const key = ek ? ek.key : 'player-ms'
     return {
@@ -878,6 +884,15 @@ function OrderPalette(props: { pendingOrder: PendingOrder; setPendingOrder: (o: 
     playUi('ui.tactical.order-issue')
     reportOrderRefusal(issueRegroup())
   }
+  // W3 (ms-identity) Task 5 — MS launch authorization. Enabled only when ≥1
+  // pilot-assigned MS is aboard the flagship and not already launched; the
+  // count is polled fresh on each render (the parent re-renders at 30 Hz).
+  const launchableWings = countLaunchableWings()
+  const onLaunchMs = () => {
+    props.setPendingOrder(null)
+    playUi('ui.tactical.order-issue')
+    reportOrderRefusal(issueMsLaunchAuth())
+  }
 
   return (
     <div className="tactical-order-palette">
@@ -901,6 +916,17 @@ function OrderPalette(props: { pendingOrder: PendingOrder; setPendingOrder: (o: 
         onClick={onRegroup}
       >
         重整队形 · {costs.formationChange} CP
+      </button>
+      <button
+        className="tactical-btn tactical-order-btn"
+        data-tactical-order="msLaunchAuth"
+        disabled={launchableWings === 0}
+        title={launchableWings === 0
+          ? '无可出击的 MS · 需先为机体分配机师并停靠旗舰'
+          : `授权 ${launchableWings} 台僚机出击`}
+        onClick={onLaunchMs}
+      >
+        僚机出击 · {costs.msLaunchAuth} CP
       </button>
       <button
         className={`tactical-btn tactical-order-btn${props.pendingOrder === 'withdraw' ? ' is-pending' : ''}`}

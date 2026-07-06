@@ -53,6 +53,14 @@
   // only `eject + drift` events touch the floor in normal play.
   lifeSupportDrainPerSec: 1,
 
+  // ── W3 (ms-identity) Task 5 — AI wing resupply threshold ──────────────
+  // An AI wing member returns to the flagship to resupply once its
+  // propellant fraction (currentPropellant / propellantStorage cap) drops
+  // below this. Set well above zero so the wing has plenty of propellant
+  // left to fly home and dock before stranding — the return leg itself
+  // burns propellant at propellantDrainPerThrustSec. Fraction in (0, 1).
+  wingResupplyThresholdPct: 0.35,
+
   // ── Stranded-MS recovery tug (Design/sortie.md) ───────────────────────
   // Speed of the recovery tug in tactical-arena units per second.
   // Faster than a stranded MS but slower than an MS at full thrust so

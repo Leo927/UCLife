@@ -12,6 +12,7 @@ export interface SortieConfig {
   dockApproachMaxRelVel: number
   propellantDrainPerThrustSec: number
   lifeSupportDrainPerSec: number
+  wingResupplyThresholdPct: number
   tugSpeedUnitsPerSec: number
   tugSkillThreshold: number
   tugGrappleRadiusPx: number

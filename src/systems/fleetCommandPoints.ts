@@ -278,7 +278,7 @@ export function commandPoolDescribe(): CommandPoolView {
 
 export type OrderResult =
   | { ok: true; spent: number; remaining: number }
-  | { ok: false; reason: 'unknown_order' | 'insufficient_cp'; remaining: number }
+  | { ok: false; reason: 'unknown_order' | 'insufficient_cp' | 'no_launchable_ms'; remaining: number }
 
 // Spend CP on a fleet-wide order. Refuses (without debiting) when the pool
 // can't cover the cost — the fleet then acts on standing doctrine, and the

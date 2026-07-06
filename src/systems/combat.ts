@@ -78,6 +78,10 @@ import {
   doctrineForAggression, commandPoolDescribe, useCpDp,
 } from './fleetCommandPoints'
 import { activeOrders, clearStaleFocusTarget, resetFleetOrders } from './fleetOrders'
+import {
+  tickWings, wingTargetPreference, isWingReturning, msWingRosterKeyForClone,
+  rosterKeyFromWingCloneKey, onWingDestroyed, resetWings, syncAllWingsToRoster,
+} from './msWings'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -766,6 +770,9 @@ export function startCombat(
   // W2 command layer — a fresh engagement starts order-free; standing
   // rally/focus-fire orders don't carry across engagements.
   resetFleetOrders()
+  // W3 (ms-identity) Task 5 — clear the wing registry; the strip loop above
+  // already destroyed any stale wing clones (transient side='player' rows).
+  resetWings()
   // Issue #69 — seed the Command-Point pool full for this engagement and
   // surface the starting bandwidth in the log. The pre-engagement DP commit
   // set carries into this fight (the war room set it before launch); the
@@ -1066,6 +1073,11 @@ export function endCombat(outcome: CombatOutcome): void {
   // the MS was already destroyed in-tactical (onMsDestroyed synced) — both
   // clear activeMsRosterKey on their own exit.
   syncActiveMsToRosterIfLaunched()
+  // W3 (ms-identity) Task 5 — write back every still-deployed wing's combat
+  // damage BEFORE the destroy loop strips the clones, then clear the
+  // registry (the loop below destroys the transient wing rows).
+  syncAllWingsToRoster()
+  resetWings()
   // Three-way split per CombatShipState owner:
   //   - flagship row sits on the persistent flagship Ship entity →
   //     just remove the trait.
@@ -1343,6 +1355,24 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }): number 
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+// W3 (ms-identity) Task 5 — nearest hostile of a preferred class for a wing's
+// role-tag target preference. `preferMs` picks the nearest isMs hostile;
+// otherwise the nearest non-MS (ship) hostile. Returns null when no hostile
+// of that class exists (caller keeps the plain-nearest target).
+function pickHostileByClass(
+  hostiles: Entity[], from: { x: number; y: number }, preferMs: boolean,
+): Entity | null {
+  let best: Entity | null = null
+  let bestRange = Infinity
+  for (const h of hostiles) {
+    const hs = h.get(CombatShipState)!
+    if (hs.isMs !== preferMs) continue
+    const r = dist(from, hs.pos)
+    if (r < bestRange) { bestRange = r; best = h }
+  }
+  return best
+}
+
 interface EnemyCandidate {
   ent: Entity
   pos: { x: number; y: number }
@@ -1508,7 +1538,7 @@ export function tryBoost(entity: Entity): boolean {
   // sortie-loop system). Enemy MS and future AI wings are pure
   // CombatShipState rows with no resource pool of their own today, so their
   // boost is free of the propellant ledger — cooldown is their only gate.
-  if (cs.side === 'player' && cs.isMs) {
+  if (cs.pilotedByPlayer && cs.isMs) {
     if (!spendPropellant(getActiveMsRosterKey(), def.propellantCost)) return false
   }
   entity.set(CombatShipState, {
@@ -1589,9 +1619,14 @@ function fireWeapon(
         r.absorbed ? `敌方${weapon.nameZh} → 命中${tgtNameZh}护盾` : `敌方${weapon.nameZh} → 命中${tgtNameZh}船体`,
       )
       if (r.destroyed) {
-        if (tgtCs?.isMs) {
+        if (tgtCs?.isMs && tgtCs.pilotedByPlayer) {
           pushCombatLog(`MS 损毁 · ${tgtCs.nameZh}`, 'crit')
           onMsDestroyed()
+        } else if (tgtCs?.isMs && tgt) {
+          // W3 (ms-identity) Task 5 — a wing member (not player-piloted):
+          // write its loss back to the roster + despawn via msWings.
+          pushCombatLog(`僚机损毁 · ${tgtCs.nameZh}`, 'crit')
+          onWingDestroyed(tgt)
         } else if (tgtCs && !tgtCs.isFlagship && !tgtCs.isPlayer) {
           // Phase 6.2.E2 — escort destruction. Log + strip the
           // combat row from the persistent Ship entity (don't destroy
@@ -1808,9 +1843,13 @@ function tickProjectiles(dtSec: number): void {
         )
         projectiles.splice(i, 1)
         if (r.destroyed) {
-          if (hitCs.isMs) {
+          if (hitCs.isMs && hitCs.pilotedByPlayer) {
             pushCombatLog(`MS 损毁 · ${hitCs.nameZh}`, 'crit')
             onMsDestroyed()
+          } else if (hitCs.isMs) {
+            // W3 (ms-identity) Task 5 — wing member destroyed (see beam path).
+            pushCombatLog(`僚机损毁 · ${hitCs.nameZh}`, 'crit')
+            onWingDestroyed(hit)
           } else if (!hitCs.isFlagship && !hitCs.isPlayer) {
             // Phase 6.2.E2 — escort destruction. Same shape as the
             // beam-side branch above (strip the trait, don't destroy
@@ -1875,11 +1914,21 @@ export function combatSystem(_world: World, dtMs: number): void {
       pushCombatLog('目标已失去 · 舰队恢复常规交战', 'info')
     }
   }
+  // W3 (ms-identity) Task 5 — flagship pos read once for the wing return-to-
+  // dock movement override (below). Read at loop start; the flagship moves
+  // in this same loop, so the bearing lags one tick — negligible over a
+  // multi-second return leg.
+  const flagshipPosForWings = playerEnt.get(CombatShipState)?.pos ?? null
   for (const self of allShips) {
     let cs = self.get(CombatShipState)!
     const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
     const isEscort = cs.side === 'player' && !cs.pilotedByPlayer && !cs.isMs && !cs.isFlagship
     const isEnemyMs = cs.side === 'enemy' && cs.isMs
+    // W3 (ms-identity) Task 5 — an AI wing member: player-side isMs row not
+    // piloted by the player. selfKey resolves its `wing-<rosterKey>` clone
+    // key for the wing-AI directive lookups below.
+    const isWing = cs.side === 'player' && cs.isMs && !cs.pilotedByPlayer && !cs.isFlagship
+    const selfKey = self.get(EntityKey)?.key ?? ''
     const hostiles = isPlayerSide ? enemies : playerSide
     let nearest: Entity | null = null
     let nearestRange = Infinity
@@ -1893,6 +1942,19 @@ export function combatSystem(_world: World, dtMs: number): void {
     if (isEscort && focusOrderEnt) {
       nearest = focusOrderEnt
       nearestRange = dist(cs.pos, focusOrderEnt.get(CombatShipState)!.pos)
+    }
+
+    // W3 (ms-identity) Task 5 — role-tag target-class preference. A wing
+    // steers toward its preferred hostile CLASS ('ms' hunts enemy mobile
+    // suits, 'ship' presses enemy hulls) when one exists, falling back to
+    // the plain nearest hostile so it's never idle. Same O(H) scan every
+    // unit already runs; no extra cross-entity work.
+    if (isWing) {
+      const pref = wingTargetPreference(selfKey)
+      if (pref && pref !== 'nearest') {
+        const preferred = pickHostileByClass(hostiles, cs.pos, pref === 'ms')
+        if (preferred) { nearest = preferred; nearestRange = dist(cs.pos, preferred.get(CombatShipState)!.pos) }
+      }
     }
     // W3 (ms-identity) Task 4 — enemy-MS pilot AI: reaction delay. A pilot
     // doesn't instantly snap to a new target the moment the raw scan above
@@ -1950,6 +2012,28 @@ export function combatSystem(_world: World, dtMs: number): void {
           const moveAng = angleBetween(cs.pos, rp)
           thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
         }
+      }
+    }
+
+    // W3 (ms-identity) Task 5 — a wing returning to resupply overrides its
+    // combat movement with a straight bearing to the flagship (aim keeps
+    // tracking its resolved hostile for defense). msWings.tickWings triggers
+    // the dock + despawn once the wing is inside dockApproachRadiusPx.
+    if (isWing && flagshipPosForWings && isWingReturning(selfKey)) {
+      const moveAng = angleBetween(cs.pos, flagshipPosForWings)
+      thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
+    }
+
+    // W3 (ms-identity) Task 5 — wing propellant + life-support drain. Wings
+    // aren't pilotedByPlayer, so §1's WASD-drain branch below skips them;
+    // drain here off the AI thrust magnitude (unit vector while maneuvering,
+    // 0 while holding station) so a wing actually burns down to
+    // wingResupplyThresholdPct. Resolves the wing's OWN roster key, never the
+    // player's getActiveMsRosterKey slot.
+    if (isWing) {
+      const wingRosterKey = rosterKeyFromWingCloneKey(selfKey)
+      if (wingRosterKey) {
+        drainPilotedMs(wingRosterKey, Math.hypot(thrustWorld.x, thrustWorld.y), dtSec)
       }
     }
 
@@ -2311,9 +2395,14 @@ export function combatSystem(_world: World, dtMs: number): void {
           // gates above. No roster key (shouldn't happen while a player
           // MS row exists, but guarded explicitly) blocks fire rather
           // than silently bypassing the ammo gate.
-          const isPlayerMs = psState.isMs && wpn.hardpointId
-          const rosterKey = isPlayerMs ? getActiveMsRosterKey() : ''
-          if (isPlayerMs && !tryConsumeAmmo(rosterKey, wpn.hardpointId)) {
+          // W3 (ms-identity) Task 5 — gate the PLAYER-MS ammo pool on
+          // `pilotedByPlayer` (the single getActiveMsRosterKey slot is the
+          // player's launched MS only). Task 5's wing rows (isMs, side
+          // player, not piloted) resolve their OWN roster key — added below
+          // in the wing fire branch.
+          const isPlayerMs = psState.isMs && psState.pilotedByPlayer && wpn.hardpointId
+          const rosterKey = isPlayerMs ? getActiveMsRosterKey() : msWingRosterKeyForClone(psEnt)
+          if ((isPlayerMs || rosterKey !== '') && !tryConsumeAmmo(rosterKey, wpn.hardpointId)) {
             // No ammo (or no roster key resolved) — hold ready (charge
             // stays clamped) but skip fire.
             return { ...wpn, chargeSec: charge, ready: false }
@@ -2354,6 +2443,10 @@ export function combatSystem(_world: World, dtMs: number): void {
   }
   tickResupply(dtSec)
   tickTugs(dtSec)
+  // W3 (ms-identity) Task 5 — wing resupply state machine: threshold-driven
+  // return-to-dock + relaunch. Runs after the door/resupply ticks so a wing
+  // that docks this tick sees its door cycle start next tick.
+  tickWings(dtSec)
 
   // -- 6. Flagship hull threshold auto-pause (narrowed set, Phase 6.0) ----
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.

@@ -338,6 +338,65 @@ registerDebugHandle('msState', () => {
   }
 })
 
+// W3 (ms-identity) Task 5 — deterministically place a combat row (flagship,
+// enemy, MS, or wing) so the wing role-targeting smoke can pin exact
+// distances without depending on spawn-slot geometry. Zeros velocity so the
+// unit holds the seeded pose for the tick under assertion.
+registerDebugHandle('setCombatPosCheat', (entityKey: string, x: number, y: number): boolean => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== entityKey) continue
+    const cs = e.get(CombatShipState)!
+    e.set(CombatShipState, { ...cs, pos: { x, y }, vel: { x: 0, y: 0 } })
+    return true
+  }
+  return false
+})
+
+// W3 (ms-identity) Task 5 — deterministically damage a launched wing's
+// tactical clone (keyed `wing-<rosterKey>`) so the wing damage-sync smoke can
+// assert the write-back onto its own roster row (dock sync + endCombat sync).
+registerDebugHandle('setWingHullCheat', (
+  rosterKey: string, hullCurrent: number, armorCurrent: number,
+): boolean => {
+  const w = getWorld('playerShipInterior')
+  const cloneKey = `wing-${rosterKey}`
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== cloneKey) continue
+    e.set(CombatShipState, { ...e.get(CombatShipState)!, hullCurrent, armorCurrent })
+    return true
+  }
+  return false
+})
+
+// W3 (ms-identity) Task 5 — snapshot every launched wing's clone row + its
+// roster mapping so the smoke can read targeting + hull without stripping
+// key prefixes inline.
+registerDebugHandle('getWings', (): Array<{
+  cloneKey: string; rosterKey: string; currentTargetKey: string
+  hullCurrent: number; hullMax: number; pos: { x: number; y: number }
+}> => {
+  const w = getWorld('playerShipInterior')
+  const out: Array<{
+    cloneKey: string; rosterKey: string; currentTargetKey: string
+    hullCurrent: number; hullMax: number; pos: { x: number; y: number }
+  }> = []
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    const key = e.get(EntityKey)!.key
+    if (!key.startsWith('wing-')) continue
+    const cs = e.get(CombatShipState)!
+    out.push({
+      cloneKey: key,
+      rosterKey: key.slice('wing-'.length),
+      currentTargetKey: cs.currentTargetKey,
+      hullCurrent: cs.hullCurrent,
+      hullMax: cs.hullMax,
+      pos: { x: cs.pos.x, y: cs.pos.y },
+    })
+  }
+  return out
+})
+
 // Issue #163 — deterministically damage the piloted MS's tactical clone
 // without driving real weapon-charge/projectile timing, so the roster
 // write-back smoke can assert an exact before/after hull+armor delta.
