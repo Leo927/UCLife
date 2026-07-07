@@ -6,10 +6,23 @@
 // (CLAUDE.md rule 8). The journey:
 //
 //   buy the starter hull at the AE broker  →  wait out the delivery lead  →
-//   receive it from the hangar manager  →  board via the gate booth  →  take
-//   the helm  →  intercept the pirate that covers Von Braun  →  engage  →  win
-//   on auto-fire  →  clear the recoverables + tally  →  dock home  →  disembark
+//   receive it from the hangar manager  →  board via the gate booth  →  read
+//   the captain's readiness briefing (W4.4)  →  take the helm  →  intercept the
+//   pirate that covers Von Braun  →  see the negotiate seam is a live choice
+//   (W4.5) then engage  →  win on auto-fire  →  clear the recoverables + tally
+//   →  climb the aboard MS outside combat into its retrofit panel (W4.5)  →
+//   dock home  →  leave the helm via the in-world seat verb (W4.5)  →  disembark
 //   back into the city.
+//
+// W4 embodied-ship legs fold into the existing loop as READ-ONLY observations
+// (rule 8): the readiness briefing, the negotiate button's affordability, the
+// outside-combat retrofit redirect, and the seat-verb leave are each driven by
+// real input and asserted via getGameState / DOM reads. The bodied-crew leg is
+// NOT drivable here — earned-start earns a bare freighter with no hired crew,
+// and hiring needs the recruit-office flow (man-the-rest is captain-gated); the
+// roster → live-bodies invariant is proven at the system level in
+// crew-aboard.spec.ts. See the readiness leg's note. (TODO: a future crewed
+// journey fixture could exercise crew-at-stations through real input.)
 //
 // Movement model:
 //  - The rep and the hangar are ~259 tiles apart. Click-to-walk toward an
@@ -73,6 +86,11 @@ const DOCK_HOP_STAGE_MIN = 0.1     // per-hop step; VB doesn't chase back
 const DOCK_BUDGET_MIN = 60 * 12    // fly-home + autodock budget
 const JOURNEY_TIMEOUT_MS = 200_000  // whole end-to-end loop + MS sortie leg headroom past the 60s default
 const KIOSK_INTERACT_TRIES = 5      // re-issue a kiosk interact until the scene swaps
+
+// ── W4 embodied-ship + diegetic seams ───────────────────────────────────
+const CAPTAINS_DESK_KEY = 'ship-kiosk-captainsOffice-0'  // 出航简报 kiosk in the captain's office (seedShipSceneLayout)
+const MS_RETROFIT_KEY = 'ms-player-0'                    // MsRef.msKey behind the ms-sprite-ms-player-0 climb sprite
+const NEGOTIATE_TOLL_BASE = 300     // combat.json5 negotiate.tollBase — the no-escort toll the first contact quotes
 
 // ── W3 MS-sortie leg ────────────────────────────────────────────────────
 // The engagement has a hard clock: with every mount armed (#165), the AI
@@ -216,6 +234,30 @@ async function interactToScene(sim: any, key: string, targetScene: string): Prom
     await sim.stepForCoarse(TRANSITION_WALK_MIN)
   }
   await waitForScene(sim, targetScene)
+}
+
+// Walk to + interact with a small-scene kiosk/sprite whose payoff is a UI
+// PANEL opening in-place (captain's briefing, MS retrofit) rather than a scene
+// swap. Waits for the target to project, then re-issues the interact (bounded)
+// until `isOpen()` flips — mirroring interactToScene/climbIntoHangarMs, but the
+// terminal condition is a UI-store read instead of a scene id. Nudges the click
+// onto the kiosk's clear top edge (an overlapping sprite may render on top).
+async function interactToPanel(
+  sim: any, key: string, isOpen: () => Promise<boolean>, label: string,
+): Promise<void> {
+  await sim.page.waitForFunction(
+    (k: string) => (window as any).__uclife__.getEntityScreenCoords(k) != null,
+    key, { timeout: CAMERA_TIMEOUT_MS })
+  for (let i = 0; i < KIOSK_INTERACT_TRIES; i++) {
+    if (await isOpen()) return
+    const pt = await sim.page.evaluate((k: string) => {
+      const t = (window as any).__uclife__.getEntityScreenCoords(k)
+      return t ? { x: t.x, y: t.y - 12 } : null
+    }, key)
+    if (pt) await sim.page.mouse.click(pt.x, pt.y)
+    await sim.stepForCoarse(TRANSITION_WALK_MIN)
+  }
+  expect(await isOpen(), `interacting with ${key} must open ${label}`).toBe(true)
 }
 
 // ── W3 MS-sortie leg helpers ──────────────────────────────────────────
@@ -416,6 +458,42 @@ test('journey: buy → board → helm → intercept → engage → win → tally
   await sim.stepForCoarse(TRANSITION_WALK_MIN)
   await waitForScene(sim, 'playerShipInterior')
 
+  // ── 4b. W4.4 — captain's-office readiness briefing (advisory) ─────────
+  // Aboard the earned freighter, walk to the 出航简报 desk in the captain's
+  // office (adjacent to the bridge) and interact — the diegetic captainsDesk
+  // opens the readiness panel through real input (no debug store drive). The
+  // three advisory rows must render with counts that match the earned hull:
+  // one MS stowed aboard, the ship declares crew slots, and none are filled
+  // yet (the loop earns a bare hull; crew are hired later). This proves the
+  // crew-aboard system is wired to this hull (crewRequired > 0). The BODIED-
+  // crew invariant (roster → live bodies at stations) needs a crewed roster
+  // and is proven at the system level in crew-aboard.spec.ts — earned-start
+  // hires none, so the journey cannot drive that leg through real input.
+  await interactToPanel(sim, CAPTAINS_DESK_KEY,
+    async () => sim.page.evaluate(() => (window as any).uclifeUI.getState().captainsOfficeOpen),
+    'the captain readiness briefing')
+  await sim.page.waitForSelector('[data-captains-office-readiness]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  const readiness = await sim.page.evaluate(() => {
+    const el = document.querySelector('[data-captains-office-readiness]')!
+    return {
+      crewFilled: el.getAttribute('data-crew-filled'),
+      crewRequired: Number(el.getAttribute('data-crew-required')),
+      msLoaded: el.getAttribute('data-ms-loaded'),
+      pilotsAssigned: el.getAttribute('data-pilots-assigned'),
+    }
+  })
+  expect(readiness.msLoaded, 'readiness MS row counts the earned MS stowed aboard').toBe('1')
+  expect(readiness.crewRequired, 'the earned hull declares crew slots (crew-aboard system wired)').toBeGreaterThan(0)
+  expect(readiness.crewFilled, 'no crew hired yet on the just-earned hull').toBe('0')
+  expect(readiness.pilotsAssigned, 'the stowed MS carries no pilot yet').toBe('0')
+  // Dismiss the briefing (real ✕) so its overlay can't intercept the helm click.
+  await sim.page.locator('[data-captains-office-readiness]')
+    .locator('xpath=ancestor::div[contains(@class,"status-panel")]')
+    .locator('.status-header .status-close').click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForFunction(
+    () => (window as any).uclifeUI.getState().captainsOfficeOpen === false,
+    undefined, { timeout: DOM_COMMIT_TIMEOUT_MS })
+
   // ── 5. Take the helm → space view ────────────────────────────────────
   await interactToScene(sim, HELM_KEY, 'spaceCampaign')
   await sim.page.waitForSelector('.space-view canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
@@ -467,6 +545,25 @@ test('journey: buy → board → helm → intercept → engage → win → tally
       (window as any).__uclife__.getGameState().getEngagement().getEnemyKey()),
     'first contact must be the winnable starter pirate',
   ).toBe(ENEMY_KEY)
+
+  // ── W4.5 — negotiate seam is a live choice on the engagement modal ────
+  // Task 7 made "尝试谈判" a real diegetic option: pay a config toll
+  // (tollBase + tollPerEscort × escorts) to disengage cleanly. The solo
+  // starter pirate quotes the base toll, and the avatar's post-buy purse
+  // (¥1,800) covers it — so the negotiate button renders ENABLED, proving
+  // the seam is affordable here, not a dead button. The journey then keeps
+  // the deterministic FIGHT route: negotiating would end the encounter
+  // peacefully and forfeit the W1/W3 combat → MS-sortie → tally → dock-home
+  // coverage this capstone exists to protect. The pay-and-disengage
+  // resolution itself is proven at the system level in negotiate.spec.ts.
+  const negotiateBtn = sim.page.locator('[data-engagement-negotiate]')
+  await expect(negotiateBtn, 'the negotiate seam renders on the first-contact modal').toBeVisible()
+  await expect(negotiateBtn, 'the config toll is affordable at first contact — negotiate is a live choice').toBeEnabled()
+  expect(
+    await sim.page.evaluate(() =>
+      (window as any).__uclife__.getGameState().getPlayerCharacter().getResource('Money')),
+    'the avatar can afford the base toll (no-escort contact) at first contact',
+  ).toBeGreaterThanOrEqual(NEGOTIATE_TOLL_BASE)
 
   // ── 7. Engage and win on auto-fire ───────────────────────────────────
   // The Von Braun coverer is now a single weak pirateLight (no escorts): a
@@ -639,6 +736,29 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     'winning the fight must credit the tally reward',
   ).toBeGreaterThan(moneyBeforeFight)
 
+  // ── W4.5 — climb the aboard MS OUTSIDE combat → retrofit shortcut ─────
+  // The starter MS rode back aboard on 返航, and the victory tore combat down
+  // to the walkable bridge. With no fight in progress there is nothing to
+  // sortie into from a docked bridge, so climbing the MS's hangar sprite is
+  // no longer a launch — Task 7's climbIntoMs outside-combat redirect opens
+  // the MS retrofit panel instead of the old "无需出击" rejection toast.
+  expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getScene().getId()),
+    'the retrofit redirect is exercised from the walkable bridge (outside combat)',
+  ).toBe('playerShipInterior')
+  await interactToPanel(sim, MS_SPRITE_KEY,
+    async () => (await sim.page.evaluate(() => (window as any).uclifeUI.getState().msRetrofitKey)) === MS_RETROFIT_KEY,
+    'the MS retrofit panel')
+  await sim.page.waitForSelector('[data-testid="ms-retrofit-panel"]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  expect(
+    await sim.page.evaluate(() => (window as any).uclifeUI.getState().msRetrofitKey),
+    'climbing the aboard MS outside combat opens its retrofit panel, not a toast',
+  ).toBe(MS_RETROFIT_KEY)
+  // Close the retrofit panel (real ✕) so its overlay can't intercept the helm.
+  await sim.page.locator('[data-testid="ms-retrofit-panel"] .status-header .status-close')
+    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('[data-testid="ms-retrofit-panel"]', { state: 'detached', timeout: DOM_COMMIT_TIMEOUT_MS })
+
   // Re-take the helm (real walk + E) to resume the flight home, then wait
   // for the space viewport to project POIs — right after the scene swap the
   // camera needs a few frames before screen-coord reads are meaningful.
@@ -691,14 +811,23 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     'the sortie round trip must not strand the ship (fuel remains at dock)',
   ).toBeGreaterThan(0)
 
-  // ── 10. Leave the helm and disembark into the city ───────────────────
-  // Docking parks the flagship but leaves the player at the helm. Step off the
-  // helm (back to the ship interior), then walk to the 下船 kiosk and interact
-  // — a single-dockScene POI disembarks straight into vonBraunCity.
-  await sim.page.locator('.space-view').getByText('离开操舵台 (ESC)', { exact: true })
-    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  // ── 10. Leave the helm (in-world seat verb) and disembark into the city ─
+  // Docking parks the flagship but leaves the player at the helm. Step off via
+  // Task 7's diegetic on-seat affordance (data-helm-leave, the 操舵席 "离开操
+  // 舵台" button anchored to the helm seat) — real DOM click, not the ESC
+  // shortcut. leaveHelm() must drop the avatar back aboard WITHOUT destroying
+  // the long-arc IsPlayer+ShipBody campaign ship (helm.ts leaves the space
+  // world intact — never migratePlayerToScene from a helm-active context).
+  await sim.page.locator('[data-helm-leave]').click({ timeout: DOM_COMMIT_TIMEOUT_MS })
   await waitForScene(sim, 'playerShipInterior')
+  expect(
+    await sim.page.evaluate(() =>
+      (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount()),
+    'leaving the helm via the seat verb must not destroy the earned campaign flagship',
+  ).toBeGreaterThanOrEqual(1)
 
+  // Walk to the 下船 kiosk and interact — a single-dockScene POI disembarks
+  // straight into vonBraunCity.
   await walkOnScreen(sim, DISEMBARK_KEY)
   await interactToScene(sim, DISEMBARK_KEY, 'vonBraunCity')
 

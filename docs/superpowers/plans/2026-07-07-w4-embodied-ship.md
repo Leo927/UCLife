@@ -168,8 +168,8 @@ Tasks **6, 7, 8** touch disjoint files and depend on nothing in Task 1's spine �
 - Outside combat, climb an aboard MS via real interaction → assert the retrofit panel opens (not a toast).
 - Leave the helm via the in-world seat verb (real click) → assert scene returns to `playerShipInterior` and the campaign ship entity still exists.
 
-- [ ] Extend the journey spec; keep it deterministic (seeded fixture, `step({until})`, no `waitForTimeout`). Full `npm run ci:local` green ×2 (serial + parallel) before commit.
-- [ ] Update the spec's W4 shipped-status section + this plan's checkboxes; update the program memory. Gates + commit: `test(journey): W4 embodied-ship + diegetic-seams capstone (W4)`
+- [x] Extend the journey spec; keep it deterministic (seeded fixture, `step({until})`, no `waitForTimeout`). Full `npm run ci:local` green ×2 (serial + parallel) before commit.
+- [x] Update the spec's W4 shipped-status section + this plan's checkboxes; update the program memory. Gates + commit: `test(journey): W4 embodied-ship + diegetic-seams capstone (W4)`
 
 ---
 

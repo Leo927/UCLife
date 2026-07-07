@@ -358,6 +358,46 @@ credits toll — pay and they disengage, refuse and it's the fight; cost scales 
 tactical arena gets a starfield + per-class ship sprites instead of chevrons, tally
 loot-line formatting fix. Explicitly *not* an art pass on the city.
 
+### W4 shipped status
+
+- **W4.1 Crew live aboard — shipped.** `systems/crewAboard.ts` materializes a `Character`
+  body per `Ship.crewIds` + `assignedCaptainId` in `playerShipInterior`, reconciled at
+  board / flagship-switch / roster-mutation / save-load (each key resolves to exactly one
+  world). A crew-duty BT branch (`ai/trees.ts`) mans stations underway and cycles
+  mess/quarters/off-duty docked. Proven in `crew-aboard.spec.ts` + `crewDuty.test.ts`.
+- **W4.2 Furnished rooms — shipped.** `crewQ` bunks (player + crew, free-claim aboard) and a
+  `mess` eat station both player and crew use (shared ship supply drawdown). `ship-furnished.spec.ts`.
+- **W4.3 Hangar boss + on-ship hangar deck — shipped (completes W1.5 + W3.6).** Seeded
+  hangar boss; `systems/onShipRepair.ts` clamps aboard-MS repair into the
+  `onShipRepairFloor`/`onShipRepairCap` band (the two stats declared at 6.2.B, read nowhere
+  until now); `sim/sortieResupply.ts` reads the real boss `workPerfMul` + on-duty mechanic
+  count. `onShipRepair.test.ts`, `hangar-deck.spec.ts`.
+- **W4.4 One airlock + readiness briefing — shipped.** Legacy airport `boardShip` kiosk + its
+  orphaned template deleted; the gate-booth pad is the sole airlock. The captain's-office
+  panel renders three advisory readiness rows (crew filled / MS loaded / pilots assigned) via
+  `data-captains-office-readiness`; `takeHelm()` stays ungated. `captains-office.spec.ts`.
+- **W4.5 Diegetic seams — shipped.** `climbIntoMs` outside combat opens the MS retrofit panel
+  (`ms-outside-combat-retrofit.spec.ts`); negotiate pays a config toll (`tollBase +
+  tollPerEscort × escorts`) off the avatar for a clean peaceful disengage else escalates to
+  combat (`negotiate.spec.ts`); an in-world on-seat leave-helm / leave-bridge affordance
+  (`data-helm-leave` / `data-tactical-seat-exit`) sits at the seat, ESC/topbar kept as shortcut.
+- **W4.6 Presentation floor — shipped.** Tally loot-line formatting fix (DOM-asserted), generic
+  ship-interior label wrap/stagger, static tactical starfield, pooled per-class ship
+  silhouettes (`classShape` mapping unit-tested); starfield/label/sprite pixels are
+  presentation-only (no WebGL canvas in test mode) by design.
+- **Capstone (Task 9) — shipped, full loop.** `tests/smoke/journey-first-sortie.spec.ts`
+  extends the W1-W3 real-input journey with W4 legs: the captain's readiness briefing, the
+  negotiate seam's affordability at first contact (fight route kept — negotiating would
+  forfeit the combat/MS-sortie/tally coverage), the outside-combat MS retrofit redirect, and
+  the in-world seat-verb leave (campaign flagship survives). All `__uclife__` reads only
+  (rule 8). The bodied-crew-at-stations invariant is NOT drivable in this journey —
+  `earned-start` earns a bare freighter with no hired crew and hiring needs the captain-gated
+  recruit flow — so it stays proven at the system level in `crew-aboard.spec.ts`; the journey
+  proves the crew-slot wiring (crewRequired > 0) via the readiness briefing.
+
+**Cross-workstream deferrals closed:** W1.5 (on-ship MS repair band) and W3.6 (crew-driven
+resupply) both landed in W4.3. **Workstream 4 complete — the ship/MS/combat UX program is done.**
+
 ## Ordering and shippability
 
 W1 → W2 → W3 → W4. Each workstream is independently shippable and leaves the game strictly
