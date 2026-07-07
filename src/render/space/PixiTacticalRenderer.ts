@@ -14,14 +14,17 @@
 // projectile id. New ids allocate, vanished ids destroy.
 
 import { Application, Container, Graphics } from 'pixi.js'
+import { combatConfig } from '../../config'
+import { SeededRng } from '../../procgen/rng'
+import { classShape } from './shipSilhouette'
 
 export interface ShipSnap {
   x: number
   y: number
-  /** Heading in radians; 0 = +x. The ship hull is drawn as a triangle
+  /** Heading in radians; 0 = +x. The ship hull is drawn as a silhouette
    *  pointing along this angle so the player can see facing. */
   heading: number
-  /** Hull (triangle) base radius. Scales the whole sprite. */
+  /** Hull silhouette base radius. Scales the whole sprite. */
   hullRadius: number
   /** Shield bubble radius — drawn around the hull as a faint ring. */
   shieldRadius: number
@@ -30,6 +33,9 @@ export interface ShipSnap {
   /** Shield-ring opacity (0..1) — fades as flux saturates. 0 = shield
    *  is down. */
   shieldAlpha: number
+  /** Ship class id — selects the per-class silhouette (see classShape).
+   *  The hull polygon is redrawn only when this (or radius/color) changes. */
+  shipClassId: string
 }
 
 export interface ProjectileVisual {
@@ -97,7 +103,11 @@ const POD_CORE_RADIUS = 4
 const POD_HALO_RADIUS = 8
 const POD_HALO_ALPHA = 0.35
 
-interface ShipNode { hull: Graphics; shield: Graphics }
+// `shapeSig` caches the last-drawn (class|radius|color) so the hull polygon
+// is rebuilt only when one of those changes — steady-state frames just move
+// x/y/rotation. The shield ring still redraws each frame (its alpha tracks
+// flux headroom).
+interface ShipNode { hull: Graphics; shield: Graphics; shapeSig: string }
 
 export const tacticalStats = {
   enabled: false,
@@ -142,6 +152,11 @@ export class PixiTacticalRenderer {
     this.root.label = 'tactical-arena'
     app.stage.addChild(this.root)
 
+    // Static starfield backdrop — built ONCE here and never touched again
+    // (perf rule: zero per-frame star work). Added before the border so it
+    // sits behind every combatant. Seeded placement → stable across sessions.
+    this.buildStarfield(arenaW, arenaH)
+
     this.border = new Graphics()
     this.border.rect(0, 0, arenaW, arenaH)
     this.border.stroke({ color: 0x1f1f25, width: 2 })
@@ -174,7 +189,27 @@ export class PixiTacticalRenderer {
     const shield = new Graphics()
     hull.visible = false
     shield.visible = false
-    return { hull, shield }
+    return { hull, shield, shapeSig: '' }
+  }
+
+  // One-shot backdrop. Draws combatConfig.tacticalStarfield.count dots into a
+  // single Graphics at seeded positions across the arena. Cost is paid once
+  // at construction; the container is never cleared or redrawn. O(count) once,
+  // 0 per frame — nothing here counts against the <2ms/frame arena budget.
+  private buildStarfield(arenaW: number, arenaH: number): void {
+    const cfg = combatConfig.tacticalStarfield
+    const rng = SeededRng.fromNumber(cfg.seed)
+    const color = Number(cfg.colorHex)
+    const stars = new Graphics()
+    stars.label = 'tactical-starfield'
+    for (let i = 0; i < cfg.count; i++) {
+      const x = rng.uniform() * arenaW
+      const y = rng.uniform() * arenaH
+      const r = cfg.minRadiusPx + rng.uniform() * (cfg.maxRadiusPx - cfg.minRadiusPx)
+      const alpha = cfg.minAlpha + rng.uniform() * (cfg.maxAlpha - cfg.minAlpha)
+      stars.circle(x, y, r).fill({ color, alpha })
+    }
+    this.root.addChild(stars)
   }
 
   resize(viewW: number, viewH: number): void {
@@ -306,20 +341,22 @@ export class PixiTacticalRenderer {
     node.shield.x = snap.x
     node.shield.y = snap.y
 
-    // Hull — arrowhead silhouette pointing along heading. Polygon array
-    // is the v8-blessed path shape; the Graphics rotates so the ship
-    // visibly turns toward its target. (moveTo/lineTo + closePath +
-    // fill().stroke() chains hit a Pixi v8 batcher null deref.)
+    // Hull — per-class silhouette pointing along heading. The polygon is
+    // rebuilt only when the class/radius/color changes (shapeSig cache);
+    // steady-state frames just re-place x/y/rotation. Polygon array is the
+    // v8-blessed path shape (moveTo/lineTo + closePath + fill().stroke()
+    // chains hit a Pixi v8 batcher null deref).
     const r = snap.hullRadius
-    node.hull.clear()
-      .poly([
-        r, 0,                  // nose
-        -r * 0.7, r * 0.6,     // starboard rear
-        -r * 0.4, 0,           // tail-notch
-        -r * 0.7, -r * 0.6,    // port rear
-      ])
-      .fill({ color: snap.color, alpha: 0.92 })
-      .stroke({ color: 0xffffff, width: 1, alpha: 0.55 })
+    const shape = classShape(snap.shipClassId)
+    const sig = `${shape.family}|${r}|${snap.color}`
+    if (node.shapeSig !== sig) {
+      const scaled = shape.points.map((n) => n * r)
+      node.hull.clear()
+        .poly(scaled)
+        .fill({ color: snap.color, alpha: 0.92 })
+        .stroke({ color: 0xffffff, width: 1, alpha: 0.55 })
+      node.shapeSig = sig
+    }
     node.hull.x = snap.x
     node.hull.y = snap.y
     node.hull.rotation = snap.heading

@@ -60,7 +60,7 @@ export function CombatTallyPanel() {
               <div key={s.partId} className="combat-tally-row">
                 <span className="combat-tally-row-label">{s.nameZh}</span>
                 <span className="combat-tally-row-value">
-                  <span className="combat-tally-row-delta">+{s.qty}</span>
+                  <span className="combat-tally-row-delta combat-tally-row-delta--solo">+{s.qty}</span>
                 </span>
               </div>
             ))}

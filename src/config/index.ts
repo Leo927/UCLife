@@ -109,3 +109,6 @@ export type { DiplomacySlotsConfig } from './diplomacySlots'
 
 export { frameProfConfig } from './frameProf'
 export type { FrameProfConfig } from './frameProf'
+
+export { labelsConfig } from './labels'
+export type { LabelsConfig } from './labels'

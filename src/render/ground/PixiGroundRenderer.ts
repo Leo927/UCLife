@@ -46,7 +46,7 @@ import { composeSheet } from '../sprite/compose'
 import { appearanceToLpc } from '../sprite/appearanceToLpc'
 import type { LpcAnimation, LpcDirection, LpcManifest } from '../sprite/types'
 import { actionLabel } from '../../data/actions'
-import { physiologyConfig } from '../../config'
+import { physiologyConfig, labelsConfig } from '../../config'
 import { getArt } from '../assets/registry'
 import type {
   RoadSnap, BuildingSnap, WallSnap, DoorSnap, BedSnap, BarSeatSnap,
@@ -429,7 +429,13 @@ export class PixiGroundRenderer {
         const rect = new Graphics()
         const label = new Text({
           text: b.label,
-          style: { fill: 0x5a5a64, fontSize: 11, fontFamily: FONT_FAMILY },
+          style: {
+            fill: 0x5a5a64,
+            fontSize: labelsConfig.building.fontSizePx,
+            fontFamily: FONT_FAMILY,
+            wordWrap: true,
+            wordWrapWidth: labelsConfig.building.wordWrapWidthPx,
+          },
         })
         root.addChild(rect)
         root.addChild(label)
@@ -445,8 +451,8 @@ export class PixiGroundRenderer {
           .fill({ color: b.visual.fill, alpha: 0.18 })
         drawDashedRect(node.rect, b.x, b.y, b.w, b.h, 6, 4, b.visual.stroke, 1)
         if (node.label.text !== b.label) node.label.text = b.label
-        node.label.x = b.x + 8
-        node.label.y = b.y + 6
+        node.label.x = b.x + labelsConfig.building.offsetXPx
+        node.label.y = b.y + labelsConfig.building.offsetYPx
         node.sig = sig
         groundStats.staticRedraws++
       }
@@ -947,11 +953,19 @@ export class PixiGroundRenderer {
       node.label.x = it.x
       node.label.y = it.y
     } else {
-      if (node.label.style.fontSize !== 12) node.label.style.fontSize = 12
+      const lc = labelsConfig.interactable
+      if (node.label.style.fontSize !== lc.fontSizePx) node.label.style.fontSize = lc.fontSizePx
+      if (!node.label.style.wordWrap) node.label.style.wordWrap = true
+      if (node.label.style.wordWrapWidth !== lc.wordWrapWidthPx) node.label.style.wordWrapWidth = lc.wordWrapWidthPx
+      if (node.label.style.align !== 'center') node.label.style.align = 'center'
       node.label.anchor.set(0.5, 0)
       if (node.label.text !== finalText) node.label.text = finalText
       node.label.x = it.x
-      node.label.y = it.y + 18
+      // Deterministic per-entity vertical stagger so co-located kiosks
+      // (tight ship rooms) don't overlay their labels on the same line.
+      const entId = Number(it.ent)
+      const lane = ((entId % lc.staggerCount) + lc.staggerCount) % lc.staggerCount
+      node.label.y = it.y + lc.offsetYPx + lane * lc.staggerStepPx
     }
   }
 

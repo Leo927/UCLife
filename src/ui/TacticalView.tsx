@@ -569,6 +569,7 @@ function playerVisual(p: PlayerSnap): PixiShipSnap {
     shieldRadius: 32,
     color: 0x4ade80,
     shieldAlpha: p.hasShield ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
+    shipClassId: p.templateId,
   }
 }
 
@@ -582,6 +583,7 @@ function enemyVisual(e: EnemySnap): PixiEnemyShipSnap {
     shieldRadius: 28,
     color: 0xdc2626,
     shieldAlpha: e.hasShield && e.shieldUp ? 0.15 + 0.55 * Math.max(0, shieldHeadroom) : 0,
+    shipClassId: e.shipClassId,
   }
 }
 
@@ -595,6 +597,7 @@ function playerMsVisual(m: MsSnap): PixiShipSnap {
     shieldRadius: 18,
     color: 0x60a5fa,    // friendly blue — distinct from the green flagship
     shieldAlpha: 0,     // 6.1: MS has no shield model
+    shipClassId: m.templateId,
   }
 }
 

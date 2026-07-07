@@ -17,6 +17,20 @@ export interface CombatConfig {
   defeat: { survivorMoney: number }
   withdrawConfirmWindowMs: number
   pilotAi: { boostDecisionWindowSec: number }
+  tacticalStarfield: {
+    count: number
+    seed: number
+    minRadiusPx: number
+    maxRadiusPx: number
+    minAlpha: number
+    maxAlpha: number
+    colorHex: string
+  }
+  shipSilhouettes: {
+    fallback: string
+    byClassId: Record<string, string>
+    families: Record<string, { poly: number[] }>
+  }
 }
 
 export const combatConfig = json5.parse(raw) as CombatConfig
