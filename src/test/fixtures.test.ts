@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { applyFixture, listFixtureNames } from './fixtures'
 import { getWorld, SCENE_IDS } from '../ecs/world'
-import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation, IsFlagshipMark, IsInActiveFleet, Ship, Ms, PlayerPartsInventory } from '../ecs/traits'
+import { IsPlayer, Position, Money, EntityKey, Attributes, ShipStatSheet, FactionRole, Psyche, Workstation, IsFlagshipMark, IsInActiveFleet, Ship, Ms, PlayerPartsInventory, EmployedAsCrew } from '../ecs/traits'
 import { getStat } from '../stats/sheet'
 import { worldConfig } from '../config'
 
@@ -189,6 +189,26 @@ describe('applyFixture', () => {
     expect(parts, 'parts inventory must exist').toBeTruthy()
     expect(parts.get(PlayerPartsInventory)!.weapons['ms-ballisticGun']).toBe(1)
     expect(parts.get(PlayerPartsInventory)!.frameMods['autoloader']).toBe(1)
+  })
+
+  it('loads crew-aboard: flagship roster wired + crew bodies materialized aboard', () => {
+    applyFixture('crew-aboard')
+    const shipWorld = getWorld('playerShipInterior')
+    const flag = shipWorld.queryFirst(Ship, IsFlagshipMark)!
+    expect(flag, 'flagship must exist').toBeTruthy()
+    const s = flag.get(Ship)!
+    expect(s.assignedCaptainId, 'captain wired from crew[].role').toBe('npc-crew-1')
+    expect([...s.crewIds].sort(), 'crew wired from crew[].role').toEqual(['npc-crew-2', 'npc-crew-3'])
+
+    const bodies = new Map<string, ReturnType<typeof shipWorld.queryFirst>>()
+    for (const e of shipWorld.query(EmployedAsCrew, EntityKey)) {
+      bodies.set(e.get(EntityKey)!.key, e)
+    }
+    expect([...bodies.keys()].sort(), 'all three crew bodied aboard')
+      .toEqual(['npc-crew-1', 'npc-crew-2', 'npc-crew-3'])
+    expect(bodies.get('npc-crew-1')!.get(EmployedAsCrew)!.role).toBe('captain')
+    // Fixture-pinned skill survived onto the captain's sheet.
+    expect(getStat(bodies.get('npc-crew-1')!.get(Attributes)!.sheet, 'engineering')).toBe(40)
   })
 
   it('loads ms-repair-depot: pre-damaged MS parks at vonBraun with the fixture hullCurrent override', () => {

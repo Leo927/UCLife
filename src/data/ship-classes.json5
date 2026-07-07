@@ -213,6 +213,15 @@
         { roomA: 'crewQ',      roomB: 'medbay',     side: 'south' },
         { roomA: 'mess',       roomB: 'hangarBay',  side: 'south' },
       ],
+      // W4.1 — duty stations manned when underway. Roster order: captain →
+      // bridge (the helm watch), then crew → engine / medbay / hangar. Anchors
+      // sit at each room's center (offset {0,0}), which is open floor.
+      crewStations: [
+        { roomId: 'bridge',     offset: { dx: 0, dy: 0 } },
+        { roomId: 'engineRoom', offset: { dx: 0, dy: 0 } },
+        { roomId: 'medbay',     offset: { dx: 0, dy: 0 } },
+        { roomId: 'hangarBay',  offset: { dx: 0, dy: 0 } },
+      ],
     },
 
     // Phase 6.2.C1 — the AE VB sales rep's second product (Task 4 of the
@@ -287,6 +296,11 @@
         { roomA: 'bridge',     roomB: 'engineRoom', side: 'south' },
         { roomA: 'crewQ',      roomB: 'hangarBay',  side: 'south' },
         { roomA: 'engineRoom', roomB: 'hangarBay',  side: 'east' },
+      ],
+      // W4.1 — two-hand crew: captain on the bridge, deckhand in the engine room.
+      crewStations: [
+        { roomId: 'bridge',     offset: { dx: 0, dy: 0 } },
+        { roomId: 'engineRoom', offset: { dx: 0, dy: 0 } },
       ],
     },
 
@@ -424,6 +438,17 @@
         { roomA: 'engineRoom',     roomB: 'hangarBay',      side: 'south' },
         { roomA: 'medbay',         roomB: 'hangarBay',      side: 'south' },
         { roomA: 'brig',           roomB: 'hangarBay',      side: 'south' },
+      ],
+      // W4.1 — carrier watch stations. Roster order fills bridge → war room →
+      // engine → medbay → comms → hangar; crew beyond these six wrap around
+      // (a 200-hand complement is aspirational content).
+      crewStations: [
+        { roomId: 'bridge',     offset: { dx: 0, dy: 0 } },
+        { roomId: 'warRoom',    offset: { dx: 0, dy: 0 } },
+        { roomId: 'engineRoom', offset: { dx: 0, dy: 0 } },
+        { roomId: 'medbay',     offset: { dx: 0, dy: 0 } },
+        { roomId: 'commRoom',   offset: { dx: 0, dy: 0 } },
+        { roomId: 'hangarBay',  offset: { dx: 0, dy: 0 } },
       ],
     },
   ],

@@ -20,6 +20,7 @@ import { bindAutosave } from '../boot/autosaveBinding'
 import { bindUi } from '../boot/uiBindings'
 import { bindPhysiology } from '../boot/physiologyBinding'
 import { bindFleetLaunch } from '../boot/fleetLaunchBinding'
+import { bindCrewAboard } from '../boot/crewAboardBinding'
 import { markTestMode } from './state'
 import { pinTestModeSpeed } from './clock'
 import { applyFixture } from './fixtures'
@@ -127,6 +128,7 @@ export default async function bootTestMode(params: TestBootParams): Promise<void
   bindUi()
   bindPhysiology()
   bindFleetLaunch()
+  bindCrewAboard()
   bootstrapApp({ skipDefaultPlayer: Boolean(params.fixture) })
   stopLoop()
 

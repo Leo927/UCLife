@@ -15,7 +15,8 @@ import {
   IsPlayer, Position, MoveTarget, Action, Vitals, Health, Money,
   Inventory, Job, JobPerformance, Attributes, Reputation, JobTenure,
   Character, Appearance, FactionRole, Flags, Ambitions, EntityKey,
-  Home, PendingEviction,
+  Home, PendingEviction, Effects, Conditions, Psyche,
+  EmployedAsCrew, RecruitedTo,
 } from '../ecs/traits'
 
 export function migratePlayerEntity(
@@ -72,5 +73,61 @@ export function migratePlayerEntity(
   // boundary if a respawn ever picks these up.
   if (ent.has(Home)) ent.remove(Home)
   if (ent.has(PendingEviction)) ent.remove(PendingEviction)
+  return ent
+}
+
+// Cross-world NPC move — the crew-aboard analogue of migratePlayerEntity.
+// W4.1: a hired crew member's body is materialized in the ship-interior
+// world; when the source body currently lives in another scene (freshly
+// hired in the city), reconcileCrewAboard relocates it here, preserving
+// identity (name, appearance, attributes/skills, condition/effect state,
+// hire markers) but dropping origin-scene refs (Job/Home/Knows) exactly
+// like the player migration does. EntityKey is preserved so the crew key
+// keeps resolving to one world.
+export function migrateNpcEntity(
+  srcEntity: Entity,
+  destWorld: World,
+  arrivalPos: { x: number; y: number },
+): Entity {
+  const character = srcEntity.get(Character)
+  const vitals = srcEntity.get(Vitals)
+  const health = srcEntity.get(Health)
+  const money = srcEntity.get(Money)
+  const inventory = srcEntity.get(Inventory)
+  const attributes = srcEntity.get(Attributes)
+  const effects = srcEntity.get(Effects)
+  const conditions = srcEntity.get(Conditions)
+  const appearance = srcEntity.get(Appearance)
+  const factionRole = srcEntity.get(FactionRole)
+  const jobPerformance = srcEntity.get(JobPerformance)
+  const psyche = srcEntity.get(Psyche)
+  const employedAsCrew = srcEntity.get(EmployedAsCrew)
+  const recruitedTo = srcEntity.get(RecruitedTo)
+  const key = srcEntity.get(EntityKey)?.key ?? ''
+
+  srcEntity.destroy()
+
+  const { x, y } = arrivalPos
+  const ent = destWorld.spawn(
+    character ? Character(character) : Character,
+    Position({ x, y }),
+    MoveTarget({ x, y }),
+    Action({ kind: 'idle', remaining: 0, total: 0 }),
+    vitals ? Vitals(vitals) : Vitals,
+    health ? Health(health) : Health,
+    money ? Money(money) : Money,
+    inventory ? Inventory(inventory) : Inventory,
+    Job,
+    jobPerformance ? JobPerformance(jobPerformance) : JobPerformance,
+    attributes ? Attributes(attributes) : Attributes,
+    EntityKey({ key }),
+  )
+  if (effects) ent.add(Effects({ list: effects.list.map((eff) => ({ ...eff })) }))
+  if (conditions) ent.add(Conditions({ list: conditions.list.map((c) => ({ ...c })) }))
+  if (appearance) ent.add(Appearance(appearance))
+  if (factionRole) ent.add(FactionRole(factionRole))
+  if (psyche) ent.add(Psyche({ revealed: [...psyche.revealed], lastRevealDay: psyche.lastRevealDay }))
+  if (employedAsCrew) ent.add(EmployedAsCrew(employedAsCrew))
+  if (recruitedTo) ent.add(RecruitedTo(recruitedTo))
   return ent
 }

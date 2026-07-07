@@ -52,3 +52,4 @@ import './pfDiag'           // click-to-navigate pathfinding probes (reachabilit
 import './movement'         // repath-budget stats + burst helper (issue #152)
 import './frameProf'        // frame-time profiler: per-stage ms/frame (sim / snapshot / pixiUpdate / interval)
 import './render'           // ground-renderer profiler: per-layer visible node counts + update ms
+import './clock'            // test-only game-hour setter (deterministic time-of-day windows)

@@ -1,0 +1,29 @@
+// W4.1 — crew duty schedule. Consumed by src/ai/crewDuty.ts (the pure
+// duty resolver) and the crew-duty BT branch in src/ai/trees.ts.
+//
+// Precedence (resolveCrewDuty): underway → man your station regardless of
+// clock; docked → cycle mess (meal windows) / quarters (sleep window) /
+// off-duty (falls through to the ordinary vital-driven drives, which find
+// the furnished rooms from Task 3). Hours are 24h ship-local, matching the
+// sim clock's getHours(). A window is [startHour, endHour): start inclusive,
+// end exclusive. sleepWindow wraps past midnight (start > end).
+{
+  duty: {
+    // Three mess sittings — breakfast / midday / evening. Chosen so the
+    // crew-aboard smoke can advance the frozen clock into a known window
+    // and observe the crew converge on the mess.
+    mealWindows: [
+      { startHour: 7,  endHour: 8 },
+      { startHour: 12, endHour: 13 },
+      { startHour: 18, endHour: 19 },
+    ],
+    // Night watch stands down — off-shift crew bunk down 22:00–06:00.
+    sleepWindow: { startHour: 22, endHour: 6 },
+    // A crew member counts as "on station / at the mess / in quarters" once
+    // within this radius (px) of the anchor — room-scale (≈1.5 tiles at the
+    // 32px grid) so several crew converging on one room settle around it
+    // instead of fighting for the single centre tile (npcArrive is 4px, far
+    // too tight to share). On arrival the crew member halts where they are.
+    arriveRadiusPx: 48,
+  },
+}

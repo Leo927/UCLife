@@ -102,6 +102,9 @@ export function boardShip(): void {
   }
   const px = (room.bounds.x + room.bounds.w / 2) * worldConfig.tilePx
   const py = (room.bounds.y + room.bounds.h / 2) * worldConfig.tilePx
+  // W4.1 — materialize the flagship's hired crew as bodies aboard before the
+  // player lands, so boarding an undercrewed-vs-crewed hull differs visibly.
+  emitSim('ship:crew-reconcile', { reason: 'board' })
   migratePlayerToScene(SHIP_SCENE_ID, { x: px, y: py })
 }
 
@@ -184,6 +187,12 @@ export function boardShipByKey(targetShipKey: string): { ok: true } | { ok: fals
   // granted with the player's first bought hull) renders in its hangar bay
   // only once that hull is the flagship. Re-place the MS sprites here.
   refreshMsLayout()
+  // W4.1 — teardown spares Character entities, so the old flagship's crew
+  // bodies linger in the ship world. Reconcile to the new flagship roster:
+  // off-roster bodies (the former crew) are trimmed and the new crew seeded.
+  // The old flagship keeps its crew keys on its Ship trait — its bodies
+  // re-materialize when the player boards it again.
+  emitSim('ship:crew-reconcile', { reason: 'flagship-switch' })
 
   const arrival = spawnPixelsForClass(targetCls)
   migratePlayerToScene(SHIP_SCENE_ID, arrival)

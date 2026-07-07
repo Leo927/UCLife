@@ -23,6 +23,15 @@ export interface ShipRoomInteractableDef {
   offset?: { dx: number; dy: number }
 }
 
+// W4.1 — a crew duty station: a walkable anchor tile inside a named room
+// where an on-roster crew member stands watch when the flagship is underway.
+// `offset` is in tiles relative to the room center (default {0,0}). Crew are
+// assigned to stations in roster order (captain first) at reconcile time.
+export interface ShipCrewStationDef {
+  roomId: string
+  offset?: { dx: number; dy: number }
+}
+
 export interface ShipRoomDef {
   id: string
   nameZh: string
@@ -131,6 +140,10 @@ export interface ShipClassDef {
   officers: ShipOfficersDef
   rooms: ShipRoomDef[]
   doors: ShipDoorDef[]
+  // W4.1 — crew duty stations manned when the ship is underway. Optional so
+  // legacy authoring loads; a class with none leaves crew station-less
+  // (they idle at the crew-quarters anchor when underway).
+  crewStations?: ShipCrewStationDef[]
 }
 
 interface ShipsFile {
@@ -321,6 +334,18 @@ for (const ship of parsed.ships) {
             throw new Error(`ship-classes.json5: ship "${ship.id}" room "${room.id}" interactable "${k.kind}" offset must be {dx,dy} numbers`)
           }
         }
+      }
+    }
+  }
+
+  // W4.1 — crew stations must reference authored rooms with numeric offsets.
+  if (ship.crewStations) {
+    for (const st of ship.crewStations) {
+      if (!roomIds.has(st.roomId)) {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" crewStation references unknown room "${st.roomId}"`)
+      }
+      if (st.offset !== undefined && (typeof st.offset.dx !== 'number' || typeof st.offset.dy !== 'number')) {
+        throw new Error(`ship-classes.json5: ship "${ship.id}" crewStation in "${st.roomId}" offset must be {dx,dy} numbers`)
       }
     }
   }

@@ -1,0 +1,33 @@
+// W4.1 — a crewed flagship boarded and sitting in its own interior. The
+// crew-aboard smoke boots straight into the ship interior so the crew
+// bodies are already materialized (reconcileCrewAboard runs during ship
+// seeding), then drives save/load + fire through debug verbs to prove the
+// world-identity invariant.
+{
+  seed: 'crew-aboard-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  // Player stands in the captain's office (room center 1,1) — which is
+  // neither a duty station (bridge / engine / medbay / hangar) nor a mess /
+  // quarters destination, so the player's body never crowds a room the crew
+  // converge on.
+  player: {
+    money: 1000000,
+    location: { scene: 'playerShipInterior', x: 1, y: 1 },
+  },
+
+  ships: [
+    {
+      id: 'flagship',
+      template: 'lightFreighter',
+      flagship: true,
+      dockedAt: 'vonBraun',
+      crew: [
+        { key: 'npc-crew-1', name: '布莱特', role: 'captain', skills: { engineering: 40 } },
+        { key: 'npc-crew-2', name: '米莱', role: 'crew' },
+        { key: 'npc-crew-3', name: '哈亚托', role: 'crew' },
+      ],
+    },
+  ],
+}
