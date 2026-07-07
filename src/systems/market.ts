@@ -134,7 +134,7 @@ export function getJobWorkstation(entity: Entity): Entity | null {
 
 // Lounge included at rank 0 so the loop covers all tiers without crashing,
 // but it's excluded from claim flow below.
-const TIER_RANK: Record<BedTier, number> = { luxury: 4, apartment: 3, dorm: 2, flop: 1, lounge: 0 }
+const TIER_RANK: Record<BedTier, number> = { luxury: 4, apartment: 3, bunk: 2, dorm: 2, flop: 1, lounge: 0 }
 
 // "Open" treats lapsed-rent beds as free even when Bed.occupant still
 // names the prior tenant.

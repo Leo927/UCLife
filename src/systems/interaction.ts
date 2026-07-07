@@ -13,7 +13,7 @@ import { BED_MULTIPLIERS, bedActiveOccupant } from './bed'
 import { isBarOpen } from './shop'
 import { useClock } from '../sim/clock'
 import { emitSim } from '../sim/events'
-import { worldConfig, actionsConfig } from '../config'
+import { worldConfig, actionsConfig, crewConfig } from '../config'
 import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
 import { Ship, IsFlagshipMark, Ms } from '../ecs/traits'
 import { boardShipByKey, disembarkShip, migratePlayerToScene } from '../sim/scene'
@@ -33,6 +33,7 @@ import { isPlayerColony } from '../sim/colony'
 
 const ARRIVE_DIST = worldConfig.ranges.playerInteract
 const SLEEP_MIN_PER_FATIGUE = actionsConfig.sleepMinutesForFullRest / 100
+const HOUR_MS = 60 * 60 * 1000
 
 // Pixel position to drop the player on at the other end of an orbital lift.
 // Resolves by querying the destination scene's OrbitalLift kiosk for the
@@ -459,6 +460,19 @@ export function interactionSystem(world: World) {
             ...bed,
             occupant: player,
             rentPaidUntilMs: now + 90 * 60 * 1000,
+          })
+        } else if (bed.tier === 'bunk') {
+          // W4.2 — ship crew bunk. Free to claim on click (no realtor); the
+          // occupancy holds for the configured window so crew and player
+          // don't fight over the same rack mid-watch.
+          if (bed.occupant !== null && bed.occupant !== player) {
+            emitSim('toast', { textZh: '这张铺位已被占用' })
+            continue
+          }
+          nearestEnt.set(Bed, {
+            ...bed,
+            occupant: player,
+            rentPaidUntilMs: now + crewConfig.bunk.claimHours * HOUR_MS,
           })
         } else {
           const active = bedActiveOccupant(bed, now)

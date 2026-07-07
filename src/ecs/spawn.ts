@@ -44,7 +44,7 @@ import { specialNpcs } from '../character/specialNpcs'
 import { pickFreshName, pickRandomColor } from '../character/nameGen'
 import type { FactionId } from '../data/factions'
 import { markPathfindingDirty, warmPathfinding } from '../systems/pathfinding'
-import { worldConfig, economyConfig, fleetConfig } from '../config'
+import { worldConfig, economyConfig, fleetConfig, type BedTier } from '../config'
 import {
   SeededRng, generateCells, maxHorizontalCells, maxVerticalCells,
   generateRoadGrid, assignBuildings,
@@ -1211,12 +1211,18 @@ export function seedShipSceneLayout(cls: ShipClassDef, targetWorld: World): void
       const dx = (k.offset?.dx ?? 0) * TILE
       const dy = (k.offset?.dy ?? 0) * TILE
       const templateId = shipKioskTemplateFor(k.kind)
-      targetWorld.spawn(
+      const kiosk = targetWorld.spawn(
         Position({ x: cx + dx, y: cy + dy }),
         Interactable({ kind: k.kind, label: k.label, fee: 0 }),
         EntityKey({ key: `ship-kiosk-${room.id}-${i}` }),
         TemplateRef({ id: templateId }),
       )
+      // W4.2 — a `sleep` kiosk in the crew quarters is a usable rack:
+      // attach a rent-free Bed so the player free-claims it (interaction.ts)
+      // and off-duty crew find it via findBestOpenBed, mirroring city beds.
+      if (k.kind === 'sleep') {
+        kiosk.add(Bed({ tier: SHIP_BUNK_TIER, nightlyRent: 0, occupant: null, rentPaidUntilMs: 0 }))
+      }
     })
   }
 }
@@ -1472,7 +1478,17 @@ const SHIP_KIOSK_TEMPLATES: Record<string, ObjectTemplateId> = {
   disembarkShip:  'ship-disembark',
   climbIntoMs:    'ship-climb-into-ms',
   brig:           'ship-brig',
+  // W4.2 — furnished crew rooms. `sleep` kiosks additionally carry a Bed
+  // trait (tier 'bunk', rent-free); `eat` kiosks are the mess station crew
+  // and player use.
+  sleep:          'ship-bunk',
+  eat:            'ship-mess',
 }
+
+// W4.2 — ship crew bunks are the rent-free 'bunk' tier. Kept as a named
+// constant so the spawn loop below and the interaction free-claim branch
+// agree on the tier string.
+const SHIP_BUNK_TIER: BedTier = 'bunk'
 
 function shipKioskTemplateFor(kind: string): ObjectTemplateId {
   const id = SHIP_KIOSK_TEMPLATES[kind]
@@ -1489,10 +1505,9 @@ function runSceneBootstrap(scene: SceneConfig, opts: SetupWorldOpts): void {
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 
-type BedTier = 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge'
-
 function bedRent(tier: BedTier): number {
-  if (tier === 'lounge') return 0
+  // 'bunk' (ship crew rack) and 'lounge' (AE couch) are rent-free.
+  if (tier === 'lounge' || tier === 'bunk') return 0
   const key = `${tier}Bed` as keyof typeof economyConfig.prices
   return economyConfig.prices[key] as number
 }
@@ -1504,6 +1519,7 @@ function bedLabel(tier: BedTier): string {
     case 'apartment': return '床'
     case 'luxury':    return '高级床'
     case 'lounge':    return '员工沙发'
+    case 'bunk':      return '床铺'
   }
 }
 

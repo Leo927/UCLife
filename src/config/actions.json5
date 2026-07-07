@@ -49,6 +49,9 @@
   bedMultipliers: {
     luxury:    1.5,
     apartment: 1.25,
+    // W4.2 — ship crew bunk. Standard-issue rack: same recovery as a dorm
+    // bed (functional, not luxurious), but rent-free aboard the flagship.
+    bunk:      1.0,
     dorm:      1.0,
     lounge:    0.9,
     flop:      0.85,

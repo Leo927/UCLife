@@ -39,6 +39,9 @@ const BED_TIER_LABEL: Record<BedTier, string> = {
   dorm: '工人宿舍',
   flop: '廉价旅馆',
   lounge: '员工沙发',
+  // Ship crew bunks are never realtor-listed (BED_TIER_ORDER excludes them);
+  // the label exists only to keep the tier map exhaustive.
+  bunk: '船员铺位',
 }
 
 const BED_TIER_UNIT_LABEL: Record<BedTier, string> = {
@@ -47,6 +50,7 @@ const BED_TIER_UNIT_LABEL: Record<BedTier, string> = {
   dorm: '宿舍床',
   flop: '投币床',
   lounge: '员工沙发',
+  bunk: '船员铺位',
 }
 
 function rentPeriodLabel(tier: BedTier): string {
@@ -101,7 +105,7 @@ function RealtorPanel() {
 
   const apartmentBedRows = useMemo(() => {
     const byTier: Record<BedTier, { ent: Entity; pos: { x: number; y: number } }[]> = {
-      luxury: [], apartment: [], dorm: [], flop: [], lounge: [],
+      luxury: [], apartment: [], dorm: [], flop: [], lounge: [], bunk: [],
     }
     for (const ent of allBeds) {
       const b = ent.get(Bed)

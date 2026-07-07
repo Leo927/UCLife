@@ -6,7 +6,10 @@
 // `import { BedTier } from '../ecs/traits'` callers keep working
 // unchanged.
 
-export type BedTier = 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge'
+// 'bunk' — W4.2 ship crew bunk. Free (no rent), spawned only in the ship
+// interior's crew quarters; the player claims one on click and crew claim
+// via findBestOpenBed, like a dorm bed but rent-free.
+export type BedTier = 'flop' | 'dorm' | 'apartment' | 'luxury' | 'lounge' | 'bunk'
 
 export type RoadKind = 'avenue' | 'street' | 'alley'
 

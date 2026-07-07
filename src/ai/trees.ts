@@ -67,7 +67,7 @@ export const NPC_TREE: RootNodeDefinition = {
                 type: 'sequence',
                 children: [
                   { type: 'condition', call: 'isCrewMealtime' },
-                  { type: 'action', call: 'goToMess' },
+                  { type: 'action', call: 'eatAtMess' },
                 ],
               },
               {
