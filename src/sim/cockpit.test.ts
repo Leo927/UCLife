@@ -198,6 +198,32 @@ describe('dockMs', () => {
     expect(getPlayerMs()).toBeUndefined()
   })
 
+  it('docking from the helm scene flips to the interior without destroying the campaign ship', () => {
+    spawnFlagship()
+    spawnRosterMs(MS_KEY)
+    const space = getWorld('spaceCampaign')
+    const campaignShip = space.spawn(
+      IsPlayer(), ShipBody(), Position({ x: 0, y: 0 }), EntityKey({ key: 'spacePlayer' }),
+    )
+    spawned.push(campaignShip)
+    const w = getWorld(SHIP_SCENE_ID)
+    const avatar = w.spawn(
+      IsPlayer(), Position({ x: 0, y: 0 }),
+      MoveTarget({ x: 0, y: 0 }), Action({ kind: 'idle', remaining: 0, total: 0 }),
+      EntityKey({ key: 'player' }),
+    )
+    spawned.push(avatar)
+    expect(launchMs(MS_KEY).ok).toBe(true)
+    useScene.getState().setActive('spaceCampaign')
+
+    expect(dockMs({ force: true }).ok).toBe(true)
+
+    expect(space.queryFirst(IsPlayer, ShipBody),
+      'the campaign player-ship entity must survive the dock-back').toBeDefined()
+    expect(useScene.getState().activeId,
+      'docking lands the player in the walkable ship interior').toBe(SHIP_SCENE_ID)
+  })
+
   it('leaves the roster untouched when the clone docks at full hull', () => {
     spawnFlagship()
     const ms = spawnRosterMs(MS_KEY)

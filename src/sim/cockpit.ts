@@ -471,6 +471,9 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
       player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
   }
+  if (useScene.getState().activeId !== SHIP_SCENE_ID) {
+    useScene.getState().setActive(SHIP_SCENE_ID)
+  }
   ensureTacticalOpen(false)
 
   adjutantSay('MS 已入舱 · 欢迎回来', 'narr')
