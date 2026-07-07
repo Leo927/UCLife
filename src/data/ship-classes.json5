@@ -111,6 +111,11 @@
       // Phase 6.2.5 — internal MS bay. lightFreighter lore: "机库勉强能容下
       // 一台 MS" (hangar can barely fit one MS). Single internal slot.
       hangarCapacity: 1,
+      // W4.3 — forward-repair band. A civilian refit's makeshift deck patches
+      // to 80% and can't touch a unit below 40% (baseline; a carrier tender
+      // would author a lower floor).
+      onShipRepairCap: 0.8,
+      onShipRepairFloor: 0.4,
       // Phase 6.2.5.C — physical launch/recovery doors authored per
       // hull. The lightFreighter ships with one port-side cradle door:
       // an MS spawns at (ship.pos + door.position rotated by ship.heading)
@@ -366,6 +371,11 @@
       // Phase 6.2.5 — internal MS bay. Pegasus-class hangar bay holds up
       // to 4 MS internally; aligns with UC canon White Base complement.
       hangarCapacity: 4,
+      // W4.3 — forward-repair band. A carrier's full deck patches to 80% and
+      // holds the baseline 40% floor; a dedicated tender would lower the floor
+      // further to salvage deeper-damaged units in the field.
+      onShipRepairCap: 0.8,
+      onShipRepairFloor: 0.4,
       // Phase 6.2.5.C — White-Base-shape door authoring. UC canon: the
       // Pegasus opens its bow doors and catapults MS forward. Three
       // doors against four bays produces the carrier-vs-frigate asymmetry

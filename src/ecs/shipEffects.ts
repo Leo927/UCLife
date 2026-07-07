@@ -11,6 +11,7 @@ import {
 import { setBase } from '../stats/sheet'
 import { createShipSheet } from '../stats/shipSchema'
 import { getShipClass, type ShipClassDef } from '../data/ship-classes'
+import { sortieConfig } from '../config'
 
 export type ShipEffect = Effect<ShipStatId>
 
@@ -85,6 +86,13 @@ export function projectShipSheet(
   if (cls.dpCost !== undefined) {
     sheet = setBase(sheet, 'dpCost', cls.dpCost)
   }
+  // W4.3 — on-ship forward-repair band. Read by systems/onShipRepair.ts via
+  // getStat(sheet, …). A hull may author its own cap/floor (tenders lower the
+  // floor, escorts raise it); otherwise the config baselines apply so every
+  // hull has a sane band instead of the 0-default (which would mean "no
+  // forward repair at all").
+  sheet = setBase(sheet, 'onShipRepairCap', cls.onShipRepairCap ?? sortieConfig.onShipRepair.defaultCap)
+  sheet = setBase(sheet, 'onShipRepairFloor', cls.onShipRepairFloor ?? sortieConfig.onShipRepair.defaultFloor)
   for (const id of Object.keys(extras) as ShipStatId[]) {
     sheet = setBase(sheet, id, extras[id]!)
   }

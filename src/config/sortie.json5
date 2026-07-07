@@ -28,6 +28,25 @@
   // assignment, so the formula uses this count.
   defaultMechanicCrewCount: 0,
 
+  // ── W4.3 — on-ship (forward) MS repair band (Design/fleet.md) ─────────
+  // The ship's hangar crew patch aboard MS between engagements, but only
+  // within the band [onShipRepairFloor, onShipRepairCap] (ship stats): a
+  // unit below the floor is sidelined (untouchable aboard); hull + armor
+  // rise only up to `cap × max`, never to 100% (that needs a depot). Runs
+  // on the daily repair chain (O(aboard-MS), N ≤ hangar bays).
+  onShipRepair: {
+    // Repair points applied per aboard-MS repair tick (daily), spread
+    // armor-first then hull, clamped to the cap ceiling. Comparable to a
+    // depot worker's daily throughput so forward repair is a real but
+    // slower alternative to depoting.
+    pointsPerDay: 60,
+    // Ship-stat fallbacks projected onto the ShipStatSheet when a hull's
+    // template omits the fields (see ecs/shipEffects.ts). Baselines from
+    // Design/fleet.md: patch to 80%, sideline below 40%.
+    defaultCap: 0.8,
+    defaultFloor: 0.4,
+  },
+
   // ── Door cycle timings (Design/sortie.md §Hangar door / launch pos) ──
   // A door cycles `idle → launching → idle → docking → idle` and locks
   // for these many tactical-seconds per operation. ~2s in design.

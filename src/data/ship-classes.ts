@@ -125,6 +125,13 @@ export interface ShipClassDef {
   // can be stored inside this hull's internal hangar bay (distinct from
   // POI-level hangar slots). 0 = no internal bay (default for non-carriers).
   hangarCapacity?: number
+  // W4.3 — on-ship forward-repair band (fraction of max, 0..1). The hangar
+  // crew patch aboard MS only within [onShipRepairFloor, onShipRepairCap];
+  // units below the floor are sidelined, and hull/armor rise only to the cap
+  // (never 100% aboard). Optional — omitted hulls fall to sortie.json5's
+  // onShipRepair defaults. Projected onto the ShipStatSheet at spawn.
+  onShipRepairCap?: number
+  onShipRepairFloor?: number
   // Phase 6.2.5.C — per-ship-class authored launch doors. Optional so a
   // hull with no internal MS bay (e.g. lunarMilitia) omits it cleanly.
   // Length may be less than hangarCapacity → MS share doors and queue.
