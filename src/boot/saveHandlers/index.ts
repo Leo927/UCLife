@@ -2,9 +2,11 @@
 // its handler at load time. Adding a 16th persisted subsystem == one
 // new file in this directory + one line here.
 //
-// Order is irrelevant: registry uses `phase` ('pre' | 'post') for
-// ordering, and within a phase handlers are independent (no handler
-// reads or writes another handler's state during snapshot/restore).
+// The registry runs handlers in registration order within a phase. Most
+// handlers are independent, but a few restore steps read state a prior
+// handler rebuilt: `fleetPool` needs `ship`'s recomputed fuelMax, and
+// `crewAboard` needs `ship`'s restored crew rosters. Keep those after
+// `ship`.
 
 import './scene'        // phase: 'pre'  — active scene id
 import './clock'        // phase: 'post' — gameDate
@@ -19,6 +21,7 @@ import './stress'       // phase: 'post' — transient (reset only)
 import './supplyDrain'  // phase: 'post' — transient (reset only)
 import './spaceSim'     // phase: 'post' — transient (reset only)
 import './ship'         // phase: 'post' — long-arc ship state
+import './crewAboard'   // phase: 'post' — crew bodies aboard (after ship: needs restored rosters)
 import './fleetPool'    // phase: 'post' — fleet fuel pool (after ship: needs recomputed fuelMax)
 import './space'        // phase: 'post' — spaceCampaign physics state
 import './relations'    // phase: 'post' — Knows graph (needs entities)

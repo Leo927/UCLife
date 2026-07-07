@@ -205,6 +205,10 @@ export interface GameStateView {
   // (verifies a faction-leader perk's FactionEffect folded in). Returns the
   // schema default (1.0) when no player-faction or no sheet is present.
   getPlayerFactionStat(statId: string): number
+  // W4.1 — every scene world that holds an entity with this EntityKey. Used
+  // by the crew-aboard smoke to assert a crew key resolves to exactly one
+  // world (the ship), with no duplicate/orphan across a save round-trip.
+  getEntitySceneIds(key: string): string[]
 }
 
 const FACTION_IDS: ReadonlySet<string> = new Set(Object.keys(factionsConfig.catalog))
@@ -557,6 +561,16 @@ export function getGameState(): GameStateView {
       const fs = e?.get(FactionSheet)
       if (!fs) return 1.0
       return getStat(fs.sheet, statId as FactionStatId)
+    },
+    getEntitySceneIds(key: string): string[] {
+      const out: string[] = []
+      for (const sceneId of SCENE_IDS) {
+        const w = getWorld(sceneId)
+        for (const e of w.query(EntityKey)) {
+          if (e.get(EntityKey)!.key === key) { out.push(sceneId); break }
+        }
+      }
+      return out
     },
   }
 }

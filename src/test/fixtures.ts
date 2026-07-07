@@ -17,12 +17,13 @@ import { isShipClassId, getShipClass } from '../data/ship-classes'
 import { isMsClassId } from '../data/ms'
 import { isMsWeaponId } from '../data/ms-weapons'
 import { isMsFrameModId } from '../data/ms-frame-mods'
-import { Ship, IsFlagshipMark, IsInActiveFleet, Owner, PlayerPartsInventory } from '../ecs/traits'
+import { Ship, IsFlagshipMark, IsInActiveFleet, Owner, PlayerPartsInventory, EmployedAsCrew } from '../ecs/traits'
 import { MS_ROLE_TAGS, type MsRoleTag } from '../ecs/traits'
 import { defaultShipName } from '../data/shipNaming'
 import { attachShipStatSheet } from '../ecs/shipEffects'
 import { recomputeFleetFuelMax } from '../ecs/fleetPool'
 import { seedShipSceneLayout, refreshMsLayout, spawnMsEntity } from '../ecs/spawn'
+import { reconcileCrewAboard } from '../systems/crewAboard'
 
 interface FixtureLocation {
   scene: string
@@ -42,6 +43,13 @@ interface FixtureFaction {
   money?: number
 }
 
+interface FixtureCrew {
+  key: string
+  name?: string
+  role?: 'captain' | 'crew'
+  skills?: Record<string, number>
+}
+
 interface FixtureShip {
   id: string
   template: string
@@ -53,6 +61,11 @@ interface FixtureShip {
   // boot state that bootstrapShipScene used to grant. When no ship sets it,
   // ships[0] is marked IsFlagshipMark (interior NOT seeded) for backward compat.
   flagship?: boolean
+  // W4.1 — hired crew aboard this ship. Sets Ship.assignedCaptainId (role
+  // 'captain') + Ship.crewIds (role 'crew') to these stable `npc-crew-<N>`
+  // keys and materializes their bodies aboard via reconcileCrewAboard, so a
+  // fixture boots with a crewed flagship without walking a hire flow.
+  crew?: FixtureCrew[]
 }
 
 // W1 Task 5 — an MS aboard the flagship or docked at a POI. The starter MS
@@ -115,7 +128,8 @@ const PLAYER_KEYS: ReadonlySet<string> = new Set([
 ])
 const LOCATION_KEYS: ReadonlySet<string> = new Set(['scene', 'x', 'y'])
 const FACTION_KEYS: ReadonlySet<string> = new Set(['id', 'money'])
-const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt', 'flagship'])
+const SHIP_KEYS: ReadonlySet<string> = new Set(['id', 'template', 'name', 'dockedAt', 'flagship', 'crew'])
+const CREW_KEYS: ReadonlySet<string> = new Set(['key', 'name', 'role', 'skills'])
 const MS_KEYS: ReadonlySet<string> = new Set([
   'key', 'template', 'storedOnShip', 'bayIndex', 'dockedAt', 'pilotId', 'hullCurrent', 'roleTag',
 ])
@@ -293,6 +307,25 @@ function validate(name: string, raw: unknown): Fixture {
       if (r.name !== undefined) s.name = asString(name, `ships[${i}].name`, r.name)
       if (r.dockedAt !== undefined) s.dockedAt = asString(name, `ships[${i}].dockedAt`, r.dockedAt)
       if (r.flagship !== undefined) s.flagship = asBoolean(name, `ships[${i}].flagship`, r.flagship)
+      if (r.crew !== undefined) {
+        const crewArr = asArray(name, `ships[${i}].crew`, r.crew)
+        s.crew = crewArr.map((crow, ci) => {
+          const cr = asObject(name, `ships[${i}].crew[${ci}]`, crow)
+          rejectUnknownKeys(name, `ships[${i}].crew[${ci}]`, cr, CREW_KEYS)
+          const ckey = asString(name, `ships[${i}].crew[${ci}].key`, cr.key)
+          const c: FixtureCrew = { key: ckey }
+          if (cr.name !== undefined) c.name = asString(name, `ships[${i}].crew[${ci}].name`, cr.name)
+          if (cr.role !== undefined) {
+            const role = asString(name, `ships[${i}].crew[${ci}].role`, cr.role)
+            if (role !== 'captain' && role !== 'crew') {
+              fail(name, `ships[${i}].crew[${ci}].role`, `must be "captain" or "crew", got "${role}"`)
+            }
+            c.role = role
+          }
+          if (cr.skills !== undefined) c.skills = validateSkills(name, `ships[${i}].crew[${ci}].skills`, cr.skills)
+          return c
+        })
+      }
       return s
     })
     const flagshipCount = out.ships.filter((s) => s.flagship === true).length
@@ -499,11 +532,35 @@ function applyShips(name: string, fx: Fixture): void {
       ship.add(IsInActiveFleet)
       if (s.flagship === true) flagshipCls = cls
     }
+    // W4.1 — seed the crew roster (captain + crewIds) onto the Ship trait.
+    if (s.crew && s.crew.length > 0) {
+      const captainKey = s.crew.find((c) => c.role === 'captain')?.key ?? ''
+      const crewIds = s.crew.filter((c) => c.role !== 'captain').map((c) => c.key)
+      const cur = ship.get(Ship)!
+      ship.set(Ship, { ...cur, assignedCaptainId: captainKey, crewIds })
+      // Materialize the crew bodies with fixture-pinned identity + skills
+      // directly aboard, carrying EmployedAsCrew so reconcileCrewAboard
+      // recognizes them (rather than spawning name=key duplicates).
+      for (const c of s.crew) {
+        const body = spawnNPC(shipWorld, {
+          name: c.name ?? c.key,
+          color: '#cccccc',
+          x: 0, y: 0,
+          key: c.key,
+          skills: c.skills as Partial<Record<ConfigSkillId, number>> | undefined,
+        })
+        body.add(EmployedAsCrew({ shipKey: s.id, role: c.role ?? 'crew' }))
+      }
+    }
   }
 
   // Seed the flagship's interior (rooms + kiosks) the way the old boot did,
   // so fixtures that board / enter the ship find a walkable layout.
   if (flagshipCls) seedShipSceneLayout(flagshipCls, shipWorld)
+
+  // W4.1 — align crew bodies to the flagship roster (idempotent over the
+  // bodies spawned above; also positions them at the crew-quarters anchor).
+  reconcileCrewAboard()
 
   // Roster mutated — re-derive fleet fuel capacity and top off so the
   // fixture starts in a flyable state.

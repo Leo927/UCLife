@@ -250,6 +250,11 @@ export async function saveGame(slot: SlotId = 'auto'): Promise<void> {
 
   const entities: EntitySnap[] = []
   for (const e of world.query(EntityKey)) {
+    // W4.1 — crew bodies live in the ship-interior world and are persisted
+    // by the crewAboard save handler (which reads that world directly).
+    // Skip them here so they aren't double-captured when the ship interior
+    // happens to be the active scene at save time.
+    if (e.get(EntityKey)!.key.startsWith('npc-crew-')) continue
     entities.push(snapshotEntity(e))
   }
 
@@ -395,17 +400,20 @@ export async function loadGame(slot: SlotId = 'auto'): Promise<{ ok: true } | { 
     // entity respawns through the same immigrant path as a regular NPC,
     // then the Applicant trait serializer overlays the recruitment state.
     //
-    // Phase 6.2.D — hired crew NPCs get a stable `npc-crew-<N>` key on
-    // hire so they round-trip across reseed. They share the immigrant
-    // respawn path: a fresh NPC is spawned with the saved key, then the
-    // EmployedAsCrew + RecruitedTo + Money serializers overlay the
-    // hire-side state.
+    // W4.1 — hired crew (`npc-crew-<N>`) live aboard the flagship in the
+    // ship-interior world; the crewAboard post-phase save handler owns
+    // their persistence + re-materialization. Skip them here silently (an
+    // old save may still carry a crew body snap in this list).
     // Phase 7.0.E.4 — diplomatic-slot personnel (`dipl-staff-`/`dipl-guard-`)
     // are re-materialized from the persisted occupancy map by the
     // diplomaticSlots post-phase save handler, not through this respawn path.
     // Skip them here silently so they don't trip the unknown-key warning.
-    if (snap.key.startsWith('dipl-staff-') || snap.key.startsWith('dipl-guard-')) continue
-    if (!snap.key.startsWith('npc-imm-') && !snap.key.startsWith('npc-crew-')) {
+    if (
+      snap.key.startsWith('dipl-staff-') ||
+      snap.key.startsWith('dipl-guard-') ||
+      snap.key.startsWith('npc-crew-')
+    ) continue
+    if (!snap.key.startsWith('npc-imm-')) {
       // Unknown key not produced by setupWorld — likely a future-version
       // entity. Skip rather than crash.
       console.warn(`[save/load] saved entity has unknown key: ${snap.key}`)

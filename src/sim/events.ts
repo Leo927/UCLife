@@ -72,6 +72,12 @@ export interface SimEventPayloads {
   // event keeps sim/ from reaching upward into systems/.
   'fleet:flagship-undock':     { originPoiId: string; gameDay: number }
   'fleet:flagship-dock':       { destPoiId: string }
+  // W4.1 — crew live aboard the flagship. Emitted from sim/scene at the
+  // board / flagship-switch sites; a systems-layer boot binding
+  // (boot/crewAboardBinding.ts) calls reconcileCrewAboard() so the
+  // ship-interior world re-bodies exactly the flagship's roster. Keeps
+  // sim/ from reaching upward into systems/ (same pattern as fleet:*).
+  'ship:crew-reconcile':       { reason: string }
   // Phase 6.1 — set the tactical-overlay visibility (combat may keep
   // running underneath while the overlay is hidden, so the player can
   // walk the ship interior mid-engagement). Subscribed by combat.ts to

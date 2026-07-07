@@ -29,6 +29,7 @@ function isAlreadyRecruited(npc: Entity, player: Entity): boolean {
   return !!r && r.owner === player
 }
 import { getWorld, SCENE_IDS } from '../ecs/world'
+import { reconcileCrewAboard } from './crewAboard'
 import { fleetConfig } from '../config'
 import { getShipClass } from '../data/ship-classes'
 import { getStat } from '../stats/sheet'
@@ -141,6 +142,7 @@ function applyCaptainAssignment(
   if (npc.has(RecruitedTo)) npc.set(RecruitedTo, { owner: player })
   else npc.add(RecruitedTo({ owner: player }))
   applyCaptainEffect(ship, npc)
+  reconcileCrewAboard(ship)
 }
 
 // Monotone counter producing stable `npc-crew-<N>` keys. Hired NPCs
@@ -198,6 +200,7 @@ function applyCrewAssignment(
   else npc.add(EmployedAsCrew({ shipKey, role: 'crew' }))
   if (npc.has(RecruitedTo)) npc.set(RecruitedTo, { owner: player })
   else npc.add(RecruitedTo({ owner: player }))
+  reconcileCrewAboard(ship)
 }
 
 // Vacate any prior workstation seat. Mirrors talkHireBranch's vacancy
@@ -213,19 +216,22 @@ function vacateNpcJobForCrew(npc: Entity): void {
   npc.set(Job, { workstation: null, unemployedSinceMs: 0 })
 }
 
-// Fire the captain. Removes from Ship + clears EmployedAsCrew + drops
-// the captain Effect. Returns true if a captain was actually removed.
+// Fire the captain. Removes from Ship + drops the captain Effect, then
+// reconciles so the aboard body leaves the ship. Returns true if a captain
+// was actually removed. W4.1: the crew body lives aboard, so reconcile
+// (which keys off EmployedAsCrew) destroys the off-roster body — the marker
+// is intentionally left on until reconcile so it can find it.
 export function fireCaptain(ship: Entity): boolean {
   const s = ship.get(Ship)
   if (!s || s.assignedCaptainId === '') return false
   removeCaptainEffect(ship, s.assignedCaptainId)
-  const captainEnt = findNpcByKey(s.assignedCaptainId)?.entity
-  if (captainEnt && captainEnt.has(EmployedAsCrew)) captainEnt.remove(EmployedAsCrew)
   ship.set(Ship, { ...s, assignedCaptainId: '' })
+  reconcileCrewAboard(ship)
   return true
 }
 
-// Fire a specific crew member by entity key.
+// Fire a specific crew member by entity key. The aboard body is removed by
+// the reconcile pass (see fireCaptain).
 export function fireCrewMember(ship: Entity, npcKey: string): boolean {
   const s = ship.get(Ship)
   if (!s) return false
@@ -233,8 +239,7 @@ export function fireCrewMember(ship: Entity, npcKey: string): boolean {
   if (idx < 0) return false
   const next = s.crewIds.filter((k) => k !== npcKey)
   ship.set(Ship, { ...s, crewIds: next })
-  const npcEnt = findNpcByKey(npcKey)?.entity
-  if (npcEnt && npcEnt.has(EmployedAsCrew)) npcEnt.remove(EmployedAsCrew)
+  reconcileCrewAboard(ship)
   return true
 }
 
@@ -261,6 +266,8 @@ export function moveCrewMember(
   if (npcEnt && npcEnt.has(EmployedAsCrew)) {
     npcEnt.set(EmployedAsCrew, { shipKey: toShipKey, role: 'crew' })
   }
+  reconcileCrewAboard(fromShip)
+  reconcileCrewAboard(toShip)
   return { ok: true }
 }
 

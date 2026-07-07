@@ -14,6 +14,7 @@ import { bindAutosave } from './boot/autosaveBinding'
 import { bindUi } from './boot/uiBindings'
 import { bindPhysiology } from './boot/physiologyBinding'
 import { bindFleetLaunch } from './boot/fleetLaunchBinding'
+import { bindCrewAboard } from './boot/crewAboardBinding'
 import { bootstrapApp } from './boot/lifecycle'
 import { preloadArt } from './render/assets/registry'
 // Side-effect imports: register save handlers for every persisted
@@ -99,6 +100,7 @@ export async function bootProd(): Promise<void> {
   bindUi()
   bindPhysiology()
   bindFleetLaunch()
+  bindCrewAboard()
   // Fire-and-forget the art bundle so textures are ready by the time
   // the renderer first asks for them. The renderer falls back to a
   // null-texture sprite during the load window, so this purely avoids
