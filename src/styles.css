@@ -2096,6 +2096,28 @@ html, body, #root {
   border-color: var(--accent);
 }
 
+/* W4 Task 7 — diegetic on-seat leave affordance anchored to the flagship
+   sprite. Distinct from the corner .tactical-btn shortcuts so it reads as an
+   in-world seat control the pilot steps out of. */
+.tactical-seat-exit {
+  background: rgba(10, 10, 14, 0.82);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
+  white-space: nowrap;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.tactical-seat-exit:hover {
+  background: var(--accent);
+  color: #0a0a0e;
+}
+
 .tactical-hud {
   position: absolute;
   top: 12px;

@@ -14,6 +14,7 @@ export interface CombatConfig {
   rallyArriveRadiusPx: number
   orderPickRadiusPx: number
   fleePenalty: { hullLossPct: number; crDrain: number }
+  negotiate: { tollBase: number; tollPerEscort: number }
   defeat: { survivorMoney: number }
   withdrawConfirmWindowMs: number
   pilotAi: { boostDecisionWindowSec: number }

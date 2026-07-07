@@ -7,9 +7,10 @@
 import { useUI } from './uiStore'
 import { playUi } from '../audio/player'
 
-const OUTCOME_HEADING_ZH: Record<'defeat' | 'flee', string> = {
+const OUTCOME_HEADING_ZH: Record<'defeat' | 'flee' | 'negotiate', string> = {
   defeat: '战败',
   flee: '脱离',
+  negotiate: '谈判脱离',
 }
 
 export function CombatDebriefPanel() {

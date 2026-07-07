@@ -82,6 +82,19 @@
   // leave a stale "confirm?" button armed.
   withdrawConfirmWindowMs: 3000,
 
+  // W4 Task 7 — negotiate = clean peaceful disengage on a paid toll (no
+  // fight, no flee penalty). The hostile lead demands a base bribe plus a
+  // per-escort surcharge for every wingman it has to call off:
+  //   toll = tollBase + tollPerEscort × escortCount.
+  // tollBase (300) is well under the low-end victory payout (tallyCreditsMin
+  // 800) so buying out of a lone pirate is cheaper than fighting but never
+  // free; tollPerEscort (150) makes talking down a full wing cost real money,
+  // keeping negotiate a deliberate spend rather than a no-brainer.
+  negotiate: {
+    tollBase: 300,
+    tollPerEscort: 150,
+  },
+
   // W3 (ms-identity) Task 4 — hostile-MS pilot AI knobs (reaction delay +
   // aim jitter live entirely in each enemyShips.json5 row's `pilot` block;
   // this is the one knob shared across every enemy-MS pilot).

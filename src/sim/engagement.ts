@@ -4,14 +4,16 @@
 // resolve() routes them — engage hands off to the existing tactical
 // combat store (systems/combat.ts), flee applies the standard flee
 // penalty (hull/armor scuff + CR drain), opens the same debrief beat as
-// mid-combat withdraw, and lets the ship coast on; negotiate is a
-// not-yet-implemented stub.
+// mid-combat withdraw, and lets the ship coast on; negotiate (W4 Task 7) pays
+// a config toll to disengage cleanly when affordable, else falls through to a
+// fight.
 //
 // Not persisted to save (slice 8) — engagement is transient by design.
 
 import { create } from 'zustand'
-import { startCombat, resolveFleeWithDebrief } from '../systems/combat'
-import { emitSim } from './events'
+import {
+  startCombat, resolveFleeWithDebrief, resolvePeacefulDisengage,
+} from '../systems/combat'
 import { isEnemyShipId } from '../data/enemyShips'
 
 export type EngagementChoice = 'engage' | 'flee' | 'negotiate'
@@ -83,7 +85,13 @@ export const useEngagement = create<EngagementState>((set, get) => ({
       // fix, W2 Task 6): one shared path, so the two surfaces can't drift.
       resolveFleeWithDebrief()
     } else if (choice === 'negotiate') {
-      emitSim('toast', { textZh: '谈判尚未实装' })
+      // W4 Task 7 — pay the toll to disengage cleanly. Can't afford it →
+      // the hostile forces the fight, mirroring the engage branch above.
+      if (!resolvePeacefulDisengage(escorts.length) && classId) {
+        const escortClassIds = escorts
+          .map((id) => (isEnemyShipId(id) ? id : 'pirateLight'))
+        startCombat(resolveCombatClassId(classId), escortClassIds, key, captains)
+      }
     }
   },
   dismiss() {

@@ -468,18 +468,33 @@ export function SpaceView() {
           </div>
         )
       })()}
-      <button
-        onClick={() => { playUi('ui.space.leave-helm'); leaveHelm() }}
+      {/* W4 Task 7 — diegetic on-seat helm affordance. The pilot sits at the
+          操舵席 (helm seat) steering the ship across the starmap; stepping out
+          is an in-world action, with ESC kept as the shortcut. */}
+      <div
+        data-helm-seat
         style={{
           position: 'absolute', bottom: 12, right: 12,
           background: 'rgba(15, 23, 42, 0.92)', border: '1px solid #475569',
-          color: '#e2e8f0', padding: '8px 14px',
-          fontFamily: 'system-ui, sans-serif', fontSize: 13,
-          borderRadius: 4, cursor: 'pointer',
+          borderRadius: 4, padding: '6px 10px',
+          fontFamily: 'system-ui, sans-serif',
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
         }}
       >
-        离开操舵台 (ESC)
-      </button>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>操舵席</div>
+        <button
+          data-helm-leave
+          onClick={() => { playUi('ui.space.leave-helm'); leaveHelm() }}
+          style={{
+            background: '#1e293b', border: '1px solid #38bdf8',
+            color: '#e2e8f0', padding: '6px 12px',
+            fontFamily: 'inherit', fontSize: 13,
+            borderRadius: 4, cursor: 'pointer',
+          }}
+        >
+          离开操舵台 (ESC)
+        </button>
+      </div>
       {menu && (menuPoi || menuEnemy) && (() => {
         // Clamp the menu inside the viewport so a click near the right/bottom
         // edge doesn't push half the menu off-screen. 180×~92 covers the
