@@ -126,8 +126,11 @@ export function runOnShipRepair(ship: Entity, opts: { focusKey?: string } = {}):
   if (repairable.length === 0) return result
 
   const rate = sortieConfig.onShipRepair.pointsPerDay
-  const focus = opts.focusKey
-    ? repairable.find((e) => e.get(EntityKey)?.key === opts.focusKey) ?? null
+  // Priority: an explicit opts.focusKey wins; otherwise honor the ship's
+  // forward-repair-priority set from the hangar-deck panel (W4.3b).
+  const focusKey = opts.focusKey ?? s.onShipRepairPriorityKey
+  const focus = focusKey
+    ? repairable.find((e) => e.get(EntityKey)?.key === focusKey) ?? null
     : null
   if (focus) {
     applyToMs(focus, rate, cap, result)
@@ -140,6 +143,7 @@ export function runOnShipRepair(ship: Entity, opts: { focusKey?: string } = {}):
 
 export interface OnShipRepairAboardMs {
   key: string
+  name: string
   hullPct: number
   armorPct: number
   integrity: number
@@ -169,6 +173,7 @@ export function describeOnShipRepair(ship: Entity): OnShipRepairView {
       const integrity = msIntegrity(m)
       aboard.push({
         key: ent.get(EntityKey)?.key ?? '',
+        name: m.name,
         hullPct: m.hullMax > 0 ? m.hullCurrent / m.hullMax : 1,
         armorPct: m.armorMax > 0 ? m.armorCurrent / m.armorMax : 1,
         integrity,

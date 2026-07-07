@@ -115,8 +115,12 @@ fields round-trip on the save handler.
   the full round trip doesn't strand the ship on fuel.
 - **W1.4 MS custody fixes — shipped.** Depot terminal scene guard, unload/load verbs, depot
   MS retrofit path.
-- **W1.5 MS repair lifecycle — shipped.** `damageState`/`repairProgress`, hangar-repair MS
-  branch, save round-trip.
+- **W1.5 MS repair lifecycle — shipped (on-ship band completed in W4.3).** `damageState`,
+  hangar-repair MS branch, save round-trip. The on-ship repair band
+  (`onShipRepairCap` / `onShipRepairFloor`) is now consumed by `systems/onShipRepair.ts`
+  (W4.3, on the daily repair chain) — the two stats were declared at 6.2.B but read nowhere
+  until W4.3. Note `repairProgress` was deliberately *not* added — the hull/armor deficit is the
+  progress; `computeMsDamageState` derives `damageState`.
 - **Capstone (Task 10) — shipped, full loop.** `tests/smoke/journey-first-sortie.spec.ts`
   plays the entire W1 loop through real input only (reads via `__uclife__`): buy → wait out the
   delivery → receive → board → helm → intercept → **engage → win on auto-fire → clear
@@ -297,11 +301,12 @@ tracking issue (see ledger).
   off (default) routes a failed/forced eject through a physiology injury arc
   (`forceOnset` → `concussion`); permadeath on is a seeded survival roll. NPC wing pilots get
   the same pod-fate roll; death routes through `Health.dead`, same as any other crew loss.
-- **W3.6 Crew-driven resupply — shipped as scoped.** The resupply formula's placeholder
-  constants (`defaultHangarBossPerformance`, fixed crew count) already sit behind one config
-  flag, as W3.6 asked. Wiring to the *real* hangar boss + mechanic crew stats is explicitly
-  deferred to W4.3 — the hangar-boss crew role doesn't exist yet, so there is nothing real to
-  wire to until then.
+- **W3.6 Crew-driven resupply — completed in W4.3.** `sim/sortieResupply.ts` now reads the
+  live hangar boss workPerfMul + real hangar-stationed mechanic-crew count via
+  `ecs/crewRoles.ts :: hangarResupplyStatsFor`; the `defaultHangarBossPerformance` /
+  `defaultMechanicCrewCount` config values are now only the no-boss-aboard fallback, and the
+  `void Ship; void ShipStatSheet` placeholder is deleted. The hangar-boss crew role
+  (`CrewStation.roomId === 'hangarBay'`) now exists, so there is a real stat to wire to.
 - **Interstitial fix — Task 3b, the resource layer was inert in real play.** Task 3's review
   traced an Important finding: `combat.ts`'s ambient drain/ammo/strand call sites (§1 thrust
   drain, §3 fire-path ammo check, stranding) keyed off `cockpit.ts`'s `PLAYER_MS_KEY` — the

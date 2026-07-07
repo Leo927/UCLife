@@ -119,23 +119,12 @@ function ensureCrewMarkers(
   else body.add(CrewStation(station))
 }
 
-// W4.3 — the ship's hangar boss is the crew member whose assigned duty
-// station is the hangar bay. The Task 5 hangar-deck dialogue surface gates on
-// it; sortie resupply reads the boss's workPerfMul; on-ship repair is run
-// while the boss is aboard.
-export const HANGAR_BOSS_ROOM_ID = 'hangarBay'
-
-export function isHangarBossCrew(e: Entity): boolean {
-  return e.get(CrewStation)?.roomId === HANGAR_BOSS_ROOM_ID
-}
-
-export function findHangarBossAboard(): Entity | null {
-  const shipWorld = getWorld(SHIP_SCENE_ID)
-  for (const e of shipWorld.query(Character, EmployedAsCrew, CrewStation)) {
-    if (isHangarBossCrew(e)) return e
-  }
-  return null
-}
+// Hangar-boss role lookups live in ecs/crewRoles.ts (so the sim layer can
+// read them without an upward import); re-exported here for existing
+// systems-layer callers.
+export {
+  HANGAR_BOSS_ROOM_ID, isHangarBossCrew, findHangarBossAboard,
+} from '../ecs/crewRoles'
 
 // Idempotent: aligns the ship-interior world to the flagship's roster. The
 // `ship` argument is the roster that changed (hire/fire target); the

@@ -108,6 +108,11 @@ export const Ship = trait({
   // draws from the fleet pool and these go inert.
   currentSupply: 0,
   currentFuel: 0,
+  // W4.3 — forward-repair priority. When set to an aboard-MS EntityKey, the
+  // on-ship repair pool focuses on that MS (within the band) instead of
+  // spreading across all aboard MS. Set from the hangar-deck panel; a
+  // transient sortie preference (not persisted — resets to '' on load).
+  onShipRepairPriorityKey: '',
 })
 
 // Issue #71 — marker present iff this ship entity was taken as a combat

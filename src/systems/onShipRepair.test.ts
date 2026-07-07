@@ -152,4 +152,23 @@ describe('runOnShipRepair — band clamp', () => {
     expect(view.aboard.find((a) => a.key === 'ms-low')!.belowFloor, 'the crippled MS is flagged below floor').toBe(true)
     expect(view.aboard.find((a) => a.key === 'ms-ok')!.belowFloor, 'the in-band MS is not below floor').toBe(false)
   })
+
+  it('forward-repair-priority focuses the whole pool on the chosen aboard MS (W4.3b)', () => {
+    const ship = spawnFlagship()
+    const focused = spawnMs('ms-focus', { storedOnShipKey: FLAGSHIP_KEY, hullCurrent: 60, armorCurrent: 5 })
+    const other = spawnMs('ms-other', { storedOnShipKey: FLAGSHIP_KEY, hullCurrent: 60, armorCurrent: 5 })
+    const otherBefore = other.get(Ms)!
+
+    // Set the ship's forward-repair-priority; runOnShipRepair honors it.
+    const s = ship.get(Ship)!
+    ship.set(Ship, { ...s, onShipRepairPriorityKey: 'ms-focus' })
+
+    const r = runOnShipRepair(ship)
+    expect(r.pointsApplied, 'the pool applied repair').toBeGreaterThan(0)
+    const focusedAfter = focused.get(Ms)!
+    const otherAfter = other.get(Ms)!
+    expect(focusedAfter.armorCurrent, 'the priority MS is repaired').toBeGreaterThan(5)
+    expect(otherAfter.armorCurrent, 'the non-priority MS is untouched while priority holds').toBe(otherBefore.armorCurrent)
+    expect(otherAfter.hullCurrent, 'the non-priority MS hull untouched').toBe(otherBefore.hullCurrent)
+  })
 })

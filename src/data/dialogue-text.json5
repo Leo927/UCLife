@@ -68,6 +68,7 @@
     jobSite: '工位调整',
     talkHire: '邀请加入',
     hangarManager: '机库状况',
+    hangarBoss: '机库甲板',
     aeSupplyDealer: '订补给',
     aeShipSales: '看看机型',
     aeVehicleSales: '看看 MS / 战机',
@@ -272,6 +273,25 @@
       acceptLabel: '"成 —— 把签约费给我。"',
       toastAccepted: '{name} 加入了你的机师团。',
       toastNoMoney: '现金不足，签不下这位机师。',
+    },
+    // W4.3b — on-ship hangar deck (the ship's hangar boss talk surface).
+    // Forward repair within the on-ship band + MS load/unload at dock; deep
+    // work (refit, destroyed→ready, full restoration) routes to a depot.
+    hangarBoss: {
+      titleSuffix: ' · 机库甲板',
+      intro: '舰载机库 · 出击间隙的前线维修与装载。深度维修（改装、全损修复、满血修复）请返回地面机库。',
+      bandFmt: '前线维修带 · 下限 {floor}% · 上限 {cap}%',
+      aboardHeader: '舰载 MS',
+      aboardEmpty: '当前无舰载 MS。',
+      hullLabel: '装甲/结构',
+      sidelinedBadge: ' · 结构受损过重 · 舰上无法修复',
+      atCapBadge: ' · 已修至上限',
+      repairHeader: '前线维修优先',
+      repairPriorityActive: '当前优先: ',
+      repairPriorityNone: '未指定优先 · 维修均摊',
+      repairFocusButton: '优先维修',
+      repairClearButton: '取消优先',
+      dockedOnlyHint: '装载/卸载需在停靠状态进行。',
     },
     hangarManager: {
       titleSuffix: ' · 机库主管',
