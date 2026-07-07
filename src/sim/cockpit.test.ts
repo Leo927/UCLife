@@ -13,12 +13,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Entity } from 'koota'
 import {
-  Ms, Ship, CombatShipState, EntityKey,
+  Ms, Ship, CombatShipState, EntityKey, IsPlayer, ShipBody, Position,
+  MoveTarget, Action,
 } from '../ecs/traits'
 import { getWorld, setActiveSceneId } from '../ecs/world'
 import {
   launchMs, dockMs, onMsEjected, getPlayerMs, syncMsCombatDamageToRoster,
+  leaveBridge,
 } from './cockpit'
+import { useScene } from './scene'
 import { routeDockedMsToResupply, tickResupply } from './sortieResupply'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -236,6 +239,42 @@ describe('onMsEjected', () => {
   it('returns null when no MS is launched', () => {
     spawnFlagship()
     expect(onMsEjected()).toBeNull()
+  })
+})
+
+describe('leaveBridge', () => {
+  // W3 Task 9 regression — leaving the bridge while at the helm (active
+  // scene 'spaceCampaign') used to route through migratePlayerToScene,
+  // whose queryFirst(IsPlayer) in the space world is the CAMPAIGN PLAYER
+  // SHIP (IsPlayer + ShipBody): the migration destroyed the ship entity
+  // and cloned a duplicate avatar into the interior. The avatar never
+  // lives in the space world — takeHelm only swaps the active scene — so
+  // leaveBridge must only reposition the interior avatar and swap back.
+  it('from the helm it must not destroy the campaign player-ship entity', () => {
+    spawnFlagship()
+    const space = getWorld('spaceCampaign')
+    const campaignShip = space.spawn(
+      IsPlayer(), ShipBody(), Position({ x: 100, y: 200 }),
+      EntityKey({ key: 'spacePlayer' }),
+    )
+    spawned.push(campaignShip)
+    const w = getWorld(SHIP_SCENE_ID)
+    const avatar = w.spawn(
+      IsPlayer(), Position({ x: 0, y: 0 }),
+      MoveTarget({ x: 0, y: 0 }), Action({ kind: 'idle', remaining: 0, total: 0 }),
+      EntityKey({ key: 'player' }),
+    )
+    spawned.push(avatar)
+    useScene.getState().setActive('spaceCampaign')
+
+    leaveBridge()
+
+    expect(space.queryFirst(IsPlayer, ShipBody),
+      'the campaign player-ship entity must survive leaving the bridge').toBeDefined()
+    expect([...w.query(IsPlayer)].length,
+      'leaveBridge must not clone a second interior avatar').toBe(1)
+    expect(useScene.getState().activeId,
+      'leaveBridge lands the player in the walkable ship interior').toBe(SHIP_SCENE_ID)
   })
 })
 

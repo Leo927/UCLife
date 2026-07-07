@@ -28,7 +28,7 @@
 
 import { create } from 'zustand'
 import type { Entity } from 'koota'
-import { getWorld, getActiveSceneId } from '../ecs/world'
+import { getWorld } from '../ecs/world'
 import {
   CombatShipState, EntityKey, IsPlayer, Position, MoveTarget, Action, Ms,
 } from '../ecs/traits'
@@ -40,7 +40,7 @@ import {
   pickDoorForLaunch, requestLaunch, requestDock, launchPointAndVelocity,
   findHostShipKeyForMs,
 } from './hangarDoors'
-import { useScene, migratePlayerToScene } from './scene'
+import { useScene } from './scene'
 import { useClock } from './clock'
 import { emitSim } from './events'
 import { pushCombatLog, type CombatLogSeverity } from './combatLog'
@@ -456,19 +456,19 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
 
   // Drop the player back into the walkable hangar bay. Close the
   // tactical overlay so they can walk; combat continues on the flagship
-  // (which is on AI until they take the helm again).
+  // (which is on AI until they take the helm again). The avatar already
+  // lives in the ship-interior world (an MS is only boarded from it) —
+  // reposition it, never migrate: migratePlayerToScene from the helm scene
+  // destroys spaceCampaign's IsPlayer, which is the campaign player SHIP
+  // (see leaveBridge + cockpit.test.ts §leaveBridge).
   const hangarPos = getHangarBayCenter()
   if (hangarPos) {
-    if (getActiveSceneId() === SHIP_SCENE_ID) {
-      const w = shipWorld()
-      const player = w.queryFirst(IsPlayer)
-      if (player) {
-        player.set(Position, { x: hangarPos.x, y: hangarPos.y })
-        player.set(MoveTarget, { x: hangarPos.x, y: hangarPos.y })
-        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
-      }
-    } else {
-      migratePlayerToScene(SHIP_SCENE_ID, hangarPos)
+    const w = shipWorld()
+    const player = w.queryFirst(IsPlayer)
+    if (player) {
+      player.set(Position, { x: hangarPos.x, y: hangarPos.y })
+      player.set(MoveTarget, { x: hangarPos.x, y: hangarPos.y })
+      player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
   }
   ensureTacticalOpen(false)
@@ -546,18 +546,20 @@ export function takeFlagshipControl(): { ok: boolean; reasonZh?: string } {
 export function leaveBridge(): void {
   clearPilotedFlags()
   useCockpit.getState().setPiloting(null)
+  // The avatar always lives in the ship-interior world here — takeHelm only
+  // swaps the ACTIVE scene, it never migrates the player entity into
+  // spaceCampaign. Routing through migratePlayerToScene when the helm scene
+  // was active grabbed spaceCampaign's queryFirst(IsPlayer) — the CAMPAIGN
+  // PLAYER SHIP (IsPlayer + ShipBody) — destroyed it, and cloned a duplicate
+  // avatar into the interior (regression: cockpit.test.ts §leaveBridge).
   const bridgePos = getBridgeCenter()
   if (bridgePos) {
-    if (getActiveSceneId() === SHIP_SCENE_ID) {
-      const w = shipWorld()
-      const player = w.queryFirst(IsPlayer)
-      if (player) {
-        player.set(Position, { x: bridgePos.x, y: bridgePos.y })
-        player.set(MoveTarget, { x: bridgePos.x, y: bridgePos.y })
-        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
-      }
-    } else {
-      migratePlayerToScene(SHIP_SCENE_ID, bridgePos)
+    const w = shipWorld()
+    const player = w.queryFirst(IsPlayer)
+    if (player) {
+      player.set(Position, { x: bridgePos.x, y: bridgePos.y })
+      player.set(MoveTarget, { x: bridgePos.x, y: bridgePos.y })
+      player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
   }
   ensureTacticalOpen(false)
