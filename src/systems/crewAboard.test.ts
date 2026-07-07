@@ -18,7 +18,7 @@ import {
 import { spawnNPC, spawnPlayer } from '../character/spawn'
 import { getShipClass } from '../data/ship-classes'
 import { attachShipStatSheet } from '../ecs/shipEffects'
-import { fleetConfig } from '../config'
+import { fleetConfig, worldConfig } from '../config'
 import { reconcileCrewAboard } from './crewAboard'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -137,6 +137,30 @@ describe('reconcileCrewAboard — world identity', () => {
     reconcileCrewAboard()
     expect(crewBodyKeysAboard(), 'missing roster key materialized aboard').toEqual(['npc-crew-9'])
     expect(getEntityScene('npc-crew-9')).toBe(SHIP_SCENE_ID)
+  })
+})
+
+describe('reconcileCrewAboard — duty station assignment (W4.1 Task 2)', () => {
+  beforeEach(() => {
+    resetWorlds()
+    spawnPlayer(cityWorld(), { x: 0, y: 0 })
+  })
+
+  it('pins each crew member a station anchor in roster order', () => {
+    spawnFlagship({ key: 'ship-1', captain: 'npc-crew-1', crew: ['npc-crew-2'] })
+    reconcileCrewAboard()
+
+    const cls = getShipClass('lightFreighter')
+    const TILE = worldConfig.tilePx
+    const anchorOf = (roomId: string) => {
+      const r = cls.rooms.find((x) => x.id === roomId)!
+      return { x: (r.bounds.x + r.bounds.w / 2) * TILE, y: (r.bounds.y + r.bounds.h / 2) * TILE }
+    }
+    // crewStations[0] = bridge (captain), [1] = engineRoom (first crew).
+    const captain = crewBodyByKey('npc-crew-1')!.get(CrewStation)!
+    expect({ x: captain.anchorX, y: captain.anchorY }, 'captain → bridge station').toEqual(anchorOf('bridge'))
+    const crew = crewBodyByKey('npc-crew-2')!.get(CrewStation)!
+    expect({ x: crew.anchorX, y: crew.anchorY }, 'first crew → engine-room station').toEqual(anchorOf('engineRoom'))
   })
 })
 

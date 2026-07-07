@@ -42,6 +42,45 @@ export const NPC_TREE: RootNodeDefinition = {
           },
         ],
       },
+      // W4.1 — crew duty. Gated on isCrewMember (has CrewStation), so every
+      // non-crew NPC fails immediately and falls through to the drives below
+      // unchanged. On duty: man your station when underway, else report to the
+      // mess in a meal window / your quarters in the sleep window. Off-duty
+      // the inner selector fails (no fallback action), so the crew member
+      // drops through to the ordinary vital-driven drives — which find the
+      // furnished rooms (Task 3).
+      {
+        type: 'sequence',
+        children: [
+          { type: 'condition', call: 'isCrewMember' },
+          {
+            type: 'selector',
+            children: [
+              {
+                type: 'sequence',
+                children: [
+                  { type: 'condition', call: 'isCrewUnderway' },
+                  { type: 'action', call: 'goToStation' },
+                ],
+              },
+              {
+                type: 'sequence',
+                children: [
+                  { type: 'condition', call: 'isCrewMealtime' },
+                  { type: 'action', call: 'goToMess' },
+                ],
+              },
+              {
+                type: 'sequence',
+                children: [
+                  { type: 'condition', call: 'isCrewSleeptime' },
+                  { type: 'action', call: 'goToQuarters' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
       // Sleep — bed first, then try to rent if homeless, bench as last resort.
       {
         type: 'sequence',

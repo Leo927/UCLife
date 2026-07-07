@@ -17,6 +17,8 @@ export { actionsConfig } from './actions'
 export type { ActionsConfig } from './actions'
 
 export { aiConfig } from './ai'
+export { crewConfig } from './crew'
+export type { CrewConfig, HourWindow } from './crew'
 export type { AIConfig } from './ai'
 
 export { skillsConfig, SKILL_IDS } from './skills'

@@ -1,7 +1,10 @@
 import type { Entity, TraitInstance, World } from 'koota'
 import { State } from 'mistreevous'
 import type { Agent, ActionResult } from 'mistreevous/dist/Agent'
-import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard } from '../ecs/traits'
+import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard, CrewStation, Ship, IsFlagshipMark } from '../ecs/traits'
+import { resolveCrewDuty, isFlagshipUnderway, type CrewDuty } from './crewDuty'
+import { getShipClass } from '../data/ship-classes'
+import { crewConfig } from '../config'
 import { isPointInActiveZone } from '../systems/activeZone'
 import type { ActionKind, RoughKind } from '../ecs/traits'
 import { tierOf } from '../systems/relations'
@@ -74,6 +77,15 @@ export type NPCAgent = Agent & {
   detectsHostilePlayer: () => boolean
   ejectPlayer: () => ActionResult
   holdPost: () => ActionResult
+  // W4.1 — crew-duty branch (gated on isCrewMember so non-crew never reach
+  // the rest; falls through to the ordinary drives when off-duty).
+  isCrewMember: () => boolean
+  isCrewUnderway: () => boolean
+  isCrewMealtime: () => boolean
+  isCrewSleeptime: () => boolean
+  goToStation: () => ActionResult
+  goToMess: () => ActionResult
+  goToQuarters: () => ActionResult
   isExhausted: () => boolean
   isHungry: () => boolean
   isThirsty: () => boolean
@@ -241,6 +253,77 @@ export function makeNPCAgent(world: World, entity: Entity, frameCtx: NpcFrameCtx
   // frame-cached in NpcFrameCtx to avoid per-guard world.queryFirst() calls.
   const findPlayerHere = (): Entity | null => frameCtx.player
 
+  // W4.1 — crew duty. `world` is the crew's own scene world; when crew tick,
+  // that world is the ship interior, which holds the flagship, so the
+  // underway read + room-center lookup stay same-world ECS reads (no systems
+  // import from the ai layer).
+  const crewDutyNow = (): CrewDuty => {
+    const underway = isFlagshipUnderway(world)
+    const hour = useClock.getState().gameDate.getHours()
+    return resolveCrewDuty(underway, hour)
+  }
+  const flagshipRoom = (roomId: string): {
+    cx: number; cy: number; x1: number; y1: number; x2: number; y2: number
+  } | null => {
+    const flagship = world.queryFirst(Ship, IsFlagshipMark)
+    if (!flagship) return null
+    const cls = getShipClass(flagship.get(Ship)!.templateId)
+    const room = cls.rooms.find((r) => r.id === roomId)
+    if (!room) return null
+    const tile = worldConfig.tilePx
+    const b = room.bounds
+    return {
+      cx: (b.x + b.w / 2) * tile,
+      cy: (b.y + b.h / 2) * tile,
+      x1: b.x * tile, y1: b.y * tile,
+      x2: (b.x + b.w) * tile, y2: (b.y + b.h) * tile,
+    }
+  }
+  // A crew member has "arrived" at a duty anchor once within the room-scale
+  // duty radius (not the tight npcArrive) so several crew converging on one
+  // room settle around it instead of fighting for the centre tile. On
+  // arrival, halt where they are (drop MoveTarget/Path) so movementSystem
+  // doesn't drag them the last few px and flip the diegetic Action back to
+  // 'walking'.
+  const DUTY_ARRIVE = crewConfig.duty.arriveRadiusPx
+  const haltMovement = () => {
+    if (entity.has(MoveTarget)) entity.remove(MoveTarget)
+    if (entity.has(Path)) entity.remove(Path)
+  }
+  // On post the crew member records their live duty on CrewStation and holds
+  // at Action 'idle' — a standing watch, NOT a committed timed task. Using a
+  // committed kind (working/eating/sleeping) would trip npcSystem's
+  // COMMITTED_KINDS gate and freeze the crew, so they'd never re-evaluate
+  // when the ship docks or the clock rolls. Task 3 replaces the mess/quarters
+  // holds with real (timed, committed) eat/sleep actions.
+  const holdDuty = (current: CrewDuty) => {
+    haltMovement()
+    const st = entity.get(CrewStation)
+    if (st && st.current !== current) entity.set(CrewStation, { ...st, current })
+    setActionKind('idle')
+  }
+  const walkToDutyAnchor = (tgt: { x: number; y: number }, duty: CrewDuty): ActionResult => {
+    if (distTo(tgt) <= DUTY_ARRIVE) { holdDuty(duty); return State.SUCCEEDED }
+    if (isPathBlocked(tgt.x, tgt.y)) return State.FAILED
+    setMoveTarget(tgt.x, tgt.y)
+    return State.RUNNING
+  }
+  // Report to a room (mess / quarters). "Arrived" means inside the room's
+  // tile bounds — not a radius from the single centre tile — so several crew
+  // (and the player) converging on one room settle across its floor instead
+  // of one crew jostling forever just outside a centre-point radius. Halt on
+  // arrival so movementSystem doesn't drag them back to the exact centre.
+  const walkToFlagshipRoom = (roomId: string, duty: CrewDuty): ActionResult => {
+    const room = flagshipRoom(roomId)
+    if (!room) return State.FAILED
+    const p = entity.get(Position)
+    const inside = !!p && p.x >= room.x1 && p.x <= room.x2 && p.y >= room.y1 && p.y <= room.y2
+    if (inside) { holdDuty(duty); return State.SUCCEEDED }
+    if (isPathBlocked(room.cx, room.cy)) return State.FAILED
+    setMoveTarget(room.cx, room.cy)
+    return State.RUNNING
+  }
+
   return {
     refreshContext,
 
@@ -304,6 +387,38 @@ export function makeNPCAgent(world: World, entity: Entity, frameCtx: NpcFrameCtx
       if (d > ARRIVE_DIST) setMoveTarget(g.anchorX, g.anchorY)
       else setActionKind('idle')
       return State.SUCCEEDED
+    },
+
+    // ── W4.1 — crew duty branch ────────────────────────────────────────
+    // Gate: non-crew fail immediately (no CrewStation) and fall through to
+    // the ordinary drives, exactly like the guard gate above.
+    isCrewMember() {
+      return entity.has(CrewStation)
+    },
+    isCrewUnderway() {
+      return crewDutyNow() === 'station'
+    },
+    isCrewMealtime() {
+      return crewDutyNow() === 'mess'
+    },
+    isCrewSleeptime() {
+      return crewDutyNow() === 'quarters'
+    },
+    // Man the assigned duty station (bridge/engine/…); anchor pinned on
+    // CrewStation by reconcileCrewAboard. Station-less crew (anchor -1) just
+    // hold where they are so the branch still succeeds while underway.
+    goToStation() {
+      const st = entity.get(CrewStation)
+      if (!st || st.anchorX < 0) { holdDuty('station'); return State.SUCCEEDED }
+      return walkToDutyAnchor({ x: st.anchorX, y: st.anchorY }, 'station')
+    },
+    // Task 3 replaces the mess/quarters holds with real (timed) eat-at-mess
+    // + crew-bunk-claim actions; Task 2 only walks them to the room.
+    goToMess() {
+      return walkToFlagshipRoom('mess', 'mess')
+    },
+    goToQuarters() {
+      return walkToFlagshipRoom('crewQ', 'quarters')
     },
 
     isExhausted() {

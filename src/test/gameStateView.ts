@@ -3,6 +3,7 @@ import { getWorld, SCENE_IDS, getActiveSceneId, getSceneDimensions } from '../ec
 import {
   IsPlayer, Position, Money, EntityKey, Attributes, Vitals, Health, Faction, Ship,
   EmployedAsCrew, Building, Owner, Character, CouncilDissentMood, Knows, Psyche, Action,
+  CrewStation,
 } from '../ecs/traits'
 import { useCombatStore } from '../systems/combat'
 import { commandPoolDescribe } from '../systems/fleetCommandPoints'
@@ -54,6 +55,9 @@ export interface CharacterView {
   // The journey smoke waits on a vendor reaching 'working' (on-shift) before
   // its dialogue branch renders, since only the behaviour tree sets it.
   getActionKind(): string
+  // W4.1 Task 2 — a crew member's live duty ('station' | 'mess' | 'quarters'
+  // | 'offDuty'), read off CrewStation. null when the character isn't crew.
+  getCrewDuty(): string | null
 }
 
 export interface ShipView {
@@ -287,6 +291,9 @@ function makeCharacterView(entity: Entity, sceneId: string): CharacterView {
     },
     getActionKind(): string {
       return entity.get(Action)?.kind ?? 'idle'
+    },
+    getCrewDuty(): string | null {
+      return entity.get(CrewStation)?.current ?? null
     },
     getPsyche() {
       if (!entity.has(Psyche) || !entity.has(Attributes)) return null

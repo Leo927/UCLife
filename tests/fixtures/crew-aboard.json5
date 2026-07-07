@@ -8,9 +8,13 @@
   startDate: '2026-05-17T08:00:00Z',
   scene: 'playerShipInterior',
 
+  // Player stands in the captain's office (room center 1,1) — which is
+  // neither a duty station (bridge / engine / medbay / hangar) nor a mess /
+  // quarters destination, so the player's body never crowds a room the crew
+  // converge on.
   player: {
     money: 1000000,
-    location: { scene: 'playerShipInterior', x: 1, y: 3 },
+    location: { scene: 'playerShipInterior', x: 1, y: 1 },
   },
 
   ships: [

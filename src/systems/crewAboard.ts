@@ -82,7 +82,25 @@ function findCrewBodyElsewhere(key: string): Entity | null {
   return null
 }
 
-function ensureCrewMarkers(body: Entity, shipKey: string, role: CrewRole): void {
+// The duty-station anchor (px, ship-interior world) for the crew member at
+// this roster ordinal, resolved from the flagship class's authored
+// crewStations (wrapping when there are more crew than stations). Returns
+// { -1, -1 } when the class authors no stations (crew idle at quarters).
+function stationAnchorForOrdinal(ship: Entity, ordinal: number): { x: number; y: number } {
+  const cls = getShipClass(ship.get(Ship)!.templateId)
+  const stations = cls.crewStations
+  if (!stations || stations.length === 0) return { x: -1, y: -1 }
+  const st = stations[ordinal % stations.length]
+  const room = cls.rooms.find((r) => r.id === st.roomId)
+  if (!room) return { x: -1, y: -1 }
+  const cx = (room.bounds.x + room.bounds.w / 2 + (st.offset?.dx ?? 0)) * TILE
+  const cy = (room.bounds.y + room.bounds.h / 2 + (st.offset?.dy ?? 0)) * TILE
+  return { x: cx, y: cy }
+}
+
+function ensureCrewMarkers(
+  body: Entity, shipKey: string, role: CrewRole, anchor: { x: number; y: number },
+): void {
   if (body.has(EmployedAsCrew)) body.set(EmployedAsCrew, { shipKey, role })
   else body.add(EmployedAsCrew({ shipKey, role }))
   const player = findPlayerEntity()
@@ -90,7 +108,12 @@ function ensureCrewMarkers(body: Entity, shipKey: string, role: CrewRole): void 
     if (body.has(RecruitedTo)) body.set(RecruitedTo, { owner: player })
     else body.add(RecruitedTo({ owner: player }))
   }
-  if (!body.has(CrewStation)) body.add(CrewStation({ roomEntity: null }))
+  // Preserve the live duty decision across a re-reconcile (hire/fire of a
+  // sibling shouldn't reset a crew member mid-watch); default to off-duty.
+  const current = body.get(CrewStation)?.current ?? 'offDuty'
+  const station = { roomEntity: null, anchorX: anchor.x, anchorY: anchor.y, current }
+  if (body.has(CrewStation)) body.set(CrewStation, station)
+  else body.add(CrewStation(station))
 }
 
 // Idempotent: aligns the ship-interior world to the flagship's roster. The
@@ -121,21 +144,22 @@ export function reconcileCrewAboard(_ship?: Entity): void {
 
   const flagshipKey = flagship.get(EntityKey)?.key ?? ''
   const pos = crewSpawnPosForShip(flagship)
-  for (const key of desired) {
+  desired.forEach((key, ordinal) => {
     const role = roleForKey(flagship, key)
+    const anchor = stationAnchorForOrdinal(flagship, ordinal)
     const aboard = existing.get(key)
     if (aboard) {
-      ensureCrewMarkers(aboard, flagshipKey, role)
-      continue
+      ensureCrewMarkers(aboard, flagshipKey, role, anchor)
+      return
     }
     const elsewhere = findCrewBodyElsewhere(key)
     if (elsewhere) {
-      ensureCrewMarkers(migrateNpcEntity(elsewhere, shipWorld, pos), flagshipKey, role)
-      continue
+      ensureCrewMarkers(migrateNpcEntity(elsewhere, shipWorld, pos), flagshipKey, role, anchor)
+      return
     }
     const fresh = spawnNPC(shipWorld, {
       name: key, color: '#cccccc', x: pos.x, y: pos.y, key,
     })
-    ensureCrewMarkers(fresh, flagshipKey, role)
-  }
+    ensureCrewMarkers(fresh, flagshipKey, role, anchor)
+  })
 }
