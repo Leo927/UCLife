@@ -266,6 +266,14 @@ export interface DialogueText {
       crewVacancyLabel: string
       crewBackButton: string
     }
+    captainsOfficeReadiness: {
+      header: string
+      crewLabel: string
+      msLabel: string
+      pilotLabel: string
+      ready: string
+      notReady: string
+    }
     captainsOfficeManRest: {
       buttonIdle: string
       buttonNoVacancy: string

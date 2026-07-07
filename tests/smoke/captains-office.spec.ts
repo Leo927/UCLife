@@ -185,3 +185,53 @@ test('captains office: adjutant, brig capacity, POW capture, panels', async ({ s
     })
   }, STEP_BUDGET_MIN)
 })
+
+// W4.4 — advisory readiness briefing. The single-airlock refactor deletes the
+// legacy airport board kiosk; boarding (here via the debug board verb, the same
+// scene transition the sole gate pad drives) still lands the player in
+// playerShipInterior, and the captain's-office panel surfaces crew / MS / pilot
+// readiness rows whose counts track the starter-fleet fixture.
+test('captains office: readiness briefing reflects starter-fleet counts', async ({ sim }) => {
+  await sim.boot({
+    fixture: 'starter-fleet',
+    requireHandles: ['__uclife_test__.step', '__uclife__.boardShip'],
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useScene.getState().activeId === 'playerShipInterior',
+    STEP_BUDGET_MIN,
+  )
+
+  // System smoke (not a journey-*): driving the UI store open is allowed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).uclifeUI.getState().setCaptainsOffice(true))
+  await sim.page.waitForSelector('[data-captains-office-readiness]', { timeout: 5_000 })
+
+  const r = await sim.page.evaluate(() => {
+    const el = document.querySelector('[data-captains-office-readiness]')!
+    return {
+      crewFilled: el.getAttribute('data-crew-filled'),
+      crewRequired: el.getAttribute('data-crew-required'),
+      crewReady: el.getAttribute('data-crew-ready'),
+      msLoaded: el.getAttribute('data-ms-loaded'),
+      msReady: el.getAttribute('data-ms-ready'),
+      pilotsAssigned: el.getAttribute('data-pilots-assigned'),
+      pilotsReady: el.getAttribute('data-pilots-ready'),
+    }
+  })
+
+  // starter-fleet: one mobileWorker stowed aboard, no crew hired, no pilot set.
+  expect(r.msLoaded, 'one MS stowed aboard the flagship').toBe('1')
+  expect(r.msReady, 'MS row green — at least one MS aboard').toBe('true')
+  expect(r.pilotsAssigned, 'no pilot assigned to the stowed MS').toBe('0')
+  expect(r.pilotsReady, 'pilot row red — no pilot assigned').toBe('false')
+  expect(Number(r.crewFilled), 'no crew hired at fixture boot').toBe(0)
+  expect(
+    Number(r.crewRequired),
+    'lightFreighter requires a non-zero crew',
+  ).toBeGreaterThan(0)
+  expect(r.crewReady, 'crew row red — vacancy remains').toBe('false')
+})

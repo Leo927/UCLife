@@ -507,6 +507,17 @@
       dpToastOverBudget: '超出部署点上限',
       dpToastFailed: '委任失败：{reason}',
     },
+    // W4.4 — captain's-office advisory readiness briefing. Purely
+    // informational: takeHelm() stays ungated, so an undercrewed / unpiloted
+    // sortie is still allowed. Rows read crew / MS / pilot counts.
+    captainsOfficeReadiness: {
+      header: '出击准备',
+      crewLabel: '船员',
+      msLabel: '机体装载',
+      pilotLabel: '驾驶员配置',
+      ready: '就绪',
+      notReady: '待补',
+    },
     // Captain's-office "fill from faction pool" verb.
     captainsOfficeManRest: {
       buttonIdle: '从faction人员中分派船员',

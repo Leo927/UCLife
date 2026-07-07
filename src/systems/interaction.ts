@@ -16,7 +16,7 @@ import { emitSim } from '../sim/events'
 import { worldConfig, actionsConfig } from '../config'
 import { maybeEmitWorkplacePrevalence } from './workplacePrevalence'
 import { Ship, IsFlagshipMark, Ms } from '../ecs/traits'
-import { boardShip, boardShipByKey, disembarkShip, migratePlayerToScene } from '../sim/scene'
+import { boardShipByKey, disembarkShip, migratePlayerToScene } from '../sim/scene'
 import { getShipClass } from '../data/ship-classes'
 import { takeHelm } from '../sim/helm'
 import { launchMs, takeFlagshipControl } from '../sim/cockpit'
@@ -91,16 +91,6 @@ function playerHasApartmentClaim(world: World, player: Entity, nowMs: number): b
     const b = bedEnt.get(Bed)!
     if (b.tier !== 'apartment') continue
     if (bedActiveOccupant(b, nowMs) === player) return true
-  }
-  return false
-}
-
-// Ownership in the fleet system lives on the Ship's Owner trait, not on
-// a per-player boolean. Any Ship with a character owner counts.
-function playerOwnsAnyShip(): boolean {
-  const shipWorld = getWorld('playerShipInterior')
-  for (const e of shipWorld.query(Ship, Owner)) {
-    if (e.get(Owner)!.kind === 'character') return true
   }
   return false
 }
@@ -240,24 +230,16 @@ export function interactionSystem(world: World) {
     }
     if (nearestKind === 'boardShip') {
       if (getActiveSceneId() === 'playerShipInterior') continue
-      // Gate booths carry a ShipMarker pointing at the bound ship; the
-      // legacy airport board kiosk has no marker and boards the current
-      // flagship via the unparameterized helper.
+      // The sole flagship airlock is a gate-booth board pad carrying a
+      // ShipMarker pointing at the bound flagship (systems/shipMarkers.ts).
       const targetKey = nearestEnt?.get(ShipMarker)?.shipKey ?? ''
-      if (targetKey) {
-        runTransition({
-          midpoint: () => {
-            const r = boardShipByKey(targetKey)
-            if (!r.ok) emitSim('toast', { textZh: r.reasonZh })
-          },
-        })
-      } else {
-        if (!playerOwnsAnyShip()) {
-          emitSim('toast', { textZh: '你尚未拥有任何飞船' })
-          continue
-        }
-        runTransition({ midpoint: () => boardShip() })
-      }
+      if (!targetKey) continue
+      runTransition({
+        midpoint: () => {
+          const r = boardShipByKey(targetKey)
+          if (!r.ok) emitSim('toast', { textZh: r.reasonZh })
+        },
+      })
       continue
     }
     if (nearestKind === 'inspectShip') {
