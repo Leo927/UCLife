@@ -2521,3 +2521,9 @@ html, body, #root {
   color: #4ade80;
   margin-right: 6px;
 }
+/* Salvage rows show only the +N gain (no running "after" total), so the
+   delta is the whole value — drop the trailing margin that separates a
+   delta from its after-value on the credits/supplies/fuel rows. */
+.combat-tally-row-delta--solo {
+  margin-right: 0;
+}

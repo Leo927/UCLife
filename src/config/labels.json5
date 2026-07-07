@@ -1,0 +1,27 @@
+// W4.6 (presentation floor) — ground-scene label layout tunables, shared by
+// the city and the ship interior (PixiGroundRenderer is one renderer for
+// both). Offsets are in world px; wordWrapWidthPx wraps long zh-CN labels
+// so a wide kiosk name doesn't bleed across neighbors. The interactable
+// stagger nudges each label's vertical offset by a deterministic per-entity
+// step so co-located kiosks (common in the tight ship rooms) don't stack
+// their labels on the exact same line.
+{
+  building: {
+    // Anchored top-left inside the building rect.
+    fontSizePx: 11,
+    offsetXPx: 8,
+    offsetYPx: 6,
+    wordWrapWidthPx: 120,
+  },
+  interactable: {
+    // Centered under the kiosk (anchor 0.5,0).
+    fontSizePx: 12,
+    offsetYPx: 18,
+    wordWrapWidthPx: 96,
+    // Vertical de-overlap: offsetYPx + (ent % staggerCount) * staggerStepPx.
+    // staggerCount=3 gives three interleaved label lanes; staggerStepPx is
+    // just over one line-height so adjacent lanes clear each other.
+    staggerStepPx: 13,
+    staggerCount: 3,
+  },
+}

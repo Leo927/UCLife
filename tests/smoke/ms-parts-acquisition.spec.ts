@@ -192,6 +192,40 @@ test('ms-parts: buy at dealer, salvage from combat, install on MS', async ({ sim
     `${SALVAGE_WEAPON} stockpile should grow by the salvaged qty`,
   ).toBe(dropped.qty)
 
+  // ── 4b. Tally DOM (W4.6) — the salvaged-parts row renders consistently
+  // with the credits/supplies/fuel rows: a "+N" gain with no orphan trailing
+  // margin. The tally content is deterministic (pirate_raider chance:1.0
+  // drop) and the CSS is static, so this DOM read is reproducible.
+  await sim.page.waitForSelector('.combat-tally-row-delta--solo', { timeout: 5_000 })
+  const tallyDom = await sim.page.evaluate(() => {
+    const solo = document.querySelector('.combat-tally-row-delta--solo') as HTMLElement | null
+    if (!solo) return null
+    const value = solo.closest('.combat-tally-row-value') as HTMLElement | null
+    const credit = document.querySelector(
+      '.combat-tally-row-delta:not(.combat-tally-row-delta--solo)',
+    ) as HTMLElement | null
+    return {
+      soloText: (solo.textContent ?? '').trim(),
+      soloMarginRight: getComputedStyle(solo).marginRight,
+      valueText: (value?.textContent ?? '').trim(),
+      creditMarginRight: credit ? getComputedStyle(credit).marginRight : null,
+    }
+  })
+  expect(tallyDom, 'the salvaged-parts row should render a solo delta span').toBeTruthy()
+  expect(tallyDom!.soloText, 'salvage gain should read "+N"').toMatch(/^\+\d+$/)
+  expect(
+    tallyDom!.soloMarginRight,
+    'a delta-only salvage value must not leave an orphan right margin',
+  ).toBe('0px')
+  expect(
+    tallyDom!.valueText,
+    'the salvage value should be exactly the +N gain (no dangling after-value text)',
+  ).toBe(tallyDom!.soloText)
+  expect(
+    tallyDom!.creditMarginRight,
+    'credits/supplies/fuel deltas keep the 6px separator before their after-value',
+  ).toBe('6px')
+
   // ── 5. Install the purchased weapon on the starter MS ──────────────────
   const roster = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

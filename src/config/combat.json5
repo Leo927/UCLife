@@ -93,4 +93,57 @@
     // boosting" instead of "probability of choosing to boost this pass."
     boostDecisionWindowSec: 1.0,
   },
+
+  // W4.6 (presentation floor) — tactical arena backdrop starfield. Built
+  // ONCE in the PixiTacticalRenderer constructor and never touched again
+  // (perf rule: no per-frame star work). Seeded so the pattern is stable
+  // across sessions and reproducible in review. Placement is uniform over
+  // the fixed 1000×600 arena; density (count) is tuned to read as a sparse
+  // deep-space field, not a busy nebula. Radii/alpha in arena units.
+  tacticalStarfield: {
+    count: 90,
+    seed: 60077,          // UC 0077 flavor seed; any fixed integer is fine.
+    minRadiusPx: 0.4,
+    maxRadiusPx: 1.4,
+    minAlpha: 0.12,
+    maxAlpha: 0.55,
+    colorHex: '0x9aa7c7',
+  },
+
+  // W4.6 — per-class ship silhouettes for the tactical arena. Each family's
+  // `poly` is a FLAT [x0,y0,x1,y1,…] polygon normalized to hullRadius units,
+  // authored nose-first (+x = forward heading). drawShip() scales every
+  // point by snap.hullRadius and rotates the Graphics by heading, so the
+  // same shape works at any hull size. Families keep classes visually
+  // distinct (freighter blocky, frigate dart, capital spear, ms compact
+  // chevron); `byClassId` routes each class id to a family and any unmapped
+  // id (procedural/new hulls) falls back to `fallback`.
+  shipSilhouettes: {
+    fallback: 'arrowhead',
+    byClassId: {
+      lightFreighter: 'freighter',
+      lunarMilitia: 'frigate',
+      pegasusClass: 'capital',
+      pirateLight: 'frigate',
+      pirate_skirmisher: 'frigate',
+      pirate_raider: 'freighter',
+      gm_pre: 'ms',
+      civFighter: 'ms',
+      mobileWorker: 'ms',
+      pirate_junkerMs: 'ms',
+      pirate_junkerMs_gun: 'ms',
+    },
+    families: {
+      // The pre-W4.6 shape, kept as the universal fallback.
+      arrowhead: { poly: [1, 0, -0.7, 0.6, -0.4, 0, -0.7, -0.6] },
+      // Blunt-nosed boxy hauler.
+      freighter: { poly: [0.9, 0.45, 1, 0, 0.9, -0.45, -0.95, -0.5, -1.05, 0, -0.95, 0.5] },
+      // Sleek escort dart — longer nose, tight tail notch.
+      frigate: { poly: [1.25, 0, -0.55, 0.5, -0.3, 0, -0.55, -0.5] },
+      // Elongated capital spear with a broad aft.
+      capital: { poly: [1.4, 0, 0.4, 0.32, -1, 0.5, -1.15, 0, -1, -0.5, 0.4, -0.32] },
+      // Compact wide-winged chevron — reads as a fast small unit.
+      ms: { poly: [1, 0, -0.4, 0.75, -0.15, 0, -0.4, -0.75] },
+    },
+  },
 }
