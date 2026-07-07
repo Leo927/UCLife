@@ -12,7 +12,16 @@
 
 import { onSim } from '../sim/events'
 import { hangarRepairSystem } from '../systems/hangarRepair'
+import { runOnShipRepair } from '../systems/onShipRepair'
+import { getWorld } from '../ecs/world'
+import { Ship } from '../ecs/traits'
 
 onSim('day:rollover:settled', ({ gameDay }) => {
   hangarRepairSystem(gameDay)
+  // W4.3 (completes W1.5) — forward-repair the MS riding aboard each hull
+  // within its on-ship band. Depoted MS are handled by hangarRepairSystem
+  // above; this only touches aboard MS (dockedAtPoiId === '').
+  for (const ship of getWorld('playerShipInterior').query(Ship)) {
+    runOnShipRepair(ship)
+  }
 })

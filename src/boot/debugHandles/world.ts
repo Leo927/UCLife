@@ -2,11 +2,13 @@
 // movement / introspection helpers used by the smoke suite
 // (movePlayerTo, setMoveTarget, playerSnapshot, countByKind).
 
+import type { Entity } from 'koota'
 import { registerDebugHandle } from '../../debug/uclifeHandle'
 import { world } from '../../ecs/world'
 import {
   IsPlayer, Position, MoveTarget, Money, Road, Building, Wall, Path,
   Character, EntityKey, Action, Job, Workstation, QueuedInteract, Interactable,
+  Vitals,
 } from '../../ecs/traits'
 import { worldConfig } from '../../config'
 import type { InteractableKind } from '../../config/kinds'
@@ -103,4 +105,29 @@ registerDebugHandle('playerSnapshot', () => {
     pathIdx: path?.index ?? null,
     money: money?.amount ?? 0,
   }
+})
+
+// W4.2 smoke helpers — seed a vital so a test can observe recovery (sleep /
+// eat) without advancing hours of sim time for it to accrue naturally.
+// Vitals run 0 (satisfied) → 100 (critical); the clamp is the trait domain.
+type VitalKey = 'hunger' | 'thirst' | 'fatigue' | 'hygiene' | 'boredom'
+
+function applyVital(e: Entity, key: VitalKey, value: number): boolean {
+  const v = e.get(Vitals)
+  if (!v) return false
+  e.set(Vitals, { ...v, [key]: Math.max(0, Math.min(100, value)) })
+  return true
+}
+
+registerDebugHandle('setPlayerVital', (key: VitalKey, value: number) => {
+  const player = world.queryFirst(IsPlayer, Vitals)
+  return player ? applyVital(player, key, value) : false
+})
+
+registerDebugHandle('setNpcVitalByKey', (npcKey: string, key: VitalKey, value: number) => {
+  for (const e of world.query(Character, EntityKey, Vitals)) {
+    if (e.get(EntityKey)!.key !== npcKey) continue
+    return applyVital(e, key, value)
+  }
+  return false
 })

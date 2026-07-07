@@ -1,7 +1,8 @@
 import type { Entity, TraitInstance, World } from 'koota'
 import { State } from 'mistreevous'
 import type { Agent, ActionResult } from 'mistreevous/dist/Agent'
-import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard, CrewStation, Ship, IsFlagshipMark } from '../ecs/traits'
+import { Action, Active, MoveTarget, Path, Position, Vitals, Money, Inventory, Job, Home, RoughUse, ChatTarget, ChatLine, WanderState, Character, Health, Knows, Guard, CrewStation, Ship, IsFlagshipMark, Interactable } from '../ecs/traits'
+import { getFleetPool, spendFleetSupply } from '../ecs/fleetPool'
 import { resolveCrewDuty, isFlagshipUnderway, type CrewDuty } from './crewDuty'
 import { getShipClass } from '../data/ship-classes'
 import { crewConfig } from '../config'
@@ -66,6 +67,9 @@ const PREMIUM_MEAL_PRICE = economyConfig.prices.premiumMeal
 const WATER_PRICE = economyConfig.prices.water
 const BAR_PRICE = economyConfig.prices.barDrink
 
+// W4.2 — supply units one crew meal draws from the shared ship supply pool.
+const MESS_MEAL_SUPPLY_COST = crewConfig.mess.mealSupplyCost
+
 export type NPCAgent = Agent & {
   // Per-step trait snapshot. Conditions in this BT each read at least one
   // trait and Vitals is read by 5 conditions per step — dedup-on-step is
@@ -84,7 +88,7 @@ export type NPCAgent = Agent & {
   isCrewMealtime: () => boolean
   isCrewSleeptime: () => boolean
   goToStation: () => ActionResult
-  goToMess: () => ActionResult
+  eatAtMess: () => ActionResult
   goToQuarters: () => ActionResult
   isExhausted: () => boolean
   isHungry: () => boolean
@@ -313,6 +317,22 @@ export function makeNPCAgent(world: World, entity: Entity, frameCtx: NpcFrameCtx
   // (and the player) converging on one room settle across its floor instead
   // of one crew jostling forever just outside a centre-point radius. Halt on
   // arrival so movementSystem doesn't drag them back to the exact centre.
+  // W4.2 — the nearest `eat` interactable (the mess station) in the crew's
+  // own scene world. Crew tick in the ship interior, which holds only the
+  // mess eat station, so nearest resolves it without a room filter.
+  const messEatStation = (): { x: number; y: number } | null => {
+    const p = entity.get(Position)
+    if (!p) return null
+    let best: { x: number; y: number } | null = null
+    let bestD = Infinity
+    for (const e of world.query(Interactable, Position)) {
+      if (e.get(Interactable)!.kind !== 'eat') continue
+      const q = e.get(Position)!
+      const d = Math.hypot(q.x - p.x, q.y - p.y)
+      if (d < bestD) { bestD = d; best = { x: q.x, y: q.y } }
+    }
+    return best
+  }
   const walkToFlagshipRoom = (roomId: string, duty: CrewDuty): ActionResult => {
     const room = flagshipRoom(roomId)
     if (!room) return State.FAILED
@@ -412,10 +432,36 @@ export function makeNPCAgent(world: World, entity: Entity, frameCtx: NpcFrameCtx
       if (!st || st.anchorX < 0) { holdDuty('station'); return State.SUCCEEDED }
       return walkToDutyAnchor({ x: st.anchorX, y: st.anchorY }, 'station')
     },
-    // Task 3 replaces the mess/quarters holds with real (timed) eat-at-mess
-    // + crew-bunk-claim actions; Task 2 only walks them to the room.
-    goToMess() {
-      return walkToFlagshipRoom('mess', 'mess')
+    // W4.2 — report to the mess station and eat. Walk to the nearest `eat`
+    // interactable; on arrival, if hungry, consume one meal from the SHARED
+    // ship supply pool (FleetPool.supplyCurrent) — not personal inventory —
+    // and set the diegetic 'eating' action so vitals recovers hunger. The
+    // supply is reserved once at the start of the sitting; when the pool
+    // can't cover a meal the crew stand at the mess but don't eat. Falls
+    // through (FAILED) when no mess is authored so the ordinary drives run.
+    eatAtMess() {
+      const tgt = messEatStation()
+      if (!tgt) return State.FAILED
+      if (distTo(tgt) > DUTY_ARRIVE) {
+        if (isPathBlocked(tgt.x, tgt.y)) return State.FAILED
+        setMoveTarget(tgt.x, tgt.y)
+        return State.RUNNING
+      }
+      haltMovement()
+      const st = entity.get(CrewStation)
+      if (st && st.current !== 'mess') entity.set(CrewStation, { ...st, current: 'mess' })
+      const v = entity.get(Vitals)
+      if (!v || v.hunger <= HUNGER_FED) { setActionKind('idle'); return State.SUCCEEDED }
+      const a = entity.get(Action)
+      if (a?.kind !== 'eating') {
+        if (getFleetPool().supplyCurrent < MESS_MEAL_SUPPLY_COST) {
+          setActionKind('idle')
+          return State.SUCCEEDED
+        }
+        spendFleetSupply(MESS_MEAL_SUPPLY_COST)
+      }
+      setActionKind('eating')
+      return State.RUNNING
     },
     goToQuarters() {
       return walkToFlagshipRoom('crewQ', 'quarters')

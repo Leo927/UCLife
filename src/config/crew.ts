@@ -12,6 +12,12 @@ export interface CrewConfig {
     sleepWindow: HourWindow
     arriveRadiusPx: number
   }
+  mess: {
+    mealSupplyCost: number
+  }
+  bunk: {
+    claimHours: number
+  }
 }
 
 export const crewConfig = json5.parse(raw) as CrewConfig

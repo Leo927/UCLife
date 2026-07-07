@@ -87,6 +87,7 @@ import { pickRandomColor } from '../../character/nameGen'
 import { buildNpcDialogue } from '../../ui/dialogue/builder'
 import type { DialogueCtx } from '../../ui/dialogue/types'
 import { getStat } from '../../stats/sheet'
+import { isHangarBossCrew } from '../../systems/crewAboard'
 
 // Resolve the seated AE sales rep NPC by workstation specId across every
 // scene world. Returns null when the spec is unmanned or absent. Used by
@@ -253,6 +254,7 @@ registerDebugHandle('hireBranchListing', (npcKey: string): string[] => {
       isResearcherOnDuty: false,
       isRecruitingManagerOnDuty: false,
       isHangarManagerOnDuty: false,
+      isHangarBossOnDuty: isHangarBossCrew(hit.entity),
       isAeSupplyDealerOnDuty: false,
       isAEShipSalesOnDuty: false,
       isAEVehicleSalesOnDuty: false,

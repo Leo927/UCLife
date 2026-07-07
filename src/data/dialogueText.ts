@@ -27,6 +27,7 @@ export interface DialogueText {
     jobSite: string
     talkHire: string
     hangarManager: string
+    hangarBoss: string
     aeSupplyDealer: string
     aeShipSales: string
     aeVehicleSales: string
@@ -98,6 +99,22 @@ export interface DialogueText {
       acceptLabel: string
       toastNoMoney: string
       toastAccepted: string
+    }
+    hangarBoss: {
+      titleSuffix: string
+      intro: string
+      bandFmt: string
+      aboardHeader: string
+      aboardEmpty: string
+      hullLabel: string
+      sidelinedBadge: string
+      atCapBadge: string
+      repairHeader: string
+      repairPriorityActive: string
+      repairPriorityNone: string
+      repairFocusButton: string
+      repairClearButton: string
+      dockedOnlyHint: string
     }
     hangarManager: {
       titleSuffix: string

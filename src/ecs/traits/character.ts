@@ -360,6 +360,11 @@ export const SkillPerkState = trait({
 export type CrewDutyState = 'station' | 'mess' | 'quarters' | 'offDuty'
 export const CrewStation = trait(() => ({
   roomEntity: null as Entity | null,
+  // W4.3 — the class-room id of this crew member's assigned duty station
+  // (from `crewStations`). The crew member stationed in the `hangarBay` room
+  // is the ship's hangar boss (systems/crewAboard.ts :: isHangarBossCrew).
+  // Empty when the class authors no station for this ordinal.
+  roomId: '',
   anchorX: -1,
   anchorY: -1,
   current: 'offDuty' as CrewDutyState,

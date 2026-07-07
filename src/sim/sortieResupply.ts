@@ -23,9 +23,10 @@
 
 import type { Entity } from 'koota'
 import {
-  Ship, ShipStatSheet, Ms, MsStatSheet, ResupplyState, EntityKey,
+  Ms, MsStatSheet, ResupplyState, EntityKey,
 } from '../ecs/traits'
 import { getWorld } from '../ecs/world'
+import { hangarResupplyStatsFor } from '../ecs/crewRoles'
 import { sortieConfig } from '../config'
 import { getStat } from '../stats/sheet'
 import { getMsClass } from '../data/ms'
@@ -35,26 +36,27 @@ import { sortieStats } from './hangarDoors'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
-// Compute the resupply time for a given ship + ship's bay. Reads:
-//   hangarBoss.workPerformance — placeholder `defaultHangarBossPerformance`
-//     until the captain's-office crew-roster authoring lands at 6.2.5.D.
-//   mechanicCrewEfficiency      — `defaultMechanicCrewCount × mechanicCrewEfficiencyPerSlot`.
-//   resourceBoostMul            — read from the MS sheet's sortieResupplyMul
-//     (frame mods + research stack into it).
+// Compute the resupply time for a given MS at its host ship's bay. Reads:
+//   hangarBoss.workPerfMul — the real workPerfMul of the ship's hangar boss
+//     (the crew member stationed at the hangar bay), via ecs/crewRoles.ts.
+//     Falls back to the sortie.json5 config placeholder when no boss aboard.
+//   mechanicCrewEfficiency — real count of additional hangar-stationed
+//     mechanic crew × mechanicCrewEfficiencyPerSlot.
+//   resourceBoostMul       — the MS sheet's sortieResupplyMul (frame mods +
+//     research stack into it).
 //
-// Caller passes the MS entity so the formula can read its per-MS resupply
-// multiplier; the ship entity is found by storedOnShipKey.
+// Completes W3.6 — the boss/crew placeholders are replaced with live crew
+// stats. The MS's host ship is resolved by `storedOnShipKey`.
 export function resupplyTimeForMs(msEnt: Entity): number {
   const m = msEnt.get(Ms)
   if (!m) return sortieConfig.baseResupplySec
   // ResourceBoostMul: per-MS frame-mod stacked multiplier.
   const sheet = msEnt.get(MsStatSheet)?.sheet
   const resourceBoostMul = sheet ? Math.max(0.01, getStat(sheet, 'sortieResupplyMul')) : 1
-  // hangarBoss + mechanic crew: placeholders until 6.2.5.D.
-  const bossPerf = sortieConfig.defaultHangarBossPerformance
-  const crewEff = sortieConfig.defaultMechanicCrewCount * sortieConfig.mechanicCrewEfficiencyPerSlot
-  void Ship; void ShipStatSheet  // reserved for the 6.2.5.D author pass.
-  return sortieConfig.baseResupplySec / bossPerf / (1 + crewEff) / resourceBoostMul
+  const { bossPerf, mechanicCrewCount } = hangarResupplyStatsFor(m.storedOnShipKey)
+  const safeBossPerf = Math.max(0.01, bossPerf)
+  const crewEff = mechanicCrewCount * sortieConfig.mechanicCrewEfficiencyPerSlot
+  return sortieConfig.baseResupplySec / safeBossPerf / (1 + crewEff) / resourceBoostMul
 }
 
 // Attach ResupplyState to a freshly-docked MS. Called from the dock

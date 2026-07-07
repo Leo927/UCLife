@@ -5,6 +5,7 @@ import { Character, Action, Position, MoveTarget, Vitals, Health, Money, Invento
 import type { ActionKind, Gender } from '../ecs/traits'
 import { hasFactionUnlock } from '../ecs/factionEffects'
 import { FACTION_TIER_UNLOCK_ID } from '../systems/factionTier'
+import { isHangarBossCrew } from '../systems/crewAboard'
 import { useUI } from './uiStore'
 import { actionLabel } from '../data/actions'
 import { getJobSpec } from '../data/jobs'
@@ -125,6 +126,9 @@ export function NPCDialog() {
     isRecruiterOnDuty: specId === 'recruiter' && onShift,
     isResearcherOnDuty: specId === 'researcher' && onShift,
     isHangarManagerOnDuty: specId === 'hangar_manager' && onShift,
+    // W4.3 — the ship's hangar boss is a crew member (no workstation), so
+    // it's gated on the CrewStation duty room, not a job spec.
+    isHangarBossOnDuty: !!target && isHangarBossCrew(target),
     isAeSupplyDealerOnDuty: specId === 'ae_supply_dealer' && onShift,
     // Phase 6.2.C1+C2 — AE ship sales reps. The salesRepCatalog in
     // fleet.json5 maps each rep's workstation specId to the single hull

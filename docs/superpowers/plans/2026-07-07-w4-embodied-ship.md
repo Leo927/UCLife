@@ -87,9 +87,9 @@ Tasks **6, 7, 8** touch disjoint files and depend on nothing in Task 1's spine �
 - Consumes: the Task 1 crew bodies + Task 2 off-duty branch; `Bed`/`Interactable` queries (`findBestOpenBed`, mess `Interactable({kind:'eat'})`).
 - Produces: player bunk (free sleep) + mess (eat) aboard; crew-usable beds (non-lounge tier, same region) + a mess station crew consume from shared supply.
 
-- [ ] Failing test first (player leg): board → walk to `crewQ` bunk → `Action.kind==='sleeping'`, `Vitals.fatigue` recovers; walk to `mess` → `eating`, `Vitals.hunger` recovers. Red → author data + templates + spawn traits + free-claim branch → green.
-- [ ] Failing test (crew leg): a seeded crew NPC on its off-duty branch claims a crew bed (`findBestOpenBed` returns it) and eats at the mess, decrementing the shared mess supply. Red → add `eatAtMess` action + supply drawdown → green.
-- [ ] Sync `Design/ship.md`/`Design/fleet.md` room-furnishing notes. Gates + commit: `feat(ship): furnish crew quarters and mess — player + crew usable (W4.2)`
+- [x] Failing test first (player leg): board → walk to `crewQ` bunk → `Action.kind==='sleeping'`, `Vitals.fatigue` recovers; walk to `mess` → `eating`, `Vitals.hunger` recovers. Red → author data + templates + spawn traits + free-claim branch → green.
+- [x] Failing test (crew leg): a seeded crew NPC on its off-duty branch claims a crew bed (`findBestOpenBed` returns it) and eats at the mess, decrementing the shared mess supply. Red → add `eatAtMess` action + supply drawdown → green.
+- [x] Sync `Design/ship.md`/`Design/fleet.md` room-furnishing notes. Gates + commit: `feat(ship): furnish crew quarters and mess — player + crew usable (W4.2)`
 
 ### Task 4: Hangar boss + on-ship MS repair band — completes W1.5 (W4.3a)
 
@@ -102,8 +102,8 @@ Tasks **6, 7, 8** touch disjoint files and depend on nothing in Task 1's spine �
 - Consumes: aboard-MS (`Ms.storedOnShipKey === flagshipKey`, `dockedAtPoiId===''`), ship stats `onShipRepairCap`/`onShipRepairFloor`.
 - Produces: `runOnShipRepair(ship)` per repair tick; `describeOnShipRepair(ship)` read for the Task 5 panel.
 
-- [ ] Failing test first: aboard damaged MS below `onShipRepairFloor` → not repaired; MS within band → hull/armor climbs to `onShipRepairCap` and stops; depot MS (unloaded) still repairs to 100% via `hangarRepair.ts`. Red → implement → green. Route `damageState` only through `computeMsDamageState` (never hand-set).
-- [ ] Sync `Design/fleet.md`/`Design/sortie.md` on-ship-repair notes; note "completes W1.5" in commit body. Gates + commit: `feat(ship): hangar boss + on-ship MS repair band — completes W1.5 (W4.3)`
+- [x] Failing test first: aboard damaged MS below `onShipRepairFloor` → not repaired; MS within band → hull/armor climbs to `onShipRepairCap` and stops; depot MS (unloaded) still repairs to 100% via `hangarRepair.ts`. Red → implement → green. Route `damageState` only through `computeMsDamageState` (never hand-set).
+- [x] Sync `Design/fleet.md`/`Design/sortie.md` on-ship-repair notes; note "completes W1.5" in commit body. Gates + commit: `feat(ship): hangar boss + on-ship MS repair band — completes W1.5 (W4.3)`
 
 ### Task 5: On-ship hangar-deck surface + real resupply stats — completes W3.6 (W4.3b)
 
@@ -117,8 +117,8 @@ Tasks **6, 7, 8** touch disjoint files and depend on nothing in Task 1's spine �
 - Consumes: Task 4's `describeOnShipRepair`, `msCustody.ts` verbs, boss `workPerfMul` + mechanic-crew count.
 - Produces: the diegetic hangar-deck panel; resupply time now a function of real crew stats.
 
-- [ ] Failing test first: resupply time shrinks when a higher-`workPerfMul` boss is aboard vs the config fallback; forward-repair-priority routes on-ship repair to the chosen MS within the band; load/unload verbs move MS ship↔depot at dock. Red → implement → green.
-- [ ] Sync deferral status in the spec's W1.5/W3.6/W4.3 notes; note "completes W3.6" in commit body. Gates + commit: `feat(ship): on-ship hangar deck + real resupply crew stats — completes W3.6 (W4.3)`
+- [x] Failing test first: resupply time shrinks when a higher-`workPerfMul` boss is aboard vs the config fallback; forward-repair-priority routes on-ship repair to the chosen MS within the band; load/unload verbs move MS ship↔depot at dock. Red → implement → green.
+- [x] Sync deferral status in the spec's W1.5/W3.6/W4.3 notes; note "completes W3.6" in commit body. Gates + commit: `feat(ship): on-ship hangar deck + real resupply crew stats — completes W3.6 (W4.3)`
 
 ### Task 6: One boarding affordance + readiness briefing (W4.4) — parallel leaf
 

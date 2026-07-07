@@ -46,6 +46,11 @@ export type DialogueRoles = {
   isResearcherOnDuty: boolean
   isRecruitingManagerOnDuty: boolean
   isHangarManagerOnDuty: boolean
+  // W4.3 — the ship's hangar boss (a hired crew member whose duty station is
+  // the hangar bay). Gates the on-ship hangar-deck talk surface (forward
+  // repair + MS load/unload). Distinct from isHangarManagerOnDuty, which is
+  // the surface-depot hangar's manager NPC.
+  isHangarBossOnDuty: boolean
   isAeSupplyDealerOnDuty: boolean
   // Phase 6.2.C1 — AE light-hull sales rep at the Von Braun spaceport.
   isAEShipSalesOnDuty: boolean

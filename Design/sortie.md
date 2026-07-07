@@ -50,6 +50,8 @@ resupplyTime  =  baseResupplySec
 
 Every term is configurable; baseline tuning is one knob (`baseResupplySec`).
 
+> **Shipped (W4.3b, completes W3.6).** `sim/sortieResupply.ts :: resupplyTimeForMs` now reads the **live** hangar-crew stats via `ecs/crewRoles.ts :: hangarResupplyStatsFor(shipKey)`: `hangarBoss.workPerformance` is the workPerfMul of the crew member stationed at the hangar bay (the hangar boss), and `mechanicCrewCount` is the count of additional hangar-stationed crew. The `defaultHangarBossPerformance` / `defaultMechanicCrewCount` config values in `sortie.json5` are now only the *fallback* used when no hangar boss is aboard — the `void Ship; void ShipStatSheet` placeholder is gone. The hangar boss also fronts the walkable **hangar-deck talk surface** (`ui/dialogue/branches/hangarBoss.tsx`, gated on `DialogueRoles.isHangarBossOnDuty`): the aboard-MS list with forward-repair state, a forward-repair-priority control (writes `Ship.onShipRepairPriorityKey`, honored by `onShipRepair.ts`), and the `msCustody.ts` load/unload verbs (docked only).
+
 A returning MS occupies a **bay slot** for the duration; if all bay slots are full, the MS queues outside the door and pays a queue-wait penalty (drifting near the ship under hostile fire) until a slot opens. Queue order is FIFO.
 
 The resupply clock runs against tactical-time (1:1 real-second). It does *not* tick during paused tactical (active-pause freezes it like everything else).

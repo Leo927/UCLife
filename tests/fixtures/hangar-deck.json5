@@ -1,0 +1,30 @@
+// W4.3b — a crewed flagship whose roster fills all four lightFreighter duty
+// stations (bridge / engine / medbay / hangar), so the fourth roster member
+// (npc-crew-4) is stationed at the hangar bay and is therefore the ship's
+// hangar boss. The hangar-deck smoke boots straight into the ship interior
+// and asserts the hangar-deck talk surface gates on that boss.
+{
+  seed: 'hangar-deck-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 1000000,
+    location: { scene: 'playerShipInterior', x: 1, y: 1 },
+  },
+
+  ships: [
+    {
+      id: 'flagship',
+      template: 'lightFreighter',
+      flagship: true,
+      dockedAt: 'vonBraun',
+      crew: [
+        { key: 'npc-crew-1', name: '布莱特', role: 'captain' },
+        { key: 'npc-crew-2', name: '米莱', role: 'crew' },
+        { key: 'npc-crew-3', name: '哈亚托', role: 'crew' },
+        { key: 'npc-crew-4', name: '阿姆罗', role: 'crew' },
+      ],
+    },
+  ],
+}

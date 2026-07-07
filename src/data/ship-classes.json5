@@ -111,6 +111,11 @@
       // Phase 6.2.5 — internal MS bay. lightFreighter lore: "机库勉强能容下
       // 一台 MS" (hangar can barely fit one MS). Single internal slot.
       hangarCapacity: 1,
+      // W4.3 — forward-repair band. A civilian refit's makeshift deck patches
+      // to 80% and can't touch a unit below 40% (baseline; a carrier tender
+      // would author a lower floor).
+      onShipRepairCap: 0.8,
+      onShipRepairFloor: 0.4,
       // Phase 6.2.5.C — physical launch/recovery doors authored per
       // hull. The lightFreighter ships with one port-side cradle door:
       // an MS spawns at (ship.pos + door.position rotated by ship.heading)
@@ -177,8 +182,26 @@
             { kind: 'warRoom', label: '战略图台', offset: { dx: 0, dy: 0.5 } },
           ],
         },
-        { id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 2, w: 2, h: 2 } },
-        { id: 'mess',       nameZh: '餐厅',     bounds: { x: 4, y: 2, w: 2, h: 2 } },
+        {
+          // W4.2 — furnished crew quarters. Four racks fill the 2×2 room:
+          // the captain's bunk + three crew bunks (offsets = the four tile
+          // centres). Rent-free 'bunk' Bed tier attached at spawn.
+          id: 'crewQ',      nameZh: '船员舱',   bounds: { x: 2, y: 2, w: 2, h: 2 },
+          interactables: [
+            { kind: 'sleep', label: '舰长铺位', offset: { dx: -0.5, dy: -0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: 0.5,  dy: -0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: -0.5, dy: 0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: 0.5,  dy: 0.5 } },
+          ],
+        },
+        {
+          // W4.2 — mess. One eat station the player + crew both use; crew
+          // draw the shared ship supply pool per meal (config).
+          id: 'mess',       nameZh: '餐厅',     bounds: { x: 4, y: 2, w: 2, h: 2 },
+          interactables: [
+            { kind: 'eat', label: '餐台', offset: { dx: -0.5, dy: -0.5 } },
+          ],
+        },
         { id: 'engineRoom', nameZh: '引擎室',   bounds: { x: 0, y: 4, w: 2, h: 2 } },
         { id: 'medbay',     nameZh: '医务室',   bounds: { x: 2, y: 4, w: 2, h: 2 } },
         {
@@ -348,6 +371,11 @@
       // Phase 6.2.5 — internal MS bay. Pegasus-class hangar bay holds up
       // to 4 MS internally; aligns with UC canon White Base complement.
       hangarCapacity: 4,
+      // W4.3 — forward-repair band. A carrier's full deck patches to 80% and
+      // holds the baseline 40% floor; a dedicated tender would lower the floor
+      // further to salvage deeper-damaged units in the field.
+      onShipRepairCap: 0.8,
+      onShipRepairFloor: 0.4,
       // Phase 6.2.5.C — White-Base-shape door authoring. UC canon: the
       // Pegasus opens its bow doors and catapults MS forward. Three
       // doors against four bays produces the carrier-vs-frigate asymmetry
@@ -405,8 +433,28 @@
             { kind: 'warRoom', label: '战略图台', offset: { dx: 0, dy: 0 } },
           ],
         },
-        { id: 'crewQ',     nameZh: '船员舱', bounds: { x: 3, y: 2, w: 3, h: 2 } },
-        { id: 'mess',      nameZh: '餐厅',   bounds: { x: 6, y: 2, w: 2, h: 2 } },
+        {
+          // W4.2 — furnished carrier quarters. Captain's bunk + five crew
+          // racks fill the 3×2 room (offsets = the six tile centres). A
+          // 200-hand complement is aspirational; extra crew wrap / bunk-hot.
+          id: 'crewQ',     nameZh: '船员舱', bounds: { x: 3, y: 2, w: 3, h: 2 },
+          interactables: [
+            { kind: 'sleep', label: '舰长铺位', offset: { dx: -1, dy: -0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: 0,  dy: -0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: 1,  dy: -0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: -1, dy: 0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: 0,  dy: 0.5 } },
+            { kind: 'sleep', label: '船员铺位', offset: { dx: 1,  dy: 0.5 } },
+          ],
+        },
+        {
+          // W4.2 — carrier mess. Eat station the player + crew share; crew
+          // draw the shared ship supply pool per meal (config).
+          id: 'mess',      nameZh: '餐厅',   bounds: { x: 6, y: 2, w: 2, h: 2 },
+          interactables: [
+            { kind: 'eat', label: '餐台', offset: { dx: -0.5, dy: -0.5 } },
+          ],
+        },
         { id: 'engineRoom', nameZh: '引擎室', bounds: { x: 0, y: 4, w: 3, h: 2 } },
         { id: 'medbay',    nameZh: '医务室', bounds: { x: 3, y: 4, w: 2, h: 2 } },
         {

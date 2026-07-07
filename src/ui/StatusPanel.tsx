@@ -30,6 +30,7 @@ const TIER_LABEL: Record<BedTier, string> = {
   apartment: '公寓',
   luxury: '高级公寓',
   lounge: '员工沙发',
+  bunk: '船员铺位',
 }
 
 export function StatusPanel() {

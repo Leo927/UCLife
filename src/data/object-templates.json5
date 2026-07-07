@@ -126,6 +126,11 @@
     'ship-climb-into-ms':  { kind: 'interactable', interactableKind: 'climbIntoMs',   labelZh: '登舱',     visual: { w: 28, h: 28, fill: 0x172554, stroke: 0x60a5fa } },
     'ship-ms-sprite':      { kind: 'interactable', interactableKind: 'climbIntoMs',   labelZh: '登舱出击', visual: { w: 36, h: 36, fill: 0x1e3a5f, stroke: 0x60a5fa } },
     'ship-ms-terminal':    { kind: 'interactable', interactableKind: 'msTerminal',    labelZh: 'MS 终端',  visual: { w: 22, h: 22, fill: 0x0f2a4a, stroke: 0x38bdf8 } },
+    // W4.2 — furnished crew quarters + mess. The bunk is the rent-free 'bunk'
+    // Bed tier (spawn.ts attaches the Bed trait); the mess station is a plain
+    // 'eat' interactable the player + crew both use (crew draw ship supply).
+    'ship-bunk':           { kind: 'bed',         tier: 'bunk',                       visual: { w: 26, h: 16, fill: 0x1f2937, stroke: 0x94a3b8, label: '床铺' } },
+    'ship-mess':           { kind: 'interactable', interactableKind: 'eat',           labelZh: '餐台',     fee: 0, visual: { w: 28, h: 20, fill: 0x3a2c0a, stroke: 0xc9a047 } },
     // Airport-style gate triple. Each laid-out hangar slot materialises
     // as a persistent gate: kiosk (Interactable gateTerminal — press E to
     // open GateTerminalPanel), sign (visual-only, sign text rendered as

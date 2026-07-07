@@ -86,20 +86,20 @@ function findCrewBodyElsewhere(key: string): Entity | null {
 // this roster ordinal, resolved from the flagship class's authored
 // crewStations (wrapping when there are more crew than stations). Returns
 // { -1, -1 } when the class authors no stations (crew idle at quarters).
-function stationAnchorForOrdinal(ship: Entity, ordinal: number): { x: number; y: number } {
+function stationAnchorForOrdinal(ship: Entity, ordinal: number): { x: number; y: number; roomId: string } {
   const cls = getShipClass(ship.get(Ship)!.templateId)
   const stations = cls.crewStations
-  if (!stations || stations.length === 0) return { x: -1, y: -1 }
+  if (!stations || stations.length === 0) return { x: -1, y: -1, roomId: '' }
   const st = stations[ordinal % stations.length]
   const room = cls.rooms.find((r) => r.id === st.roomId)
-  if (!room) return { x: -1, y: -1 }
+  if (!room) return { x: -1, y: -1, roomId: '' }
   const cx = (room.bounds.x + room.bounds.w / 2 + (st.offset?.dx ?? 0)) * TILE
   const cy = (room.bounds.y + room.bounds.h / 2 + (st.offset?.dy ?? 0)) * TILE
-  return { x: cx, y: cy }
+  return { x: cx, y: cy, roomId: st.roomId }
 }
 
 function ensureCrewMarkers(
-  body: Entity, shipKey: string, role: CrewRole, anchor: { x: number; y: number },
+  body: Entity, shipKey: string, role: CrewRole, anchor: { x: number; y: number; roomId: string },
 ): void {
   if (body.has(EmployedAsCrew)) body.set(EmployedAsCrew, { shipKey, role })
   else body.add(EmployedAsCrew({ shipKey, role }))
@@ -111,10 +111,20 @@ function ensureCrewMarkers(
   // Preserve the live duty decision across a re-reconcile (hire/fire of a
   // sibling shouldn't reset a crew member mid-watch); default to off-duty.
   const current = body.get(CrewStation)?.current ?? 'offDuty'
-  const station = { roomEntity: null, anchorX: anchor.x, anchorY: anchor.y, current }
+  const station = {
+    roomEntity: null, roomId: anchor.roomId,
+    anchorX: anchor.x, anchorY: anchor.y, current,
+  }
   if (body.has(CrewStation)) body.set(CrewStation, station)
   else body.add(CrewStation(station))
 }
+
+// Hangar-boss role lookups live in ecs/crewRoles.ts (so the sim layer can
+// read them without an upward import); re-exported here for existing
+// systems-layer callers.
+export {
+  HANGAR_BOSS_ROOM_ID, isHangarBossCrew, findHangarBossAboard,
+} from '../ecs/crewRoles'
 
 // Idempotent: aligns the ship-interior world to the flagship's roster. The
 // `ship` argument is the roster that changed (hire/fire target); the

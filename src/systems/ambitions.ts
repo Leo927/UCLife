@@ -52,6 +52,7 @@ function residenceTierValue(entity: Entity): number {
     case 'dorm': return 2
     case 'apartment': return 3
     case 'luxury': return 4
+    case 'bunk': return 2
     case 'lounge': return 0
   }
 }

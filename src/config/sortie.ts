@@ -1,11 +1,18 @@
 import json5 from 'json5'
 import raw from './sortie.json5?raw'
 
+export interface OnShipRepairConfig {
+  pointsPerDay: number
+  defaultCap: number
+  defaultFloor: number
+}
+
 export interface SortieConfig {
   baseResupplySec: number
   mechanicCrewEfficiencyPerSlot: number
   defaultHangarBossPerformance: number
   defaultMechanicCrewCount: number
+  onShipRepair: OnShipRepairConfig
   launchDoorLockSec: number
   dockDoorLockSec: number
   dockApproachRadiusPx: number

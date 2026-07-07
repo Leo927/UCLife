@@ -1,0 +1,28 @@
+// W4.2 — a furnished, crewed flagship boarded and docked. The ship-furnished
+// smoke boots straight into the ship interior so the crew quarters (bunks) +
+// mess (eat station) are already seeded and one crew body is materialized.
+// The player stands in the captain's office (room center 1,1) — not a bunk,
+// mess, or duty station — so the player leg and the single crew body never
+// contend for the same furniture.
+{
+  seed: 'ship-furnished-001',
+  startDate: '2026-05-17T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 1000000,
+    location: { scene: 'playerShipInterior', x: 1, y: 1 },
+  },
+
+  ships: [
+    {
+      id: 'flagship',
+      template: 'lightFreighter',
+      flagship: true,
+      dockedAt: 'vonBraun',
+      crew: [
+        { key: 'npc-crew-1', name: '米莱', role: 'crew' },
+      ],
+    },
+  ],
+}

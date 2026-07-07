@@ -26,4 +26,18 @@
     // too tight to share). On arrival the crew member halts where they are.
     arriveRadiusPx: 48,
   },
+  // W4.2 — shared ship mess. Crew who report to the mess in a meal window eat
+  // from the fleet's operational supply pool (FleetPool.supplyCurrent), not
+  // personal inventory. One meal draws `mealSupplyCost` supply units; when the
+  // pool can't cover a meal the crew stand at the mess but don't consume.
+  mess: {
+    mealSupplyCost: 1,
+  },
+  // W4.2 — crew bunks. Free racks aboard the flagship; a claim (player click
+  // or crew findBestOpenBed) holds the bunk for this many game-hours before
+  // rentSystem GCs the occupancy. Long enough to cover a full night's watch
+  // rotation without re-claiming every nap.
+  bunk: {
+    claimHours: 24,
+  },
 }
