@@ -33,9 +33,9 @@
 - Consumes: `Ms` trait (`hullCurrent/armorCurrent/damageState`), `CombatShipState` clone, `PLAYER_MS_KEY`, `computeMsDamageState`.
 - Produces: `syncMsCombatDamageToRoster(msKey: string): void` — copies the combat clone's hull/armor to the persistent `Ms` entity + recomputes `damageState`. Called on dock-back AND on destruction (destruction writes hull 0 → Task 7's ejection builds on this). Wings (Task 5) reuse it per wing member.
 
-- [ ] Failing test first: launch with full hull → damage the clone → `dockMs` → roster `Ms.hullCurrent` reflects the damage and `damageState` recomputed; destruction path writes hull 0. Red → implement → green. Guard: resupply must NOT restore hull (only propellant/ammo — verify against `sortieResupply.ts`).
-- [ ] Update `Design/sortie.md`/`Design/fleet.md` in-repair notes if contradicted; close-comment referencing #163 in the commit body (`Fixes #163` goes in the eventual PR).
-- [ ] Gates + commit: `fix(ms): combat damage persists to the roster — dock-back and destruction write back (#163)`
+- [x] Failing test first: launch with full hull → damage the clone → `dockMs` → roster `Ms.hullCurrent` reflects the damage and `damageState` recomputed; destruction path writes hull 0. Red → implement → green. Guard: resupply must NOT restore hull (only propellant/ammo — verify against `sortieResupply.ts`).
+- [x] Update `Design/sortie.md`/`Design/fleet.md` in-repair notes if contradicted; close-comment referencing #163 in the commit body (`Fixes #163` goes in the eventual PR).
+- [x] Gates + commit: `fix(ms): combat damage persists to the roster — dock-back and destruction write back (#163)`
 
 ### Task 2: Hostile MS frames + pilot blocks + group complements (+ #165 mount fill)
 
@@ -46,7 +46,7 @@
 **Interfaces:**
 - Produces: enemy MS CombatShipState rows in tactical (small, fast, `isMs`), keyed `enemy-ms-<n>`; the `pilot` block rides on the row's `ai` extension for Task 4. The journey/fuel-budget smokes must stay green (their authored encounters unchanged).
 
-- [ ] Failing data test → author rows → spawn wiring → smoke asserting a complement group fields MS rows in tactical and they fight (hull decreases on either side). #165 fill with a unit test asserting `defaultWeapons.length === mounts.length` for every class. Gates + commit.
+- [x] Failing data test → author rows → spawn wiring → smoke asserting a complement group fields MS rows in tactical and they fight (hull decreases on either side). #165 fill with a unit test asserting `defaultWeapons.length === mounts.length` for every class. Gates + commit.
 
 ### Task 3: MS flight identity — vernier boost + hit profile
 
@@ -57,7 +57,7 @@
 **Interfaces:**
 - Produces: `boostState` readable per MS row (Task 4's `boostUse` AI + Task 6's cooldown gauge consume it).
 
-- [ ] Investigate current hit-testing (projectile collision radius; beams instant-hit) and thread `hitRadiusPx` so MS are genuinely harder to hit than hulls — document before/after in the report. Failing smoke → implement → green. Gates + commit.
+- [x] Investigate current hit-testing (projectile collision radius; beams instant-hit) and thread `hitRadiusPx` so MS are genuinely harder to hit than hulls — document before/after in the report. Failing smoke → implement → green. Gates + commit.
 
 ### Task 4: Pilot-quality AI for hostile MS
 
@@ -65,7 +65,7 @@
 - Modify: `src/systems/combat.ts` (§4 enemy fire + §1 directive for `isMs` enemy rows: `reactionSec` delays target switches, `aimJitterRad` perturbs fire solutions via seeded RNG, `boostUse` probabilistically triggers boost on closing/disengage), `src/config/combat.json5` (any shared pilot-AI knobs)
 - Test: unit-level where the math is pure (jitter distribution deterministic under seed), smoke asserting a high-jitter pilot misses more than a zero-jitter one over a fixed window (seeded, deterministic counts)
 
-- [ ] Failing tests → implement → green. Perf note: all O(1) per enemy MS per tick. Gates + commit.
+- [x] Failing tests → implement → green. Perf note: all O(1) per enemy MS per tick. Gates + commit.
 
 ### Task 5: AI MS wings — launch order, wing AI, role tags, resupply loop
 
@@ -77,7 +77,7 @@
 - Consumes: Task 1's damage sync (per wing member on dock/destroy), Task 3's boost fields (wings may boost), `EmployedAsPilot.msKey` assignments (pilot roster), hangar-door queue.
 - Produces: wing rows in tactical; `msLaunchAuth` order live (CP cost 2 per `orderCosts`); role-tag vocabulary for Task 6's HUD and Task 9's spec status.
 
-- [ ] Order per brief: trait+save → retrofit UI → shared spawn extraction (refactor `spawnPlayerMs` without behavior change, prove with existing cockpit smokes) → palette button + order → wing AI role consumption → resupply loop. Failing smoke first per slice; commit may split in two (`feat(ms): wings launch by bridge order` + `feat(ms): wing resupply loop + role tags`) — note in report. Gates.
+- [x] Order per brief: trait+save → retrofit UI → shared spawn extraction (refactor `spawnPlayerMs` without behavior change, prove with existing cockpit smokes) → palette button + order → wing AI role consumption → resupply loop. Failing smoke first per slice; commit may split in two (`feat(ms): wings launch by bridge order` + `feat(ms): wing resupply loop + role tags`) — note in report. Gates.
 
 ### Task 6: Cockpit HUD
 
@@ -87,7 +87,7 @@
 
 **Interfaces:** consumes `Ms` instance fields + Task 3 boost state + `sortieResupply` timer state; produces `data-cockpit-gauge="propellant|ammo|lifeSupport|boost"` attributes for the journey leg.
 
-- [ ] Failing smoke → implement → green. The player must be able to answer "dock now or fight on dry?" from the HUD alone. Gates + commit.
+- [x] Failing smoke → implement → green. The player must be able to answer "dock now or fight on dry?" from the HUD alone. Gates + commit.
 
 ### Task 7: Ejection with stakes
 
@@ -97,7 +97,7 @@
 
 **Interfaces:** consumes Task 1's destruction write-back, Task 5's wings (NPC pods). The confirm prompt is a small modal (auto-pause per `post-combat.md`'s designed pause set) — real DOM.
 
-- [ ] This is the largest task: follow the brief's slice order (player pod → life-support forced eject → NPC pods → permadeath/injury), failing test per slice. If run-end mechanics don't exist for permadeath, STOP and report BLOCKED with what exists (do not invent a game-over system inside this task). Gates + commit.
+- [x] This is the largest task: follow the brief's slice order (player pod → life-support forced eject → NPC pods → permadeath/injury), failing test per slice. If run-end mechanics don't exist for permadeath, STOP and report BLOCKED with what exists (do not invent a game-over system inside this task). Gates + commit.
 
 ### Task 8: Doc amendments + spec status (W3.7)
 
@@ -105,7 +105,7 @@
 - Modify: `Design/combat.md` (Cockpit-mode section rewritten around direct control; strike "the minigame primitive model is the ceiling" + the twin-stick prohibition; document boost/HUD/ejection/wings as shipped shape), `Design/mobile-worker.md` (keep the civilian minigame as future content; remove the "rehearsal becomes the fight" through-line), `docs/superpowers/specs/2026-07-04-ship-ms-combat-ux-design.md` (W3 status block)
 - Also: file the `mw_pilot` ambition-verb tracking issue via `gh issue create` (the W1 spec ledger promised it; controller may do this instead — coordinate via report).
 
-- [ ] Docs-only commit; verify no stale cross-references (grep "Engage/Evade/Suppress/Breach" outside historical notes). Commit.
+- [x] Docs-only commit; verify no stale cross-references (grep "Engage/Evade/Suppress/Breach" outside historical notes). Commit.
 
 ### Task 9: Journey MS leg + full gates
 
@@ -113,7 +113,7 @@
 - Modify: `tests/smoke/journey-first-sortie.spec.ts` — during the fight: leave the bridge (real topbar click), walk bridge → hangar (click-to-walk), E on the MS sprite (climbIntoMs), fight in the cockpit (KeyF boost at least once; read a gauge), dock back (返航 when in range — real click), walk back, retake helm (E), win as before. Every action real input; reads only.
 - Verify: journey 2× serial; full `npm run ci:local` ×2 (serial-bucket the journey if runtime grew past the parallel budget); `test:unit`, `tsc -b`, `lint:arch`.
 
-- [ ] Extend, run green deterministically, update the plan checkboxes + ledger. Commit: `test(journey): MS sortie leg — W3 acceptance spine green`.
+- [x] Extend, run green deterministically, update the plan checkboxes + ledger. Commit: `test(journey): MS sortie leg — W3 acceptance spine green`.
 
 ---
 

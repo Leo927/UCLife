@@ -547,13 +547,17 @@ registerDebugHandle('getPilotedMsState', (): {
 // spawn-at-door geometry assertion.
 registerDebugHandle('getFlagshipCombatPose', (): {
   pos: { x: number; y: number }
+  vel: { x: number; y: number }
   heading: number
 } | null => {
   const w = getWorld(SHIP_SCENE_ID)
   for (const ent of w.query(CombatShipState)) {
     const cs = ent.get(CombatShipState)!
     if (cs.isFlagship || cs.isPlayer) {
-      return { pos: { ...cs.pos }, heading: cs.heading }
+      // vel is threaded through so the Task 9 acceptance journey can compute
+      // the MS-vs-flagship RELATIVE velocity dockMs() gates on (the flagship
+      // is on AI and moving during a sortie) without a second read.
+      return { pos: { ...cs.pos }, vel: { ...cs.vel }, heading: cs.heading }
     }
   }
   return null

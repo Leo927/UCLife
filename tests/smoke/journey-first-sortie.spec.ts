@@ -71,8 +71,32 @@ const COMBAT_STAGE_MIN = 1         // fine sim-minutes per stage (~3750 tactical
 const DOCK_HOP_STAGES = 30         // right-click hops to close on static VB
 const DOCK_HOP_STAGE_MIN = 0.1     // per-hop step; VB doesn't chase back
 const DOCK_BUDGET_MIN = 60 * 12    // fly-home + autodock budget
-const JOURNEY_TIMEOUT_MS = 150_000  // whole end-to-end loop headroom past the 60s default
+const JOURNEY_TIMEOUT_MS = 200_000  // whole end-to-end loop + MS sortie leg headroom past the 60s default
 const KIOSK_INTERACT_TRIES = 5      // re-issue a kiosk interact until the scene swaps
+
+// ── W3 MS-sortie leg ────────────────────────────────────────────────────
+// The engagement has a hard clock: with every mount armed (#165), the AI
+// flagship one-shots the 600-effective-HP picket within a few cumulative
+// unpaused tactical seconds (slow-charge heavy mount), resolving the fight
+// and tearing the tactical world down. So the MS leg cannot wait on any
+// war outcome (enemy damage, own ammo drain — the picket also usually sits
+// beyond the ballistic gun's 180-unit range); it proves the sortie via the
+// live cockpit HUD + real boost + a real 返航 dock, and must reach the dock
+// gates in ~1-2 unpaused seconds. The dock loop velocity-matches the moving
+// flagship in short deadbeat bursts; a piloted MS with no WASD held coasts
+// (combat.ts zeroes both player and AI thrust), so reads stay consistent.
+const MS_SPRITE_KEY = 'ms-sprite-ms-player-0'  // climbIntoMs sprite (refreshMsLayout) in the flagship hangar bay
+const MS_CLIMB_TRIES = 6            // re-issue the climb interact until the cockpit HUD mounts
+const MS_SORTIE_STAGES = 40         // read→burst iterations before giving up (a healthy run docks in <8)
+const MS_BURST_MAX_MIN = 0.02       // ≤1.2 tactical-sec per burst — bounds unpaused war-time per iteration
+const MS_BURST_MIN_MIN = 0.002      // ≥0.12 tactical-sec so a burst always advances real ticks
+const MS_DOCK_RANGE_TARGET = 55     // < sortieConfig.dockApproachRadiusPx (80), margin for settle drift
+const MS_DOCK_RELVEL_TARGET = 45    // < sortieConfig.dockApproachMaxRelVel (60), margin
+const MS_STATION_KEEP_PX = 40       // approach target offset from the flagship — inside RANGE_TARGET
+const MS_CLOSE_GAIN_PER_SEC = 1.5   // desired closing speed = gain × (range − target offset)
+const MS_MAX_CLOSE_SPEED = 90       // < mobileWorker topSpeed (120) — headroom to also match flagship vel
+const MS_ACCEL = 140                // mobileWorker accel (ms-classes.json5) — sizes the deadbeat burst length
+const MS_VEL_DEADZONE = 6           // px/s; a velocity-error axis component below this isn't worth thrusting
 
 async function screenCoords(sim: any, key: string): Promise<{ x: number; y: number } | null> {
   return sim.page.evaluate((k: string) => (window as any).__uclife__.getEntityScreenCoords(k), key)
@@ -192,6 +216,111 @@ async function interactToScene(sim: any, key: string, targetScene: string): Prom
     await sim.stepForCoarse(TRANSITION_WALK_MIN)
   }
   await waitForScene(sim, targetScene)
+}
+
+// ── W3 MS-sortie leg helpers ──────────────────────────────────────────
+// All of these are READS + REAL INPUT only (CLAUDE.md rule 8): __uclife__
+// observes (getGameState, getPilotedMsState, getFlagshipCombatPose,
+// combatEntities), and every state change is a real DOM/canvas/keyboard event.
+
+// Read a tactical-combat store flag off the sanctioned getGameState façade.
+async function combatFlag(sim: any, fn: 'isOpen' | 'isPaused'): Promise<boolean> {
+  return sim.page.evaluate((f: string) =>
+    (window as any).__uclife__.getGameState().getCombat()[f](), fn)
+}
+
+// Drive the tactical pause to `want` via the REAL Space key. Re-reads state
+// first so a stray hull-threshold auto-pause can't desync a blind toggle —
+// it only presses when the flag actually needs to flip, then confirms.
+async function setTacticalPause(sim: any, want: boolean): Promise<void> {
+  if (await combatFlag(sim, 'isPaused') === want) return
+  await sim.page.keyboard.press('Space')
+  await expect.poll(() => combatFlag(sim, 'isPaused'),
+    { message: `Space must drive the tactical pause to ${want}` }).toBe(want)
+}
+
+async function msPose(sim: any): Promise<{ pos: { x: number; y: number }; vel: { x: number; y: number }; heading: number } | null> {
+  return sim.page.evaluate(() => (window as any).__uclife__.getPilotedMsState())
+}
+async function flagshipPose(sim: any): Promise<{ pos: { x: number; y: number }; vel: { x: number; y: number }; heading: number } | null> {
+  return sim.page.evaluate(() => (window as any).__uclife__.getFlagshipCombatPose())
+}
+
+// Decompose a world-space velocity-error vector into the MS's heading frame
+// and return the WASD keys that thrust that way (combat.ts §1: forward unit =
+// (cosH, sinH), starboard unit = (-sinH, cosH); TacticalView maps W/S → the
+// forward axis ±, D/A → the starboard axis ±).
+function thrustKeys(ex: number, ey: number, heading: number): string[] {
+  const fwd = ex * Math.cos(heading) + ey * Math.sin(heading)
+  const stf = -ex * Math.sin(heading) + ey * Math.cos(heading)
+  const keys: string[] = []
+  if (fwd > MS_VEL_DEADZONE) keys.push('KeyW')
+  else if (fwd < -MS_VEL_DEADZONE) keys.push('KeyS')
+  if (stf > MS_VEL_DEADZONE) keys.push('KeyD')
+  else if (stf < -MS_VEL_DEADZONE) keys.push('KeyA')
+  return keys
+}
+
+// Walk bridge → hangar (combat PAUSED so the AI flagship can't resolve the
+// fight while the avatar is off the helm) and climb the starter MS sprite,
+// re-issuing the interact until the cockpit HUD mounts (piloting='ms').
+async function climbIntoHangarMs(sim: any): Promise<void> {
+  await sim.page.waitForFunction(
+    (k: string) => (window as any).__uclife__.getEntityScreenCoords(k) != null,
+    MS_SPRITE_KEY, { timeout: CAMERA_TIMEOUT_MS })
+  const gauge = sim.page.locator('[data-cockpit-gauge="propellant"]')
+  for (let i = 0; i < MS_CLIMB_TRIES; i++) {
+    if (await gauge.count() > 0) return
+    const pt = await screenCoords(sim, MS_SPRITE_KEY)
+    if (pt) await sim.page.mouse.click(pt.x, pt.y)
+    await sim.stepForCoarse(TRANSITION_WALK_MIN)
+  }
+  await expect(gauge, 'climbing the hangar MS must open the cockpit HUD (piloting=ms)').toHaveCount(1)
+}
+
+// Dock loop. Reads happen PAUSED (frozen, self-consistent poses); each
+// iteration applies one deadbeat velocity-matching burst: desired velocity =
+// flagship velocity + a bounded closing component toward a point just off
+// its hull, and the burst lasts ≈ |velocity error| / accel so a correction
+// can never overshoot into oscillation (a fixed-length full-thrust burst at
+// accel 140 swings ~168 px/s — more than any error it corrects). The moment
+// both dock gates read inside their margins, 返航 is clicked for real.
+// Docked = the tactical overlay closes (combat stays open on the AI
+// flagship). See the MS-sortie constants block for why total unpaused time
+// must stay this short.
+async function flyMsToDock(sim: any): Promise<void> {
+  const dockBtn = sim.page.locator('.tactical-topbar').getByRole('button', { name: /返航/ })
+  for (let i = 0; i < MS_SORTIE_STAGES; i++) {
+    const ms = await msPose(sim)
+    const fs = await flagshipPose(sim)
+    expect(ms && fs,
+      'MS + flagship combat poses must stay readable — the engagement must not resolve during the MS leg').toBeTruthy()
+    const dx = fs!.pos.x - ms!.pos.x
+    const dy = fs!.pos.y - ms!.pos.y
+    const range = Math.hypot(dx, dy)
+    const relVel = Math.hypot(ms!.vel.x - fs!.vel.x, ms!.vel.y - fs!.vel.y)
+    if (range <= MS_DOCK_RANGE_TARGET && relVel <= MS_DOCK_RELVEL_TARGET) {
+      await dockBtn.click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+      if (await combatFlag(sim, 'isOpen') === false) return
+      continue
+    }
+    const closing = Math.min(
+      MS_MAX_CLOSE_SPEED, Math.max(0, range - MS_STATION_KEEP_PX) * MS_CLOSE_GAIN_PER_SEC)
+    const ux = range > 0 ? dx / range : 0
+    const uy = range > 0 ? dy / range : 0
+    const ex = fs!.vel.x + ux * closing - ms!.vel.x
+    const ey = fs!.vel.y + uy * closing - ms!.vel.y
+    const keys = thrustKeys(ex, ey, ms!.heading)
+    const burstMin = Math.min(
+      MS_BURST_MAX_MIN, Math.max(MS_BURST_MIN_MIN, Math.hypot(ex, ey) / MS_ACCEL / 60))
+    for (const k of keys) await sim.page.keyboard.down(k)
+    await setTacticalPause(sim, false)
+    await sim.stepFor(burstMin)
+    await setTacticalPause(sim, true)
+    for (const k of keys) await sim.page.keyboard.up(k)
+  }
+  expect(await combatFlag(sim, 'isOpen'),
+    'the MS must dock (返航) back into the flagship within the sortie budget').toBe(false)
 }
 
 test('journey: buy → board → helm → intercept → engage → win → tally → dock home → disembark', async ({ sim }) => {
@@ -399,6 +528,69 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     'Space toggles the tactical pause — the fight is now running',
   ).toBe(false)
 
+  // ── W3 MS-sortie leg — climb into the hangar MS, fight, dock back ─────
+  // The earned starter (mobileWorker) rides aboard UNPILOTED, so the wing-
+  // launch bridge order has nothing to field: assert 僚机出击 stays disabled
+  // here while still at the flagship helm (the palette only renders then).
+  await expect(
+    sim.page.locator('[data-tactical-order="msLaunchAuth"]'),
+    'the wing-launch order stays disabled with no pilot-assigned MS aboard',
+  ).toBeDisabled()
+
+  // Re-pause so the AI flagship can't resolve the fight while the player is
+  // off the helm walking the interior (combat only advances when a real
+  // Space unpauses it AND sim time is driven).
+  await setTacticalPause(sim, true)
+
+  // Leave the bridge via the REAL topbar verb → overlay closes, avatar drops
+  // at the bridge in playerShipInterior, flagship goes on AI.
+  await sim.page.locator('.tactical-topbar').getByRole('button', { name: '下舰桥' })
+    .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-overlay', { state: 'detached', timeout: CAMERA_TIMEOUT_MS })
+  await waitForScene(sim, 'playerShipInterior')
+
+  // Walk bridge → hangar bay and climb the starter MS (climbIntoMs → launchMs).
+  await climbIntoHangarMs(sim)
+
+  // ── Cockpit gauges + real vernier boost ──────────────────────────────
+  await expect(
+    sim.page.locator('[data-cockpit-gauge="propellant"]'),
+    'the cockpit propellant gauge must render while piloting the MS',
+  ).toHaveCount(1)
+  const boostGauge = sim.page.locator('[data-cockpit-gauge="boost"]')
+  expect(
+    Number(await boostGauge.getAttribute('data-cockpit-cooldown')),
+    'boost cooldown reads 0 before any KeyF trigger',
+  ).toBe(0)
+  await sim.page.keyboard.press('KeyF')
+  await expect.poll(
+    async () => Number(await boostGauge.getAttribute('data-cockpit-cooldown')),
+    { message: 'a real KeyF must set the boost cooldown gauge (vernier boost fired)' },
+  ).toBeGreaterThan(0)
+
+  // ── Dock back via real 返航 (回收) ────────────────────────────────────
+  // The engagement is live throughout the sortie (each burst advances the
+  // war); the leg's proof is the cockpit HUD + boost above and the real
+  // dock here — see the MS-sortie constants block for why no enemy-damage
+  // wait can be deterministic.
+  await flyMsToDock(sim)
+
+  // Docked → the avatar is back in the walkable hangar bay (playerShipInterior).
+  // Walk to the bridge helm and retake flagship control (E → takeFlagshipControl,
+  // which reopens the tactical overlay with the flagship order palette).
+  await walkOnScreen(sim, HELM_KEY)
+  const focusPalette = sim.page.locator('[data-tactical-order="focusFire"]')
+  for (let i = 0; i < KIOSK_INTERACT_TRIES; i++) {
+    if (await focusPalette.count() > 0) break
+    const pt = await sim.page.evaluate((k: string) => {
+      const t = (window as any).__uclife__.getEntityScreenCoords(k)
+      return t ? { x: t.x, y: t.y - 12 } : null // upper edge of the helm kiosk
+    }, HELM_KEY)
+    if (pt) await sim.page.mouse.click(pt.x, pt.y)
+    await sim.stepForCoarse(TRANSITION_WALK_MIN)
+  }
+  await expect(focusPalette, 'retaking the helm (E) must reopen the flagship tactical view').toHaveCount(1)
+
   // Combat opens paused on the first-contact briefing. Resume via the real
   // tactical control and advance sim time in stages until the fight resolves;
   // re-click 继续 on any auto-pause (the fight ends above 25% hull, so none is
@@ -420,17 +612,14 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     'the auto-fire engagement must resolve within the drive budget',
   ).toBe(false)
 
-  // Victory keeps the ship on the starmap (defeat would migrate it to a
-  // rescue colony); the earned hull survives the sortie.
-  await waitForScene(sim, 'spaceCampaign')
-  expect(
-    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount()),
-    'the earned hull survived the fight (victory, not defeat)',
-  ).toBe(1)
-
   // ── 8. Clear the recoverables (if any) + tally via real DOM input ────
-  // On a win the recoverables dialogue fires first only when the kill leaves a
-  // survivor hull / pod; otherwise the tally opens directly. Handle both.
+  // Victory tears combat down to the walkable BRIDGE this time: the player
+  // re-took the helm from the ship interior mid-fight (takeFlagshipControl),
+  // so that is the return context — unlike the W1-only flow, which entered
+  // combat from the flight view and returned to spaceCampaign. Clear the
+  // overlays over the bridge first. On a win the recoverables dialogue fires
+  // first only when the kill leaves a survivor hull / pod; otherwise the
+  // tally opens directly. Handle both.
   const recoverablesConfirm = sim.page.locator('[data-recoverables-confirm]')
   if (await recoverablesConfirm.isVisible().catch(() => false)) {
     await recoverablesConfirm.click({ timeout: DOM_COMMIT_TIMEOUT_MS })
@@ -441,10 +630,24 @@ test('journey: buy → board → helm → intercept → engage → win → tally
   await tallyPanel.waitFor({ state: 'detached', timeout: DOM_COMMIT_TIMEOUT_MS })
 
   expect(
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getPlayerFleet().getShipCount()),
+    'the earned hull survived the fight (victory, not defeat)',
+  ).toBe(1)
+  expect(
     await sim.page.evaluate(() =>
       (window as any).__uclife__.getGameState().getPlayerCharacter().getResource('Money')),
     'winning the fight must credit the tally reward',
   ).toBeGreaterThan(moneyBeforeFight)
+
+  // Re-take the helm (real walk + E) to resume the flight home, then wait
+  // for the space viewport to project POIs — right after the scene swap the
+  // camera needs a few frames before screen-coord reads are meaningful.
+  await walkOnScreen(sim, HELM_KEY)
+  await interactToScene(sim, HELM_KEY, 'spaceCampaign')
+  await sim.page.waitForFunction((p: string) => {
+    const u = (window as any).__uclife__
+    return (u.getPoiScreenCoords(p) ?? u.getPoiScreenCoordsClamped(p)) != null
+  }, DOCK_POI, { timeout: CAMERA_TIMEOUT_MS })
 
   // ── 9. Dock home at Von Braun via the POI context menu ───────────────
   // Von Braun is off-screen after the running fight; right-click quick-navigate
