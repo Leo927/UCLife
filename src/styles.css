@@ -2442,6 +2442,34 @@ html, body, #root {
   transition: width 120ms linear;
 }
 
+/* W4.4 — advisory readiness rows (crew / MS / pilots). Count + red/green chip. */
+.captain-readiness-status-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.captain-readiness-status-row .captain-readiness-value {
+  margin-left: auto;
+}
+.readiness-chip {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+.readiness-chip-ok {
+  color: #4ade80;
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+}
+.readiness-chip-bad {
+  color: #f87171;
+  border-color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+}
+
 /* Combat event log — Phase 6.0. Top-left fading scroll, Starsector shape.
    Sits over the tactical canvas; pointer-events allow Tab toggle but the
    log itself is read-only. Severity tier drives left-border color.

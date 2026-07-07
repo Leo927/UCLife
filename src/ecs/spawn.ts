@@ -652,20 +652,10 @@ function spawnAirport(slot: PlacedSlot, sceneId: SceneId): void {
   // player to a tile next to the kiosk (still inside the airport lobby).
   spawnAirportTransit(rect, primaryDoor, sceneId)
 
-  // Boarding kiosk one tile away from the counter, perpendicular to the
-  // door axis. Boards the player's flagship; the interaction gate refuses
-  // if the player owns no ship.
+  // Von Braun airport lobby fixtures. The sole flagship airlock is the
+  // gate-booth board pad (see systems/shipMarkers.ts); this lobby only
+  // seeds the AE broker desks.
   if (hub.sceneId === 'vonBraunCity') {
-    let boardX = counterX, boardY = counterY
-    if (primaryDoor.side === 'n' || primaryDoor.side === 's') boardX = counterX + TILE
-    else                                                       boardY = counterY + TILE
-    world.spawn(
-      Position({ x: boardX, y: boardY }),
-      Interactable({ kind: 'boardShip', label: '登船', fee: 0 }),
-      EntityKey({ key: `boardship-${hub.id}` }),
-      TemplateRef({ id: 'ship-board' }),
-    )
-
     // Phase 6.2.C1 — AE ship sales desk. Sits inside the VB airport's
     // lobby at the special-NPC's authored tile so the spawn loop can
     // pre-assign it via workstation:'ae_ship_sales_vb'. Desk is scenery

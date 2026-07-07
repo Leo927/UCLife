@@ -6,8 +6,8 @@
 // Phase 6.2+ will extend this panel to host the comm panel (officer
 // orders, prisoner verbs); today it's a read-only briefing.
 
-import { useTrait, useQueryFirst } from 'koota/react'
-import { Ship, IsFlagshipMark, IsPlayer, FleetPool } from '../ecs/traits'
+import { useTrait, useQueryFirst, useQuery } from 'koota/react'
+import { Ship, IsFlagshipMark, IsPlayer, FleetPool, Ms, EntityKey } from '../ecs/traits'
 import { getShipClass } from '../data/ship-classes'
 import { getPoi } from '../data/pois'
 import { useUI } from './uiStore'
@@ -81,6 +81,7 @@ export function CaptainsOfficePanel() {
             color="#34d399"
           />
         </section>
+        <ReadinessSection shipEnt={shipEnt} />
         <ManTheRestSection shipEnt={shipEnt} />
         <section className="status-section">
           <div className="dialog-options">
@@ -108,6 +109,71 @@ export function CaptainsOfficePanel() {
           </div>
         </section>
       </div>
+    </div>
+  )
+}
+
+// W4.4 — advisory readiness rows. Purely informational; takeHelm() stays
+// ungated (the player may sortie undercrewed / unpiloted). Crew filled reads
+// via crewVacancyForShip; MS loaded counts aboard hangar bodies; pilots
+// assigned is the aboard-MS subset carrying a pilotId. Deliberately does NOT
+// use the combat-gated countLaunchableWings().
+function ReadinessSection({ shipEnt }: { shipEnt: ReturnType<typeof useQueryFirst> | null }) {
+  const t = dialogueText.branches.captainsOfficeReadiness
+  // Subscribe to MS add/remove + Ship value changes so custody / crew edits
+  // ripple into the counts while the panel is open.
+  const msEnts = useQuery(Ms)
+  void useTrait(shipEnt, Ship)
+  if (!shipEnt) return null
+  const s = shipEnt.get(Ship)
+  if (!s) return null
+  const flagshipKey = shipEnt.get(EntityKey)?.key ?? ''
+
+  const vacancy = crewVacancyForShip(shipEnt)
+  const crewFilled = s.crewIds.length
+  const crewRequired = crewFilled + vacancy
+  const crewReady = vacancy <= 0
+
+  let msLoaded = 0
+  let pilotsAssigned = 0
+  for (const ent of msEnts) {
+    const m = ent.get(Ms)
+    if (!m || m.storedOnShipKey !== flagshipKey) continue
+    msLoaded += 1
+    if (m.pilotId !== '') pilotsAssigned += 1
+  }
+  const msReady = msLoaded > 0
+  const pilotsReady = pilotsAssigned > 0
+
+  return (
+    <section
+      className="status-section"
+      data-captains-office-readiness
+      data-crew-filled={crewFilled}
+      data-crew-required={crewRequired}
+      data-crew-ready={crewReady}
+      data-ms-loaded={msLoaded}
+      data-ms-ready={msReady}
+      data-pilots-assigned={pilotsAssigned}
+      data-pilots-ready={pilotsReady}
+    >
+      <h3>{t.header}</h3>
+      <ReadinessRow label={t.crewLabel} detail={`${crewFilled} / ${crewRequired}`} ready={crewReady} />
+      <ReadinessRow label={t.msLabel} detail={`${msLoaded}`} ready={msReady} />
+      <ReadinessRow label={t.pilotLabel} detail={`${pilotsAssigned} / ${msLoaded}`} ready={pilotsReady} />
+    </section>
+  )
+}
+
+function ReadinessRow({ label, detail, ready }: { label: string; detail: string; ready: boolean }) {
+  const t = dialogueText.branches.captainsOfficeReadiness
+  return (
+    <div className="captain-readiness-status-row">
+      <span className="captain-readiness-label">{label}</span>
+      <span className="captain-readiness-value">{detail}</span>
+      <span className={ready ? 'readiness-chip readiness-chip-ok' : 'readiness-chip readiness-chip-bad'}>
+        {ready ? t.ready : t.notReady}
+      </span>
     </div>
   )
 }
