@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { SPACE_ENTITIES } from './space-entities'
+import { SPACE_ENTITIES, getSpaceEntity } from './space-entities'
+import { getEnemyShip } from './enemyShips'
 import { POIS } from './pois'
 import { CELESTIAL_BODIES } from './celestialBodies'
 import { derivedPos } from '../engine/space/orbits'
@@ -90,4 +91,29 @@ describe('space-entities aggro coverage at dockable POIs (t=0)', () => {
       ).toBe(0)
     },
   )
+})
+
+// W3 (ms-identity) Task 2 — hostile MS group complements. authored onto a
+// handful of shoal-zone / outer-belt groups; the Von Braun starter picket
+// must stay a solo, winnable-day-one fight (no escorts, no MS wingmen).
+describe('space-entities MS complements', () => {
+  it('authors msComplement onto at least 2 groups', () => {
+    const withComplement = SPACE_ENTITIES.filter((e) => (e.msComplement?.length ?? 0) > 0)
+    expect(withComplement.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('every msComplement id resolves to an isMs enemyShips row', () => {
+    for (const e of SPACE_ENTITIES) {
+      for (const msId of e.msComplement ?? []) {
+        expect(getEnemyShip(msId).isMs, `${e.id} msComplement "${msId}" must be isMs`).toBe(true)
+      }
+    }
+  })
+
+  it('the vonBraun starter picket stays a solo fight (no escorts, no MS complement)', () => {
+    const starter = getSpaceEntity('pirate-lunar-starter')
+    expect(starter, 'pirate-lunar-starter must exist').toBeTruthy()
+    expect(starter!.escorts ?? [], 'starter picket must have no escorts').toEqual([])
+    expect(starter!.msComplement ?? [], 'starter picket must have no MS complement').toEqual([])
+  })
 })

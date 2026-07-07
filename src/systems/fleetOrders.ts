@@ -15,6 +15,8 @@ import type { Entity } from 'koota'
 import { CombatShipState, EntityKey } from '../ecs/traits'
 import { getWorld } from '../ecs/world'
 import { issueFleetOrder, type OrderResult } from './fleetCommandPoints'
+import { useCpDp } from './fleetCommandPoints'
+import { countLaunchableWings, launchWings } from './msWings'
 import { pushCombatLog } from '../sim/combatLog'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -76,6 +78,24 @@ export function issueRegroup(): OrderResult {
   if (result.ok) {
     useFleetOrdersStore.getState().reset()
     pushCombatLog('重整队形 · 各舰返回编队位', 'info')
+  }
+  return result
+}
+
+// W3 (ms-identity) Task 5 — MS launch authorization. Debits the msLaunchAuth
+// CP cost (2, per fleet.json5 orderCosts) and launches every pilot-assigned
+// MS stored aboard the flagship as an AI wing. Refuses without debiting when
+// no MS is launchable (the palette button is disabled in that state, but the
+// guard keeps a debit from being wasted). Wing spawning + the resupply loop
+// live in systems/msWings.ts.
+export function issueMsLaunchAuth(): OrderResult {
+  if (countLaunchableWings() === 0) {
+    return { ok: false, reason: 'no_launchable_ms', remaining: useCpDp.getState().cpCurrent }
+  }
+  const result = issueFleetOrder('msLaunchAuth')
+  if (result.ok) {
+    const n = launchWings()
+    pushCombatLog(`出击授权 · ${n} 机僚机升空`, 'info')
   }
   return result
 }

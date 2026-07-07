@@ -1,6 +1,6 @@
 import json5 from 'json5'
 import raw from './space-entities.json5?raw'
-import { isEnemyShipId } from './enemyShips'
+import { isEnemyShipId, getEnemyShip } from './enemyShips'
 
 // Hand-placed persistent enemies in the campaign sector. Pure data + types
 // — slice 5 reads this to spawn koota entities at world boot. There is
@@ -28,6 +28,12 @@ export interface SpaceEntity {
   // escorts[0..N-1]. Values are stable special-NPC ids — captured
   // captains route via that id to the brig at end-of-combat.
   notableCaptains?: Record<string, string>
+  // W3 (ms-identity) Task 2 — hostile MS wingmen fielded alongside this
+  // group's lead + escorts. Each id must reference an `isMs: true` row in
+  // enemyShips.json5. Resolved by systems/combat.ts's startCombat via
+  // campaignEnemyKey (not threaded through EnemyAI/the engagement modal) —
+  // see spawnEnemyMsComplement. Empty/missing = no MS wingmen.
+  msComplement?: string[]
   spawn: SpacePos
   aiMode: EnemyAiMode
   patrolPath?: SpacePos[]
@@ -109,6 +115,21 @@ for (const e of parsed.entities) {
       // src/data/ may only import from src/config/, so the
       // special-npcs.json5 roster is checked by the sim-layer wiring
       // when it spawns the EnemyAI entities.
+    }
+  }
+  if (e.msComplement !== undefined) {
+    if (!Array.isArray(e.msComplement)) {
+      throw new Error(`space-entities.json5: entity "${e.id}" msComplement must be an array`)
+    }
+    for (const msId of e.msComplement) {
+      if (typeof msId !== 'string' || !isEnemyShipId(msId)) {
+        throw new Error(`space-entities.json5: entity "${e.id}" msComplement "${msId}" not in enemyShips.json5`)
+      }
+      if (!getEnemyShip(msId).isMs) {
+        throw new Error(
+          `space-entities.json5: entity "${e.id}" msComplement "${msId}" is not an isMs enemyShips row`,
+        )
+      }
     }
   }
   if (e.anchorBodyId !== undefined && (typeof e.anchorBodyId !== 'string' || !e.anchorBodyId)) {

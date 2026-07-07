@@ -5,6 +5,7 @@ import type { MountSize } from './weapons'
 import { isMsWeaponId } from './ms-weapons'
 import { isMsFrameModId } from './ms-frame-mods'
 import { isShipClassId } from './ship-classes'
+import type { MsBoostDef } from './ms'
 
 // Issue #64 — per-enemy-class MS-parts salvage drop entry.
 export type SalvageKind = 'weapon' | 'frameMod'
@@ -23,6 +24,16 @@ export interface EnemyMountDef {
   size: MountSize
   firingArcDeg: number    // total firing arc in degrees
   facingDeg: number       // mount center direction in degrees relative to ship
+}
+
+// W3 (ms-identity) — hostile-MS pilot quality block. Consumed by Task 4's
+// enemy-MS AI (reaction delay on target switches, aim-solution jitter,
+// probabilistic boost use); authored here so the data + validation land
+// ahead of the AI that reads it.
+export interface EnemyPilotQuality {
+  reactionSec: number    // seconds of delay before the AI reacts to a new target
+  aimJitterRad: number   // radians of random perturbation applied to fire solutions
+  boostUse: number       // 0..1 probability the AI triggers boost when closing/disengaging
 }
 
 export interface EnemyShipBlueprint {
@@ -47,6 +58,16 @@ export interface EnemyShipBlueprint {
     retreatThresholdPct: number
     maintainRange: number
   }
+  // W3 (ms-identity) — marks this row as a hostile mobile suit rather than
+  // a ship. Spawns as a small/fast CombatShipState row (see systems/combat.ts
+  // spawnEnemyMsComplement); requires the `pilot` block below.
+  isMs?: boolean
+  pilot?: EnemyPilotQuality
+  // W3 (ms-identity) Task 3 — required iff isMs (mirrors the pilot block):
+  // collision radius (arena units, small relative to combat.json5's
+  // defaultShipHitRadiusPx) + vernier boost. Ships have neither field.
+  hitRadiusPx?: number
+  boost?: MsBoostDef
   // Issue #64 — optional MS-parts salvage table. Absent = no parts drop.
   salvage?: SalvageEntry[]
   // Issue #71 — recoverables. The ship-classes.json5 template id a Recover'd
@@ -120,9 +141,9 @@ for (const ship of parsed.ships) {
     }
   }
 
-  if (ship.defaultWeapons.length > ship.mounts.length) {
+  if (ship.defaultWeapons.length !== ship.mounts.length) {
     throw new Error(
-      `enemyShips.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} weapons but only ${ship.mounts.length} mounts`,
+      `enemyShips.json5: ship "${ship.id}" has ${ship.defaultWeapons.length} weapons but ${ship.mounts.length} mounts — every declared mount must be armed (mirrors ship-classes' #165 rule)`,
     )
   }
   ship.defaultWeapons.forEach((wId, i) => {
@@ -146,6 +167,53 @@ for (const ship of parsed.ships) {
   }
   if (ship.ai.maintainRange <= 0) {
     throw new Error(`enemyShips.json5: ship "${ship.id}" ai.maintainRange must be > 0`)
+  }
+
+  if (ship.isMs !== undefined && typeof ship.isMs !== 'boolean') {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" isMs must be a boolean`)
+  }
+  if (ship.isMs) {
+    if (!ship.pilot || typeof ship.pilot !== 'object') {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" isMs rows require a pilot block`)
+    }
+    if (typeof ship.pilot.reactionSec !== 'number' || ship.pilot.reactionSec <= 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" pilot.reactionSec must be a number > 0`)
+    }
+    if (typeof ship.pilot.aimJitterRad !== 'number' || ship.pilot.aimJitterRad < 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" pilot.aimJitterRad must be a number >= 0`)
+    }
+    if (
+      typeof ship.pilot.boostUse !== 'number' || ship.pilot.boostUse < 0 || ship.pilot.boostUse > 1
+    ) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" pilot.boostUse must be in [0,1]`)
+    }
+    if (typeof ship.hitRadiusPx !== 'number' || ship.hitRadiusPx <= 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" isMs rows require hitRadiusPx > 0`)
+    }
+    if (!ship.boost || typeof ship.boost !== 'object') {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" isMs rows require a boost block`)
+    }
+    if (typeof ship.boost.speedMul !== 'number' || ship.boost.speedMul <= 1) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.speedMul must be a number > 1`)
+    }
+    if (typeof ship.boost.durationSec !== 'number' || ship.boost.durationSec <= 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.durationSec must be a number > 0`)
+    }
+    if (typeof ship.boost.cooldownSec !== 'number' || ship.boost.cooldownSec < 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.cooldownSec must be a number >= 0`)
+    }
+    if (typeof ship.boost.propellantCost !== 'number' || ship.boost.propellantCost < 0) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost.propellantCost must be a number >= 0`)
+    }
+  } else if (ship.pilot !== undefined) {
+    throw new Error(`enemyShips.json5: ship "${ship.id}" pilot block is only valid on isMs rows`)
+  } else {
+    if (ship.hitRadiusPx !== undefined) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" hitRadiusPx is only valid on isMs rows`)
+    }
+    if (ship.boost !== undefined) {
+      throw new Error(`enemyShips.json5: ship "${ship.id}" boost block is only valid on isMs rows`)
+    }
   }
 
   if (!ship.recoverTemplateId || !isShipClassId(ship.recoverTemplateId)) {

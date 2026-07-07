@@ -1,0 +1,38 @@
+// W3 (ms-identity) Task 5 smoke fixture — AI MS wings.
+//
+// Player aboard the flagship at Von Braun with two pilot-assigned MS stowed
+// in the flagship hangar, each pinned to a distinct wing-AI role tag:
+//   - ms-a: antiShip  → prefers enemy ships over a closer enemy MS.
+//   - ms-b: skirmisher → plain nearest-hostile.
+// The smoke enters combat via startCombatCheat (lead pirateLight ship + one
+// pirate_junkerMs escort → an enemy ship AND an enemy MS in the arena),
+// launches both as wings by REAL palette click on the msLaunchAuth button,
+// and drives the role-targeting + resupply + damage-sync assertions.
+//
+// piloting skill is authored high so the CP pool comfortably covers the
+// msLaunchAuth cost (2). Both MS are gm_pre so they carry real hardpoints.
+{
+  seed: 'ms-wings-001',
+  startDate: '2026-05-27T08:00:00Z',
+  scene: 'playerShipInterior',
+
+  player: {
+    money: 100000,
+    location: { scene: 'playerShipInterior', x: 5, y: 5 },
+    skills: { piloting: 5000 },
+  },
+
+  ships: [
+    { id: 'ship', template: 'lightFreighter', name: '自由号', dockedAt: 'vonBraun', flagship: true },
+  ],
+
+  ms: [
+    { key: 'ms-a', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 0, pilotId: 'pilot-a', roleTag: 'antiShip' },
+    { key: 'ms-b', template: 'gm_pre', storedOnShip: 'ship', bayIndex: 1, pilotId: 'pilot-b', roleTag: 'skirmisher' },
+  ],
+
+  parts: {
+    weapons: {},
+    frameMods: {},
+  },
+}

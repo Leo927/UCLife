@@ -56,6 +56,7 @@ interface MsSnapshot {
   currentLifeSupport: number
   frameMods: string[]
   damageState: MsDamageState
+  roleTag: string
   propellantStorageCap: number
   lifeSupportMinutesCap: number
   frameSlotsCap: number
@@ -98,6 +99,7 @@ function snapshotOneMs(ent: import('koota').Entity): MsSnapshot {
     currentLifeSupport: ms.currentLifeSupport,
     frameMods: [...ms.frameMods],
     damageState: ms.damageState,
+    roleTag: ms.roleTag,
     propellantStorageCap: propCap,
     lifeSupportMinutesCap: lsCap,
     frameSlotsCap: slotsCap,
@@ -515,6 +517,10 @@ registerDebugHandle('getPilotedMsState', (): {
   vel: { x: number; y: number }
   heading: number
   weapons: Array<{ weaponId: string; hardpointId: string; ready: boolean; chargeSec: number }>
+  // W3 (ms-identity) Task 3 — boostState readable per MS row (Task 6's
+  // cooldown gauge consumes this shape).
+  boostRemainingSec: number
+  boostCooldownSec: number
 } | null => {
   const w = getWorld(SHIP_SCENE_ID)
   for (const ent of w.query(CombatShipState, EntityKey)) {
@@ -530,6 +536,8 @@ registerDebugHandle('getPilotedMsState', (): {
         ready: w0.ready,
         chargeSec: w0.chargeSec,
       })),
+      boostRemainingSec: cs.boostRemainingSec,
+      boostCooldownSec: cs.boostCooldownSec,
     }
   }
   return null
@@ -539,13 +547,17 @@ registerDebugHandle('getPilotedMsState', (): {
 // spawn-at-door geometry assertion.
 registerDebugHandle('getFlagshipCombatPose', (): {
   pos: { x: number; y: number }
+  vel: { x: number; y: number }
   heading: number
 } | null => {
   const w = getWorld(SHIP_SCENE_ID)
   for (const ent of w.query(CombatShipState)) {
     const cs = ent.get(CombatShipState)!
     if (cs.isFlagship || cs.isPlayer) {
-      return { pos: { ...cs.pos }, heading: cs.heading }
+      // vel is threaded through so the Task 9 acceptance journey can compute
+      // the MS-vs-flagship RELATIVE velocity dockMs() gates on (the flagship
+      // is on AI and moving during a sortie) without a second read.
+      return { pos: { ...cs.pos }, vel: { ...cs.vel }, heading: cs.heading }
     }
   }
   return null

@@ -19,6 +19,16 @@
   // are the entire set beyond first contact.
   flagshipPauseHullPcts: [0.25, 0.1],
 
+  // W3 (ms-identity) Task 3 — projectile/beam collision radius (arena
+  // units) for any CombatShipState row that doesn't author its own
+  // hitRadiusPx: the flagship, active-fleet ship escorts, and non-isMs
+  // enemyShips.json5 rows. This is the pre-existing hardcoded value
+  // tickProjectiles used before hitRadiusPx was threaded per-row — kept
+  // identical here so ship-vs-ship combat is unchanged; MS rows author a
+  // smaller hitRadiusPx on their own ms-classes.json5 / enemyShips.json5
+  // row so they're genuinely harder to hit.
+  defaultShipHitRadiusPx: 12,
+
   // Post-combat tally — minimum payout shape for Phase 6.0.
   // Reward magnitudes for victory:
   //   creditsMin / creditsMax — fiat reward range per engagement.
@@ -71,4 +81,16 @@
   // click, short enough that walking away and coming back later doesn't
   // leave a stale "confirm?" button armed.
   withdrawConfirmWindowMs: 3000,
+
+  // W3 (ms-identity) Task 4 — hostile-MS pilot AI knobs (reaction delay +
+  // aim jitter live entirely in each enemyShips.json5 row's `pilot` block;
+  // this is the one knob shared across every enemy-MS pilot).
+  pilotAi: {
+    // How often (in-tactical seconds) an enemy-MS pilot re-rolls whether to
+    // trigger its vernier boost while closing or disengaging (rolled against
+    // pilot.boostUse). A decision WINDOW, not a per-tick coinflip — rolling
+    // every tick would make boostUse behave like "fraction of time spent
+    // boosting" instead of "probability of choosing to boost this pass."
+    boostDecisionWindowSec: 1.0,
+  },
 }

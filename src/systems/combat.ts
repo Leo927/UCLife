@@ -32,15 +32,20 @@ import { create } from 'zustand'
 import {
   Ship, WeaponMount, CombatShipState, EntityKey, IsPlayer, Money,
   EnemyAI, IsFlagshipMark, IsInActiveFleet, PlayerPartsInventory, Ms,
+  Health, Character,
 } from '../ecs/traits'
 import { refreshMsLayout, refreshAllDepotMsLayouts } from '../ecs/spawn'
 import { formationOffsetForSlot } from './fleetFormation'
-import { getEnemyShip, isEnemyShipId } from '../data/enemyShips'
+import {
+  getEnemyShip, isEnemyShipId, type EnemyShipBlueprint, type EnemyPilotQuality,
+} from '../data/enemyShips'
+import { getSpaceEntity } from '../data/space-entities'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon, isWeaponId, type WeaponDef } from '../data/weapons'
 import { getMsWeapon, isMsWeaponId, type MsWeaponClassDef } from '../data/ms-weapons'
 import { getMsFrameMod } from '../data/ms-frame-mods'
-import { useClock } from '../sim/clock'
+import { getMsClass, type MsBoostDef } from '../data/ms'
+import { useClock, gameDayNumber } from '../sim/clock'
 import { simNow } from '../sim/time'
 import { setInCombat, damageHull, drainCR, getFlagshipEntity, grantFuel, grantSupplies } from '../sim/ship'
 import { getWorld, SCENE_IDS } from '../ecs/world'
@@ -49,15 +54,25 @@ import { migratePlayerToScene } from '../sim/scene'
 import { getAirportPlacement } from '../sim/airportPlacements'
 import { getSceneConfig } from '../data/scenes'
 import { pushCombatLog, useCombatLog } from '../sim/combatLog'
-import { combatConfig, cockpitConfig, worldConfig } from '../config'
+import { combatConfig, cockpitConfig, worldConfig, sortieConfig } from '../config'
 import {
-  onMsDestroyed, resetCockpitForEndCombat, onCombatStarted, PLAYER_MS_KEY,
+  onMsEjected, resetCockpitForEndCombat, onCombatStarted,
+  syncActiveMsToRosterIfLaunched, getActiveMsRosterKey, getPlayerMs,
 } from '../sim/cockpit'
+import {
+  spawnPlayerPod, hasAnyPod, tickPodDrift, checkHostileReachCaptures,
+  resolvePlayerPodAtEnd, resolveWingPodFates, decidePlayerCaptureFate,
+  resetEjection, type PlayerPodFate, type WingPodFate,
+} from '../sim/ejection'
+import { forceOnset } from './physiology'
+import { clearPilotAssignment } from './msPilotAssign'
 import {
   tickDoorsFrame, type DoorCycleCompletion,
 } from '../sim/hangarDoors'
 import { tickResupply, routeDockedMsToResupply } from '../sim/sortieResupply'
-import { drainPilotedMs, isMsStranded, tryConsumeAmmo } from '../sim/sortieDrain'
+import {
+  drainPilotedMs, isMsStranded, tryConsumeAmmo, spendPropellant,
+} from '../sim/sortieDrain'
 import { tickTugs } from '../sim/recoveryTug'
 import { useBrig, clearBrigPendingTally, getBrigOccupancy } from '../sim/brig'
 import { capturePrisoner } from './prisoners'
@@ -71,6 +86,10 @@ import {
   doctrineForAggression, commandPoolDescribe, useCpDp,
 } from './fleetCommandPoints'
 import { activeOrders, clearStaleFocusTarget, resetFleetOrders } from './fleetOrders'
+import {
+  tickWings, wingTargetPreference, isWingReturning, msWingRosterKeyForClone,
+  rosterKeyFromWingCloneKey, onWingDestroyed, resetWings, syncAllWingsToRoster,
+} from './msWings'
 
 function logEvent(textZh: string): void {
   emitSim('log', { textZh, atMs: useClock.getState().gameDate.getTime() })
@@ -118,6 +137,16 @@ let nextBeamId = 1
 
 export function getBeamFlashes(): BeamFlash[] {
   return beamFlashes.slice()
+}
+
+// Test-only reset for hand-built-world unit tests that call combatSystem()
+// directly without going through startCombat/endCombat (which otherwise own
+// clearing this module-level pool). Without it, a projectile spawned by one
+// test's flight can still be flying when the next test's combatSystem()
+// call scans for a hit, corrupting an unrelated scenario.
+export function __resetCombatProjectilesForTest(): void {
+  projectiles.length = 0
+  beamFlashes.length = 0
 }
 
 // MS weapons (ms-weapons.json5) carry a narrower shape than ship
@@ -406,6 +435,70 @@ function enemySpawnSlot(idx: number, total: number): { x: number; y: number } {
   }
 }
 
+// Shared enemy-side CombatShipState shape — used for both ship-fleet rows
+// (spawnEnemyShip) and MS complement rows (spawnEnemyMsComplement). Reads
+// every combat-relevant field off the blueprint (ships and isMs rows share
+// the same mounts/defaultWeapons/ai shape), so an MS blueprint authored with
+// fluxMax:0 + hasShield:false spawns with no flux/shield model automatically
+// — no isMs-specific branch needed here.
+function buildEnemyCombatShipState(
+  blueprint: EnemyShipBlueprint,
+  pos: { x: number; y: number },
+  captainId: string,
+) {
+  return CombatShipState({
+    shipClassId: blueprint.id,
+    nameZh: blueprint.nameZh,
+    captainId,
+    side: 'enemy',
+    isFlagship: false,
+    isMs: blueprint.isMs ?? false,
+    pilotedByPlayer: false,
+    isPlayer: false,
+    pos,
+    vel: { x: 0, y: 0 },
+    heading: Math.PI,    // facing -x toward player
+    angVel: 0,
+    hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
+    armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
+    fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
+    hasShield: blueprint.hasShield,
+    shieldEfficiency: blueprint.shieldEfficiency,
+    shieldUp: blueprint.hasShield,
+    topSpeed: blueprint.topSpeed,
+    accel: blueprint.accel,
+    decel: blueprint.decel,
+    angularAccel: blueprint.angularAccel,
+    maxAngVel: blueprint.maxAngVel,
+    weapons: blueprint.defaultWeapons.map((id, i) => ({
+      weaponId: id,
+      size: blueprint.mounts[i].size,
+      firingArcRad: (blueprint.mounts[i].firingArcDeg * Math.PI) / 180,
+      facingRad: (blueprint.mounts[i].facingDeg * Math.PI) / 180,
+      chargeSec: 0,
+      ready: false,
+      hardpointId: '',
+    })),
+    ai: {
+      aggression: blueprint.ai.aggression,
+      retreatThreshold: blueprint.ai.retreatThresholdPct,
+      maintainRange: blueprint.ai.maintainRange,
+    },
+    currentTargetKey: '',
+    // W3 (ms-identity) Task 3 — isMs rows author their own (smaller)
+    // hitRadiusPx; ship rows fall back to the config default. Boost decay
+    // fields always start clean per spawn.
+    hitRadiusPx: blueprint.isMs ? blueprint.hitRadiusPx! : combatConfig.defaultShipHitRadiusPx,
+    boostRemainingSec: 0,
+    boostCooldownSec: 0,
+    // W3 (ms-identity) Task 4 — enemy-MS pilot AI transient state. Harmless
+    // defaults for ship rows (they never read/write these fields).
+    pendingTargetKey: '',
+    pendingTargetSec: 0,
+    boostDecisionTimerSec: 0,
+  })
+}
+
 function spawnEnemyShip(
   w: World,
   blueprintId: string,
@@ -416,48 +509,42 @@ function spawnEnemyShip(
   const blueprint = getEnemyShip(blueprintId)
   const spawn = enemySpawnSlot(slotIdx, totalSlots)
   w.spawn(
-    CombatShipState({
-      shipClassId: blueprint.id,
-      nameZh: blueprint.nameZh,
-      captainId,
-      side: 'enemy',
-      isFlagship: false,
-      isMs: false,
-      pilotedByPlayer: false,
-      isPlayer: false,
-      pos: { x: spawn.x, y: spawn.y },
-      vel: { x: 0, y: 0 },
-      heading: Math.PI,    // facing -x toward player
-      angVel: 0,
-      hullCurrent: blueprint.hullMax, hullMax: blueprint.hullMax,
-      armorCurrent: blueprint.armorMax, armorMax: blueprint.armorMax,
-      fluxMax: blueprint.fluxMax, fluxCurrent: 0, fluxDissipation: blueprint.fluxDissipation,
-      hasShield: blueprint.hasShield,
-      shieldEfficiency: blueprint.shieldEfficiency,
-      shieldUp: blueprint.hasShield,
-      topSpeed: blueprint.topSpeed,
-      accel: blueprint.accel,
-      decel: blueprint.decel,
-      angularAccel: blueprint.angularAccel,
-      maxAngVel: blueprint.maxAngVel,
-      weapons: blueprint.defaultWeapons.map((id, i) => ({
-        weaponId: id,
-        size: blueprint.mounts[i].size,
-        firingArcRad: (blueprint.mounts[i].firingArcDeg * Math.PI) / 180,
-        facingRad: (blueprint.mounts[i].facingDeg * Math.PI) / 180,
-        chargeSec: 0,
-        ready: false,
-        hardpointId: '',
-      })),
-      ai: {
-        aggression: blueprint.ai.aggression,
-        retreatThreshold: blueprint.ai.retreatThresholdPct,
-        maintainRange: blueprint.ai.maintainRange,
-      },
-      currentTargetKey: '',
-    }),
+    buildEnemyCombatShipState(blueprint, spawn, captainId),
     EntityKey({ key: `enemy-ship-${slotIdx}` }),
   )
+}
+
+// W3 (ms-identity) Task 2 — this engagement's hostile MS wingmen (Issue
+// space-entities.json5 `msComplement`). Spawned as independent CombatShipState
+// rows (side:'enemy', isMs:true) keyed `enemy-ms-<n>`, distinct from the
+// ship-keyed `enemy-ship-<n>` rows so both kinds are individually targetable
+// and the tally/cleanup queries (getEnemyEntities, breakDownEnemiesForVictory)
+// pick them up automatically — no separate bookkeeping needed since they're
+// plain side:'enemy' CombatShipState rows. Formation slots continue the ship
+// fleet's fan-out (shipFleetSize + i) so MS don't spawn stacked on a ship.
+function spawnEnemyMsComplement(w: World, msComplement: readonly string[], shipFleetSize: number): void {
+  const totalSlots = shipFleetSize + msComplement.length
+  msComplement.forEach((msId, i) => {
+    const blueprint = getEnemyShip(msId)
+    const spawn = enemySpawnSlot(shipFleetSize + i, totalSlots)
+    w.spawn(
+      buildEnemyCombatShipState(blueprint, spawn, ''),
+      EntityKey({ key: `enemy-ms-${i}` }),
+    )
+  })
+}
+
+// W3 (ms-identity) Task 2 — resolves this engagement's MS complement from
+// the space-entities group behind campaignEnemyKey (spaceBootstrap keys
+// every campaign entity `enemy-${spaceEntityId}`). Reads directly off the
+// data row instead of threading a new startCombat parameter through the
+// engagement modal + debug cheat call sites: campaignEnemyKey already
+// carries enough to look the row up, and startCombatCheat's synthetic
+// (non-campaign) fights simply resolve to no complement.
+function resolveMsComplement(campaignEnemyKey: string | null | undefined): readonly string[] {
+  if (!campaignEnemyKey) return []
+  const spaceEntity = getSpaceEntity(campaignEnemyKey.replace(/^enemy-/, ''))
+  return spaceEntity?.msComplement ?? []
 }
 
 // Phase 6.2.E2 — spawn a non-flagship CombatShipState for every
@@ -550,6 +637,16 @@ function spawnActiveFleetEscorts(w: World): void {
         maintainRange,
       },
       currentTargetKey: '',
+      // Ships get no boost (locked decision) and use the shared default
+      // hit radius — ship-classes.json5 doesn't author per-class values.
+      hitRadiusPx: combatConfig.defaultShipHitRadiusPx,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
+      // W3 (ms-identity) Task 4 — pilot-AI transient state; unused by
+      // non-MS rows (no pilot block), kept for CombatShipState shape parity.
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }))
   }
 }
@@ -636,6 +733,12 @@ export function startCombat(
         }
       })(),
       currentTargetKey: '',
+      hitRadiusPx: combatConfig.defaultShipHitRadiusPx,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }))
   }
 
@@ -654,6 +757,11 @@ export function startCombat(
   // aggressive doctrine actually reads through.
   spawnActiveFleetEscorts(w)
 
+  // W3 (ms-identity) Task 2 — field this campaign group's hostile MS
+  // wingmen (space-entities.json5 `msComplement`), if any.
+  const msComplement = resolveMsComplement(campaignEnemyKey)
+  if (msComplement.length > 0) spawnEnemyMsComplement(w, msComplement, fleet.length)
+
   setInCombat(true)
   useClock.getState().setMode('combat')
   useClock.getState().setSpeed(0)
@@ -670,6 +778,13 @@ export function startCombat(
   // W2 command layer — a fresh engagement starts order-free; standing
   // rally/focus-fire orders don't carry across engagements.
   resetFleetOrders()
+  // W3 (ms-identity) Task 5 — clear the wing registry; the strip loop above
+  // already destroyed any stale wing clones (transient side='player' rows).
+  resetWings()
+  // W3 (ms-identity) Task 7 — fresh engagement starts pod-free; a stale
+  // confirm beat from a torn-down fight can't confirm into this one.
+  resetEjection()
+  pendingPlayerEject = null
   // Issue #69 — seed the Command-Point pool full for this engagement and
   // surface the starting bandwidth in the log. The pre-engagement DP commit
   // set carries into this fight (the war room set it before launch); the
@@ -962,6 +1077,30 @@ function applyDefeatConsequence(): DefeatConsequenceResult {
 
 export function endCombat(outcome: CombatOutcome): void {
   const w = shipWorld()
+  // Issue #163 — write back the piloted MS's in-flight combat damage
+  // BEFORE the destroy loop below despawns its clone. Winning or
+  // withdrawing while still undocked is the common way fights end; without
+  // this the clone's damage was silently discarded and the roster MS came
+  // back pristine. No-ops if the player already docked (dockMs synced) or
+  // the MS was already destroyed in-tactical (onMsEjected synced) — both
+  // clear activeMsRosterKey on their own exit.
+  syncActiveMsToRosterIfLaunched()
+  // W3 (ms-identity) Task 5 — write back every still-deployed wing's combat
+  // damage BEFORE the destroy loop strips the clones, then clear the
+  // registry (the loop below destroys the transient wing rows).
+  syncAllWingsToRoster()
+  resetWings()
+  // W3 (ms-identity) Task 7 — decide every drifting pod's fate off the
+  // outcome NOW (sim/ejection consumes + clears its state); the fates are
+  // ENACTED after the outcome branches below so injuries / run-end land on
+  // the post-consequence world (defeat migrates the player first). A confirm
+  // beat still waiting when combat resolves is void — close the modal.
+  const playerPodFate = resolvePlayerPodAtEnd(outcome)
+  const wingPodFates = resolveWingPodFates()
+  if (pendingPlayerEject) {
+    pendingPlayerEject = null
+    emitSim('ui:close-eject-confirm', { reason: 'combat-resolved' })
+  }
   // Three-way split per CombatShipState owner:
   //   - flagship row sits on the persistent flagship Ship entity →
   //     just remove the trait.
@@ -1060,6 +1199,8 @@ export function endCombat(outcome: CombatOutcome): void {
     const result = applyDefeatConsequence()
     // W2 Task 6 — debrief beat. Fires AFTER applyDefeatConsequence's scene
     // transition, so the panel renders over the drop city, not the dead ship.
+    // W3 Task 7 — a pod adrift at the loss shows up in the debrief: the
+    // pilot's fate is part of the defeat's tally.
     emitSim('ui:open-combat-debrief', {
       outcome: 'defeat',
       lines: [
@@ -1067,6 +1208,14 @@ export function endCombat(outcome: CombatOutcome): void {
         { labelZh: '随舰损失MS', valueZh: `${result.lostMsCount} 台` },
         { labelZh: '生还资金', valueZh: `¥${result.survivorMoney}` },
         { labelZh: '流落地点', valueZh: result.dropSceneNameZh },
+        ...(playerPodFate
+          ? [{
+              labelZh: '弹射逃生舱',
+              valueZh: playerPodFate.outcome === 'captured' && playerPodFate.runEnded
+                ? '信标消失 · 未能寻回'
+                : '被敌方捕获 · 战后获救',
+            }]
+          : []),
       ],
     })
   } else {
@@ -1075,6 +1224,11 @@ export function endCombat(outcome: CombatOutcome): void {
     // second time.
     resolveFleeWithDebrief()
   }
+
+  // W3 (ms-identity) Task 7 — enact the pod fates decided at the top of this
+  // teardown: player injury / capture / run-end, wing pilot survival rolls.
+  if (playerPodFate) applyPlayerPodFate(playerPodFate)
+  for (const fate of wingPodFates) applyWingPodFate(fate)
 }
 
 // Issue #64 — synchronously break down every hostile through the canonical
@@ -1088,6 +1242,153 @@ export function breakDownEnemiesForVictory(): void {
     e.destroy()
   }
   endCombat('victory')
+}
+
+// ============================================================================
+// W3 (ms-identity) Task 7 — ejection with stakes.
+//
+// Player MS hull 0 (or life support 0) → auto-pause + eject-confirm beat
+// (real DOM modal, one button — per post-combat.md's designed pause set).
+// Confirm spawns a drifting escape pod (sim/ejection.ts owns pod state);
+// combat continues with the player as observer. Resolution is event-driven:
+// victory/withdraw recovers the pod (permadeath-off → injury via the
+// physiology path); defeat = capture-grade loss; a hostile reaching the pod
+// mid-fight rolls a seeded capture. Permadeath-on losses roll survival —
+// failure routes through the existing Health.dead → DeathModal run-end.
+
+// Non-null while the confirm beat is waiting on the player's click. Guards
+// double-triggering when several hits land on the dead MS in one tick.
+let pendingPlayerEject: { titleZh: string; reasonZh: string } | null = null
+
+export function beginPlayerEject(reasonZh: string, titleZh = '机体损毁 · 弹射？'): void {
+  if (pendingPlayerEject) return
+  if (!getPlayerMs()) return
+  pendingPlayerEject = { titleZh, reasonZh }
+  pauseTactical(`${reasonZh} · 等待弹射确认`, 'crit')
+  emitSim('ui:open-eject-confirm', { titleZh, reasonZh })
+}
+
+// The modal's single button. Despawns the dead clone (damage write-back via
+// onMsEjected), spawns the pod at the MS's last pose, and resumes the fight
+// — the pause existed for the beat, and the confirm IS the beat's exit.
+export function confirmPlayerEject(): boolean {
+  if (!pendingPlayerEject) return false
+  pendingPlayerEject = null
+  const snap = onMsEjected()
+  if (!snap) return false
+  spawnPlayerPod(snap)
+  pushCombatLog('逃生舱弹出 · 在战场漂流 · 等待回收', 'crit')
+  const store = useCombatStore.getState()
+  if (store.paused) store.togglePause()
+  return true
+}
+
+export function isPlayerEjectPending(): boolean {
+  return pendingPlayerEject !== null
+}
+
+function findCharacterByKey(key: string): Entity | undefined {
+  if (!key) return undefined
+  for (const id of SCENE_IDS) {
+    for (const e of getWorld(id).query(Character, EntityKey)) {
+      if (e.get(EntityKey)!.key === key) return e
+    }
+  }
+  return undefined
+}
+
+function applyEjectionInjury(entity: Entity, sourceZh: string): void {
+  const day = gameDayNumber(useClock.getState().gameDate)
+  forceOnset(
+    entity,
+    sortieConfig.ejection.pilotInjuryConditionId,
+    sourceZh,
+    day,
+    sortieConfig.ejection.pilotInjuryBodyPart,
+  )
+}
+
+// Enact a decided player-pod fate (sim/ejection decides; this applies).
+function applyPlayerPodFate(fate: PlayerPodFate): void {
+  const player = findPlayer()
+  if (fate.outcome === 'captured' && fate.runEnded) {
+    // Permadeath-on survival roll failed — route through the existing
+    // Health.dead → DeathModal run-end (same gate physiology uses).
+    if (player) {
+      const h = player.get(Health)
+      if (h) player.set(Health, { ...h, dead: true })
+    }
+    pushCombatLog('逃生舱信标消失 · 机师阵亡', 'crit')
+    logEvent('弹射失败 · 你没能等到救援')
+    return
+  }
+  if (fate.injured && player) applyEjectionInjury(player, '弹射')
+  if (fate.outcome === 'captured') {
+    pushCombatLog('逃生舱被敌方捕获 · 机师被俘', 'crit')
+    logEvent(fate.injured ? '被俘获救回 · 弹射旧伤未愈' : '被俘获救回')
+  } else {
+    pushCombatLog(fate.injured ? '逃生舱回收 · 机师负伤归舰' : '逃生舱回收 · 机师平安归舰', 'warn')
+    logEvent(fate.injured ? '弹射回收 · 弹射受伤' : '弹射回收 · 机师平安')
+  }
+}
+
+// A hostile reached the player's pod mid-fight and the capture roll hit.
+// Defeat-grade loss for the pilot, resolved immediately; combat continues
+// (the flagship is still fighting).
+function applyPlayerPodCapturedMidCombat(): void {
+  pushCombatLog('敌军逼近逃生舱 · 捕获', 'crit')
+  applyPlayerPodFate(decidePlayerCaptureFate())
+}
+
+// Crew-loss routing for a wing pilot who didn't make it: Health.dead on the
+// pilot NPC (the same flag every downstream system — BT, save alive-count,
+// hiring — already respects) + seat release so the wreck can be re-crewed.
+function applyWingPilotLost(pod: { rosterKey: string; pilotKey: string; nameZh: string }, reasonZh: string): void {
+  clearPilotAssignment(pod.rosterKey)
+  const npc = findCharacterByKey(pod.pilotKey)
+  if (npc) {
+    const h = npc.get(Health)
+    if (h) npc.set(Health, { ...h, dead: true })
+    const name = npc.get(Character)?.name ?? pod.nameZh
+    pushCombatLog(`${name} · ${reasonZh}`, 'crit')
+    logEvent(`僚机机师阵亡 · ${name}`)
+  } else {
+    // Pilot key with no live Character entity (synthetic fixture pilot) —
+    // the seat is already cleared; log the loss so it isn't silent.
+    pushCombatLog(`${pod.nameZh} 机师 · ${reasonZh}`, 'crit')
+    logEvent(`僚机机师失踪 · ${pod.nameZh}`)
+  }
+}
+
+function applyWingPodFate(fate: WingPodFate): void {
+  if (fate.outcome === 'lost') {
+    applyWingPilotLost(fate, '逃生舱未能回收 · 阵亡')
+    return
+  }
+  const npc = findCharacterByKey(fate.pilotKey)
+  const name = npc?.get(Character)?.name ?? `${fate.nameZh} 机师`
+  if (fate.injured && npc) applyEjectionInjury(npc, '弹射受伤')
+  pushCombatLog(fate.injured ? `${name} · 获救 · 负伤` : `${name} · 获救`, 'warn')
+  logEvent(`僚机机师获救 · ${name}`)
+}
+
+// Per-tick pod upkeep while any pod exists: drift + ONE distance check per
+// pod against the live hostiles (O(P × H), single digits each — see
+// sim/ejection.ts header). Captures resolve immediately.
+function tickEjectionPods(dtSec: number): void {
+  if (!hasAnyPod()) return
+  tickPodDrift(dtSec)
+  const hostiles: { x: number; y: number }[] = []
+  for (const e of getEnemyEntities()) {
+    const s = e.get(CombatShipState)!
+    hostiles.push({ x: s.pos.x, y: s.pos.y })
+  }
+  if (hostiles.length === 0) return
+  const { wingCaptured, playerCaptured } = checkHostileReachCaptures(hostiles)
+  for (const pod of wingCaptured) {
+    applyWingPilotLost(pod, '逃生舱被敌方捕获')
+  }
+  if (playerCaptured) applyPlayerPodCapturedMidCombat()
 }
 
 // Damage routing on a specific enemy. Shields-up: incoming damage builds
@@ -1239,6 +1540,24 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }): number 
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+// W3 (ms-identity) Task 5 — nearest hostile of a preferred class for a wing's
+// role-tag target preference. `preferMs` picks the nearest isMs hostile;
+// otherwise the nearest non-MS (ship) hostile. Returns null when no hostile
+// of that class exists (caller keeps the plain-nearest target).
+function pickHostileByClass(
+  hostiles: Entity[], from: { x: number; y: number }, preferMs: boolean,
+): Entity | null {
+  let best: Entity | null = null
+  let bestRange = Infinity
+  for (const h of hostiles) {
+    const hs = h.get(CombatShipState)!
+    if (hs.isMs !== preferMs) continue
+    const r = dist(from, hs.pos)
+    if (r < bestRange) { bestRange = r; best = h }
+  }
+  return best
+}
+
 interface EnemyCandidate {
   ent: Entity
   pos: { x: number; y: number }
@@ -1288,11 +1607,17 @@ function clampToArena(p: { x: number; y: number }): { x: number; y: number } {
   }
 }
 
-// Resolve a standing focus-fire order's key against the live enemy list.
-// Returns null when the key is unset or the named enemy is dead/gone.
-function findEnemyByKey(enemies: Entity[], key: string): Entity | null {
-  for (const e of enemies) {
-    if (e.get(EntityKey)?.key === key) return e
+// Resolve an EntityKey against a live entity list, requiring the entity to
+// still carry CombatShipState (not just still exist) — a same-tick destroy
+// (escort-strip-trait or MS/ship .destroy()) makes a stale key resolve to
+// null rather than a half-dead entity. Generic over any CombatShipState
+// list: the standing focus-fire order resolves it against `enemies`; W3
+// (ms-identity) Task 4's reaction-gated MS targeting resolves it against
+// `hostiles`/`playerSide`.
+function findLiveEntityByKey(list: Entity[], key: string): Entity | null {
+  if (!key) return null
+  for (const e of list) {
+    if (e.get(EntityKey)?.key === key && e.has(CombatShipState)) return e
   }
   return null
 }
@@ -1371,12 +1696,76 @@ function stepVelocity(
   }
 }
 
+// W3 (ms-identity) Task 3 — resolve the boost block for a CombatShipState
+// row, or null if this row has no boost (every non-MS ship — the locked
+// decision "ships get no boost"). shipClassId is a ms-classes.json5 id for
+// player-side MS rows, an enemyShips.json5 id for enemy-side MS rows.
+function resolveBoostDef(cs: { isMs: boolean; side: 'player' | 'enemy'; shipClassId: string }): MsBoostDef | null {
+  if (!cs.isMs) return null
+  if (cs.side === 'player') return getMsClass(cs.shipClassId).boost
+  return getEnemyShip(cs.shipClassId).boost ?? null
+}
+
+// W3 (ms-identity) Task 3 — activate `entity`'s vernier boost. Returns false
+// (no state mutated) when this row has no boost, the cooldown hasn't
+// cleared, or (player MS only) propellant can't cover propellantCost.
+// Task 4's enemy-MS AI and Task 5's wing AI call this directly with their
+// own CombatShipState entity; tryBoostPlayerMs (below) resolves the
+// keyboard-driven player MS and calls it too — one seam, every caller.
+export function tryBoost(entity: Entity): boolean {
+  const cs = entity.get(CombatShipState)
+  if (!cs) return false
+  const def = resolveBoostDef(cs)
+  if (!def) return false
+  if (cs.boostCooldownSec > 0) return false
+  // Locked decision: only the player's own piloted MS has a persistent
+  // propellant ledger (the Ms trait on the roster entity, drained via the
+  // sortie-loop system). Enemy MS are pure CombatShipState rows with no
+  // resource pool of their own, so their boost is free of the propellant
+  // ledger — cooldown is their only gate. AI wings now have per-member
+  // roster propellant ledgers (msWings.ts resupply loop); wing-boost AI is
+  // currently unwired. When wired, it must debit the wing's OWN roster key
+  // (per-member pattern), never the player's getActiveMsRosterKey.
+  if (cs.pilotedByPlayer && cs.isMs) {
+    if (!spendPropellant(getActiveMsRosterKey(), def.propellantCost)) return false
+  }
+  entity.set(CombatShipState, {
+    ...cs,
+    boostRemainingSec: def.durationSec,
+    boostCooldownSec: def.durationSec + def.cooldownSec,
+  })
+  return true
+}
+
+// Resolve the player's currently-piloted MS clone (KeyF in TacticalView) and
+// trigger its boost. False if no MS is launched/piloted right now.
+export function tryBoostPlayerMs(): boolean {
+  for (const e of shipWorld().query(CombatShipState)) {
+    const cs = e.get(CombatShipState)!
+    if (cs.isMs && cs.side === 'player' && cs.pilotedByPlayer) return tryBoost(e)
+  }
+  return false
+}
+
 // Spawn a projectile or instant-hit for `weapon` from `from` toward `to`.
 // Beams (projectileSpeed === 0) resolve as instant hits at distance check.
 // `targetEnt` is the entity being shot at (an enemy ship if ownerSide is
 // 'player'; a player-side unit — flagship or MS — if ownerSide is 'enemy').
 // Required for beams to disambiguate when multiple targets exist; for
 // projectiles it's only used as a hint, projectile collision is geometric.
+//
+// W3 (ms-identity) Task 3 investigation — hitRadiusPx (see CombatShipState)
+// only gates PROJECTILE collision (tickProjectiles' `dist(p, s.pos) <
+// s.hitRadiusPx` scan below). Beams below deliberately do NOT check any
+// radius: a beam is a hitscan weapon — the target was already resolved by
+// arc+range at the firing call site (§3/§4/§4b), and firing a beam damages
+// that exact target unconditionally the instant it's charged and in arc.
+// There is no geometry for a beam to miss with — a locked-on beam always
+// hits. A small/fast MS still gets real dodge value from hitRadiusPx
+// against ballistic/missile fire (the more common enemy-MS armament here —
+// see enemyShips.json5's junker rows); it just can't out-maneuver an
+// already-aimed beam. This is the evidence-based seam the brief asked for:
+// projectile-only, not a schema change to beams.
 function fireWeapon(
   ownerSide: 'player' | 'enemy',
   weapon: WeaponDef,
@@ -1418,9 +1807,14 @@ function fireWeapon(
         r.absorbed ? `敌方${weapon.nameZh} → 命中${tgtNameZh}护盾` : `敌方${weapon.nameZh} → 命中${tgtNameZh}船体`,
       )
       if (r.destroyed) {
-        if (tgtCs?.isMs) {
+        if (tgtCs?.isMs && tgtCs.pilotedByPlayer) {
           pushCombatLog(`MS 损毁 · ${tgtCs.nameZh}`, 'crit')
-          onMsDestroyed()
+          beginPlayerEject(`${tgtCs.nameZh} 损毁`)
+        } else if (tgtCs?.isMs && tgt) {
+          // W3 (ms-identity) Task 5 — a wing member (not player-piloted):
+          // write its loss back to the roster + despawn via msWings.
+          pushCombatLog(`僚机损毁 · ${tgtCs.nameZh}`, 'crit')
+          onWingDestroyed(tgt)
         } else if (tgtCs && !tgtCs.isFlagship && !tgtCs.isPlayer) {
           // Phase 6.2.E2 — escort destruction. Log + strip the
           // combat row from the persistent Ship entity (don't destroy
@@ -1454,6 +1848,118 @@ function fireWeapon(
   })
 }
 
+// ============================================================================
+// W3 (ms-identity) Task 4 — enemy-MS pilot AI
+//
+// Three enemyShips.json5 `pilot` fields (reactionSec / aimJitterRad /
+// boostUse) drive three independent behaviors, all gated on
+// `cs.side === 'enemy' && cs.isMs` in combatSystem — ships and player-side
+// units never carry a pilot block, so none of this runs for them (the
+// backward-compatible "zero-jitter/no-reaction-delay" path for everything
+// else is simply "this code never executes," not a zero-valued branch).
+// ============================================================================
+
+// Reaction delay (reactionSec) — a pure key-only state machine, deliberately
+// decoupled from koota Entity/liveness concerns so it's directly unit-
+// testable. `committedKey` is what this row is currently engaging;
+// `pendingKey`/`pendingElapsedSec` track a candidate replacement that has to
+// persist for `reactionSec` before it's promoted. Rules:
+//   - the raw nearest-hostile scan agrees with what's already committed →
+//     no pending switch, timer clears.
+//   - nothing was committed yet (first tick) → commit immediately, no delay
+//     on initial acquisition (reactionSec only gates SWITCHES).
+//   - the raw scan disagrees with the committed key → start (or continue)
+//     timing a switch to that candidate. A candidate that itself keeps
+//     changing (target juking, or the old one dying with no replacement
+//     yet — signaled by rawNearestKey === '') restarts the clock each time
+//     it changes, so a flickering scan can't rack up delay toward a target
+//     it hasn't actually settled on.
+//   - once the same candidate has persisted for >= reactionSec, commit to it.
+// The caller resolves `committedKey` back to a live Entity itself (a stale
+// key whose owner died mid-wait is the caller's problem — see
+// findLiveEntityByKey), so this function has no notion of "dead."
+export interface ReactionGateResult {
+  committedKey: string
+  pendingKey: string
+  pendingElapsedSec: number
+}
+export function resolveReactionGatedTargetKey(
+  committedKey: string,
+  pendingKey: string,
+  pendingElapsedSec: number,
+  rawNearestKey: string,
+  dtSec: number,
+  reactionSec: number,
+): ReactionGateResult {
+  if (rawNearestKey === committedKey) {
+    return { committedKey, pendingKey: '', pendingElapsedSec: 0 }
+  }
+  if (committedKey === '') {
+    return { committedKey: rawNearestKey, pendingKey: '', pendingElapsedSec: 0 }
+  }
+  const stillSameCandidate = pendingKey === rawNearestKey
+  const nextElapsed = stillSameCandidate ? pendingElapsedSec + dtSec : 0
+  if (nextElapsed >= reactionSec) {
+    return { committedKey: rawNearestKey, pendingKey: '', pendingElapsedSec: 0 }
+  }
+  return { committedKey, pendingKey: rawNearestKey, pendingElapsedSec: nextElapsed }
+}
+
+// aimJitterRad, projectile side — rotate the true bearing to target by a
+// seeded uniform draw over [-aimJitterRad, +aimJitterRad]. `uniformDraw01`
+// is a raw [0,1) roll (the caller supplies `getSimRng().next()`) so this
+// stays a pure function for unit testing. aimJitterRad<=0 short-circuits
+// without consuming the draw semantically (the math is a no-op either way),
+// matching "a zero-jitter pilot never misses."
+export function jitterAimAngle(baseAngle: number, aimJitterRad: number, uniformDraw01: number): number {
+  if (aimJitterRad <= 0) return baseAngle
+  return baseAngle + (uniformDraw01 * 2 - 1) * aimJitterRad
+}
+
+// aimJitterRad, beam side — beams are instant hitscan with no flight
+// geometry to miss with (Task 3's documented decision, see fireWeapon's
+// comment above). Jitter is instead converted into a MISS PROBABILITY:
+// model the jittered bearing as uniform over [-aimJitterRad, +aimJitterRad],
+// and the target as subtending a half-angle of
+// atan2(targetHitRadiusPx, distance) as seen from the shooter (the small-
+// angle "size over distance" view of hitRadiusPx). The fraction of that
+// uniform draw that lands within the target's half-angle is the hit
+// probability: min(1, targetHalfAngle / aimJitterRad). Callers roll once
+// against this returned chance (getSimRng().next() < chance). aimJitterRad
+// <= 0 always returns 1 (never misses) without evaluating the ratio, so a
+// zero-jitter pilot's beam is bit-for-bit the pre-Task-4 "always hits" path.
+export function beamHitChance(aimJitterRad: number, targetHitRadiusPx: number, distance: number): number {
+  if (aimJitterRad <= 0) return 1
+  const targetHalfAngleRad = Math.atan2(targetHitRadiusPx, distance)
+  return Math.min(1, targetHalfAngleRad / aimJitterRad)
+}
+
+// Dispatch one enemy-MS fire solution through the jitter model above, then
+// hand off to the ordinary fireWeapon() for damage/log/flash — this is the
+// ONLY difference from a plain enemy ship's shot (getEnemyShip(...).pilot is
+// undefined for ships, so they never reach this function at all).
+function fireEnemyMsWeaponWithJitter(
+  def: WeaponDef,
+  from: { x: number; y: number },
+  target: { ent: Entity; pos: { x: number; y: number }; hitRadiusPx: number },
+  aimJitterRad: number,
+): void {
+  const distance = dist(from, target.pos)
+  if (def.projectileSpeed === 0) {
+    const chance = beamHitChance(aimJitterRad, target.hitRadiusPx, distance)
+    if (getSimRng().next() >= chance) return   // missed — no damage, no flash, no log
+    fireWeapon('enemy', def, from, target.pos, target.ent)
+    return
+  }
+  const trueAngle = angleBetween(from, target.pos)
+  const aimAngle = jitterAimAngle(trueAngle, aimJitterRad, getSimRng().next())
+  const aimPoint = {
+    x: from.x + Math.cos(aimAngle) * distance,
+    y: from.y + Math.sin(aimAngle) * distance,
+  }
+  fireWeapon('enemy', def, from, aimPoint, target.ent)
+}
+
 function tickProjectiles(dtSec: number): void {
   const ship = getPlayerShip()
   if (!ship) return
@@ -1480,7 +1986,11 @@ function tickProjectiles(dtSec: number): void {
       for (const e of enemies) {
         const s = e.get(CombatShipState)
         if (!s) continue
-        if (dist(p, s.pos) < 12) { hit = e; break }
+        // W3 (ms-identity) Task 3 — per-row hitRadiusPx (was a hardcoded 12
+        // for every row). MS rows author a smaller radius than the ship
+        // default so a small fast frame can genuinely dodge a shot a ship
+        // hull wouldn't.
+        if (dist(p, s.pos) < s.hitRadiusPx) { hit = e; break }
       }
       if (hit) {
         const weapon = resolveCombatWeaponDef(p.weaponId)
@@ -1509,7 +2019,7 @@ function tickProjectiles(dtSec: number): void {
       for (const e of playerSide) {
         const s = e.get(CombatShipState)
         if (!s) continue
-        if (dist(p, s.pos) < 12) { hit = e; break }
+        if (dist(p, s.pos) < s.hitRadiusPx) { hit = e; break }
       }
       if (hit) {
         const weapon = resolveCombatWeaponDef(p.weaponId)
@@ -1521,9 +2031,13 @@ function tickProjectiles(dtSec: number): void {
         )
         projectiles.splice(i, 1)
         if (r.destroyed) {
-          if (hitCs.isMs) {
+          if (hitCs.isMs && hitCs.pilotedByPlayer) {
             pushCombatLog(`MS 损毁 · ${hitCs.nameZh}`, 'crit')
-            onMsDestroyed()
+            beginPlayerEject(`${hitCs.nameZh} 损毁`)
+          } else if (hitCs.isMs) {
+            // W3 (ms-identity) Task 5 — wing member destroyed (see beam path).
+            pushCombatLog(`僚机损毁 · ${hitCs.nameZh}`, 'crit')
+            onWingDestroyed(hit)
           } else if (!hitCs.isFlagship && !hitCs.isPlayer) {
             // Phase 6.2.E2 — escort destruction. Same shape as the
             // beam-side branch above (strip the trait, don't destroy
@@ -1574,12 +2088,12 @@ export function combatSystem(_world: World, dtMs: number): void {
   const resolvedTargets = new Map<Entity, Entity | null>()
   // W2 command-layer review rider — a standing focus-fire order is a
   // single fleet-wide target, so resolve it once per tick instead of once
-  // per escort. The pre-rider code re-ran findEnemyByKey's O(enemies) scan
-  // for every escort even though every escort reads the same answer.
+  // per escort. The pre-rider code re-ran findLiveEntityByKey's O(enemies)
+  // scan for every escort even though every escort reads the same answer.
   const focusOrderKey = activeOrders().focusTargetKey
   let focusOrderEnt: Entity | null = null
   if (focusOrderKey) {
-    focusOrderEnt = findEnemyByKey(enemies, focusOrderKey)
+    focusOrderEnt = findLiveEntityByKey(enemies, focusOrderKey)
     if (!focusOrderEnt) {
       // Stale key (target already dead/gone) is cleared here — the very
       // next tick reads a null focusTargetKey, so this log fires exactly
@@ -1588,10 +2102,21 @@ export function combatSystem(_world: World, dtMs: number): void {
       pushCombatLog('目标已失去 · 舰队恢复常规交战', 'info')
     }
   }
+  // W3 (ms-identity) Task 5 — flagship pos read once for the wing return-to-
+  // dock movement override (below). Read at loop start; the flagship moves
+  // in this same loop, so the bearing lags one tick — negligible over a
+  // multi-second return leg.
+  const flagshipPosForWings = playerEnt.get(CombatShipState)?.pos ?? null
   for (const self of allShips) {
-    const cs = self.get(CombatShipState)!
+    let cs = self.get(CombatShipState)!
     const isPlayerSide = cs.side === 'player' || cs.isFlagship || cs.isPlayer
     const isEscort = cs.side === 'player' && !cs.pilotedByPlayer && !cs.isMs && !cs.isFlagship
+    const isEnemyMs = cs.side === 'enemy' && cs.isMs
+    // W3 (ms-identity) Task 5 — an AI wing member: player-side isMs row not
+    // piloted by the player. selfKey resolves its `wing-<rosterKey>` clone
+    // key for the wing-AI directive lookups below.
+    const isWing = cs.side === 'player' && cs.isMs && !cs.pilotedByPlayer && !cs.isFlagship
+    const selfKey = self.get(EntityKey)?.key ?? ''
     const hostiles = isPlayerSide ? enemies : playerSide
     let nearest: Entity | null = null
     let nearestRange = Infinity
@@ -1607,16 +2132,57 @@ export function combatSystem(_world: World, dtMs: number): void {
       nearestRange = dist(cs.pos, focusOrderEnt.get(CombatShipState)!.pos)
     }
 
+    // W3 (ms-identity) Task 5 — role-tag target-class preference. A wing
+    // steers toward its preferred hostile CLASS ('ms' hunts enemy mobile
+    // suits, 'ship' presses enemy hulls) when one exists, falling back to
+    // the plain nearest hostile so it's never idle. Same O(H) scan every
+    // unit already runs; no extra cross-entity work.
+    if (isWing) {
+      const pref = wingTargetPreference(selfKey)
+      if (pref && pref !== 'nearest') {
+        const preferred = pickHostileByClass(hostiles, cs.pos, pref === 'ms')
+        if (preferred) { nearest = preferred; nearestRange = dist(cs.pos, preferred.get(CombatShipState)!.pos) }
+      }
+    }
+    // W3 (ms-identity) Task 4 — enemy-MS pilot AI: reaction delay. A pilot
+    // doesn't instantly snap to a new target the moment the raw scan above
+    // changes its mind (its target died, or a closer one wandered into
+    // range) — it keeps engaging whatever it was already committed to for
+    // `reactionSec` more. resolveReactionGatedTargetKey is a pure key-only
+    // state machine (see its doc comment); `nearest` is then re-resolved
+    // against the COMMITTED key so movement/aim/the §4 fire loop below all
+    // read one source of truth. Ships and non-MS enemies have no pilot
+    // block — this is a no-op for them, `nearest` passes straight through.
+    let nextPendingTargetKey = cs.pendingTargetKey
+    let nextPendingTargetSec = cs.pendingTargetSec
+    let committedTargetKey = keyOf(nearest)
+    if (isEnemyMs) {
+      const pilot = getEnemyShip(cs.shipClassId).pilot as EnemyPilotQuality
+      const gate = resolveReactionGatedTargetKey(
+        cs.currentTargetKey, cs.pendingTargetKey, cs.pendingTargetSec,
+        keyOf(nearest), dtSec, pilot.reactionSec,
+      )
+      committedTargetKey = gate.committedKey
+      nextPendingTargetKey = gate.pendingKey
+      nextPendingTargetSec = gate.pendingElapsedSec
+      // A stale committed key (its owner died mid-reaction-window) resolves
+      // to null — the pilot has nothing to act on THIS tick even though the
+      // state machine keeps counting toward its next lock, so it holds
+      // position rather than steering at a destroyed entity's last pos.
+      nearest = findLiveEntityByKey(hostiles, committedTargetKey)
+    }
+
     let thrustWorld = { x: 0, y: 0 }
     let aimAngle: number | null = null
+    let msClosingOrDisengaging = false
     if (nearest) {
       const targetPos = nearest.get(CombatShipState)!.pos
       const toAng = angleBetween(cs.pos, targetPos)
-      const range = nearestRange
+      const range = dist(cs.pos, targetPos)
       const mr = cs.ai.maintainRange
       let moveAng: number
-      if (range < mr * 0.85) moveAng = toAng + Math.PI       // back away
-      else if (range > mr * 1.15) moveAng = toAng             // close in
+      if (range < mr * 0.85) { moveAng = toAng + Math.PI; msClosingOrDisengaging = true }   // back away
+      else if (range > mr * 1.15) { moveAng = toAng; msClosingOrDisengaging = true }        // close in
       else moveAng = toAng + Math.PI / 2                      // strafe
       thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
       aimAngle = toAng
@@ -1637,7 +2203,52 @@ export function combatSystem(_world: World, dtMs: number): void {
       }
     }
 
+    // W3 (ms-identity) Task 5 — a wing returning to resupply overrides its
+    // combat movement with a straight bearing to the flagship (aim keeps
+    // tracking its resolved hostile for defense). msWings.tickWings triggers
+    // the dock + despawn once the wing is inside dockApproachRadiusPx.
+    if (isWing && flagshipPosForWings && isWingReturning(selfKey)) {
+      const moveAng = angleBetween(cs.pos, flagshipPosForWings)
+      thrustWorld = { x: Math.cos(moveAng), y: Math.sin(moveAng) }
+    }
+
+    // W3 (ms-identity) Task 5 — wing propellant + life-support drain. Wings
+    // aren't pilotedByPlayer, so §1's WASD-drain branch below skips them;
+    // drain here off the AI thrust magnitude (unit vector while maneuvering,
+    // 0 while holding station) so a wing actually burns down to
+    // wingResupplyThresholdPct. Resolves the wing's OWN roster key, never the
+    // player's getActiveMsRosterKey slot.
+    if (isWing) {
+      const wingRosterKey = rosterKeyFromWingCloneKey(selfKey)
+      if (wingRosterKey) {
+        drainPilotedMs(wingRosterKey, Math.hypot(thrustWorld.x, thrustWorld.y), dtSec)
+      }
+    }
+
     resolvedTargets.set(self, nearest)
+
+    // W3 (ms-identity) Task 4 — probabilistic boost use. An enemy-MS pilot
+    // re-rolls whether to trigger a vernier kick once per
+    // combatConfig.pilotAi.boostDecisionWindowSec (a decision WINDOW, not a
+    // per-tick coinflip — see the config comment), and only while actually
+    // closing or disengaging (msClosingOrDisengaging above) — a pilot
+    // holding station at maintainRange isn't reaching for the throttle.
+    // tryBoost mutates the entity's CombatShipState directly, so `cs` is
+    // refreshed immediately after a successful trigger — the "vernier
+    // boost" physics block right below reads cs.boostRemainingSec /
+    // cs.boostCooldownSec and must see this tick's activation, not stale
+    // pre-decision values.
+    let nextBoostDecisionTimerSec = cs.boostDecisionTimerSec
+    if (isEnemyMs) {
+      const pilot = getEnemyShip(cs.shipClassId).pilot as EnemyPilotQuality
+      nextBoostDecisionTimerSec += dtSec
+      if (nextBoostDecisionTimerSec >= combatConfig.pilotAi.boostDecisionWindowSec) {
+        nextBoostDecisionTimerSec -= combatConfig.pilotAi.boostDecisionWindowSec
+        if (msClosingOrDisengaging && getSimRng().next() < pilot.boostUse) {
+          if (tryBoost(self)) cs = self.get(CombatShipState)!
+        }
+      }
+    }
 
     if (cs.pilotedByPlayer) {
       // WASD overrides AI thrust whenever any axis is held. Phase
@@ -1650,13 +2261,30 @@ export function combatSystem(_world: World, dtMs: number): void {
       const inputLen = Math.hypot(axis.forward, axis.strafe)
       let effectiveAxisLen = inputLen
       if (cs.isMs) {
-        if (isMsStranded(PLAYER_MS_KEY)) {
+        // W3 (ms-identity) Task 3b — the resource pool (Ms trait) lives on
+        // the persistent roster entity, keyed by getActiveMsRosterKey(),
+        // NOT on this tactical clone's own EntityKey (PLAYER_MS_KEY).
+        // findMsByKey queries Ms+EntityKey, and the clone never carries
+        // the Ms trait, so keying these calls by PLAYER_MS_KEY silently
+        // no-ops against every real roster entity. An empty roster key
+        // (no MS launched) is guarded explicitly rather than relying on
+        // findMsByKey's null-return no-op.
+        const rosterKey = getActiveMsRosterKey()
+        if (!rosterKey || isMsStranded(rosterKey)) {
           effectiveAxisLen = 0
         }
-        // Drain propellant + life support proportional to input. AI-
-        // piloted MS don't drain here (drain is only for the
-        // player-cockpit's MS; per the 6.2.5.C smoke and design).
-        drainPilotedMs(PLAYER_MS_KEY, effectiveAxisLen, dtSec)
+        if (rosterKey) {
+          // Drain propellant + life support proportional to input. AI-
+          // piloted MS don't drain here (drain is only for the
+          // player-cockpit's MS; per the 6.2.5.C smoke and design).
+          const drained = drainPilotedMs(rosterKey, effectiveAxisLen, dtSec)
+          // W3 (ms-identity) Task 7 — life support at zero forces the
+          // ejection (same confirm-beat flow as hull 0, auto-triggered).
+          // The drain is real since Task 3b, so this floor is reachable.
+          if (drained.currentLifeSupport <= 0) {
+            beginPlayerEject('座舱生命维持归零', '生命维持耗尽 · 强制弹射')
+          }
+        }
       }
       if (effectiveAxisLen > 0) {
         const fwd = axis.forward / Math.max(1, effectiveAxisLen)
@@ -1681,8 +2309,28 @@ export function combatSystem(_world: World, dtMs: number): void {
       }
     }
 
+    // W3 (ms-identity) Task 3 — vernier boost. While boostRemainingSec > 0,
+    // topSpeed + accel multiply by the frame's speedMul; decel is
+    // unaffected (braking still feels normal). boostCooldownSec is set to
+    // durationSec+cooldownSec on activation (tryBoost) and decays here
+    // every tick regardless of boostRemainingSec, so it covers both the
+    // active window and the post-boost downtime before tryBoost can
+    // re-trigger.
+    //
+    // Perf: resolveBoostDef is an O(1) dict lookup (getMsClass/getEnemyShip
+    // are plain Record indexes); this loop already runs once per
+    // CombatShipState row per tick (N = ships + MS in one engagement,
+    // currently well under 20), so the added cost is O(1) extra work per
+    // existing O(N) iteration — no new full-scan system.
+    const boostDef = resolveBoostDef(cs)
+    const isBoosting = boostDef !== null && cs.boostRemainingSec > 0
+    const effAccel = isBoosting ? cs.accel * boostDef!.speedMul : cs.accel
+    const effTopSpeed = isBoosting ? cs.topSpeed * boostDef!.speedMul : cs.topSpeed
+    const nextBoostRemainingSec = Math.max(0, cs.boostRemainingSec - dtSec)
+    const nextBoostCooldownSec = Math.max(0, cs.boostCooldownSec - dtSec)
+
     const vel = { x: cs.vel.x, y: cs.vel.y }
-    stepVelocity(vel, thrustWorld, cs.accel, cs.decel, cs.topSpeed, dtSec)
+    stepVelocity(vel, thrustWorld, effAccel, cs.decel, effTopSpeed, dtSec)
     const pos = { x: cs.pos.x + vel.x * dtSec, y: cs.pos.y + vel.y * dtSec }
     if (pos.x < ARENA_EDGE_PAD) {
       pos.x = ARENA_EDGE_PAD
@@ -1707,7 +2355,12 @@ export function combatSystem(_world: World, dtMs: number): void {
       pos, vel,
       heading: helm.heading,
       angVel: helm.angVel,
-      currentTargetKey: keyOf(nearest),
+      currentTargetKey: committedTargetKey,
+      pendingTargetKey: nextPendingTargetKey,
+      pendingTargetSec: nextPendingTargetSec,
+      boostRemainingSec: nextBoostRemainingSec,
+      boostCooldownSec: nextBoostCooldownSec,
+      boostDecisionTimerSec: nextBoostDecisionTimerSec,
     })
   }
 
@@ -1810,20 +2463,48 @@ export function combatSystem(_world: World, dtMs: number): void {
   // be the flagship OR an MS. fireWeapon('enemy', ...) routes damage
   // through applyDamageToTarget against the chosen entity so MS hits
   // land on the MS's own CombatShipState hull, not the flagship's Ship trait.
+  //
+  // W3 (ms-identity) Task 4 — enemy-MS rows (e2.isMs) don't run the
+  // independent closest-scan below at all: they reuse §1's reaction-gated
+  // `currentTargetKey` (already committed for THIS tick by the time this
+  // section runs), so movement and firing always agree on the same locked
+  // target, and their shots go through fireEnemyMsWeaponWithJitter instead
+  // of the plain fireWeapon. Non-MS enemy ships are completely unaffected —
+  // no pilot block, same closest-scan + fireWeapon as before this task.
   for (const enemyEnt of enemies) {
     const e2 = enemyEnt.get(CombatShipState)
     if (!e2) continue
     const enemyPos = e2.pos
     const enemyHeading = e2.heading
+    const pilot = e2.isMs ? getEnemyShip(e2.shipClassId).pilot : undefined
 
-    // Pick the closest player-side unit (refresh per-enemy so two
-    // enemies in different corners can target different player units).
-    let target: { ent: Entity; pos: { x: number; y: number } } | null = null
+    let target: { ent: Entity; pos: { x: number; y: number }; hitRadiusPx: number } | null = null
     let bestRange = Infinity
-    for (const ps of playerSide) {
-      const psState = ps.get(CombatShipState)!
-      const r = dist(enemyPos, psState.pos)
-      if (r < bestRange) { bestRange = r; target = { ent: ps, pos: psState.pos } }
+    if (pilot) {
+      // Liveness re-check: §4 itself can destroy a player-side unit
+      // mid-loop (an earlier enemy's shot this same tick), so a stale
+      // committed key must resolve to "no target," not a crash — same
+      // same-tick-destroy hazard the non-MS branch below already guards.
+      const gatedEnt = findLiveEntityByKey(playerSide, e2.currentTargetKey)
+      const gatedState = gatedEnt?.get(CombatShipState)
+      if (gatedEnt && gatedState) {
+        target = { ent: gatedEnt, pos: gatedState.pos, hitRadiusPx: gatedState.hitRadiusPx }
+        bestRange = dist(enemyPos, gatedState.pos)
+      }
+    } else {
+      // Pick the closest player-side unit (refresh per-enemy so two
+      // enemies in different corners can target different player units).
+      // playerSide was snapshot once at the top of this tick — an earlier
+      // enemy's shot this same tick may have already destroyed one of these
+      // entities (player MS -> eject beat -> onMsEjected despawn; escort ->
+      // CombatShipState removed), so re-check liveness rather than trusting
+      // the cached ref (mirrors the §4b re-check below).
+      for (const ps of playerSide) {
+        const psState = ps.get(CombatShipState)
+        if (!psState) continue
+        const r = dist(enemyPos, psState.pos)
+        if (r < bestRange) { bestRange = r; target = { ent: ps, pos: psState.pos, hitRadiusPx: psState.hitRadiusPx } }
+      }
     }
     const range = bestRange
 
@@ -1835,7 +2516,11 @@ export function combatSystem(_world: World, dtMs: number): void {
         const mountFacing = enemyHeading + wpn.facingRad
         const angToTarget = angleBetween(enemyPos, target.pos)
         if (inArc(angToTarget, mountFacing, wpn.firingArcRad)) {
-          fireWeapon('enemy', def, enemyPos, target.pos, target.ent)
+          if (pilot) {
+            fireEnemyMsWeaponWithJitter(def, enemyPos, target, pilot.aimJitterRad)
+          } else {
+            fireWeapon('enemy', def, enemyPos, target.pos, target.ent)
+          }
           charge = 0
           ready = false
         }
@@ -1872,8 +2557,16 @@ export function combatSystem(_world: World, dtMs: number): void {
     const msPos = psState.pos
     const msHeading = psState.heading
 
+    // §1's resolvedTargets was built at the top of this same tick, before
+    // §3 (player weapon fire) had a chance to destroy an enemy — with 2+
+    // enemies now reachable everywhere (msComplement, multi-escort groups),
+    // a target this MS resolved to at §1 may already be dead by the time
+    // this section runs. Re-check liveness rather than trusting the cached
+    // Entity ref; a stale ref just means "no target this tick" instead of
+    // dereferencing a destroyed entity's traits.
     const targetEnt = resolvedTargets.get(psEnt) ?? null
-    const target = targetEnt ? { ent: targetEnt, pos: targetEnt.get(CombatShipState)!.pos } : null
+    const targetCs = targetEnt?.get(CombatShipState)
+    const target = targetCs ? { ent: targetEnt!, pos: targetCs.pos } : null
     const bestRange = target ? dist(msPos, target.pos) : Infinity
 
     const updatedWeapons = psState.weapons.map((wpn) => {
@@ -1890,9 +2583,22 @@ export function combatSystem(_world: World, dtMs: number): void {
           // refuse to fire on empty. Held-ready (charge clamped at
           // def.chargeSec) so the weapon resumes firing instantly on
           // resupply rather than ramping back up.
-          const isPlayerMs = psState.isMs && wpn.hardpointId
-          if (isPlayerMs && !tryConsumeAmmo(PLAYER_MS_KEY, wpn.hardpointId)) {
-            // No ammo — hold ready (charge stays clamped) but skip fire.
+          // W3 (ms-identity) Task 3b — ammo pools live on the roster Ms
+          // entity (getActiveMsRosterKey()), not this clone's own
+          // EntityKey (PLAYER_MS_KEY) — same rekey as the drain/stranded
+          // gates above. No roster key (shouldn't happen while a player
+          // MS row exists, but guarded explicitly) blocks fire rather
+          // than silently bypassing the ammo gate.
+          // W3 (ms-identity) Task 5 — gate the PLAYER-MS ammo pool on
+          // `pilotedByPlayer` (the single getActiveMsRosterKey slot is the
+          // player's launched MS only). Task 5's wing rows (isMs, side
+          // player, not piloted) resolve their OWN roster key — added below
+          // in the wing fire branch.
+          const isPlayerMs = psState.isMs && psState.pilotedByPlayer && wpn.hardpointId
+          const rosterKey = isPlayerMs ? getActiveMsRosterKey() : msWingRosterKeyForClone(psEnt)
+          if ((isPlayerMs || rosterKey !== '') && !tryConsumeAmmo(rosterKey, wpn.hardpointId)) {
+            // No ammo (or no roster key resolved) — hold ready (charge
+            // stays clamped) but skip fire.
             return { ...wpn, chargeSec: charge, ready: false }
           }
           fireWeapon('player', def, msPos, target.pos, target.ent)
@@ -1931,6 +2637,15 @@ export function combatSystem(_world: World, dtMs: number): void {
   }
   tickResupply(dtSec)
   tickTugs(dtSec)
+  // W3 (ms-identity) Task 5 — wing resupply state machine: threshold-driven
+  // return-to-dock + relaunch. Runs after the door/resupply ticks so a wing
+  // that docks this tick sees its door cycle start next tick.
+  tickWings(dtSec)
+
+  // -- 5d. W3 (ms-identity) Task 7 — escape-pod drift + hostile-reach ------
+  // No-op unless a pod exists (event-driven beyond one distance check per
+  // pod while it drifts).
+  tickEjectionPods(dtSec)
 
   // -- 6. Flagship hull threshold auto-pause (narrowed set, Phase 6.0) ----
   // Crossing 25% or 10% pauses tactical and posts a crit log entry.

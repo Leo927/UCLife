@@ -8,12 +8,18 @@ import { getWorld, SCENE_IDS } from '../../ecs/world'
 import type { Entity } from 'koota'
 import {
   Position, CombatShipState, EnemyAI, EntityKey, IsPlayer, IsInActiveFleet,
-  Ship, WasCaptured, IsFlagshipMark, WeaponMount,
+  Ship, WasCaptured, IsFlagshipMark, WeaponMount, Character, Health, Conditions,
 } from '../../ecs/traits'
 import {
   useCombatStore, startCombat, combatSystem, endCombat,
   breakDownEnemiesForVictory, getPlayerMountShotCounts, type CombatOutcome,
+  beginPlayerEject, isPlayerEjectPending,
 } from '../../systems/combat'
+import { getPods } from '../../sim/ejection'
+import { setPermadeath, isPermadeathEnabled } from '../../sim/permadeath'
+import { sortieConfig } from '../../config'
+import type { EjectionConfig } from '../../config/sortie'
+import { onWingDestroyed, wingCloneKey } from '../../systems/msWings'
 import {
   issueRally, issueFocusFire, issueRegroup, activeOrders,
 } from '../../systems/fleetOrders'
@@ -141,14 +147,14 @@ registerDebugHandle('dockPlayerMs', (force: boolean = false) => dockMs({ force }
 registerDebugHandle('takeFlagshipControl', () => takeFlagshipControl())
 registerDebugHandle('leaveBridgeCheat', () => { leaveBridge(); return true })
 
-// W2 command layer (Task 5) — every shipped ship class currently authors
-// only one defaultWeapons entry, so the flagship's second+ hardpoints spawn
-// empty (WeaponMount.weaponId === ''). The fire-mode smoke needs two armed
-// mounts on the same ship to prove "hold on mount 0 doesn't block mount 1's
-// auto-fire" — this test-only setup verb arms an existing (possibly empty)
-// mount without touching ship-classes.json5 content/balance. The optional
-// firingArcRad override lets the volley-targeting smoke guarantee two
-// enemies are simultaneously in-arc without depending on live heading.
+// W2 command layer (Task 5) — the fire-mode smoke needs two armed mounts on
+// the same ship to prove "hold on mount 0 doesn't block mount 1's auto-fire".
+// Every shipped ship class arms every declared mount at boot (Issue #165),
+// so this is no longer filling a gap — it's a test-only setter that pins a
+// mount's weapon explicitly (independent of the authored default) without
+// touching ship-classes.json5 content/balance. The optional firingArcRad
+// override lets the volley-targeting smoke guarantee two enemies are
+// simultaneously in-arc without depending on live heading.
 registerDebugHandle('armWeaponMountForTest', (
   mountIdx: number, weaponId: string, firingArcRad?: number,
 ): boolean => {
@@ -189,16 +195,29 @@ registerDebugHandle('combatEnemySnapshot', () => {
 
 registerDebugHandle('combatEntities', () => {
   const w = getWorld('playerShipInterior')
-  const out: { side: string; isFlagship: boolean; isMs: boolean; piloted: boolean; nameZh: string; hull: string }[] = []
+  const out: {
+    key: string; side: string; isFlagship: boolean; isMs: boolean; piloted: boolean
+    nameZh: string; hull: string; hullCurrent: number; hullMax: number
+    // W3 (ms-identity) Task 4 — pilot-AI smoke observability. currentTargetKey
+    // mirrors the reaction-gated committed target (see systems/combat.ts §1);
+    // boostCooldownSec > 0 is evidence a boost was triggered at some point
+    // this engagement (it's set to durationSec+cooldownSec on activation).
+    currentTargetKey: string; boostCooldownSec: number
+  }[] = []
   for (const e of w.query(CombatShipState)) {
     const cs = e.get(CombatShipState)!
     out.push({
+      key: e.get(EntityKey)?.key ?? '',
       side: cs.side,
       isFlagship: cs.isFlagship,
       isMs: cs.isMs,
       piloted: cs.pilotedByPlayer,
       nameZh: cs.nameZh,
       hull: `${cs.hullCurrent}/${cs.hullMax}`,
+      hullCurrent: cs.hullCurrent,
+      hullMax: cs.hullMax,
+      currentTargetKey: cs.currentTargetKey,
+      boostCooldownSec: cs.boostCooldownSec,
     })
   }
   return out
@@ -319,6 +338,174 @@ registerDebugHandle('msState', () => {
     heading: cs.heading,
     hullCurrent: cs.hullCurrent,
     hullMax: cs.hullMax,
+    armorCurrent: cs.armorCurrent,
+    armorMax: cs.armorMax,
     pilotedByPlayer: cs.pilotedByPlayer,
   }
+})
+
+// W3 (ms-identity) Task 5 — deterministically place a combat row (flagship,
+// enemy, MS, or wing) so the wing role-targeting smoke can pin exact
+// distances without depending on spawn-slot geometry. Zeros velocity so the
+// unit holds the seeded pose for the tick under assertion.
+registerDebugHandle('setCombatPosCheat', (entityKey: string, x: number, y: number): boolean => {
+  const w = getWorld('playerShipInterior')
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== entityKey) continue
+    const cs = e.get(CombatShipState)!
+    e.set(CombatShipState, { ...cs, pos: { x, y }, vel: { x: 0, y: 0 } })
+    return true
+  }
+  return false
+})
+
+// W3 (ms-identity) Task 5 — deterministically damage a launched wing's
+// tactical clone (keyed `wing-<rosterKey>`) so the wing damage-sync smoke can
+// assert the write-back onto its own roster row (dock sync + endCombat sync).
+registerDebugHandle('setWingHullCheat', (
+  rosterKey: string, hullCurrent: number, armorCurrent: number,
+): boolean => {
+  const w = getWorld('playerShipInterior')
+  const cloneKey = `wing-${rosterKey}`
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== cloneKey) continue
+    e.set(CombatShipState, { ...e.get(CombatShipState)!, hullCurrent, armorCurrent })
+    return true
+  }
+  return false
+})
+
+// W3 (ms-identity) Task 5 — snapshot every launched wing's clone row + its
+// roster mapping so the smoke can read targeting + hull without stripping
+// key prefixes inline.
+registerDebugHandle('getWings', (): Array<{
+  cloneKey: string; rosterKey: string; currentTargetKey: string
+  hullCurrent: number; hullMax: number; pos: { x: number; y: number }
+}> => {
+  const w = getWorld('playerShipInterior')
+  const out: Array<{
+    cloneKey: string; rosterKey: string; currentTargetKey: string
+    hullCurrent: number; hullMax: number; pos: { x: number; y: number }
+  }> = []
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    const key = e.get(EntityKey)!.key
+    if (!key.startsWith('wing-')) continue
+    const cs = e.get(CombatShipState)!
+    out.push({
+      cloneKey: key,
+      rosterKey: key.slice('wing-'.length),
+      currentTargetKey: cs.currentTargetKey,
+      hullCurrent: cs.hullCurrent,
+      hullMax: cs.hullMax,
+      pos: { x: cs.pos.x, y: cs.pos.y },
+    })
+  }
+  return out
+})
+
+// Issue #163 — deterministically damage the piloted MS's tactical clone
+// without driving real weapon-charge/projectile timing, so the roster
+// write-back smoke can assert an exact before/after hull+armor delta.
+registerDebugHandle('setPilotedMsHullCheat', (hullCurrent: number, armorCurrent: number): boolean => {
+  const e = getPlayerMs()
+  if (!e) return false
+  e.set(CombatShipState, { ...e.get(CombatShipState)!, hullCurrent, armorCurrent })
+  return true
+})
+
+// Issue #163 / W3 Task 7 — drive the destruction path directly, mirroring
+// how combatSystem calls beginPlayerEject() once a hit drops the clone's
+// hull to the eject floor: auto-pause + the eject-confirm modal opens; the
+// test confirms via the REAL DOM button. Pair with setPilotedMsHullCheat(0, 0).
+registerDebugHandle('onMsDestroyedCheat', (): boolean => {
+  if (!getPlayerMs()) return false
+  beginPlayerEject('机体损毁')
+  return true
+})
+
+// ── W3 (ms-identity) Task 7 — ejection observability + determinism seams ──
+
+// Pod + confirm-beat snapshot for the ms-ejection smoke.
+registerDebugHandle('ejectionState', () => ({
+  pendingConfirm: isPlayerEjectPending(),
+  permadeath: isPermadeathEnabled(),
+  pods: getPods().map((p) => ({
+    kind: p.kind,
+    rosterKey: p.rosterKey,
+    pilotKey: p.pilotKey,
+    nameZh: p.nameZh,
+    pos: { x: p.pos.x, y: p.pos.y },
+    vel: { x: p.vel.x, y: p.vel.y },
+    captureArmed: p.captureArmed,
+  })),
+}))
+
+registerDebugHandle('setPermadeathCheat', (enabled: boolean): boolean => {
+  setPermadeath(enabled)
+  return true
+})
+
+// Pin an ejection roll probability to 0 or 1 so the smoke asserts BOTH
+// branches of a seeded roll without fishing for a seed that happens to land
+// on the wanted side (and without coupling the test to unrelated RNG
+// consumption order).
+registerDebugHandle('setEjectionConfigCheat', (patch: Partial<EjectionConfig>): boolean => {
+  Object.assign(sortieConfig.ejection, patch)
+  return true
+})
+
+// Drive a wing's destruction through the canonical onWingDestroyed path
+// (write-back + pod spawn + registry cleanup) without projectile RNG.
+registerDebugHandle('destroyWingCheat', (rosterKey: string): boolean => {
+  const w = getWorld('playerShipInterior')
+  const cloneKey = wingCloneKey(rosterKey)
+  for (const e of w.query(CombatShipState, EntityKey)) {
+    if (e.get(EntityKey)!.key !== cloneKey) continue
+    e.set(CombatShipState, { ...e.get(CombatShipState)!, hullCurrent: 0, armorCurrent: 0 })
+    onWingDestroyed(e)
+    return true
+  }
+  return false
+})
+
+// Health.dead readback for a character by EntityKey (wing-pilot fate
+// assertions). Searches every scene — pilots can idle anywhere.
+registerDebugHandle('npcHealthByKey', (key: string): { dead: boolean } | null => {
+  for (const id of SCENE_IDS) {
+    for (const e of getWorld(id).query(Character, EntityKey)) {
+      if (e.get(EntityKey)!.key !== key) continue
+      const h = e.get(Health)
+      return { dead: !!h?.dead }
+    }
+  }
+  return null
+})
+
+// Player Health.dead readback — the permadeath run-end assertion.
+registerDebugHandle('playerHealthState', (): { dead: boolean } | null => {
+  const p = findAnyPlayer()
+  if (!p) return null
+  const h = p.get(Health)
+  return { dead: !!h?.dead }
+})
+
+// Player condition template ids, scene-agnostic (the physiology handles'
+// getConditions is pinned to the city world; the ejection smokes keep the
+// player aboard playerShipInterior).
+registerDebugHandle('playerConditionsList', (): string[] => {
+  const p = findAnyPlayer()
+  const c = p?.get(Conditions)
+  return c ? c.list.map((i) => i.templateId) : []
+})
+
+// Condition template ids for a character by EntityKey, scene-agnostic —
+// wing-pilot injury assertions.
+registerDebugHandle('npcConditionsByKey', (key: string): string[] | null => {
+  for (const id of SCENE_IDS) {
+    for (const e of getWorld(id).query(Character, Conditions, EntityKey)) {
+      if (e.get(EntityKey)!.key !== key) continue
+      return e.get(Conditions)!.list.map((i) => i.templateId)
+    }
+  }
+  return null
 })

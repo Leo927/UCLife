@@ -52,6 +52,13 @@ const STEP_BUDGET_MIN = 60
 const PLAYER_MS_KEY = 'ms-player-0'  // ms-starter starter key
 const PLAYER_MS_RUNTIME_KEY = 'player-ms-1'  // CombatShipState entity key for the deployed MS
 const HARDPOINT_ID = 'hp-0'
+// W3 (ms-identity) Task 3b — small seed values for the real-drain regression
+// below: SEEDED_PROPELLANT only needs to survive a couple of 16ms ticks of
+// held thrust before hitting 0 (gm_pre drains propellantDrainPerThrustSec=6
+// per second of full thrust — sortie.json5), and SEEDED_AMMO only needs a
+// single real shot to prove depletion.
+const SEEDED_PROPELLANT = 1
+const SEEDED_AMMO = 2
 
 test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({ sim }) => {
   await sim.boot({ fixture: 'ms-sortie', requireHandles: REQUIRED_HANDLES })
@@ -347,4 +354,164 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
     combatPaused,
     'combat should NOT auto-pause on resupply complete (Design/sortie.md: log line only)',
   ).toBe(false)
+})
+
+// W3 (ms-identity) Task 3b regression — traced + adjudicated in Task 3's
+// review. combat.ts §1's ambient drainPilotedMs/isMsStranded calls and the
+// fire path's tryConsumeAmmo call all passed PLAYER_MS_RUNTIME_KEY (the
+// tactical clone's own EntityKey), but the Ms trait these helpers read
+// (propellant, ammo pools) lives on the persistent roster entity
+// (PLAYER_MS_KEY) — sortieDrain.ts's findMsByKey queries Ms+EntityKey, and
+// the clone never carries the Ms trait, so all three silently no-op'd in
+// real play: WASD thrust never drained propellant, the MS never stranded,
+// and firing never depleted ammo. The rest of this file's scenario proves
+// the tug/resupply/relaunch loop using debug-seeded resources (seeding is
+// the point there); this test proves the depletion itself is real — no
+// debug write ever sets currentPropellant or currentAmmoByWeapon below
+// their seeded baseline, only real combat.ts ticks do.
+test('ms-sortie: real combat drains propellant to stranded and depletes ammo (no debug drive)', async ({ sim }) => {
+  await sim.boot({ fixture: 'ms-sortie', requireHandles: REQUIRED_HANDLES })
+
+  const setupOk = await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u = (window as any).__uclife__
+    return u.cheatMoney(80000) && u.cheatPiloting(10)
+  })
+  expect(setupOk, 'cheatMoney+cheatPiloting setup').toBeTruthy()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.boardShip())
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useScene.getState().activeId === 'playerShipInterior',
+    STEP_BUDGET_MIN,
+  )
+
+  const helmRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.takeHelmCheat(),
+  )
+  expect(helmRes?.ok, `takeHelmCheat: ${JSON.stringify(helmRes)}`).toBe(true)
+
+  const enemies = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.listEnemies(),
+  )
+  expect(enemies && enemies.length > 0, 'spaceCampaign should have enemies for startCombatCheat').toBeTruthy()
+
+  await sim.page.evaluate((key) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__uclife__.startCombatCheat('pirateLight', [], key)
+  }, enemies[0].key)
+
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useCombatStore.getState().open === true,
+    STEP_BUDGET_MIN,
+  )
+
+  // Combat opens auto-paused on first contact — unpause so the tactical
+  // physics tick actually advances while we drive real input below.
+  await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cs = (window as any).__uclife__.useCombatStore.getState()
+    if (cs.paused) cs.togglePause()
+  })
+
+  const launchRes = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.launchPlayerMs(),
+  )
+  expect(launchRes?.ok, `launchPlayerMs: ${JSON.stringify(launchRes)}`).toBe(true)
+  await sim.stepUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.useCockpit.getState().piloting === 'ms',
+    STEP_BUDGET_MIN,
+  )
+
+  // Seed a near-empty propellant tank + a small finite ammo pool on hp-0
+  // (still the default beamRifle mount — tryConsumeAmmo's gate reads
+  // currentAmmoByWeapon[hardpointId] directly and doesn't care which
+  // weapon occupies the slot, so no weapon swap is needed here). This is
+  // SEEDING (test prep), not the drive: both values must move below these
+  // baselines via real combat.ts ticks below, never via another debug write.
+  const seedOk = await sim.page.evaluate(
+    ({ msKey, hpId, propellant, ammo }: { msKey: string; hpId: string; propellant: number; ammo: number }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.setMsSortieResources(msKey, {
+        currentPropellant: propellant,
+        currentAmmoByWeapon: { [hpId]: ammo },
+      }),
+    { msKey: PLAYER_MS_KEY, hpId: HARDPOINT_ID, propellant: SEEDED_PROPELLANT, ammo: SEEDED_AMMO },
+  )
+  expect(seedOk, 'setMsSortieResources seed should succeed').toBe(true)
+
+  // MS spawns facing the enemy formation (flagship heading 0 — "facing +x
+  // toward enemy spawn" per systems/combat.ts's PLAYER_SPAWN) — holding
+  // real KeyW exercises combat.ts §1's drainPilotedMs/isMsStranded path
+  // exactly as WASD does in normal play.
+  await sim.page.keyboard.down('KeyW')
+
+  // ── Real thrust must drain the seeded propellant to 0 (no debug write
+  //    ever sets it below SEEDED_PROPELLANT) ─────────────────────────────
+  // stepUntil's predicate is re-parsed from its source text in the browser
+  // (see Sim.stepUntilImpl) — it can't close over PLAYER_MS_KEY, so the
+  // roster key is inlined as a literal here (same convention as this
+  // file's existing 'ms-player-0' stepUntil predicates above).
+  await sim.stepUntil(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ms = (window as any).__uclife__.getMs('ms-player-0')
+    return ms !== null && ms.currentPropellant === 0
+  }, STEP_BUDGET_MIN)
+
+  const strandedKeys = await sim.page.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).__uclife__.getStrandedMs().map((s: { key: string }) => s.key),
+  )
+  expect(strandedKeys, 'roster MS should be stranded once real drain hits 0').toContain(PLAYER_MS_KEY)
+
+  const speedAtStrand = await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = (window as any).__uclife__.getPilotedMsState()
+    return s ? Math.hypot(s.vel.x, s.vel.y) : -1
+  })
+  expect(speedAtStrand, 'getPilotedMsState should still resolve — the MS is stranded, not destroyed').toBeGreaterThanOrEqual(0)
+
+  // ── Real weapon fire must deplete the seeded ammo pool. The drifting,
+  //    stranded MS (and the enemy's own approach) still close the range —
+  //    firing was never gated on thrust, only on charge/range/arc. Literals
+  //    below mirror PLAYER_MS_KEY / HARDPOINT_ID / SEEDED_AMMO — inlined
+  //    because stepUntil's predicate can't close over outer consts. ──────
+  await sim.stepUntil(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ms = (window as any).__uclife__.getMs('ms-player-0')
+    return ms !== null && (ms.currentAmmoByWeapon['hp-0'] as number) < 2
+  }, STEP_BUDGET_MIN)
+
+  const ammoAfterFire = await sim.page.evaluate(
+    ({ msKey, hpId }: { msKey: string; hpId: string }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__uclife__.getMs(msKey)!.currentAmmoByWeapon[hpId],
+    { msKey: PLAYER_MS_KEY, hpId: HARDPOINT_ID },
+  )
+  expect(
+    ammoAfterFire,
+    'real weapon fire must decrement the roster ammo pool below the seeded baseline — proves tryConsumeAmmo now reaches the roster entity',
+  ).toBeLessThan(SEEDED_AMMO)
+
+  // ── isMsStranded's WASD-zeroing gate must still be in effect for the
+  //    real roster entity: holding KeyW throughout the fire-depletion wait
+  //    above must not have added any speed back — only drift/decel apply
+  //    once thrust is gated to zero ──────────────────────────────────────
+  const speedAfterFireWait = await sim.page.evaluate(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = (window as any).__uclife__.getPilotedMsState()
+    return s ? Math.hypot(s.vel.x, s.vel.y) : -1
+  })
+  expect(
+    speedAfterFireWait,
+    'holding KeyW on a stranded MS must never re-accelerate it — thrust stays gated to zero',
+  ).toBeLessThanOrEqual(speedAtStrand)
+
+  await sim.page.keyboard.up('KeyW')
 })

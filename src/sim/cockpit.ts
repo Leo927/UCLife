@@ -20,24 +20,27 @@
 //   - leaveBridge()    : drops the tactical overlay; player avatar walks
 //                        the ship interior at the bridge. Flagship now on
 //                        AI.
-//   - onMsDestroyed()  : called by combatSystem when the player's MS
-//                        hull reaches zero. Pushes ejection log + drops
-//                        the player at the hangar bay walkable.
+//   - onMsEjected()    : called by systems/combat.ts's confirmPlayerEject
+//                        when the pilot bails out (hull 0 / life support
+//                        0). Syncs damage to the roster, despawns the
+//                        clone, and returns its last pose for the pod
+//                        spawn. The tactical view stays open (observer).
 
 import { create } from 'zustand'
 import type { Entity } from 'koota'
-import { getWorld, getActiveSceneId } from '../ecs/world'
+import { getWorld } from '../ecs/world'
 import {
   CombatShipState, EntityKey, IsPlayer, Position, MoveTarget, Action, Ms,
 } from '../ecs/traits'
 import { getMsClass } from '../data/ms'
 import { getMsWeapon } from '../data/ms-weapons'
+import { computeMsDamageState } from '../ecs/msDamage'
 import { cockpitConfig, worldConfig, sortieConfig } from '../config'
 import {
   pickDoorForLaunch, requestLaunch, requestDock, launchPointAndVelocity,
   findHostShipKeyForMs,
 } from './hangarDoors'
-import { useScene, migratePlayerToScene } from './scene'
+import { useScene } from './scene'
 import { useClock } from './clock'
 import { emitSim } from './events'
 import { pushCombatLog, type CombatLogSeverity } from './combatLog'
@@ -67,6 +70,20 @@ export const useCockpit = create<CockpitState>((set) => ({
 }))
 
 function shipWorld() { return getWorld(SHIP_SCENE_ID) }
+
+// Issue #163 — which persistent roster Ms entity backs the currently
+// deployed clone. Set by launchMs, read + cleared by dockMs /
+// onMsEjected / resetCockpitForEndCombat so the write-back helper below
+// always targets the right entity without re-resolving fallback guesses.
+let activeMsRosterKey = ''
+
+// W3 (ms-identity) Task 3 — the piloted MS's persistent roster key, so
+// combat.ts's boost propellant-debit can target the same Ms entity
+// syncMsCombatDamageToRoster writes hull/armor back to. '' when no MS is
+// currently launched.
+export function getActiveMsRosterKey(): string {
+  return activeMsRosterKey
+}
 
 function ensureTacticalOpen(open: boolean): void {
   emitSim('combat:set-overlay-open', { open })
@@ -139,16 +156,45 @@ function resolvePlayerMsEntity(msKey?: string) {
   return { msEnt, ms: cls, msInst }
 }
 
-// Spawn the MS at flagship.pos + cockpitConfig.launchOffset, rotated by
-// the flagship's heading. Returns the new entity, or null if there's no
-// flagship combat row (combat not open). Reads weapons from the Ms
-// entity's mountedWeapons (per-instance retrofit) rather than hardcoded
-// class defaults.
-function spawnPlayerMs(msKey?: string): Entity | null {
+// Exact-match roster resolver (no fallback). Used by the shared spawner so a
+// wing member only ever clones the roster Ms it was told to.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function resolveMsEntityExact(msKey: string) {
+  if (!msKey) return null
+  const w = shipWorld()
+  for (const e of w.query(Ms, EntityKey)) {
+    if (e.get(EntityKey)!.key !== msKey) continue
+    const msInst = e.get(Ms)!
+    return { msEnt: e, ms: getMsClass(msInst.templateId), msInst }
+  }
+  return null
+}
+
+// W3 (ms-identity) Task 5 — shared MS-clone spawner. Builds a tactical
+// CombatShipState row from a persistent roster Ms entity: weapons from the
+// per-instance mountedWeapons, hull/armor from the roster, launch geometry
+// from the hosting ship's authored hangar door. Extracted from the former
+// spawnPlayerMs without behavior change so the player launch path
+// (launchMs → PLAYER_MS_KEY, pilotedByPlayer=true) and AI wing members
+// (systems/msWings.ts → `wing-<rosterKey>`, pilotedByPlayer=false + a role
+// maintainRange multiplier) share ONE construction site. Each caller owns
+// its own clone key + roster key, so drain / ammo / boost / damage-sync all
+// resolve per member (never through the single getActiveMsRosterKey slot,
+// which is the player's launched MS only).
+export interface SpawnMsCloneOpts {
+  rosterKey: string
+  cloneKey: string
+  pilotedByPlayer: boolean
+  // Wings scale the frame's authored maintainRange by their role-tag table
+  // multiplier (config/ms.json5 roleTagAi). Player path leaves it at 1.
+  maintainRangeMul?: number
+}
+
+export function spawnMsClone(opts: SpawnMsCloneOpts): Entity | null {
   const flagshipEnt = findFlagshipCombat()
   if (!flagshipEnt) return null
   const fcs = flagshipEnt.get(CombatShipState)!
-  const resolved = resolvePlayerMsEntity(msKey)
+  const resolved = resolveMsEntityExact(opts.rosterKey)
   if (!resolved) return null
   const { ms, msInst } = resolved
 
@@ -184,7 +230,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
     // Fire (or enqueue) the door cycle. Even if the cycle would queue,
     // we still spawn the MS so the launch flow can proceed visually;
     // the lock just gates the next cycle on this door.
-    requestLaunch(hostShipKey, PLAYER_MS_KEY, pickedDoorId)
+    requestLaunch(hostShipKey, opts.cloneKey, pickedDoorId)
   }
   void sortieConfig
   const w = shipWorld()
@@ -214,7 +260,7 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       side: 'player',
       isFlagship: false,
       isMs: true,
-      pilotedByPlayer: true,
+      pilotedByPlayer: opts.pilotedByPlayer,
       isPlayer: false,
       pos,
       vel,
@@ -235,11 +281,19 @@ function spawnPlayerMs(msKey?: string): Entity | null {
       ai: {
         aggression: ms.ai.aggression,
         retreatThreshold: ms.ai.retreatThresholdPct,
-        maintainRange: ms.ai.maintainRange,
+        maintainRange: ms.ai.maintainRange * (opts.maintainRangeMul ?? 1),
       },
       currentTargetKey: '',
+      hitRadiusPx: ms.hitRadiusPx,
+      boostRemainingSec: 0,
+      boostCooldownSec: 0,
+      // W3 (ms-identity) Task 4 — pilot-AI transient state; unused on
+      // player-side rows (no pilot block), kept for shape parity.
+      pendingTargetKey: '',
+      pendingTargetSec: 0,
+      boostDecisionTimerSec: 0,
     }),
-    EntityKey({ key: PLAYER_MS_KEY }),
+    EntityKey({ key: opts.cloneKey }),
   )
   return ent
 }
@@ -247,6 +301,50 @@ function spawnPlayerMs(msKey?: string): Entity | null {
 function despawnPlayerMs(): void {
   const ent = getPlayerMs()
   if (ent) ent.destroy()
+}
+
+// Issue #163 — copies the tactical clone's hull/armor onto the persistent
+// roster Ms entity and recomputes damageState, so combat damage survives
+// the clone's despawn instead of being discarded. Called at both despawn
+// exits: dockMs (before despawn) and onMsEjected (before despawn, which
+// writes hull 0 because applyDamageToMs already clamped the clone's
+// hullCurrent to 0 before the eject beat despawns the clone). Resupply
+// (sortieResupply.ts) only restores propellant/ammo, never hull/armor, so
+// this is the sole write-back path for combat damage. Takes the roster
+// key explicitly (not global state) so Task 5's per-wing-member reuse can
+// call it once per member.
+export function syncMsCombatDamageToRoster(msKey: string): void {
+  const clone = getPlayerMs()
+  if (clone) syncMsCloneToRoster(clone, msKey)
+}
+
+// W3 (ms-identity) Task 5 — parameterized write-back: copies a specific
+// combat clone's hull/armor onto the roster Ms `msKey` + recomputes
+// damageState. Task 5 wings call this once per member with their OWN
+// `wing-<rosterKey>` clone entity, so each member's damage lands on its own
+// roster row rather than the player's (getActiveMsRosterKey) slot.
+export function syncMsCloneToRoster(clone: Entity, msKey: string): void {
+  const cs = clone.get(CombatShipState)
+  if (!cs) return
+  const w = shipWorld()
+  for (const ent of w.query(Ms, EntityKey)) {
+    if (ent.get(EntityKey)!.key !== msKey) continue
+    const m = ent.get(Ms)!
+    const next = { ...m, hullCurrent: cs.hullCurrent, armorCurrent: cs.armorCurrent }
+    ent.set(Ms, { ...next, damageState: computeMsDamageState(next) })
+    return
+  }
+}
+
+// Issue #163 — sync whichever roster Ms currently backs the deployed clone,
+// or no-op when nothing is launched. `dockMs` / `onMsEjected` already
+// sync-then-clear `activeMsRosterKey` on their own exits, so calling this
+// again afterward (e.g. from `endCombat`'s teardown) is harmless. Exported
+// so `endCombat` can write back damage BEFORE its destroy loop despawns the
+// clone — the scenario this reset path used to miss entirely (winning or
+// withdrawing while still piloting the MS undocked).
+export function syncActiveMsToRosterIfLaunched(): void {
+  if (activeMsRosterKey) syncMsCombatDamageToRoster(activeMsRosterKey)
 }
 
 function getHangarBayCenter(): { x: number; y: number } | null {
@@ -287,11 +385,17 @@ export function launchMs(msKey?: string): { ok: boolean; reasonZh?: string } {
   const fcs = flagship.get(CombatShipState)!
   flagship.set(CombatShipState, { ...fcs, pilotedByPlayer: false })
 
-  const ent = spawnPlayerMs(msKey)
+  // Resolve the roster Ms once (fallback to the first stored MS when no key
+  // was passed) so the concrete roster key threads into both the shared
+  // spawner AND activeMsRosterKey — combat.ts's drain / ammo / boost debit
+  // path targets that exact entity.
+  const resolved = resolvePlayerMsEntity(msKey)
+  const rosterKey = resolved && resolved.msEnt.has(EntityKey) ? resolved.msEnt.get(EntityKey)!.key : ''
+  const ent = spawnMsClone({ rosterKey, cloneKey: PLAYER_MS_KEY, pilotedByPlayer: true })
   if (!ent) return { ok: false, reasonZh: '出击失败 · 旗舰状态异常' }
 
-  const resolved = resolvePlayerMsEntity(msKey)
   const nameZh = resolved ? resolved.ms.nameZh : 'MS'
+  activeMsRosterKey = rosterKey
 
   useCockpit.getState().setPiloting('ms')
   useCockpit.getState().bumpMs()
@@ -332,9 +436,19 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
   // Pick a door + fire/queue the dock cycle. Even if the door is busy,
   // we still fade the cockpit immediately — the resupply timer starts
   // when the cycle completes, not when the player releases controls.
-  const hostShipKey = findHostShipKeyForMs(PLAYER_MS_KEY) || 'ship'
+  // findHostShipKeyForMs matches roster Ms keys, so it must be given the
+  // ROSTER key (activeMsRosterKey), not PLAYER_MS_KEY (the tactical clone's
+  // own key) — the latter never matched any roster row and always fell back
+  // to 'ship', which happened to be right only because the flagship is
+  // keyed 'ship' today. Threading the roster key keeps host resolution
+  // correct once multi-carrier custody lands.
+  const hostShipKey = findHostShipKeyForMs(activeMsRosterKey) || 'ship'
   const pick = pickDoorForLaunch(hostShipKey)  // same picker; queue logic identical
   if (pick) requestDock(hostShipKey, PLAYER_MS_KEY, pick.doorId)
+
+  // Issue #163 — write combat damage back to the roster before the clone
+  // is destroyed.
+  syncActiveMsToRosterIfLaunched()
 
   despawnPlayerMs()
   useCockpit.getState().setPiloting(null)
@@ -342,57 +456,72 @@ export function dockMs(opts: { force?: boolean } = {}): { ok: boolean; reasonZh?
 
   // Drop the player back into the walkable hangar bay. Close the
   // tactical overlay so they can walk; combat continues on the flagship
-  // (which is on AI until they take the helm again).
+  // (which is on AI until they take the helm again). The avatar already
+  // lives in the ship-interior world (an MS is only boarded from it) —
+  // reposition it, never migrate: migratePlayerToScene from the helm scene
+  // destroys spaceCampaign's IsPlayer, which is the campaign player SHIP
+  // (see leaveBridge + cockpit.test.ts §leaveBridge).
   const hangarPos = getHangarBayCenter()
   if (hangarPos) {
-    if (getActiveSceneId() === SHIP_SCENE_ID) {
-      const w = shipWorld()
-      const player = w.queryFirst(IsPlayer)
-      if (player) {
-        player.set(Position, { x: hangarPos.x, y: hangarPos.y })
-        player.set(MoveTarget, { x: hangarPos.x, y: hangarPos.y })
-        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
-      }
-    } else {
-      migratePlayerToScene(SHIP_SCENE_ID, hangarPos)
+    const w = shipWorld()
+    const player = w.queryFirst(IsPlayer)
+    if (player) {
+      player.set(Position, { x: hangarPos.x, y: hangarPos.y })
+      player.set(MoveTarget, { x: hangarPos.x, y: hangarPos.y })
+      player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
+  }
+  if (useScene.getState().activeId !== SHIP_SCENE_ID) {
+    useScene.getState().setActive(SHIP_SCENE_ID)
   }
   ensureTacticalOpen(false)
 
   adjutantSay('MS 已入舱 · 欢迎回来', 'narr')
-  const dockResolved = resolvePlayerMsEntity()
+  const dockResolved = resolvePlayerMsEntity(activeMsRosterKey || undefined)
   const dockName = dockResolved ? dockResolved.ms.nameZh : 'MS'
   pushCombatLog(`${dockName} · 回收`, 'info')
   logEvent(`回收 MS · ${dockName}`)
+  activeMsRosterKey = ''
   return { ok: true }
 }
 
-// Player MS hull crossed zero — combatSystem calls this. Eject the
-// pilot into the hangar bay (no in-tactical recovery; that's 6.2.5).
-export function onMsDestroyed(): void {
+// W3 (ms-identity) Task 7 — the pilot ejects from the launched MS (player
+// confirmed the eject beat, or life support forced it). Writes the clone's
+// final hull/armor back to the roster (Issue #163, same helper dockMs uses),
+// despawns the clone, and drops control. Unlike the pre-Task-7 destruction
+// exit this does NOT move the player avatar to the hangar or close the
+// tactical view — the pilot is now inside a drifting escape pod in the arena
+// (sim/ejection.ts) watching the fight; recovery / capture resolves later.
+// Returns the despawned clone's identity + last pose so the caller
+// (systems/combat.ts) can spawn the pod where the MS died.
+export interface EjectedMsSnapshot {
+  rosterKey: string
+  nameZh: string
+  pos: { x: number; y: number }
+  vel: { x: number; y: number }
+}
+
+export function onMsEjected(): EjectedMsSnapshot | null {
+  const clone = getPlayerMs()
+  if (!clone) return null
+  const cs = clone.get(CombatShipState)!
+  const snapshot: EjectedMsSnapshot = {
+    rosterKey: activeMsRosterKey,
+    nameZh: cs.nameZh,
+    pos: { x: cs.pos.x, y: cs.pos.y },
+    vel: { x: cs.vel.x, y: cs.vel.y },
+  }
+  syncActiveMsToRosterIfLaunched()
+  activeMsRosterKey = ''
+
   despawnPlayerMs()
   useCockpit.getState().setPiloting(null)
   useCockpit.getState().bumpMs()
 
-  const hangarPos = getHangarBayCenter()
-  if (hangarPos) {
-    if (getActiveSceneId() === SHIP_SCENE_ID) {
-      const w = shipWorld()
-      const player = w.queryFirst(IsPlayer)
-      if (player) {
-        player.set(Position, { x: hangarPos.x, y: hangarPos.y })
-        player.set(MoveTarget, { x: hangarPos.x, y: hangarPos.y })
-        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
-      }
-    } else {
-      migratePlayerToScene(SHIP_SCENE_ID, hangarPos)
-    }
-  }
-  ensureTacticalOpen(false)
-
   const a = getAdjutant()
-  pushCombatLog(`MS 损毁 · 弹射成功 · ${a.title} · ${a.name}：「机师平安归来」`, 'crit')
-  logEvent('MS 损毁 · 弹射回收')
+  pushCombatLog(`弹射确认 · ${a.title} · ${a.name}：「逃生舱信标已捕获 · 坚持住」`, 'crit')
+  logEvent(`MS 弹射 · ${snapshot.nameZh}`)
+  return snapshot
 }
 
 // Take direct flagship control. Used both when combat starts (default
@@ -420,18 +549,20 @@ export function takeFlagshipControl(): { ok: boolean; reasonZh?: string } {
 export function leaveBridge(): void {
   clearPilotedFlags()
   useCockpit.getState().setPiloting(null)
+  // The avatar always lives in the ship-interior world here — takeHelm only
+  // swaps the ACTIVE scene, it never migrates the player entity into
+  // spaceCampaign. Routing through migratePlayerToScene when the helm scene
+  // was active grabbed spaceCampaign's queryFirst(IsPlayer) — the CAMPAIGN
+  // PLAYER SHIP (IsPlayer + ShipBody) — destroyed it, and cloned a duplicate
+  // avatar into the interior (regression: cockpit.test.ts §leaveBridge).
   const bridgePos = getBridgeCenter()
   if (bridgePos) {
-    if (getActiveSceneId() === SHIP_SCENE_ID) {
-      const w = shipWorld()
-      const player = w.queryFirst(IsPlayer)
-      if (player) {
-        player.set(Position, { x: bridgePos.x, y: bridgePos.y })
-        player.set(MoveTarget, { x: bridgePos.x, y: bridgePos.y })
-        player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
-      }
-    } else {
-      migratePlayerToScene(SHIP_SCENE_ID, bridgePos)
+    const w = shipWorld()
+    const player = w.queryFirst(IsPlayer)
+    if (player) {
+      player.set(Position, { x: bridgePos.x, y: bridgePos.y })
+      player.set(MoveTarget, { x: bridgePos.x, y: bridgePos.y })
+      player.set(Action, { kind: 'idle', remaining: 0, total: 0 })
     }
   }
   ensureTacticalOpen(false)
@@ -449,7 +580,14 @@ export function leaveBridge(): void {
 // Reset cockpit state — called by combat.ts:endCombat so the next
 // engagement starts cleanly (no stale piloting flag, no orphan MS).
 export function resetCockpitForEndCombat(): void {
+  // Issue #163 — combat ending while an MS is still launched and undocked
+  // (the common "win while piloting" case) used to discard damage taken
+  // since launch: the destroy loop in endCombat wiped the clone before this
+  // ran. endCombat now calls syncActiveMsToRosterIfLaunched() at the top of
+  // its teardown, before that destroy loop, so by the time this runs the
+  // write-back is already done (or activeMsRosterKey is already clear).
   if (getPlayerMs()) despawnPlayerMs()
+  activeMsRosterKey = ''
   useCockpit.getState().setPiloting(null)
   useCockpit.getState().bumpMs()
   // The flagship CombatShipState is stripped by endCombat itself;

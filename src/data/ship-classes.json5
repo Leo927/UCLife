@@ -132,7 +132,10 @@
         { idx: 0, size: 'small', firingArcDeg: 30, facingDeg: 0 },
         { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
       ],
-      defaultWeapons: ['beamMk1'],
+      // Issue #165 — both forward hardpoints armed at boot (mount 1
+      // previously shipped empty; only the fire-control smoke's test-only
+      // armWeaponMountForTest workaround fired it).
+      defaultWeapons: ['beamMk1', 'beamMk1'],
       ai: {
         aggression: 0.5,
         retreatThresholdPct: 0.2,
@@ -254,7 +257,9 @@
         { idx: 0, size: 'small', firingArcDeg: 30, facingDeg: 0 },
         { idx: 1, size: 'small', firingArcDeg: 30, facingDeg: 0 },
       ],
-      defaultWeapons: ['beamMk1'],
+      // Issue #165 — both hardpoints armed; beam + ballistic mix gives the
+      // step-up hull a matchup edge the beam-only lightFreighter lacks.
+      defaultWeapons: ['beamMk1', 'ballisticMk1'],
       ai: {
         aggression: 0.6,
         retreatThresholdPct: 0.25,
@@ -351,7 +356,10 @@
         { idx: 4, size: 'small',  firingArcDeg: 180, facingDeg: 180  },
         { idx: 5, size: 'small',  firingArcDeg: 180, facingDeg: 180  },
       ],
-      defaultWeapons: ['beamMk1'],
+      // Issue #165 — every mount armed. All catalog weapons are 'small'
+      // size (fits any mount rank); the broadside pair carries ballistics
+      // for armor cracking, the rest beams for flux pressure + rear cover.
+      defaultWeapons: ['beamMk1', 'ballisticMk1', 'ballisticMk1', 'beamMk1', 'beamMk1', 'beamMk1'],
       ai: {
         aggression: 0.4,
         retreatThresholdPct: 0.15,

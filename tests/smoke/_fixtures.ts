@@ -22,6 +22,13 @@ import { test as base, expect, type Page, type ConsoleMessage } from '@playwrigh
 // site — these are test-infrastructure timings only.
 export const BOOT_READY_TIMEOUT_MS = 30_000
 export const DOM_COMMIT_TIMEOUT_MS = 5_000
+// PixiCanvas's Application.init() is async (WebGL context + first render
+// pass), so the tactical arena <canvas> attaches well after its React host
+// commits. Under parallel-worker contention that init can starve far past a
+// DOM-commit budget (observed 2026-07-06: 5s flaked fleet-orders' canvas
+// wait while every uncontended run mounts in <1s) — renderer-mount waits
+// get their own budget.
+export const CANVAS_MOUNT_TIMEOUT_MS = 20_000
 export const MS_PER_GAME_MINUTE = 60_000
 export const MINUTES_PER_GAME_DAY = 24 * 60
 export const SAVE_LOAD_READY_TIMEOUT_MS = 15_000

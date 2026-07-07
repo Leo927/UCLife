@@ -25,13 +25,13 @@
 //      row's volley click no-ops while piloting !== 'flagship', but the
 //      queue itself stays visible.
 //
-// All ship classes currently author only one `defaultWeapons` entry even
-// when they declare 2+ mounts (see src/data/ship-classes.json5), so the
-// flagship's second hardpoint spawns empty. `armWeaponMountForTest` (a
-// test-only debug verb, src/boot/debugHandles/combat.ts) arms it without
-// touching ship-class content/balance.
+// Every ship class arms every declared mount at boot (Issue #165, see
+// src/data/ship-classes.json5) — this test still uses `armWeaponMountForTest`
+// (a test-only debug verb, src/boot/debugHandles/combat.ts) to (re-)arm
+// mount 1 explicitly, so the fixture stays correct even if a future class's
+// authored loadout changes, without touching ship-class content/balance.
 
-import { test, expect, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS, CANVAS_MOUNT_TIMEOUT_MS } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife__.startCombatCheat',
@@ -118,8 +118,8 @@ function shotsFor(counts: ShotCounts, mountIdx: number): number {
 async function bootCombatWithTwoEnemies(sim: { page: import('@playwright/test').Page }): Promise<void> {
   await sim.page.evaluate(() =>
     (window as any).__uclife__.startCombatCheat('pirateLight', ['pirateLight'], null, {}))
-  // Second flagship hardpoint ships empty by default content — arm it with
-  // the same weapon as mount 0 so both mounts are live for the test.
+  // Pin mount 1's weapon explicitly (it already ships armed post-#165) so
+  // this test's assumptions don't silently drift with the authored loadout.
   await sim.page.evaluate(() => (window as any).__uclife__.armWeaponMountForTest(1, 'beamMk1'))
   await sim.page.evaluate(() => {
     const uu = (window as any).__uclife__
@@ -252,7 +252,7 @@ test('fire modes (real input): mode badge cycles 自动→待命→齐射, row c
   await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
   await bootCombatWithTwoEnemies(sim)
   await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   const modeBadge = sim.page.locator('[data-tactical-weapon-mode="1"]')
   await expect(modeBadge, 'mount 1 starts on auto').toHaveText('自动')
@@ -375,7 +375,7 @@ test('fire modes (real input): mode badge goes read-only while piloting the MS, 
   // real row to click.
   await sim.page.evaluate(() => (window as any).__uclife__.armWeaponMountForTest(1, 'beamMk1'))
   await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   // Cycle mount 0 to hold while at the helm — a real click, same as the
   // sibling real-input test above.

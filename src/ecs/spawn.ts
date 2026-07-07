@@ -15,6 +15,7 @@ import {
   type InteractableKind,
   Ms, PlayerPartsInventory, MsRef,
   DiplomaticSlot,
+  type MsRoleTag,
 } from './traits'
 import { getMsClass, defaultMountedWeapons } from '../data/ms'
 import { attachMsStatSheet } from './msEffects'
@@ -1265,6 +1266,9 @@ export interface SpawnMsOpts {
   // starter-grant behavior this function otherwise always had.
   hullCurrent?: number
   armorCurrent?: number
+  // W3 (ms-identity) Task 5 — wing-AI role tag override (fixtures / grants).
+  // Omitted = the Ms trait default ('skirmisher').
+  roleTag?: MsRoleTag
 }
 export function spawnMsEntity(opts: SpawnMsOpts): Entity {
   const cls = getMsClass(opts.templateId)
@@ -1295,6 +1299,7 @@ export function spawnMsEntity(opts: SpawnMsOpts): Entity {
       damageState: computeMsDamageState({
         hullCurrent, hullMax: cls.hullMax, armorCurrent, armorMax: cls.armorMax, dockedAtPoiId,
       }),
+      roleTag: opts.roleTag ?? 'skirmisher',
     }),
     EntityKey({ key: opts.key }),
   )

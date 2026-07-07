@@ -150,7 +150,7 @@ async function main() {
     // Two-pass split: known CPU/IO-heavy specs thrash when run concurrently
     // with other tests on a CI runner's limited (2-core) budget, so they get
     // a dedicated workers=1 pass with nothing else competing for the CPU.
-    // Two distinct causes land in the same bucket because the mitigation
+    // Three distinct causes land in the same bucket because the mitigation
     // (drop worker parallelism to 1) is identical:
     //   - renderer-pixel tests (portrait*, sprite*): the shared Vite dev
     //     server serializes SVG/sprite reads, and concurrent chromium
@@ -163,12 +163,17 @@ async function main() {
     //     (observed: CI run 28754499193 — both failures timed out inside
     //     Playwright's own post-actionability click/navigation-settle step,
     //     never in "waiting for element", so no app-side wait was missing).
+    //   - civilian-war-consulate (#160): its save → page.reload → loadGame
+    //     round-trip re-boots the whole app mid-suite; the module-fetch
+    //     storm against the shared dev server under parallel contention
+    //     blows the 60s test timeout (observed failing 3/3 consecutive
+    //     parallel full runs on 2026-07-06, passes serially every time).
     // Pass 1: everything EXCEPT the heavy bucket, in parallel.
     // Pass 2: the heavy bucket, workers=1.
     //
     // If --grep was passed in passthrough, the split is skipped and the
     // user's filter applies to a single pass.
-    const HEAVY_SERIAL_FILTER = '(portrait|sprite|combat-withdraw|journey-first-sortie).*\\.spec\\.ts'
+    const HEAVY_SERIAL_FILTER = '(portrait|sprite|combat-withdraw|journey-first-sortie|civilian-war-consulate).*\\.spec\\.ts'
     const hasGrep = args.passthrough.some((a) => a === '--grep' || a.startsWith('--grep='))
 
     let pwCode = 0

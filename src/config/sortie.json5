@@ -53,6 +53,28 @@
   // only `eject + drift` events touch the floor in normal play.
   lifeSupportDrainPerSec: 1,
 
+  // ── W3 (ms-identity) Task 5 — AI wing resupply threshold ──────────────
+  // An AI wing member returns to the flagship to resupply once its
+  // propellant fraction (currentPropellant / propellantStorage cap) drops
+  // below this. Set well above zero so the wing has plenty of propellant
+  // left to fly home and dock before stranding — the return leg itself
+  // burns propellant at propellantDrainPerThrustSec. Fraction in (0, 1).
+  wingResupplyThresholdPct: 0.35,
+  // Propellant fraction threshold at which a resupplying wing relaunches.
+  // Once the resupply timer completes, the wing waits for propellant to
+  // restore to (near) cap before re-engaging. Tolerance allows for
+  // floating-point precision margin.
+  wingRelaunchPropellantFrac: 0.999,
+
+  // ── W3 (ms-identity) Task 6 — cockpit HUD low-resource cue ─────────────
+  // Fraction of cap (propellant / life-support / per-hardpoint ammo) at or
+  // below which the cockpit HUD gauge switches to its "low" visual (the
+  // player's "dock now or fight on dry?" cue). Deliberately a separate knob
+  // from wingResupplyThresholdPct above — that one drives AI wing behavior,
+  // this one drives a player-facing display threshold, and the two may
+  // diverge in future tuning.
+  cockpitLowResourceFrac: 0.3,
+
   // ── Stranded-MS recovery tug (Design/sortie.md) ───────────────────────
   // Speed of the recovery tug in tactical-arena units per second.
   // Faster than a stranded MS but slower than an MS at full thrust so
@@ -70,4 +92,48 @@
   // Radius at which the returning tug hands off to the dock door — the
   // MS enters the door cycle from here.
   tugHandoffRadiusPx: 32,
+
+  // ── W3 (ms-identity) Task 7 — ejection with stakes ────────────────────
+  // When an MS hull hits 0 (or life-support drains to 0), the pilot
+  // ejects into a drifting escape pod. The pod is NOT a combat row —
+  // enemies can't target it (their scans filter to side='player'); it
+  // just drifts and can be reached by a hostile that maneuvers onto it.
+  ejection: {
+    // The pod inherits this fraction of the MS's last velocity as its
+    // drift. Ejection kills most of the MS's momentum (the pod is a tiny
+    // unpowered capsule), so a small fraction reads right.
+    podDriftSpeedFrac: 0.35,
+    // Hard cap on the pod's drift speed (arena units/sec) regardless of
+    // how fast the MS was going — a pod never streaks across the arena.
+    podMaxDriftSpeed: 40,
+    // A hostile MS/ship within this radius of the pod opens a capture
+    // roll. Larger than a dock approach radius (80) is too generous;
+    // this is a close pass, not a fleet sweep.
+    podCaptureRadiusPx: 60,
+    // Seeded probability that a hostile pass within podCaptureRadiusPx
+    // captures the pod. Rolled once per approach episode (re-armed when
+    // every hostile leaves the radius) so the flagship can drive an
+    // attacker off and buy the pilot another chance. In (0, 1).
+    podCaptureProbability: 0.5,
+    // Permadeath-ON only: on pod recovery-failure / capture, a seeded
+    // survival roll. Below this the pilot survives the loss (rescued-
+    // later beat); at or above → the run ends (player Health.dead). This
+    // is the probability the run ENDS. In (0, 1).
+    podSurvivalRollPermadeath: 0.5,
+    // NPC wing pilot pod: seeded probability the fleet recovers the
+    // pilot alive. Failure → the pilot NPC dies (crew-loss texture). In
+    // (0, 1).
+    wingPodRecoveryProbability: 0.7,
+    // Conditional on wing-pilot recovery: seeded probability the
+    // recovered pilot picked up an injury on the way out. In (0, 1).
+    wingPodInjuryProbability: 0.5,
+    // Default permadeath state (Design/combat.md: OFF by default — the
+    // toggle gates the PLAYER character only; crew loss is independent).
+    permadeathDefault: false,
+    // Physiology condition applied to a recovered pilot (see
+    // data/conditions.json5). Concussion reads as an ejection injury.
+    pilotInjuryConditionId: 'concussion',
+    // Body part for the (bodyPart-scoped) injury condition above.
+    pilotInjuryBodyPart: 'head',
+  },
 }

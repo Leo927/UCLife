@@ -145,5 +145,102 @@
       recoverTemplateId: 'lunarMilitia',
       crewRequired: 16,
     },
+
+    // W3 (ms-identity) Task 2 — hostile mobile suits. `isMs: true` rows
+    // spawn as small/fast CombatShipState entries (see spawnEnemyMsComplement
+    // in systems/combat.ts) instead of ship-scale hulls; the `pilot` block
+    // is consumed by Task 4's enemy-MS AI (reaction delay, aim jitter,
+    // boost-use probability). Both frames are junker-grade AE/Zeon
+    // salvage-yard builds — deliberately below the player's starter gm_pre
+    // frame (hullMax 320 / armorMax 80 / topSpeed 180, see ms-classes.json5)
+    // on every combat axis, so a mobileWorker pilot can win 1v1 with care
+    // and a gm_pre pilot wins comfortably. mounts/defaultWeapons use the
+    // ship weapon catalog (weapons.json5), matching every other row in this
+    // file — enemy MS fight through the same tactical §4 fire loop as ships,
+    // not the player-only ms-weapons hardpoint system.
+    {
+      id: 'pirate_junkerMs',
+      nameZh: '海盗拼装MS',
+      descZh: '海盗东拼西凑焊接的老旧MS机体；装甲单薄但机动灵活，惯于欺近缠斗。',
+      isMs: true,
+      hullMax: 220,
+      armorMax: 35,
+      fluxMax: 0,
+      fluxDissipation: 0,
+      hasShield: false,
+      shieldEfficiency: 1.0,
+      topSpeed: 160,
+      accel: 190,
+      decel: 100,
+      angularAccel: 11,
+      maxAngVel: 4.0,
+      mounts: [
+        { idx: 0, size: 'small', firingArcDeg: 50, facingDeg: 0 },
+      ],
+      defaultWeapons: ['pirateBeamMk0'],
+      ai: {
+        aggression: 0.7,
+        retreatThresholdPct: 0.2,
+        // Brawler — closes tight before it fires.
+        maintainRange: 90,
+      },
+      pilot: {
+        reactionSec: 0.5,
+        aimJitterRad: 0.14,
+        boostUse: 0.55,
+      },
+      // W3 (ms-identity) Task 3 — small relative to the ship default (12,
+      // combat.json5). Boost mirrors the brawler's high boostUse above:
+      // a solid vernier kick it uses often to close distance.
+      hitRadiusPx: 9,
+      boost: { speedMul: 1.5, durationSec: 2.0, cooldownSec: 5, propellantCost: 20 },
+      salvage: [
+        { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.3, qty: 1 },
+      ],
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 1,
+    },
+    {
+      id: 'pirate_junkerMs_gun',
+      nameZh: '海盗拼装MS·炮击型',
+      descZh: '加挂实弹炮的海盗拼装MS；比轻型机体笨重迟缓，靠射程压制目标。',
+      isMs: true,
+      hullMax: 260,
+      armorMax: 45,
+      fluxMax: 0,
+      fluxDissipation: 0,
+      hasShield: false,
+      shieldEfficiency: 1.0,
+      topSpeed: 130,
+      accel: 150,
+      decel: 80,
+      angularAccel: 8,
+      maxAngVel: 3.0,
+      mounts: [
+        { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },
+      ],
+      defaultWeapons: ['ballisticMk1'],
+      ai: {
+        aggression: 0.5,
+        retreatThresholdPct: 0.25,
+        // Fire support — hangs back at ballistic range rather than closing.
+        maintainRange: 170,
+      },
+      pilot: {
+        reactionSec: 0.9,
+        aimJitterRad: 0.08,
+        boostUse: 0.2,
+      },
+      // Bulkier gun-mule frame — slightly bigger than the brawler but
+      // still small vs. the ship default (12). Weaker/rarer boost
+      // (matches its low boostUse above — it prefers to hang back).
+      hitRadiusPx: 10,
+      boost: { speedMul: 1.3, durationSec: 1.5, cooldownSec: 7, propellantCost: 20 },
+      salvage: [
+        { partId: 'ms-ballisticGun', kind: 'weapon', chance: 0.4, qty: 1 },
+      ],
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 1,
+    },
   ],
 }

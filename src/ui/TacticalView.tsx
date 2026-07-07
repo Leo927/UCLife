@@ -10,15 +10,20 @@ import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
-  withdrawFromCombat, type FireMode,
+  withdrawFromCombat, tryBoostPlayerMs, type FireMode,
 } from '../systems/combat'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { simNow } from '../sim/time'
-import { combatConfig, fleetConfig } from '../config'
+import { combatConfig, fleetConfig, sortieConfig } from '../config'
 import { getWorld } from '../ecs/world'
-import { Ship, WeaponMount, CombatShipState, EntityKey, IsFlagshipMark } from '../ecs/traits'
+import {
+  Ship, WeaponMount, CombatShipState, EntityKey, IsFlagshipMark, Ms, MsStatSheet, ResupplyState,
+} from '../ecs/traits'
 import { getShipClass } from '../data/ship-classes'
 import { getWeapon } from '../data/weapons'
+import { getMsClass } from '../data/ms'
+import { getMsWeapon } from '../data/ms-weapons'
+import { getStat } from '../stats/sheet'
 import { PixiCanvas } from '../render/pixi'
 import {
   PixiTacticalRenderer,
@@ -28,11 +33,13 @@ import {
 } from '../render/space/PixiTacticalRenderer'
 import { playUi } from '../audio/player'
 import {
-  useCockpit, dockMs, leaveBridge,
+  useCockpit, dockMs, leaveBridge, getActiveMsRosterKey,
 } from '../sim/cockpit'
+import { getPods, hasPlayerPod } from '../sim/ejection'
 import { emitSim } from '../sim/events'
-import { issueRally, issueFocusFire, issueRegroup } from '../systems/fleetOrders'
+import { issueRally, issueFocusFire, issueRegroup, issueMsLaunchAuth } from '../systems/fleetOrders'
 import { commandPoolDescribe, type OrderResult } from '../systems/fleetCommandPoints'
+import { countLaunchableWings } from '../systems/msWings'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
 
@@ -63,8 +70,10 @@ function onWithdrawClick(pendingOrder: PendingOrder, setPendingOrder: (o: Pendin
   setPendingOrder('withdraw')
 }
 
-function orderRefusalZh(reason: 'unknown_order' | 'insufficient_cp'): string {
-  return reason === 'insufficient_cp' ? '指挥点不足 · 指令未下达' : '未知指令'
+function orderRefusalZh(reason: 'unknown_order' | 'insufficient_cp' | 'no_launchable_ms'): string {
+  if (reason === 'insufficient_cp') return '指挥点不足 · 指令未下达'
+  if (reason === 'no_launchable_ms') return '无可出击的 MS · 需先分配机师并停靠旗舰'
+  return '未知指令'
 }
 
 // Toast the refusal reason; a successful order already narrates itself via
@@ -190,30 +199,134 @@ interface MsSnap {
   key: string
   id: number
   nameZh: string
+  // W3 (ms-identity) Task 6 — the launched clone's shipClassId equals the
+  // roster Ms's templateId (spawnMsClone seeds it from getMsClass(...).id),
+  // so the cockpit panel can read the boost caps (durationSec/cooldownSec)
+  // for the gauge fraction without a second ECS lookup.
+  templateId: string
   pos: { x: number; y: number }
   heading: number
   hullCurrent: number; hullMax: number
   armorCurrent: number; armorMax: number
+  // W3 (ms-identity) Task 3 — boostState readable per MS row; Task 6's
+  // cooldown gauge reads this off the snapshot instead of re-querying ECS.
+  boostRemainingSec: number
+  boostCooldownSec: number
 }
 
 function snapshotPlayerMs(): MsSnap | null {
   const w = getWorld(SHIP_SCENE_ID)
   for (const e of w.query(CombatShipState)) {
     const s = e.get(CombatShipState)!
-    if (!s.isMs) continue
+    // W3 (ms-identity) Task 5 — the player HUD tracks the PLAYER-piloted MS
+    // only. With AI wings now spawning as side='player' isMs rows, gate on
+    // pilotedByPlayer so a wing member never shadows the player's own MS.
+    if (!s.isMs || !s.pilotedByPlayer) continue
     const ek = e.get(EntityKey)
     const key = ek ? ek.key : 'player-ms'
     return {
       key,
       id: hashKey(key),
       nameZh: s.nameZh,
+      templateId: s.shipClassId,
       pos: { x: s.pos.x, y: s.pos.y },
       heading: s.heading,
       hullCurrent: s.hullCurrent, hullMax: s.hullMax,
       armorCurrent: s.armorCurrent, armorMax: s.armorMax,
+      boostRemainingSec: s.boostRemainingSec,
+      boostCooldownSec: s.boostCooldownSec,
     }
   }
   return null
+}
+
+// W3 (ms-identity) Task 6 — per-hardpoint ammo gauge row. `cap` (and
+// `current`, when the hardpoint mounts an energy weapon) is `Infinity`;
+// the DOM attribute serializes that to the literal string "Infinity",
+// which `Number(...)` round-trips cleanly for tests without a sentinel.
+interface MsAmmoSnap {
+  hardpointId: string
+  weaponNameZh: string
+  current: number
+  cap: number
+}
+
+interface CockpitResourceSnap {
+  currentPropellant: number
+  propellantCap: number
+  currentLifeSupport: number
+  lifeSupportCap: number
+  ammo: MsAmmoSnap[]
+}
+
+// Reads the ROSTER Ms entity (not the tactical clone) for sortie resources —
+// per Task 6's brief, hull/armor stay on the clone snapshot (MsSnap above)
+// but propellant/ammo/life-support live only on the persistent roster row.
+function snapshotCockpitResources(rosterKey: string): CockpitResourceSnap | null {
+  if (!rosterKey) return null
+  const w = getWorld(SHIP_SCENE_ID)
+  for (const e of w.query(Ms, EntityKey)) {
+    if (e.get(EntityKey)!.key !== rosterKey) continue
+    const m = e.get(Ms)!
+    const sheet = e.get(MsStatSheet)?.sheet
+    const propellantCap = sheet ? getStat(sheet, 'propellantStorage') : 0
+    const lifeSupportCap = sheet ? getStat(sheet, 'lifeSupportMinutes') : 0
+    const cls = getMsClass(m.templateId)
+    const ammo: MsAmmoSnap[] = cls.hardpoints.map((hp) => {
+      const weaponId = m.mountedWeapons[hp.id] ?? hp.defaultWeaponId
+      const def = getMsWeapon(weaponId)
+      return {
+        hardpointId: hp.id,
+        weaponNameZh: def.nameZh,
+        current: m.currentAmmoByWeapon[hp.id] ?? def.ammoCapacity,
+        cap: def.ammoCapacity,
+      }
+    })
+    return { currentPropellant: m.currentPropellant, propellantCap, currentLifeSupport: m.currentLifeSupport, lifeSupportCap, ammo }
+  }
+  return null
+}
+
+interface FlagshipSliverSnap {
+  hullPct: number
+  aggressionLabelZh: string
+}
+
+// One-line flagship status while the player is away flying their MS — the
+// full flagship HUD (PlayerHud) already renders unconditionally, but it
+// doesn't surface AI stance, which the "dock now or fight on dry?" decision
+// needs (a 稳健/aggressive flagship burns through its own hull differently).
+function snapshotFlagshipSliver(): FlagshipSliverSnap | null {
+  const w = getWorld(SHIP_SCENE_ID)
+  const ent = w.queryFirst(Ship, IsFlagshipMark)
+  if (!ent || !ent.has(CombatShipState)) return null
+  const s = ent.get(Ship)!
+  const cs = ent.get(CombatShipState)!
+  const hullPct = cs.hullMax > 0 ? (cs.hullCurrent / cs.hullMax) * 100 : 0
+  const aggressionLabelZh = fleetConfig.aggressionLevels.find((a) => a.id === s.aggression)?.labelZh ?? s.aggression
+  return { hullPct, aggressionLabelZh }
+}
+
+interface ResupplySnap {
+  msKey: string
+  nameZh: string
+  secRemaining: number
+  secTotal: number
+}
+
+// Fleet-wide resupply awareness while flying — an AI wing member (or the
+// player's own MS from a previous dock cycle) may be mid-resupply in the
+// hangar bay; this surfaces that so the pilot can factor it into "push on
+// or fall back" without leaving the cockpit.
+function snapshotActiveResupplies(): ResupplySnap[] {
+  const w = getWorld(SHIP_SCENE_ID)
+  const out: ResupplySnap[] = []
+  for (const e of w.query(Ms, ResupplyState, EntityKey)) {
+    const m = e.get(Ms)!
+    const rs = e.get(ResupplyState)!
+    out.push({ msKey: e.get(EntityKey)!.key, nameZh: m.name, secRemaining: rs.secRemaining, secTotal: rs.secTotal })
+  }
+  return out
 }
 
 function StatBar(props: { label: string; current: number; max: number; color: string }) {
@@ -274,6 +387,156 @@ function PlayerMsHud(props: { snap: MsSnap }) {
       <div className="tactical-hud-title">{snap.nameZh}</div>
       <StatBar label="船体" current={snap.hullCurrent} max={snap.hullMax} color="#60a5fa" />
       <StatBar label="装甲" current={snap.armorCurrent} max={snap.armorMax} color="#a3a3a3" />
+    </div>
+  )
+}
+
+// W3 (ms-identity) Task 6 — a resource gauge (propellant / life-support).
+// `data-cockpit-gauge` + `data-cockpit-value` are the stable selectors the
+// smoke suite and the Task 9 acceptance journey read; `is-low` (below
+// sortieConfig.cockpitLowResourceFrac) is the "dock now or fight on dry?"
+// visual cue.
+function CockpitResourceGauge(props: {
+  gaugeId: 'propellant' | 'lifeSupport'
+  labelZh: string
+  current: number
+  cap: number
+}) {
+  const frac = props.cap > 0 ? props.current / props.cap : 0
+  const isLow = frac <= sortieConfig.cockpitLowResourceFrac
+  return (
+    <div
+      className={`tactical-stat tactical-cockpit-gauge${isLow ? ' is-low' : ''}`}
+      data-cockpit-gauge={props.gaugeId}
+      data-cockpit-value={props.current}
+      data-cockpit-max={props.cap}
+    >
+      <div className="tactical-stat-row">
+        <span className="tactical-stat-label">{props.labelZh}</span>
+        <span className="tactical-stat-value">{Math.round(props.current)} / {Math.round(props.cap)}</span>
+      </div>
+      <div className="tactical-stat-track">
+        <div
+          className="tactical-stat-fill"
+          style={{ width: `${Math.max(0, Math.min(1, frac)) * 100}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Per-hardpoint ammo gauge. Energy weapons (cap = Infinity) render as ∞ and
+// never go "low" — there's no scarcity to warn about.
+function CockpitAmmoGauge(props: MsAmmoSnap) {
+  const isEnergy = !Number.isFinite(props.cap)
+  const frac = isEnergy ? 1 : (props.cap > 0 ? props.current / props.cap : 0)
+  const isLow = !isEnergy && frac <= sortieConfig.cockpitLowResourceFrac
+  return (
+    <div
+      className={`tactical-stat tactical-cockpit-gauge${isLow ? ' is-low' : ''}`}
+      data-cockpit-ammo={props.hardpointId}
+      data-cockpit-value={props.current}
+      data-cockpit-max={props.cap}
+    >
+      <div className="tactical-stat-row">
+        <span className="tactical-stat-label">{props.weaponNameZh}</span>
+        <span className="tactical-stat-value">
+          {isEnergy ? '∞' : `${Math.round(props.current)} / ${props.cap}`}
+        </span>
+      </div>
+      {!isEnergy && (
+        <div className="tactical-stat-track">
+          <div
+            className="tactical-stat-fill"
+            style={{ width: `${Math.max(0, Math.min(1, frac)) * 100}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// The cockpit HUD proper — rendered only while piloting==='ms'. Answers
+// "dock now or fight on dry?" from the panel alone: propellant + per-
+// hardpoint ammo + life support gauges (roster-sourced), the boost
+// cooldown, a one-line flagship status sliver, and fleet resupply
+// awareness.
+function CockpitPanel(props: {
+  resources: CockpitResourceSnap | null
+  boostRemainingSec: number
+  boostCooldownSec: number
+  boostDurationCapSec: number
+  boostCooldownCapSec: number
+  flagship: FlagshipSliverSnap | null
+  resupplies: ResupplySnap[]
+}) {
+  const { resources, flagship } = props
+  const boosting = props.boostRemainingSec > 0
+  const onCooldown = props.boostCooldownSec > 0
+  const boostFrac = boosting
+    ? (props.boostDurationCapSec > 0 ? props.boostRemainingSec / props.boostDurationCapSec : 0)
+    : onCooldown
+      ? (props.boostCooldownCapSec > 0 ? 1 - props.boostCooldownSec / props.boostCooldownCapSec : 1)
+      : 1
+  const boostLabelZh = boosting
+    ? `加速中 · ${props.boostRemainingSec.toFixed(1)}s`
+    : onCooldown
+      ? `冷却中 · ${props.boostCooldownSec.toFixed(1)}s`
+      : '就绪'
+
+  return (
+    <div className="tactical-hud tactical-cockpit-panel">
+      <div className="tactical-hud-title">机体状态</div>
+      {resources && (
+        <>
+          <CockpitResourceGauge
+            gaugeId="propellant"
+            labelZh="推进剂"
+            current={resources.currentPropellant}
+            cap={resources.propellantCap}
+          />
+          <CockpitResourceGauge
+            gaugeId="lifeSupport"
+            labelZh="生命维持"
+            current={resources.currentLifeSupport}
+            cap={resources.lifeSupportCap}
+          />
+          {resources.ammo.map((a) => <CockpitAmmoGauge key={a.hardpointId} {...a} />)}
+        </>
+      )}
+      <div
+        className="tactical-stat tactical-cockpit-gauge"
+        data-cockpit-gauge="boost"
+        data-cockpit-value={props.boostRemainingSec}
+        data-cockpit-cooldown={props.boostCooldownSec}
+      >
+        <div className="tactical-stat-row">
+          <span className="tactical-stat-label">分推加速</span>
+          <span className="tactical-stat-value">{boostLabelZh}</span>
+        </div>
+        <div className="tactical-stat-track">
+          <div
+            className={`tactical-stat-fill${boosting ? ' is-boosting' : ''}`}
+            style={{ width: `${Math.max(0, Math.min(1, boostFrac)) * 100}%` }}
+          />
+        </div>
+      </div>
+      {flagship && (
+        <div className="tactical-cockpit-flagship-sliver" data-cockpit-flagship-sliver="true">
+          旗舰 · 船体 {Math.round(flagship.hullPct)}% · 自动 · {flagship.aggressionLabelZh}
+        </div>
+      )}
+      {props.resupplies.map((r) => (
+        <div
+          key={r.msKey}
+          className="tactical-cockpit-resupply"
+          data-cockpit-resupply={r.msKey}
+          data-cockpit-resupply-remaining={r.secRemaining}
+          data-cockpit-resupply-total={r.secTotal}
+        >
+          {r.nameZh} · 补给中 · {Math.ceil(r.secRemaining)}s / {Math.round(r.secTotal)}s
+        </div>
+      ))}
     </div>
   )
 }
@@ -364,6 +627,12 @@ export function TacticalView() {
   // initial `null`.
   const pendingOrderRef = useRef(pendingOrder)
   pendingOrderRef.current = pendingOrder
+  // W3 (ms-identity) Task 3 — same stale-closure workaround as
+  // pendingOrderRef: the keydown effect below mounts once (deps=[open]),
+  // so KeyF needs a ref to read the CURRENT piloting mode rather than
+  // whatever it was when the effect was installed.
+  const pilotingRef = useRef(piloting)
+  pilotingRef.current = piloting
 
   // W2 Task 3 — the armed withdraw confirm auto-disarms after
   // combatConfig.withdrawConfirmWindowMs so a "confirm?" button never sits
@@ -409,6 +678,10 @@ export function TacticalView() {
               id: pj.id, x: pj.x, y: pj.y, ownerSide: pj.ownerSide,
             })),
             beams: beamVisuals(),
+            // W3 Task 7 — drifting escape pods. Index-keyed: pods are
+            // few (player + wings) and removal-order churn only swaps
+            // which pooled dot renders which pod — visually identical.
+            pods: getPods().map((pod, i) => ({ id: i, x: pod.pos.x, y: pod.pos.y })),
           })
         }
       }
@@ -470,6 +743,18 @@ export function TacticalView() {
         useCombatStore.getState().setAimAtMouse(true)
         return
       }
+      // W3 (ms-identity) Task 3 — vernier boost. Only meaningful while the
+      // player is piloting their own launched MS (not the flagship bridge,
+      // not AI) — tryBoostPlayerMs() itself already no-ops otherwise, but
+      // gating here avoids preventDefault-ing the key for no reason when
+      // it can't possibly do anything.
+      if (ev.code === 'KeyF') {
+        if (pilotingRef.current === 'ms') {
+          ev.preventDefault()
+          tryBoostPlayerMs()
+        }
+        return
+      }
       const k = map(ev.code)
       if (!k) return
       ev.preventDefault()
@@ -526,6 +811,13 @@ export function TacticalView() {
   const player = snapshotPlayer()
   const enemies = snapshotEnemies()
   const ms = snapshotPlayerMs()
+  // W3 (ms-identity) Task 6 — cockpit HUD data, gated to piloting==='ms' so
+  // the gauges/sliver/resupply rows exist in the DOM only while flying (the
+  // smoke's "absent otherwise" assertion, and cheap: no roster/ECS scan
+  // happens while piloting the flagship or walking the ship).
+  const cockpitResources = piloting === 'ms' ? snapshotCockpitResources(getActiveMsRosterKey()) : null
+  const flagshipSliver = piloting === 'ms' ? snapshotFlagshipSliver() : null
+  const activeResupplies = piloting === 'ms' ? snapshotActiveResupplies() : []
   if (!player || enemies.length === 0) return null
 
   const flashAge = simNow() - lastFlashAtMs
@@ -601,7 +893,7 @@ export function TacticalView() {
       ? '点击战场选择集火目标 · Esc / 右键取消'
       : pendingOrder === 'withdraw'
         ? '再次点击撤退按钮确认撤退 · 点击战场 / Esc / 右键取消'
-        : 'WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 点击武器行切换射击模式 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击'
+        : `WASD 操控当前驾驶单位 · 按住 Shift 让船头追随鼠标 · 点击武器行切换射击模式 · 空格切换暂停 · Tab 查看战斗日志 · 下舰桥到机库可登 MS 出击${piloting === 'ms' ? ' · F 分推加速' : ''}`
 
   // Task 5 review — fire-mode controls are bridge controls, mirroring
   // OrderPalette's comm-authority gate below: a mount's mode/volley trigger
@@ -656,6 +948,22 @@ export function TacticalView() {
       <div className="tactical-player-stack">
         <PlayerHud title={playerCls.nameZh} snap={player} />
         {ms && <PlayerMsHud snap={ms} />}
+        {hasPlayerPod() && (
+          <div className="tactical-hud tactical-hud-ms" data-eject-pod-indicator>
+            <div className="tactical-hud-title">逃生舱 · 漂流中 · 等待回收</div>
+          </div>
+        )}
+        {piloting === 'ms' && ms && (
+          <CockpitPanel
+            resources={cockpitResources}
+            boostRemainingSec={ms.boostRemainingSec}
+            boostCooldownSec={ms.boostCooldownSec}
+            boostDurationCapSec={getMsClass(ms.templateId).boost.durationSec}
+            boostCooldownCapSec={getMsClass(ms.templateId).boost.cooldownSec}
+            flagship={flagshipSliver}
+            resupplies={activeResupplies}
+          />
+        )}
         <CombatLogPanel />
       </div>
       <div className="tactical-enemy-stack">
@@ -854,6 +1162,15 @@ function OrderPalette(props: { pendingOrder: PendingOrder; setPendingOrder: (o: 
     playUi('ui.tactical.order-issue')
     reportOrderRefusal(issueRegroup())
   }
+  // W3 (ms-identity) Task 5 — MS launch authorization. Enabled only when ≥1
+  // pilot-assigned MS is aboard the flagship and not already launched; the
+  // count is polled fresh on each render (the parent re-renders at 30 Hz).
+  const launchableWings = countLaunchableWings()
+  const onLaunchMs = () => {
+    props.setPendingOrder(null)
+    playUi('ui.tactical.order-issue')
+    reportOrderRefusal(issueMsLaunchAuth())
+  }
 
   return (
     <div className="tactical-order-palette">
@@ -877,6 +1194,17 @@ function OrderPalette(props: { pendingOrder: PendingOrder; setPendingOrder: (o: 
         onClick={onRegroup}
       >
         重整队形 · {costs.formationChange} CP
+      </button>
+      <button
+        className="tactical-btn tactical-order-btn"
+        data-tactical-order="msLaunchAuth"
+        disabled={launchableWings === 0}
+        title={launchableWings === 0
+          ? '无可出击的 MS · 需先为机体分配机师并停靠旗舰'
+          : `授权 ${launchableWings} 台僚机出击`}
+        onClick={onLaunchMs}
+      >
+        僚机出击 · {costs.msLaunchAuth} CP
       </button>
       <button
         className={`tactical-btn tactical-order-btn${props.pendingOrder === 'withdraw' ? ' is-pending' : ''}`}
