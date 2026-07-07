@@ -28,7 +28,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  test, expect, DOM_COMMIT_TIMEOUT_MS,
+  test, expect, DOM_COMMIT_TIMEOUT_MS, CANVAS_MOUNT_TIMEOUT_MS,
   isExpectedTestModePortraitMissing, isKnownPixiResolutionTeardown,
 } from './_fixtures'
 
@@ -499,7 +499,7 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isPaused()),
     'tactical opens paused on first contact — the order is issued during this planning pause',
   ).toBe(true)
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   const cpBeforeOrder = await sim.page.evaluate(() =>
     (window as any).__uclife__.getGameState().getCombat().getCommandPool())

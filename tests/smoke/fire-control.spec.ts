@@ -31,7 +31,7 @@
 // mount 1 explicitly, so the fixture stays correct even if a future class's
 // authored loadout changes, without touching ship-class content/balance.
 
-import { test, expect, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS, CANVAS_MOUNT_TIMEOUT_MS } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife__.startCombatCheat',
@@ -252,7 +252,7 @@ test('fire modes (real input): mode badge cycles 自动→待命→齐射, row c
   await sim.boot({ fixture: 'cp-dp', requireHandles: REQUIRED_HANDLES })
   await bootCombatWithTwoEnemies(sim)
   await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   const modeBadge = sim.page.locator('[data-tactical-weapon-mode="1"]')
   await expect(modeBadge, 'mount 1 starts on auto').toHaveText('自动')
@@ -375,7 +375,7 @@ test('fire modes (real input): mode badge goes read-only while piloting the MS, 
   // real row to click.
   await sim.page.evaluate(() => (window as any).__uclife__.armWeaponMountForTest(1, 'beamMk1'))
   await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   // Cycle mount 0 to hold while at the helm — a real click, same as the
   // sibling real-input test above.

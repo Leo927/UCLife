@@ -17,7 +17,7 @@
 //      out-of-aggro latch that guards every contact keeps the modal from
 //      reopening even well past the cooldown window.
 
-import { test, expect, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS, CANVAS_MOUNT_TIMEOUT_MS } from './_fixtures'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -98,7 +98,7 @@ test('mid-combat withdraw: real click confirm, flee penalty applied, no instant 
   await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
   // PixiCanvas's Application.init() is async — wait for the arena canvas
   // to actually mount before touching the palette.
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   const before = await sim.page.evaluate(() => (window as any).__uclife__.getShipState())
 
@@ -271,7 +271,7 @@ test('fleet-withdraw button gated to flagship: MS pilot must not see topbar with
 
   await sim.page.evaluate(() => (window as any).__uclife__.useEngagement.getState().resolve('engage'))
   await sim.page.waitForSelector('.tactical-overlay', { timeout: DOM_COMMIT_TIMEOUT_MS })
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 
   // Launch the player MS — piloting='ms' now
   const launchRes = await sim.page.evaluate(

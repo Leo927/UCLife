@@ -17,7 +17,7 @@
 // TacticalView's click-target mode instead of the `issueFleetOrderDebug`
 // debug verb Task 1 used for the backend-only cases above.
 
-import { test, expect, DOM_COMMIT_TIMEOUT_MS } from './_fixtures'
+import { test, expect, DOM_COMMIT_TIMEOUT_MS, CANVAS_MOUNT_TIMEOUT_MS } from './_fixtures'
 
 const REQUIRED_HANDLES = [
   '__uclife__.setIsInActiveFleet',
@@ -181,7 +181,7 @@ async function bootTacticalWithEscort(sim: { page: import('@playwright/test').Pa
   // PixiCanvas's Application.init() is async — the arena <canvas> the
   // world→screen helpers project through doesn't exist the instant
   // .tactical-overlay mounts.
-  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('.tactical-canvas-host canvas', { timeout: CANVAS_MOUNT_TIMEOUT_MS })
 }
 
 test('order palette (real input): CP gauge, order costs, withdraw enabled and CP-free', async ({ sim }) => {

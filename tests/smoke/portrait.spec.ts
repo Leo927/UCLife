@@ -5,7 +5,13 @@
 import { test, expect } from './_fixtures'
 
 const ASSET_DRAIN_TIMEOUT_MS = 30_000
-const DOM_COMMIT_TIMEOUT_MS = 15_000
+// First portrait render fetches hundreds of fc-pregmod SVGs through a COLD
+// ephemeral Vite (ci-local spawns a fresh server per run; nothing else in
+// the suite touches these assets, so no pass pre-warms them). The transform
+// storm alone can exceed a DOM-commit budget — this is a cold-asset budget,
+// not a DOM-commit one (observed 15s flaking 2/2 serial runs on 2026-07-06
+// while every warmed run passes in <3s).
+const COLD_ASSET_TIMEOUT_MS = 45_000
 const PRESETS = ['default-female', 'default-male', 'preg', 'punk']
 const MIN_SVG_DIM_PX = 50
 
@@ -19,7 +25,7 @@ test('portrait composite: art layers + CSS, contained, walks PRESETS', async ({ 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).uclifePortraitTester())
-  await sim.page.waitForSelector('svg[class^="art"]', { timeout: DOM_COMMIT_TIMEOUT_MS })
+  await sim.page.waitForSelector('svg[class^="art"]', { timeout: COLD_ASSET_TIMEOUT_MS })
   await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (t) => (window as any).__uclife__.awaitAssetsReady({ timeoutMs: t }),
