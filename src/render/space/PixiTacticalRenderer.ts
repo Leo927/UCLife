@@ -208,6 +208,13 @@ export class PixiTacticalRenderer {
     return { x: (sx - this.root.x) / s, y: (sy - this.root.y) / s }
   }
 
+  // Arena world coords → screen pixel. Forward of applyFit(); used to anchor
+  // the diegetic on-seat "下舰桥" affordance (W4 Task 7) to the flagship sprite.
+  worldToScreen(wx: number, wy: number): { x: number; y: number } {
+    const s = this.root.scale.x || 1
+    return { x: wx * s + this.root.x, y: wy * s + this.root.y }
+  }
+
   destroy(): void {
     // Mark destroyed so any in-flight update() bails. Don't destroy the
     // root container ourselves — PixiCanvas's effect cleanup destroys

@@ -347,7 +347,14 @@ export function interactionSystem(world: World) {
         continue
       }
       if (useClock.getState().mode !== 'combat') {
-        emitSim('toast', { textZh: '尚未进入战斗 · 无需出击' })
+        // W4 Task 7 — a docked bridge has nothing to sortie into, so climbing
+        // an aboard MS outside combat opens its retrofit panel instead of a
+        // dead-end toast (mirroring the adjacent msTerminal branch below).
+        if (!msKey) {
+          emitSim('toast', { textZh: 'MS 数据异常' })
+          continue
+        }
+        emitSim('ui:open-ms-retrofit', { msKey })
         continue
       }
       const r = launchMs(msKey || undefined)

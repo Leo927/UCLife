@@ -164,7 +164,7 @@ export interface CombatTallyEventPayload {
 // without duplicating the shape (unlike the pre-existing CombatTallyPayload/
 // CombatTallyEventPayload split above).
 export interface CombatDebriefEventPayload {
-  outcome: 'defeat' | 'flee'
+  outcome: 'defeat' | 'flee' | 'negotiate'
   lines: { labelZh: string; valueZh: string }[]
 }
 

@@ -904,6 +904,15 @@ export function TacticalView() {
   // doing with my guns right now) — it just goes read-only.
   const flagshipPiloted = piloting === 'flagship'
 
+  // W4 Task 7 — diegetic on-seat leave affordance anchored to the flagship
+  // sprite. Reuses leaveBridge() verbatim; the topbar 下舰桥 stays as a
+  // shortcut. Only meaningful while piloting the flagship bridge (an MS pilot
+  // docks via 返航 instead). Follows the sprite because TacticalView already
+  // re-renders at 30 Hz off `tick`.
+  const seatAnchor = flagshipPiloted && rendererRef.current
+    ? rendererRef.current.worldToScreen(player.pos.x, player.pos.y)
+    : null
+
   const onWeaponModeClick = (mountIdx: number) => (ev: React.MouseEvent) => {
     ev.stopPropagation()
     if (!flagshipPiloted) return
@@ -971,6 +980,22 @@ export function TacticalView() {
           <EnemyHud key={en.key} title={en.nameZh} snap={en} />
         ))}
       </div>
+
+      {seatAnchor && (
+        <button
+          className="tactical-seat-exit"
+          data-tactical-seat-exit="true"
+          onClick={() => { playUi('ui.tactical.toggle-pause'); leaveBridge() }}
+          style={{
+            position: 'absolute',
+            left: seatAnchor.x,
+            top: seatAnchor.y,
+            transform: 'translate(-50%, calc(-100% - 28px))',
+          }}
+        >
+          下舰桥
+        </button>
+      )}
 
       {showFlash && <div className="tactical-flash">{lastFlashZh}</div>}
 

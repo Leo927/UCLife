@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useEngagement } from '../sim/engagement'
 import { playUi } from '../audio/player'
 import { combatConfig } from '../config'
+import { negotiationTollFor, getAvatarMoney } from '../systems/combat'
 
 const SHIP_CLASS_NAMES_ZH: Record<string, string> = {
   pirate_skirmisher: '海盗游击艇',
@@ -37,6 +38,12 @@ export function EngagementModal() {
     ? `护航: ${enemyEscorts.map(shipClassLabel).join(' · ')}`
     : null
 
+  // W4 Task 7 — negotiate toll (config × escort count). The avatar's balance
+  // gates whether the toll can be paid; too poor and the button relabels +
+  // disables so the only remaining diegetic choice is to fight or flee.
+  const toll = negotiationTollFor(enemyEscorts.length)
+  const canAffordToll = getAvatarMoney() >= toll
+
   return (
     <div className="status-overlay">
       <div className="status-panel" onClick={(e) => e.stopPropagation()}>
@@ -52,10 +59,22 @@ export function EngagementModal() {
         </section>
         <section className="status-section" style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button onClick={() => { playUi('ui.engagement.negotiate'); resolve('negotiate') }}>尝试谈判</button>
+            <button
+              data-engagement-negotiate
+              disabled={!canAffordToll}
+              onClick={() => { playUi('ui.engagement.negotiate'); resolve('negotiate') }}
+            >
+              {canAffordToll ? `尝试谈判 · ¥${toll}` : `谈判需 ¥${toll}`}
+            </button>
             <button onClick={() => { playUi('ui.engagement.flee'); resolve('flee') }}>脱离</button>
             <button onClick={() => { playUi('ui.engagement.engage'); resolve('engage') }}>交战</button>
           </div>
+          {/* W4 Task 7 — negotiate toll subtitle, mirroring the flee-cost copy
+              below: config toll × the fleet's escort count, the price of a
+              clean disengage. */}
+          <p className="map-place-desc" style={{ margin: 0 }}>
+            谈判 · 通行费 ¥{toll}{canAffordToll ? '' : ' · 资金不足'}
+          </p>
           {/* W2 Task 3 — fleet's consequence is silent no longer; the same
               combat.json5 penalty values drive this modal subtitle, displaying
               the hull and CR cost of disengagement. */}

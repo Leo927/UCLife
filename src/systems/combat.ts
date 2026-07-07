@@ -994,6 +994,43 @@ export function resolveFleeWithDebrief(): void {
   })
 }
 
+// W4 Task 7 — negotiate toll. Pure config × the hostile fleet's escort
+// count, so the pre-combat modal and the resolution path compute the same
+// number without threading state.
+export function negotiationTollFor(escortCount: number): number {
+  const { tollBase, tollPerEscort } = combatConfig.negotiate
+  return tollBase + tollPerEscort * escortCount
+}
+
+// The Money-bearing AVATAR's current balance (findPlayer resolves the same
+// entity the victory/defeat payouts credit — never the spaceCampaign
+// IsPlayer ship). Surfaced so the engagement modal can gate the negotiate
+// button on affordability.
+export function getAvatarMoney(): number {
+  return findPlayer()?.get(Money)?.amount ?? 0
+}
+
+// W4 Task 7 — negotiate = clean peaceful disengage on a paid toll. Debits the
+// toll off the avatar and opens a debrief beat (no flee penalty, no fight).
+// Returns false when the avatar can't afford it, so the caller escalates to
+// startCombat instead — money is never debited on the false path.
+export function resolvePeacefulDisengage(escortCount: number): boolean {
+  const toll = negotiationTollFor(escortCount)
+  const player = findPlayer()
+  const money = player?.get(Money)?.amount ?? 0
+  if (!player || money < toll) return false
+  player.set(Money, { amount: money - toll })
+  logEvent(`谈判达成 · 支付通行费 ¥${toll}`)
+  emitSim('ui:open-combat-debrief', {
+    outcome: 'negotiate',
+    lines: [
+      { labelZh: '通行费', valueZh: `-¥${toll}` },
+      { labelZh: '结果', valueZh: '和平脱离 · 舰队无损' },
+    ],
+  })
+  return true
+}
+
 // W2 Task 3 — mid-combat withdraw. Locked decision: always available and
 // CP-free (no orderCosts row — unlike rally/focusFire/regroup, this isn't a
 // comm-authority order, it's an emergency disengage). Routes through the
