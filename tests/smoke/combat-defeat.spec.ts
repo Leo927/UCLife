@@ -94,7 +94,7 @@ test('combat defeat: flagship destroyed mid-tick resolves cleanly (no crash)', a
     for (let i = 0; i < maxTicks; i++) {
       const combat = u.getGameState().getCombat()
       if (!combat.isOpen()) return { closedAtTick: i }
-      if (combat.isPaused()) u.useCombatStore.getState().togglePause()
+      if (combat.isPaused()) u.setCombatPaused(false)
       u.tickCombatSystem(dt)
     }
     return { closedAtTick: -1 }

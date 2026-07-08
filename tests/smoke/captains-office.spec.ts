@@ -85,12 +85,9 @@ test('captains office: adjutant, brig capacity, POW capture, panels', async ({ s
     })
   }, STEP_BUDGET_MIN)
 
-  // 4. Resolve combat — unpause then fastWin.
-  await sim.page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // 4. Resolve combat — resume the clock (the single time authority) then fastWin.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await sim.page.evaluate(() => (window as any).__uclife__.fastWinCombat())
   await sim.page.evaluate(async (mins) => {

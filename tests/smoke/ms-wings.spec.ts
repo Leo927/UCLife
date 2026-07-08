@@ -55,11 +55,8 @@ async function bootAndLaunchWings(
 
   await sim.stepUntil(() => (window as any).__uclife__.useCombatStore.getState().open === true, STEP_BUDGET_MIN)
 
-  // Tactical opens paused on first contact — unpause so combatSystem ticks.
-  await sim.page.evaluate(() => {
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // Tactical opens paused (clock stopped) on first contact — resume so combatSystem ticks.
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   const cpBefore = (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).current
 
@@ -157,8 +154,7 @@ test('ms-wings: a dry wing docks, resupplies, and relaunches', async ({ sim }) =
       u.setCombatPosCheat('ship', 120, 120)
       u.setCombatPosCheat('wing-ms-b', 120, 220)
       u.setCombatPosCheat('enemy-ship-0', 950, 550)
-      const cs = u.useCombatStore.getState()
-      if (cs.paused) cs.togglePause()
+      u.setCombatPaused(false)
       u.tickCombatSystem(100)
       const ms = u.getMs('ms-a')
       if ((ms?.resupplySecTotal ?? 0) > 0) dockedResup = true

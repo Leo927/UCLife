@@ -57,10 +57,7 @@ async function bootIntoCombat(sim: Sim): Promise<void> {
   await sim.boot({ fixture: 'ms-ejection', requireHandles: REQUIRED_HANDLES })
   await sim.page.evaluate(() => (window as any).__uclife__.startCombatCheat('pirateLight', [], null))
   await sim.stepUntil(() => (window as any).__uclife__.useCombatStore.getState().open === true, STEP_BUDGET_MIN)
-  await sim.page.evaluate(() => {
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 }
 
 // Launch the player's MS and wait until the cockpit binds to it.
@@ -85,10 +82,10 @@ async function destroyAndConfirmEject(sim: Sim): Promise<void> {
   // The destruction beat auto-pauses (post-combat.md designed pause set) and
   // arms the confirm.
   const beat = await sim.page.evaluate(() => ({
-    paused: (window as any).__uclife__.useCombatStore.getState().paused,
+    paused: (window as any).__uclife__.getGameState().getCombat().isPaused(),
     pendingConfirm: (window as any).__uclife__.ejectionState().pendingConfirm,
   }))
-  expect(beat.paused, 'MS destruction must auto-pause the tactical').toBe(true)
+  expect(beat.paused, 'MS destruction must auto-pause the tactical (stop the clock)').toBe(true)
   expect(beat.pendingConfirm, 'the eject confirm beat must be armed').toBe(true)
 
   // Real DOM confirm — the modal is a beat, not a choice.
@@ -107,14 +104,15 @@ test('ms-ejection: destroy → confirm beat → pod → victory recovery applies
     ejection: (window as any).__uclife__.ejectionState(),
     ms: (window as any).__uclife__.msState(),
     piloting: (window as any).__uclife__.useCockpit.getState().piloting,
-    combat: (window as any).__uclife__.useCombatStore.getState(),
+    combatOpen: (window as any).__uclife__.useCombatStore.getState().open,
+    combatPaused: (window as any).__uclife__.getGameState().getCombat().isPaused(),
   }))
   expect(after.ejection.pendingConfirm, 'confirm must clear the pending beat').toBe(false)
   expect(after.ejection.pods[0].kind, 'the drifting pod is the player pod').toBe('player')
   expect(after.ms, 'the MS clone must despawn on eject').toBeNull()
   expect(after.piloting, 'the pilot is in the pod — no piloted unit').toBeNull()
-  expect(after.combat.open, 'the tactical view stays open — the player watches').toBe(true)
-  expect(after.combat.paused, 'combat resumes after the confirm beat').toBe(false)
+  expect(after.combatOpen, 'the tactical view stays open — the player watches').toBe(true)
+  expect(after.combatPaused, 'combat resumes (clock runs) after the confirm beat').toBe(false)
 
   // The pod drifts under sim time (velocity inherited from the dead MS).
   const rosterAfterEject = await sim.page.evaluate(
@@ -156,8 +154,8 @@ test('ms-ejection: life support at zero forces the eject beat', async ({ sim }) 
   // of sim time → forced eject arms the same confirm beat.
   await sim.stepUntil(() => (window as any).__uclife__.ejectionState().pendingConfirm === true, STEP_BUDGET_MIN)
   expect(
-    await sim.page.evaluate(() => (window as any).__uclife__.useCombatStore.getState().paused),
-    'the forced eject must auto-pause the tactical',
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isPaused()),
+    'the forced eject must auto-pause the tactical (stop the clock)',
   ).toBe(true)
 
   await sim.page.waitForSelector('[data-eject-confirm]', { timeout: 5_000 })

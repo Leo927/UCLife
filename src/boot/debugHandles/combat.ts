@@ -41,6 +41,7 @@ import {
 } from '../../sim/cockpit'
 import { useBrig, getBrigOccupancy } from '../../sim/brig'
 import { useUI } from '../../ui/uiStore'
+import { useClock } from '../../sim/clock'
 
 function findAnyPlayer(): Entity | undefined {
   for (const id of SCENE_IDS) {
@@ -53,6 +54,17 @@ function findAnyPlayer(): Entity | undefined {
 registerDebugHandle('useCombatStore', useCombatStore)
 registerDebugHandle('useTransition', useTransition)
 registerDebugHandle('useEngagement', useEngagement)
+
+// Single time authority: tactical pause IS the game clock stopping
+// (clock.speed === 0). There is no separate combat-store paused flag. Smoke
+// tests that need the arena to tick (resume) or that assert the paused beat
+// go through this + getGameState().getCombat().isPaused() instead of poking
+// a store flag. In test mode this only flips the pause gate — sim time is
+// advanced by step()/stepFor, never by speed.
+registerDebugHandle('setCombatPaused', (paused: boolean) => {
+  useClock.getState().setSpeed(paused ? 0 : 1)
+  return true
+})
 
 // Skip the contact-detection + modal flow for smoke tests / dev poking —
 // jump straight into a tactical engagement against the named enemy class.

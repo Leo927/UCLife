@@ -91,11 +91,8 @@ test('ms-pilot quality: enemy-MS reaction-gated targeting + boost use are live i
     `expected at least one enemy MS row from msComplement, got: ${JSON.stringify(beforeEntities)}`,
   ).toBeGreaterThan(0)
 
-  // Resume — combat opens paused on the first-contact briefing.
-  await sim.page.evaluate(() => {
-    const uu = (window as any).__uclife__
-    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-  })
+  // Resume — combat opens paused (clock stopped) on the first-contact briefing.
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   // A single small step — enough for combatSystem to tick at least once
   // (reaction-gate acquisition is immediate on first contact, no delay), but
@@ -125,8 +122,7 @@ test('ms-pilot quality: enemy-MS reaction-gated targeting + boost use are live i
     )
     if (!stillOpen) break
     await sim.page.evaluate(() => {
-      const uu = (window as any).__uclife__
-      if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
+      (window as any).__uclife__.setCombatPaused(false)
     })
     await sim.stepFor(COMBAT_DRIVE_STAGE_MIN)
 

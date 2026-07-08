@@ -96,10 +96,7 @@ async function bootCombatOnStarterFleet(sim: {
       && (window as any).__uclife__.useCockpit.getState().piloting === 'flagship',
     STEP_BUDGET_MIN,
   )
-  await sim.page.evaluate(() => {
-    const uu = (window as any).__uclife__
-    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-  })
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 }
 
 const TICK_DT_MS = 500
@@ -121,10 +118,7 @@ async function bootCombatWithTwoEnemies(sim: { page: import('@playwright/test').
   // Pin mount 1's weapon explicitly (it already ships armed post-#165) so
   // this test's assumptions don't silently drift with the authored loadout.
   await sim.page.evaluate(() => (window as any).__uclife__.armWeaponMountForTest(1, 'beamMk1'))
-  await sim.page.evaluate(() => {
-    const uu = (window as any).__uclife__
-    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-  })
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 }
 
 test('fire modes: hold blocks a mount\'s fire while a sibling mount on auto keeps firing', async ({ sim }) => {
