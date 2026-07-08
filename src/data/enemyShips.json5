@@ -23,6 +23,13 @@
 // Phase 6.0 spine ships three classes. pirateLight is the baseline learner;
 // pirate_skirmisher and pirate_raider are the campaign-map roster referenced
 // by space-entities.json5.
+//
+// pirate_corsair is the first-sortie teacher: fast + laterally jinky + barely
+// armed. A light freighter's two FIXED ±15° bow beams (maxAngVel 1.5) can't
+// hold it in cone, so the flagship can't solo-kill it quickly — the player's
+// nimble MS pins it. Its single weak gun can't threaten the freighter, so
+// leaving the helm to sortie mid-fight is a safe first lesson (one-clock model:
+// the fight runs on AI while you walk). Balance rests on GEOMETRY, not HP.
 
 {
   ships: [
@@ -62,6 +69,44 @@
       // Recover needs idle flagship crew ≥ ceil(crewRequired / prizeCrewDivisor).
       recoverTemplateId: 'lunarMilitia',
       crewRequired: 8,
+    },
+
+    // First-sortie teacher (see header). Fast + jinky so a freighter's fixed
+    // bow beams can't hold arc; ~770 effective HP (NOT a sponge — the low DPS
+    // uptime, not the HP, is what stretches solo TTK). ONE weak beam so the
+    // freighter is never in danger while the player is off the helm. Cannot
+    // flee (retreatThresholdPct 0) so the engagement always resolves.
+    // topSpeed 95 > freighter 60 (can't be chased into arc) < gm_pre 180 (the
+    // MS runs it down). Starting values — tuned against the real arc/AI code.
+    {
+      id: 'pirate_corsair',
+      nameZh: '海盗突袭艇',
+      descZh: '轻快的海盗突袭艇；火力孱弱却难缠——货船的固定炮很难套住它。',
+      hullMax: 650,
+      armorMax: 120,
+      fluxMax: 800,
+      fluxDissipation: 50,
+      hasShield: false,
+      shieldEfficiency: 1.0,
+      topSpeed: 95,
+      accel: 110,
+      decel: 55,
+      angularAccel: 7.0,
+      maxAngVel: 2.8,
+      mounts: [
+        { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },
+      ],
+      defaultWeapons: ['pirateBeamMk0'],
+      ai: {
+        aggression: 0.5,
+        retreatThresholdPct: 0.0,
+        maintainRange: 180,
+      },
+      salvage: [
+        { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.4, qty: 1 },
+      ],
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 6,
     },
 
     // Patrol-grade skirmisher — the standard pirate presence in the lunar shoal
