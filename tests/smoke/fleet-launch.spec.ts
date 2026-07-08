@@ -291,8 +291,7 @@ test('active-fleet auto-launch, cross-POI transit, formation, save round-trip', 
   await sim.page.evaluate(() => (window as any).__uclife__.fastWinCombat())
   await sim.page.evaluate(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
+    (window as any).__uclife__.setCombatPaused(false)
   })
   await sim.page.evaluate(async (mins) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

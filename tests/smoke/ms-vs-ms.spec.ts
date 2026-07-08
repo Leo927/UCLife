@@ -90,10 +90,7 @@ test('MS complement: a campaign group with msComplement fields enemy MS rows tha
   expect(flagshipBefore, 'flagship CombatShipState row must exist').toBeTruthy()
 
   // Resume — combat opens paused on the first-contact briefing.
-  await sim.page.evaluate(() => {
-    const uu = (window as any).__uclife__
-    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-  })
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   // Drive sim time in stages until either the fight resolves or the drive
   // budget runs out; re-resume on any auto-pause threshold along the way.
@@ -102,10 +99,7 @@ test('MS complement: a campaign group with msComplement fields enemy MS rows tha
       () => (window as any).__uclife__.useCombatStore.getState().open,
     )
     if (!stillOpen) break
-    await sim.page.evaluate(() => {
-      const uu = (window as any).__uclife__
-      if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-    })
+    await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
     await sim.stepFor(COMBAT_DRIVE_STAGE_MIN)
   }
 
@@ -185,10 +179,7 @@ test('MS complement: player-MS HUD only reflects the player-side MS, never an en
   ).toBeGreaterThan(0)
 
   // Resume — combat opens paused on the first-contact briefing.
-  await sim.page.evaluate(() => {
-    const uu = (window as any).__uclife__
-    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-  })
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   // Before the player launches their own MS, only a hostile MS exists in
   // the tactical world. The player-MS HUD must not render at all — it is

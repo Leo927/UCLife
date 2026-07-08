@@ -122,11 +122,8 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
   // + first-contact entry). The door-cycle tick is gated by the combat
   // tick, so leave combat paused = leave doors frozen. Unpause once so
   // the sortie systems can advance for the rest of the scenario.
-  await sim.page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   // ── 2. Verify the starter MS is in the roster with caps seeded ─────────
   const beforeLaunch = await sim.page.evaluate(
@@ -286,11 +283,8 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
   expect(tugs.length, 'one tug should be active after dispatch').toBe(1)
 
   // Make sure combat isn't paused so the systems can tick.
-  await sim.page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   await sim.page.evaluate(async (mins) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -348,7 +342,7 @@ test('ms-sortie: per-MS resources + tug + resupply + relaunch at door', async ({
   // ── 9. Assert no auto-pause on resupply complete ──────────────────────
   const combatPaused = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    () => (window as any).__uclife__.useCombatStore.getState().paused,
+    () => (window as any).__uclife__.getGameState().getCombat().isPaused(),
   )
   expect(
     combatPaused,
@@ -412,11 +406,8 @@ test('ms-sortie: real combat drains propellant to stranded and depletes ammo (no
 
   // Combat opens auto-paused on first contact — unpause so the tactical
   // physics tick actually advances while we drive real input below.
-  await sim.page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   const launchRes = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

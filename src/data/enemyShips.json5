@@ -23,6 +23,14 @@
 // Phase 6.0 spine ships three classes. pirateLight is the baseline learner;
 // pirate_skirmisher and pirate_raider are the campaign-map roster referenced
 // by space-entities.json5.
+//
+// pirate_corsair is the first-sortie encounter: a tougher, longer-lived picket
+// (hull outlasts a light freighter's ~1-minute grind) carrying ONE weak beam,
+// so it can't threaten the 800-hull freighter while the captain is off the
+// bridge. That makes leaving the helm to sortie an MS a SAFE first lesson under
+// the one-clock model (the fight runs on AI while you're away); the flagship
+// finishes it once you retake the helm. See space-entities.json5 for its role
+// as the Von Braun home picket.
 
 {
   ships: [
@@ -62,6 +70,46 @@
       // Recover needs idle flagship crew ≥ ceil(crewRequired / prizeCrewDivisor).
       recoverTemplateId: 'lunarMilitia',
       crewRequired: 8,
+    },
+
+    // First-sortie encounter. A tougher, faster picket than pirateLight — hull
+    // sized so it OUTLASTS the player's off-helm MS sortie (a light freighter's
+    // beams grind it down over ~a minute of continuous fire, and the bounded
+    // sortie bursts never run that long), then is finished when the player
+    // retakes the helm. ONE weak beam so the freighter (800 hull) is never in
+    // danger while the captain is off the bridge — the safe first lesson that
+    // you CAN leave the helm mid-fight. Cannot flee (retreatThresholdPct 0) so
+    // the engagement always resolves to a guaranteed kill. topSpeed 90 > the
+    // freighter's 60 but < gm_pre's 180, so the sortied MS can run it down.
+    {
+      id: 'pirate_corsair',
+      nameZh: '海盗突袭艇',
+      descZh: '结实的海盗突袭艇；比寻常护卫艇更耐揍，货船的轻炮要磨上好一阵才能击穿。',
+      hullMax: 1300,
+      armorMax: 250,
+      fluxMax: 900,
+      fluxDissipation: 55,
+      hasShield: false,
+      shieldEfficiency: 1.0,
+      topSpeed: 90,
+      accel: 100,
+      decel: 50,
+      angularAccel: 6.0,
+      maxAngVel: 2.2,
+      mounts: [
+        { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },
+      ],
+      defaultWeapons: ['pirateBeamMk0'],
+      ai: {
+        aggression: 0.6,
+        retreatThresholdPct: 0.0,
+        maintainRange: 150,
+      },
+      salvage: [
+        { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.4, qty: 1 },
+      ],
+      recoverTemplateId: 'lunarMilitia',
+      crewRequired: 6,
     },
 
     // Patrol-grade skirmisher — the standard pirate presence in the lunar shoal

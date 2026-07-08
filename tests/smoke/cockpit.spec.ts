@@ -249,11 +249,8 @@ test('cockpit: launch MS, dock, re-helm flagship', async ({ sim }) => {
   }, STEP_BUDGET_MIN)
 
   // Resolve cleanly via fastWinCombat.
-  await sim.page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
   const won = await sim.page.evaluate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => (window as any).__uclife__.fastWinCombat(),
@@ -515,13 +512,10 @@ test('cockpit: HUD gauges render only while piloting and track real propellant/a
     GAUGE_STEP_BUDGET_MIN,
   )
 
-  // Combat opens auto-paused on first contact — unpause so the tactical
-  // physics tick actually advances while we drive real input below.
-  await sim.page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cs = (window as any).__uclife__.useCombatStore.getState()
-    if (cs.paused) cs.togglePause()
-  })
+  // Combat opens auto-paused on first contact — resume the clock (the single
+  // time authority) so the tactical physics tick advances under real input.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   // Swap hp-0 to a finite-ammo ballistic gun BEFORE launch — gm_pre's
   // default beamRifle never depletes (Infinity ammo), so this test's real

@@ -64,12 +64,9 @@ test('fleet orders: focus-fire retargets, rally steers, regroup clears', async (
 
   const maxCp = (await sim.page.evaluate(() => (window as any).__uclife__.commandPoolDescribe())).max
 
-  // Tactical opens paused (first-contact briefing) — unpause so tickCombatSystem
-  // actually advances the directive + physics loop.
-  await sim.page.evaluate(() => {
-    const uu = (window as any).__uclife__
-    if (uu.useCombatStore.getState().paused) uu.useCombatStore.getState().togglePause()
-  })
+  // Tactical opens paused (clock stopped) on the first-contact briefing —
+  // resume so tickCombatSystem advances the directive + physics loop.
+  await sim.page.evaluate(() => (window as any).__uclife__.setCombatPaused(false))
 
   // ── 1. Focus-fire on the non-lead enemy overrides target selection. ────
   const focusOrder = await sim.page.evaluate(
@@ -225,8 +222,8 @@ test('order palette (real input): click-target rally + focus-fire, Esc/empty-cli
   // Tactical opens paused on first contact — the palette must accept orders
   // right here, before the player ever unpauses.
   expect(
-    await sim.page.evaluate(() => (window as any).__uclife__.useCombatStore.getState().paused),
-    'tactical view opens paused on first contact',
+    await sim.page.evaluate(() => (window as any).__uclife__.getGameState().getCombat().isPaused()),
+    'tactical view opens paused (clock stopped) on first contact',
   ).toBe(true)
 
   // ── Esc cancels a pending order — no CP spent, armed state reverts ────

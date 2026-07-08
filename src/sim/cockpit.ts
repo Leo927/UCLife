@@ -566,6 +566,12 @@ export function leaveBridge(): void {
     }
   }
   ensureTacticalOpen(false)
+  // Single time authority: the tactical auto-pause stops the game clock
+  // (speed=0), which also freezes on-foot movement. Off the helm there's
+  // no tactical control a pause serves, so resume time — the fight runs on
+  // AI while the player walks the interior. Without this, leaving a paused
+  // fight drops the avatar into a frozen world and it can't move.
+  useClock.getState().setSpeed(1)
 
   adjutantSay('舰长离桥 · 自动驾驶启动', 'warn')
   logEvent('离开舰桥 · 旗舰自动驾驶接管')

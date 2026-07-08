@@ -97,10 +97,12 @@ describe('getGameState', () => {
     expect(getGameState().getPlayerCharacter().getActionKind()).toBe('idle')
   })
 
-  it('getCombat reads the tactical-combat store (closed + paused by default)', () => {
+  it('getCombat reads the tactical overlay + the single time authority (clock.speed)', () => {
     applyFixture('minimal-player-only')
     expect(getGameState().getCombat().isOpen()).toBe(false)
-    expect(getGameState().getCombat().isPaused()).toBe(true)
+    // Pause is clock.speed===0; a fresh fixture boots with the clock running,
+    // so the combat view reports not-paused when no fight has stopped time.
+    expect(getGameState().getCombat().isPaused()).toBe(false)
   })
 
   it('getCombat.getCommandPool mirrors commandPoolDescribe (empty pool pre-engagement)', () => {

@@ -120,11 +120,14 @@
     // contact and Char's heavier 1-v-3 is deliberate mid-game content the
     // player must fly out to.
     {
-      // W1 Task 10 — the winnable starter encounter. One weak pirateLight,
-      // no escorts, station-keeping just off the Von Braun approach.
+      // W1 Task 10 — the winnable starter encounter, station-keeping just off
+      // the Von Braun approach. A pirate_corsair: a tougher, longer-lived picket
+      // than a plain pirateLight, so the fight outlasts an off-helm MS sortie
+      // (the freighter grinds it down over ~a minute) — the first-sortie
+      // encounter. Helm-winnable, or launch the MS to run it down. Solo.
       id: 'pirate-lunar-starter',
       kind: 'enemyShip',
-      shipClassId: 'pirateLight',
+      shipClassId: 'pirate_corsair',
       // Closer to Von Braun than any other pirate (680px vs lunar-1's 732px),
       // so "nearest authored enemy" resolvers (fuel-budget / intercept smokes)
       // target this big-aggro, reliably-chasing picket rather than a small-aggro
@@ -139,7 +142,10 @@
       // pirate-lunar-4: the sole near-moon patrol that "genuinely pursues"
       // an undocking ship, so the earned-start intercept reliably converges.
       aggroRadius: 3750,
-      fleeHullPct: 0.2,
+      // Never flees the campaign map: the first-sortie journey must be able to
+      // resolve the engagement to a guaranteed kill (a kiting picket could
+      // never be reliably kill-confirmed off the helm).
+      fleeHullPct: 0.0,
       // Follow the moon so it stays on the Von Braun approach at all times —
       // the dock orbits ~90deg away over a multi-day delivery wait, and a
       // fixed-coord patrol would be orphaned far from where the player undocks.

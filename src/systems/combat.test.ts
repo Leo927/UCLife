@@ -24,8 +24,9 @@ import {
   Ship, IsFlagshipMark, CombatShipState, EntityKey, WeaponMount,
 } from '../ecs/traits'
 import { getWorld, setActiveSceneId } from '../ecs/world'
+import { useClock } from '../sim/clock'
 import {
-  combatSystem, useCombatStore, tryBoost, __resetCombatProjectilesForTest,
+  combatSystem, tryBoost, __resetCombatProjectilesForTest,
   resolveReactionGatedTargetKey, jitterAimAngle, beamHitChance,
 } from './combat'
 import { getWeapon } from '../data/weapons'
@@ -197,14 +198,48 @@ function spawnReadyBeamEnemy(key: string, pos: { x: number; y: number }): Entity
 
 beforeEach(() => {
   setActiveSceneId(SHIP_SCENE_ID)
-  useCombatStore.setState({ paused: false })
+  // combatSystem gates on the single time authority (clock.speed); a running
+  // clock is what lets these direct-invocation tests tick the arena.
+  useClock.setState({ speed: 1 })
   __resetCombatProjectilesForTest()
 })
 
 afterEach(() => {
   for (const e of spawned) if (e.id !== undefined) e.destroy()
   spawned.length = 0
-  useCombatStore.setState({ paused: true })
+  useClock.setState({ speed: 0 })
+})
+
+// The unified time authority: combat pause IS the game clock stopping. The
+// arena tick must be gated on clock.speed, not a separate combat-store flag.
+// Observable is enemy AI physics (thrust toward its only hostile, the
+// flagship) — deterministic, no accuracy RNG in the loop.
+describe('combatSystem — clock.speed is the single pause authority', () => {
+  it('a stopped clock (speed=0) freezes the arena — no physics tick', () => {
+    spawnFlagship()
+    const enemy = spawnReadyBeamEnemy('enemy-a', { x: 520, y: 500 })
+    const before = { ...enemy.get(CombatShipState)!.pos }
+
+    useClock.setState({ speed: 0 })
+    combatSystem(getWorld(SHIP_SCENE_ID), 16)
+
+    const after = enemy.get(CombatShipState)!.pos
+    expect(after.x === before.x && after.y === before.y,
+      'a stopped clock must freeze the arena — enemy must not move').toBe(true)
+  })
+
+  it('a running clock (speed=1) ticks the arena physics', () => {
+    spawnFlagship()
+    const enemy = spawnReadyBeamEnemy('enemy-a', { x: 520, y: 500 })
+    const before = { ...enemy.get(CombatShipState)!.pos }
+
+    useClock.setState({ speed: 1 })
+    for (let i = 0; i < 5; i++) combatSystem(getWorld(SHIP_SCENE_ID), 16)
+
+    const after = enemy.get(CombatShipState)!.pos
+    expect(after.x !== before.x || after.y !== before.y,
+      'a running clock must tick the arena — enemy AI thrust moves it').toBe(true)
+  })
 })
 
 describe('combatSystem — §4 enemy fire loop same-tick-destroy liveness (review finding)', () => {

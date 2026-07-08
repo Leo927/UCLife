@@ -1,7 +1,8 @@
 // Combat is transient by design — combat-time saves are refused (see
 // saveGame's mode==='combat' guard). This handler only runs on load,
-// resetting any stale store state (open modal, paused flag, charge
-// timers) regardless of what the bundle says.
+// resetting any stale store state (open modal, charge timers) regardless
+// of what the bundle says. Pause is not stored here — it's clock.speed,
+// owned by the clock save handler.
 
 import { registerSaveHandler } from '../../save/registry'
 import { useCombatStore } from '../../systems/combat'

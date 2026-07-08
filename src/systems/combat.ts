@@ -2,7 +2,9 @@
 // pause: ship position/velocity/heading, hardpoint weapons firing in arcs
 // + range, projectile entities, flux/shields/armor/hull damage routing.
 //
-// Tick model (per frame, when clock.mode === 'combat' AND store.paused === false):
+// Tick model (per frame, when clock.mode === 'combat' AND clock.speed !== 0 —
+// the game clock is the single time authority; speed=0 pauses the arena and
+// the city sim alike):
 //   1. Player ship physics — Newtonian: WASD applies thrust at `accel` along
 //      the ship's local frame, no input applies passive `decel` against
 //      current velocity, |vel| capped at `topSpeed`. Heading uses bang-bang
@@ -24,7 +26,8 @@
 //     The player's CombatShipState is attached to the flagship entity
 //     at startCombat and stripped at endCombat. `isPlayer:true` flags it.
 //   - Module-local projectile pool (in-memory only, transient)
-//   - useCombatStore (UI state: open/paused/selectedMount/flash)
+//   - useCombatStore (UI state: open/selectedMount/flash). Pause is NOT here —
+//     it's clock.speed (see src/sim/clock.ts).
 
 import type { World } from 'koota'
 import type { Entity } from 'koota'
@@ -238,8 +241,7 @@ let activeCampaignEnemyKey: string | null = null
 // band. Reset on startCombat.
 let flagshipThresholdsHit: number[] = []
 function pauseTactical(reasonZh: string, severity: 'warn' | 'crit' = 'crit'): void {
-  const store = useCombatStore.getState()
-  if (!store.paused) store.togglePause()
+  useClock.getState().setSpeed(0)
   pushCombatLog(reasonZh, severity)
 }
 
@@ -282,7 +284,6 @@ const FIRE_MODE_CYCLE: Record<FireMode, FireMode> = {
 
 interface CombatState {
   open: boolean
-  paused: boolean
   // Recent flash banner (e.g. weapon hit)
   lastFlashZh: string
   lastFlashAtMs: number
@@ -304,7 +305,6 @@ interface CombatState {
   // away from 'volley' discards any pending request — see cycleFireMode.
   volleyRequested: Record<number, boolean>
   setOpen: (open: boolean) => void
-  togglePause: () => void
   setInputAxis: (axis: { forward: number; strafe: number }) => void
   setAimAtMouse: (on: boolean) => void
   setAimMouse: (m: { x: number; y: number } | null) => void
@@ -319,7 +319,6 @@ interface CombatState {
 
 export const useCombatStore = create<CombatState>((set) => ({
   open: false,
-  paused: true,
   lastFlashZh: '',
   lastFlashAtMs: 0,
   inputAxis: { forward: 0, strafe: 0 },
@@ -328,11 +327,6 @@ export const useCombatStore = create<CombatState>((set) => ({
   fireModeByMount: {},
   volleyRequested: {},
   setOpen: (open) => set({ open }),
-  togglePause: () => set((s) => {
-    const next = !s.paused
-    useClock.getState().setSpeed(next ? 0 : 1)
-    return { paused: next }
-  }),
   setInputAxis: (inputAxis) => set({ inputAxis }),
   setAimAtMouse: (aimAtMouse) => set({ aimAtMouse }),
   setAimMouse: (aimMouse) => set({ aimMouse }),
@@ -352,7 +346,6 @@ export const useCombatStore = create<CombatState>((set) => ({
   flash: (lastFlashZh) => set({ lastFlashZh, lastFlashAtMs: simNow() }),
   reset: () => set({
     open: false,
-    paused: true,
     lastFlashZh: '',
     lastFlashAtMs: 0,
     inputAxis: { forward: 0, strafe: 0 },
@@ -363,6 +356,15 @@ export const useCombatStore = create<CombatState>((set) => ({
   }),
   getProjectiles: () => projectiles.slice(),
 }))
+
+// Tactical pause toggle — flips the single time authority (clock.speed)
+// between stopped (0) and running (1). Bound to Space + the topbar button.
+// There is no separate combat-paused flag; pausing the fight and pausing
+// the world are the same act on the same clock.
+export function toggleCombatPause(): void {
+  const speed = useClock.getState().speed
+  useClock.getState().setSpeed(speed === 0 ? 1 : 0)
+}
 
 // Phase 6.1 — sim/cockpit emits this when launching, docking, taking
 // the helm, or leaving the bridge. Combat owns useCombatStore.open so
@@ -1315,8 +1317,8 @@ export function confirmPlayerEject(): boolean {
   if (!snap) return false
   spawnPlayerPod(snap)
   pushCombatLog('逃生舱弹出 · 在战场漂流 · 等待回收', 'crit')
-  const store = useCombatStore.getState()
-  if (store.paused) store.togglePause()
+  // The pause existed for the eject beat; confirming resumes the fight.
+  useClock.getState().setSpeed(1)
   return true
 }
 
@@ -2097,8 +2099,10 @@ export function combatSystem(_world: World, dtMs: number): void {
   if (enemies.length === 0) return
   const playerEnt = getPlayerCombatShip()
   if (!playerEnt) return
+  // Single time authority: the game clock. speed=0 (tactical pause, world
+  // pause, or auto-pause) stops the arena exactly as it stops the city sim.
+  if (useClock.getState().speed === 0) return
   const store = useCombatStore.getState()
-  if (store.paused) return
 
   const dtSec = dtMs / 1000
   const w = shipWorld()

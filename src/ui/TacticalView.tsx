@@ -10,8 +10,9 @@ import type { Application } from 'pixi.js'
 import {
   useCombatStore, ARENA_W, ARENA_H,
   getCombatPlayerPos, getCombatPlayerHeading, getBeamFlashes,
-  withdrawFromCombat, tryBoostPlayerMs, type FireMode,
+  withdrawFromCombat, tryBoostPlayerMs, toggleCombatPause, type FireMode,
 } from '../systems/combat'
+import { useClock } from '../sim/clock'
 import { useCombatLog, type CombatLogEntry } from '../sim/combatLog'
 import { simNow } from '../sim/time'
 import { combatConfig, fleetConfig, sortieConfig } from '../config'
@@ -613,7 +614,7 @@ function beamVisuals(): BeamFlashVisual[] {
 
 export function TacticalView() {
   const open = useCombatStore((s) => s.open)
-  const paused = useCombatStore((s) => s.paused)
+  const paused = useClock((s) => s.speed === 0)
   const lastFlashZh = useCombatStore((s) => s.lastFlashZh)
   const lastFlashAtMs = useCombatStore((s) => s.lastFlashAtMs)
   const fireModeByMount = useCombatStore((s) => s.fireModeByMount)
@@ -734,7 +735,7 @@ export function TacticalView() {
       }
       if (ev.code === 'Space') {
         ev.preventDefault()
-        useCombatStore.getState().togglePause()
+        toggleCombatPause()
         return
       }
       if (ev.code === 'Tab') {
@@ -1114,7 +1115,7 @@ function CockpitTopbar(props: {
   setPendingOrder: (o: PendingOrder) => void
 }) {
   const piloting = useCockpit((s) => s.piloting)
-  const togglePause = () => { playUi('ui.tactical.toggle-pause'); useCombatStore.getState().togglePause() }
+  const togglePause = () => { playUi('ui.tactical.toggle-pause'); toggleCombatPause() }
   const onLeaveBridge = () => { playUi('ui.tactical.toggle-pause'); leaveBridge() }
   const onDock = () => {
     playUi('ui.tactical.toggle-pause')

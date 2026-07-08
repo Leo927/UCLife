@@ -22,6 +22,7 @@ import {
   leaveBridge,
 } from './cockpit'
 import { useScene } from './scene'
+import { useClock } from './clock'
 import { routeDockedMsToResupply, tickResupply } from './sortieResupply'
 
 const SHIP_SCENE_ID = 'playerShipInterior'
@@ -301,6 +302,32 @@ describe('leaveBridge', () => {
       'leaveBridge must not clone a second interior avatar').toBe(1)
     expect(useScene.getState().activeId,
       'leaveBridge lands the player in the walkable ship interior').toBe(SHIP_SCENE_ID)
+  })
+
+  // Reported bug — the player could not walk the ship interior mid-combat.
+  // With a single time authority (clock.speed), the tactical auto-pause
+  // stops all sim time (speed=0), which also freezes on-foot movement.
+  // Stepping off the helm has no tactical control to justify a pause, so
+  // leaveBridge resumes time: the fight continues on AI and the avatar walks.
+  it('resumes the game clock so the avatar can walk (combat runs on AI)', () => {
+    spawnFlagship()
+    const w = getWorld(SHIP_SCENE_ID)
+    const avatar = w.spawn(
+      IsPlayer(), Position({ x: 0, y: 0 }),
+      MoveTarget({ x: 0, y: 0 }), Action({ kind: 'idle', remaining: 0, total: 0 }),
+      EntityKey({ key: 'player' }),
+    )
+    spawned.push(avatar)
+    setActiveSceneId(SHIP_SCENE_ID)
+    useScene.getState().setActive(SHIP_SCENE_ID)
+    // Combat auto-paused the single clock on first contact.
+    useClock.getState().setMode('combat')
+    useClock.getState().setSpeed(0)
+
+    leaveBridge()
+
+    expect(useClock.getState().speed,
+      'leaving the helm must resume sim time so the player can walk').toBe(1)
   })
 })
 

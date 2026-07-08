@@ -25,6 +25,7 @@ import {
 } from '../sim/diplomacy'
 import { getFleetPool, getDockedPoiId as getFleetDockedPoiId } from '../sim/ship'
 import { useEngagement } from '../sim/engagement'
+import { useClock } from '../sim/clock'
 import { IsPlayerFaction, FactionEffectsList, FactionSheet } from '../ecs/traits'
 import { factionPerkStoreView, type FactionPerkRow } from '../systems/factionPerks'
 import type { FactionStatId } from '../stats/factionSchema'
@@ -471,7 +472,8 @@ export function getGameState(): GameStateView {
     getCombat(): CombatView {
       return {
         isOpen: () => useCombatStore.getState().open,
-        isPaused: () => useCombatStore.getState().paused,
+        // Single time authority: paused ⇔ the game clock is stopped.
+        isPaused: () => useClock.getState().speed === 0,
         getCommandPool: () => commandPoolDescribe(),
       }
     },
