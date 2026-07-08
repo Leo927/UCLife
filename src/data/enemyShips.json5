@@ -24,12 +24,13 @@
 // pirate_skirmisher and pirate_raider are the campaign-map roster referenced
 // by space-entities.json5.
 //
-// pirate_corsair is the first-sortie teacher: fast + laterally jinky + barely
-// armed. A light freighter's two FIXED ±15° bow beams (maxAngVel 1.5) can't
-// hold it in cone, so the flagship can't solo-kill it quickly — the player's
-// nimble MS pins it. Its single weak gun can't threaten the freighter, so
-// leaving the helm to sortie mid-fight is a safe first lesson (one-clock model:
-// the fight runs on AI while you walk). Balance rests on GEOMETRY, not HP.
+// pirate_corsair is the first-sortie encounter: a tougher, longer-lived picket
+// (hull outlasts a light freighter's ~1-minute grind) carrying ONE weak beam,
+// so it can't threaten the 800-hull freighter while the captain is off the
+// bridge. That makes leaving the helm to sortie an MS a SAFE first lesson under
+// the one-clock model (the fight runs on AI while you're away); the flagship
+// finishes it once you retake the helm. See space-entities.json5 for its role
+// as the Von Braun home picket.
 
 {
   ships: [
@@ -71,36 +72,38 @@
       crewRequired: 8,
     },
 
-    // First-sortie teacher (see header). Fast + jinky so a freighter's fixed
-    // bow beams can't hold arc; ~770 effective HP (NOT a sponge — the low DPS
-    // uptime, not the HP, is what stretches solo TTK). ONE weak beam so the
-    // freighter is never in danger while the player is off the helm. Cannot
-    // flee (retreatThresholdPct 0) so the engagement always resolves.
-    // topSpeed 95 > freighter 60 (can't be chased into arc) < gm_pre 180 (the
-    // MS runs it down). Starting values — tuned against the real arc/AI code.
+    // First-sortie encounter. A tougher, faster picket than pirateLight — hull
+    // sized so it OUTLASTS the player's off-helm MS sortie (a light freighter's
+    // beams grind it down over ~a minute of continuous fire, and the bounded
+    // sortie bursts never run that long), then is finished when the player
+    // retakes the helm. ONE weak beam so the freighter (800 hull) is never in
+    // danger while the captain is off the bridge — the safe first lesson that
+    // you CAN leave the helm mid-fight. Cannot flee (retreatThresholdPct 0) so
+    // the engagement always resolves to a guaranteed kill. topSpeed 90 > the
+    // freighter's 60 but < gm_pre's 180, so the sortied MS can run it down.
     {
       id: 'pirate_corsair',
       nameZh: '海盗突袭艇',
-      descZh: '轻快的海盗突袭艇；火力孱弱却难缠——货船的固定炮很难套住它。',
-      hullMax: 650,
-      armorMax: 120,
-      fluxMax: 800,
-      fluxDissipation: 50,
+      descZh: '结实的海盗突袭艇；比寻常护卫艇更耐揍，货船的轻炮要磨上好一阵才能击穿。',
+      hullMax: 1300,
+      armorMax: 250,
+      fluxMax: 900,
+      fluxDissipation: 55,
       hasShield: false,
       shieldEfficiency: 1.0,
-      topSpeed: 95,
-      accel: 110,
-      decel: 55,
-      angularAccel: 7.0,
-      maxAngVel: 2.8,
+      topSpeed: 90,
+      accel: 100,
+      decel: 50,
+      angularAccel: 6.0,
+      maxAngVel: 2.2,
       mounts: [
         { idx: 0, size: 'small', firingArcDeg: 40, facingDeg: 0 },
       ],
       defaultWeapons: ['pirateBeamMk0'],
       ai: {
-        aggression: 0.5,
+        aggression: 0.6,
         retreatThresholdPct: 0.0,
-        maintainRange: 180,
+        maintainRange: 150,
       },
       salvage: [
         { partId: 'ms-beamRifle', kind: 'weapon', chance: 0.4, qty: 1 },

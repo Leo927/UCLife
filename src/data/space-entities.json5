@@ -121,10 +121,10 @@
     // player must fly out to.
     {
       // W1 Task 10 — the winnable starter encounter, station-keeping just off
-      // the Von Braun approach. A fast, arc-slipping pirate_corsair (not a
-      // brawler): a light freighter's fixed bow beams can't hold it in cone,
-      // so this is the first-sortie teacher — helm-winnable slowly, or launch
-      // the nimble MS to run it down. Solo, no escorts.
+      // the Von Braun approach. A pirate_corsair: a tougher, longer-lived picket
+      // than a plain pirateLight, so the fight outlasts an off-helm MS sortie
+      // (the freighter grinds it down over ~a minute) — the first-sortie
+      // encounter. Helm-winnable, or launch the MS to run it down. Solo.
       id: 'pirate-lunar-starter',
       kind: 'enemyShip',
       shipClassId: 'pirate_corsair',

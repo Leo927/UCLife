@@ -281,6 +281,21 @@ async function setTacticalPause(sim: any, want: boolean): Promise<void> {
     { message: `Space must drive the tactical pause to ${want}` }).toBe(want)
 }
 
+// One-clock model: leaving the helm RESUMES the single clock (the flagship
+// fights on AI in real time — that's the fix for "can't move in the ship
+// during combat"). The tactical overlay's Space toggle is gone off the helm,
+// so the clock is driven by the real HUD speed control. This helper stops the
+// clock via the HUD 暂停 button so the interior walk/climb can be fast-
+// forwarded (stepForCoarse) without the AI flagship grinding the corsair down
+// mid-logistics. The faithful "walk while the fight runs" behavior is proven
+// separately in walk-during-combat.spec.ts.
+async function pauseViaHud(sim: any): Promise<void> {
+  if (await combatFlag(sim, 'isPaused')) return
+  await sim.page.getByRole('button', { name: '暂停', exact: true }).click({ timeout: DOM_COMMIT_TIMEOUT_MS })
+  await expect.poll(() => combatFlag(sim, 'isPaused'),
+    { message: 'HUD 暂停 must stop the single clock once off the helm' }).toBe(true)
+}
+
 async function msPose(sim: any): Promise<{ pos: { x: number; y: number }; vel: { x: number; y: number }; heading: number } | null> {
   return sim.page.evaluate(() => (window as any).__uclife__.getPilotedMsState())
 }
@@ -566,9 +581,12 @@ test('journey: buy → board → helm → intercept → engage → win → tally
   ).toBeGreaterThanOrEqual(NEGOTIATE_TOLL_BASE)
 
   // ── 7. Engage and win on auto-fire ───────────────────────────────────
-  // The Von Braun coverer is now a single weak pirateLight (no escorts): a
-  // 1-v-1 the stock lightFreighter reliably wins on auto-fire, ending well
-  // above the 25% flagship-hull auto-pause, so the fight runs uninterrupted.
+  // The Von Braun coverer is a tougher pirate_corsair (no escorts) carrying a
+  // single weak beam: a 1-v-1 the stock lightFreighter reliably wins on
+  // auto-fire. It outlasts the mid-fight MS sortie (longer TTK than a plain
+  // picket), so the sortie proves out without the flagship auto-resolving the
+  // fight first; total incoming to the freighter matches the old 2-beam picket
+  // (fewer guns, longer fight), staying above the 25% flagship-hull auto-pause.
   const moneyBeforeFight = await sim.page.evaluate(() =>
     (window as any).__uclife__.getGameState().getPlayerCharacter().getResource('Money'))
 
@@ -634,17 +652,20 @@ test('journey: buy → board → helm → intercept → engage → win → tally
     'the wing-launch order stays disabled with no pilot-assigned MS aboard',
   ).toBeDisabled()
 
-  // Re-pause so the AI flagship can't resolve the fight while the player is
-  // off the helm walking the interior (combat only advances when a real
-  // Space unpauses it AND sim time is driven).
-  await setTacticalPause(sim, true)
-
   // Leave the bridge via the REAL topbar verb → overlay closes, avatar drops
-  // at the bridge in playerShipInterior, flagship goes on AI.
+  // at the bridge in playerShipInterior, flagship goes on AI. Under the one-
+  // clock model this RESUMES the clock (the fight now runs on AI in real time)
+  // — the fix for the "can't move in the ship during combat" bug.
   await sim.page.locator('.tactical-topbar').getByRole('button', { name: '下舰桥' })
     .click({ timeout: DOM_COMMIT_TIMEOUT_MS })
   await sim.page.waitForSelector('.tactical-overlay', { state: 'detached', timeout: CAMERA_TIMEOUT_MS })
   await waitForScene(sim, 'playerShipInterior')
+
+  // Freeze the fight via the real HUD control so the interior logistics below
+  // can be fast-forwarded without the AI flagship grinding the corsair down
+  // (see pauseViaHud). The corsair's longer TTK plus this frozen walk keep it
+  // alive until the player retakes the helm to finish it.
+  await pauseViaHud(sim)
 
   // Walk bridge → hangar bay and climb the starter MS (climbIntoMs → launchMs).
   await climbIntoHangarMs(sim)
